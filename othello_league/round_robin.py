@@ -9,9 +9,10 @@ from .elo import update_elo
 def run_round_robin(members, depth=4):
     """
     Aリーグの総当たり戦。全ペアが1回ずつ対局する。
-    戻り値: (順位確定済みリスト, 対局ログ)
+    戻り値: (順位確定済みリスト, 対局ログ, 勝ち点, 個体ごとの勝敗分dict)
     """
     score = {ind.id: 0.0 for ind in members}
+    record = {ind.id: {"win": 0, "loss": 0, "draw": 0} for ind in members}
     by_id = {ind.id: ind for ind in members}
     match_log = []
 
@@ -29,11 +30,17 @@ def run_round_robin(members, depth=4):
 
         if outcome_a == "win":
             score[ind_a.id] += 1.0
+            record[ind_a.id]["win"] += 1
+            record[ind_b.id]["loss"] += 1
         elif outcome_a == "loss":
             score[ind_b.id] += 1.0
+            record[ind_b.id]["win"] += 1
+            record[ind_a.id]["loss"] += 1
         else:
             score[ind_a.id] += 0.5
             score[ind_b.id] += 0.5
+            record[ind_a.id]["draw"] += 1
+            record[ind_b.id]["draw"] += 1
 
         match_log.append({
             "individual_a_id": ind_a.id, "individual_b_id": ind_b.id,
@@ -52,13 +59,13 @@ def run_round_robin(members, depth=4):
     tied_for_first = [i for i in ranked_ids if score[i] == top_score]
     if len(tied_for_first) > 1:
         print(f"    1位タイ（{len(tied_for_first)}名）→ 順位決定戦を実施")
-        ranked_ids = _resolve_first_place_tie(tied_for_first, ranked_ids, by_id, depth, match_log)
+        ranked_ids = _resolve_first_place_tie(tied_for_first, ranked_ids, by_id, depth, match_log, record)
 
     ranked_members = [by_id[i] for i in ranked_ids]
-    return ranked_members, match_log, score
+    return ranked_members, match_log, score, record
 
 
-def _resolve_first_place_tie(tied_ids, ranked_ids, by_id, depth, match_log):
+def _resolve_first_place_tie(tied_ids, ranked_ids, by_id, depth, match_log, record):
     """1位タイの場合のみ、当事者同士で順位決定戦を行う（2名なら1局、3名以上なら総当たり）"""
     tied_members = [by_id[i] for i in tied_ids]
     tie_score = {i: 0.0 for i in tied_ids}
@@ -72,6 +79,7 @@ def _resolve_first_place_tie(tied_ids, ranked_ids, by_id, depth, match_log):
         else:
             tie_score[ind_a.id] += 0.5
             tie_score[ind_b.id] += 0.5
+        # 順位決定戦は「今季の総当たり成績」とは別物なので、勝敗記録には含めない
 
         match_log.append({
             "individual_a_id": ind_a.id, "individual_b_id": ind_b.id,
