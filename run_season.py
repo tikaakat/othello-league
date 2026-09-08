@@ -107,6 +107,10 @@ def run_one_season(rosters, season, depth, swiss_rounds, state):
     pre_move_league_by_id = {ind.id: league_name for league_name, ranked in
                               (("A", ranked_A), ("B", ranked_B), ("C", ranked_C), ("D", ranked_D))
                               for ind in ranked}
+    # 「まだ一度も対局したことが無い（total_seasonsが0）」個体を、このシーズンの新規参入としてマークする
+    is_first_season_by_id = {ind.id: (ind.total_seasons == 0) for league_name, ranked in
+                              (("A", ranked_A), ("B", ranked_B), ("C", ranked_C), ("D", ranked_D))
+                              for ind in ranked}
 
     # --- タイトル戦 ---
     all_members = ranked_A + ranked_B + ranked_C + ranked_D
@@ -122,7 +126,6 @@ def run_one_season(rosters, season, depth, swiss_rounds, state):
     state["name_registry"] = registry.to_dict()
 
     # --- 昇降格・新規・引退マークを確定する ---
-    new_ids = {ind.id for ind in new_disciples}
     retired_ids = {ind.id for ind in retired}
     post_move_league_by_id = {ind.id: ind.league for league_list in rosters.values() for ind in league_list}
 
@@ -130,18 +133,14 @@ def run_one_season(rosters, season, depth, swiss_rounds, state):
         iid = row["individual_id"]
         if iid in retired_ids:
             row["movement"] = "retired"
+        elif is_first_season_by_id.get(iid):
+            row["movement"] = "new"
         elif iid in post_move_league_by_id and post_move_league_by_id[iid] != pre_move_league_by_id.get(iid):
             new_league, old_league = post_move_league_by_id[iid], pre_move_league_by_id.get(iid)
             league_rank = {"A": 0, "B": 1, "C": 2, "D": 3}
             row["movement"] = "promoted" if league_rank[new_league] < league_rank[old_league] else "relegated"
         else:
             row["movement"] = "stay"
-    for ind in new_disciples:
-        standings_snapshot.append({
-            "season": season, "league": "D", "rank": None,
-            "individual_id": ind.id, "display_name": ind.display_name,
-            "dojo": ind.dojo, "elo": round(ind.elo, 1), "movement": "new",
-        })
 
     print(f"  引退: {len(retired)}名（{', '.join(i.display_name for i in retired)}）" if retired else "  引退: なし")
     print(f"  新弟子: {len(new_disciples)}名")
