@@ -1,6 +1,7 @@
 from . import board as B
 from . import engine as E
 from .dojo import effective_params
+import random
 
 MAX_REMATCH_ATTEMPTS = 3  # 引き分けが続いた場合の再戦上限（それでも決着しなければ引き分け扱い）
 
@@ -41,21 +42,32 @@ def _outcome_from_score(my_score, opp_score):
 def play_league_match(ind_a, ind_b, depth=4, allow_rematch=True):
     """
     個体同士のリーグ戦対局。道場バフを反映したパラメータを使う。
+    先後は「それぞれの通算黒番回数が少ない方」を優先的に黒にすることで、
+    運任せではなく確実に均等（またはそれに近い状態）を保つ。
     引き分けの場合、先後を入れ替えて再戦する（allow_rematch=Trueの場合、規定回数まで）。
     それでも決着しなければ、最終的に引き分けとして確定する。
     """
     params_a = effective_params(ind_a)
     params_b = effective_params(ind_b)
 
-    a_is_black = True
+    # 黒番回数が少ない方を優先して黒にする。全く同数なら、五分五分の抽選で決める（ここだけは偏りようがない）
+    if ind_a.black_count < ind_b.black_count:
+        a_is_black = True
+    elif ind_a.black_count > ind_b.black_count:
+        a_is_black = False
+    else:
+        a_is_black = random.choice([True, False])
+
     all_games = []
 
     attempts = MAX_REMATCH_ATTEMPTS if allow_rematch else 1
     for attempt in range(attempts):
         if a_is_black:
             black, white, moves = _play(params_a, params_b, depth, depth)
+            ind_a.black_count += 1; ind_b.white_count += 1
         else:
             black, white, moves = _play(params_b, params_a, depth, depth)
+            ind_b.black_count += 1; ind_a.white_count += 1
 
         my_score = black if a_is_black else white
         opp_score = white if a_is_black else black
