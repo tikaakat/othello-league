@@ -14,6 +14,7 @@ class LeagueIndividual:
         self.dojo = dojo                  # 所属道場（8大流派名 or None＝無流派）
         self.buff_multiplier = None       # 道場バフの倍率（道場所属時のみ使用）
         self.display_name = display_name  # 人名（例：「佐藤2」）
+        self.awakened_param = None        # 覚醒で突破したパラメータ名（あれば）
         self.generation = generation
         self.parent_a_id = parent_a_id
         self.parent_b_id = parent_b_id
@@ -32,6 +33,7 @@ class LeagueIndividual:
             "dojo": self.dojo,
             "buff_multiplier": self.buff_multiplier,
             "display_name": self.display_name,
+            "awakened_param": self.awakened_param,
             "generation": self.generation,
             "parent_a_id": self.parent_a_id,
             "parent_b_id": self.parent_b_id,
@@ -51,6 +53,7 @@ class LeagueIndividual:
         )
         ind.elo = d.get("elo", 1500.0)
         ind.buff_multiplier = d.get("buff_multiplier")
+        ind.awakened_param = d.get("awakened_param")
         ind.seasons_in_league = d.get("seasons_in_league", 0)
         ind.total_seasons = d.get("total_seasons", 0)
         ind.retired = d.get("retired", False)
