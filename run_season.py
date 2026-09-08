@@ -105,11 +105,15 @@ def run_one_season(rosters, season, depth, swiss_rounds, state):
     for league_name, ranked in (("A", ranked_A), ("B", ranked_B), ("C", ranked_C), ("D", ranked_D)):
         for rank, ind in enumerate(ranked, 1):
             rec = all_records.get(ind.id, {"win": 0, "loss": 0, "draw": 0})
+            # 陸王在位者で、今季の総当たり（順位戦）を免除された個体には明示的にフラグを立てる
+            # （表示側で「番号を振らず別枠にする」判定に、推測ではなくこの事実を直接使う）
+            no_roundrobin = bool(champion_ind is not None and ind.id == champion_ind.id)
             standings_snapshot.append({
                 "season": season, "league": league_name, "rank": rank,
                 "individual_id": ind.id, "display_name": ind.display_name,
                 "dojo": ind.dojo, "elo": round(ind.elo, 1),
                 "win": rec["win"], "loss": rec["loss"], "draw": rec["draw"],
+                "no_roundrobin": no_roundrobin,
             })
     pre_move_league_by_id = {ind.id: league_name for league_name, ranked in
                               (("A", ranked_A), ("B", ranked_B), ("C", ranked_C), ("D", ranked_D))
