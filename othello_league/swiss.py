@@ -25,10 +25,11 @@ def swiss_pairing(ranked_ids, played_pairs):
 def run_swiss_league(members, rounds=4, depth=4, league_name="B"):
     """
     B/C/Dリーグのスイス方式トーナメント。
-    戻り値: (順位確定済みリスト, 対局ログ)
+    戻り値: (順位確定済みリスト, 対局ログ, 勝ち点, 個体ごとの勝敗分dict)
     """
     by_id = {ind.id: ind for ind in members}
     score = {ind.id: 0.0 for ind in members}
+    record = {ind.id: {"win": 0, "loss": 0, "draw": 0} for ind in members}
     played_pairs = set()
     match_log = []
     start = time.time()
@@ -50,11 +51,17 @@ def run_swiss_league(members, rounds=4, depth=4, league_name="B"):
 
             if outcome_a == "win":
                 score[a_id] += 1.0
+                record[a_id]["win"] += 1
+                record[b_id]["loss"] += 1
             elif outcome_a == "loss":
                 score[b_id] += 1.0
+                record[b_id]["win"] += 1
+                record[a_id]["loss"] += 1
             else:
                 score[a_id] += 0.5
                 score[b_id] += 0.5
+                record[a_id]["draw"] += 1
+                record[b_id]["draw"] += 1
 
             match_log.append({
                 "individual_a_id": a_id, "individual_b_id": b_id,
@@ -68,4 +75,4 @@ def run_swiss_league(members, rounds=4, depth=4, league_name="B"):
 
     ranked_ids_final = sorted(by_id.keys(), key=lambda i: (-score[i], -by_id[i].elo))
     ranked_members = [by_id[i] for i in ranked_ids_final]
-    return ranked_members, match_log, score
+    return ranked_members, match_log, score, record
