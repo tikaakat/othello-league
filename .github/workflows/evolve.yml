@@ -72,10 +72,19 @@ jobs:
             fi
 
             echo "--- Xserverへ反映中（バッチ $i）---"
+            ssh -i /tmp/deploy_key -p "$XSERVER_PORT" -o StrictHostKeyChecking=no \
+              "$XSERVER_USER@$XSERVER_HOST" "mkdir -p ${XSERVER_TARGET_DIR}matches" \
+              || echo "::warning::matchesフォルダ作成に失敗しました（バッチ $i）"
+
             scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no \
               data/rosters.json data/season_state.json \
               "$XSERVER_USER@$XSERVER_HOST:$XSERVER_TARGET_DIR" \
               || echo "::warning::scpでの転送に失敗しました（バッチ $i）。次のバッチへ続行します"
+
+            scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -r \
+              data/matches/. \
+              "$XSERVER_USER@$XSERVER_HOST:${XSERVER_TARGET_DIR}matches/" \
+              || echo "::warning::matches転送に失敗しました（バッチ $i）"
 
             curl -sS -f "$IMPORT_URL" \
               || echo "::warning::インポートに失敗しました（バッチ $i）。次のバッチへ続行します"
