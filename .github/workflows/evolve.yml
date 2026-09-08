@@ -45,6 +45,7 @@ jobs:
           XSERVER_TARGET_DIR: ${{ secrets.XSERVER_TARGET_DIR }}
           XSERVER_SSH_KEY: ${{ secrets.XSERVER_SSH_KEY }}
           IMPORT_URL: "https://lab.spia-net.com/othello-league/import_from_colab.php?key=${{ secrets.IMPORT_SECRET_KEY }}"
+          PULL_IMPORT_URL: "https://lab.spia-net.com/othello-league/import_from_github.php?key=${{ secrets.IMPORT_SECRET_KEY }}"
         run: |
           git config user.name "othello-league-bot"
           git config user.email "actions@users.noreply.github.com"
@@ -72,27 +73,38 @@ jobs:
             fi
 
             echo "--- Xserverへ反映中（バッチ $i）---"
+            PUSH_OK=1
+
             ssh -i /tmp/deploy_key -p "$XSERVER_PORT" -o StrictHostKeyChecking=no \
               "$XSERVER_USER@$XSERVER_HOST" "mkdir -p ${XSERVER_TARGET_DIR}matches ${XSERVER_TARGET_DIR}standings" \
-              || echo "::warning::フォルダ作成に失敗しました（バッチ $i）"
+              || { echo "::warning::フォルダ作成に失敗しました（バッチ $i）"; PUSH_OK=0; }
 
             scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no \
               data/rosters.json data/season_state.json \
               "$XSERVER_USER@$XSERVER_HOST:$XSERVER_TARGET_DIR" \
-              || echo "::warning::scpでの転送に失敗しました（バッチ $i）。次のバッチへ続行します"
+              || { echo "::warning::scpでの転送に失敗しました（バッチ $i）"; PUSH_OK=0; }
 
             scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -r \
               data/matches/. \
               "$XSERVER_USER@$XSERVER_HOST:${XSERVER_TARGET_DIR}matches/" \
-              || echo "::warning::matches転送に失敗しました（バッチ $i）"
+              || { echo "::warning::matches転送に失敗しました（バッチ $i）"; PUSH_OK=0; }
 
             scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -r \
               data/standings/. \
               "$XSERVER_USER@$XSERVER_HOST:${XSERVER_TARGET_DIR}standings/" \
-              || echo "::warning::standings転送に失敗しました（バッチ $i）"
+              || { echo "::warning::standings転送に失敗しました（バッチ $i）"; PUSH_OK=0; }
 
-            curl -sS -f "$IMPORT_URL" \
-              || echo "::warning::インポートに失敗しました（バッチ $i）。次のバッチへ続行します"
+            if [ "$PUSH_OK" -eq 1 ]; then
+              echo "--- プッシュ型インポートを実行中（バッチ $i）---"
+              curl -sS -f "$IMPORT_URL" \
+                || { echo "::warning::プッシュ型インポートに失敗しました（バッチ $i）。プル型にフォールバックします"; PUSH_OK=0; }
+            fi
+
+            if [ "$PUSH_OK" -eq 0 ]; then
+              echo "--- scpまたはプッシュ型インポートが失敗したため、プル型（GitHubから直接取得）にフォールバックします（バッチ $i）---"
+              curl -sS -f "$PULL_IMPORT_URL" \
+                || echo "::warning::プル型インポートも失敗しました（バッチ $i）。次のバッチへ続行します"
+            fi
           done
 
           rm -f /tmp/deploy_key
