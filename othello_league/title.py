@@ -92,11 +92,17 @@ def run_rikuou_challenge(a_champion, titleholder_params, depth=4):
 # ============================================================
 def determine_kaiou_challenger(a_slots, b1, c1, depth=4):
     """
-    a_slots: [A1, A2, A3, A4, A5, A6] の6名（陸王の在位状況に応じて run_season.py 側で組み立てる）
+    a_slots: [A1, A2, A3, A4, A5, A6] の6名（陸王の在位状況に応じて run_season.py 側で組み立てる）。
+    A1が海王在位者自身と同一人物の場合（自分自身への挑戦を避けるため）、
+    run_season.py側でA1にNoneを渡すことで、その関門を不戦勝扱いにできる。
     """
     bracket_log = []
 
     def single_game(ind_x, ind_y):
+        if ind_x is None:
+            return ind_y
+        if ind_y is None:
+            return ind_x
         winner, black, white, moves = _play_decisive_game(
             effective_params(ind_x), effective_params(ind_y), depth,
         )
