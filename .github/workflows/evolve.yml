@@ -64,7 +64,7 @@ jobs:
               --depth "$DEPTH" \
               --swiss-rounds "$SWISS_ROUNDS"
 
-            git add data/rosters.json data/season_state.json data/matches
+            git add data/rosters.json data/season_state.json data/matches data/standings
             if ! git diff --staged --quiet; then
               git commit -m "Season batch $i/$TOTAL [skip ci]"
               git pull --rebase origin main
@@ -73,8 +73,8 @@ jobs:
 
             echo "--- Xserverへ反映中（バッチ $i）---"
             ssh -i /tmp/deploy_key -p "$XSERVER_PORT" -o StrictHostKeyChecking=no \
-              "$XSERVER_USER@$XSERVER_HOST" "mkdir -p ${XSERVER_TARGET_DIR}matches" \
-              || echo "::warning::matchesフォルダ作成に失敗しました（バッチ $i）"
+              "$XSERVER_USER@$XSERVER_HOST" "mkdir -p ${XSERVER_TARGET_DIR}matches ${XSERVER_TARGET_DIR}standings" \
+              || echo "::warning::フォルダ作成に失敗しました（バッチ $i）"
 
             scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no \
               data/rosters.json data/season_state.json \
@@ -85,6 +85,11 @@ jobs:
               data/matches/. \
               "$XSERVER_USER@$XSERVER_HOST:${XSERVER_TARGET_DIR}matches/" \
               || echo "::warning::matches転送に失敗しました（バッチ $i）"
+
+            scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -r \
+              data/standings/. \
+              "$XSERVER_USER@$XSERVER_HOST:${XSERVER_TARGET_DIR}standings/" \
+              || echo "::warning::standings転送に失敗しました（バッチ $i）"
 
             curl -sS -f "$IMPORT_URL" \
               || echo "::warning::インポートに失敗しました（バッチ $i）。次のバッチへ続行します"
