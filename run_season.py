@@ -74,23 +74,27 @@ def run_one_season(rosters, season, depth, swiss_rounds, state):
     competing_A = [ind for ind in a_roster if champion_ind is None or ind.id != champion_ind.id]
 
     print("  --- Aリーグ（総当たり） ---" + ("　※陸王在位者は防衛専念枠のため対局免除" if champion_ind else ""))
-    ranked_competing_A, log_A, _ = run_round_robin(competing_A, depth=depth)
+    ranked_competing_A, log_A, _, record_A = run_round_robin(competing_A, depth=depth)
     match_log += log_A
 
     # 公式Aリーグ順位：陸王在位者がいれば1位に据え、以降は総当たり結果を続ける
     ranked_A = ([champion_ind] + ranked_competing_A) if champion_ind else ranked_competing_A
+    if champion_ind:
+        record_A[champion_ind.id] = {"win": 0, "loss": 0, "draw": 0}  # 対局免除のため記録なし
 
     print("  --- Bリーグ（スイス方式） ---")
-    ranked_B, log_B, _ = run_swiss_league(rosters["B"], rounds=swiss_rounds, depth=depth, league_name="B")
+    ranked_B, log_B, _, record_B = run_swiss_league(rosters["B"], rounds=swiss_rounds, depth=depth, league_name="B")
     match_log += log_B
 
     print("  --- Cリーグ（スイス方式） ---")
-    ranked_C, log_C, _ = run_swiss_league(rosters["C"], rounds=swiss_rounds, depth=depth, league_name="C")
+    ranked_C, log_C, _, record_C = run_swiss_league(rosters["C"], rounds=swiss_rounds, depth=depth, league_name="C")
     match_log += log_C
 
     print("  --- Dリーグ（スイス方式） ---")
-    ranked_D, log_D, _ = run_swiss_league(rosters["D"], rounds=swiss_rounds, depth=depth, league_name="D")
+    ranked_D, log_D, _, record_D = run_swiss_league(rosters["D"], rounds=swiss_rounds, depth=depth, league_name="D")
     match_log += log_D
+
+    all_records = {**record_A, **record_B, **record_C, **record_D}
 
     for name, ranked in (("A", ranked_A), ("B", ranked_B), ("C", ranked_C), ("D", ranked_D)):
         top = ranked[0]
@@ -100,10 +104,12 @@ def run_one_season(rosters, season, depth, swiss_rounds, state):
     standings_snapshot = []
     for league_name, ranked in (("A", ranked_A), ("B", ranked_B), ("C", ranked_C), ("D", ranked_D)):
         for rank, ind in enumerate(ranked, 1):
+            rec = all_records.get(ind.id, {"win": 0, "loss": 0, "draw": 0})
             standings_snapshot.append({
                 "season": season, "league": league_name, "rank": rank,
                 "individual_id": ind.id, "display_name": ind.display_name,
                 "dojo": ind.dojo, "elo": round(ind.elo, 1),
+                "win": rec["win"], "loss": rec["loss"], "draw": rec["draw"],
             })
     pre_move_league_by_id = {ind.id: league_name for league_name, ranked in
                               (("A", ranked_A), ("B", ranked_B), ("C", ranked_C), ("D", ranked_D))
@@ -145,6 +151,15 @@ def run_one_season(rosters, season, depth, swiss_rounds, state):
 
     print(f"  引退: {len(retired)}名（{', '.join(i.display_name for i in retired)}）" if retired else "  引退: なし")
     print(f"  新弟子: {len(new_disciples)}名")
+
+    # 歴代最高Eloを更新する（殿堂ページの表示用）
+    for league_list in rosters.values():
+        for ind in league_list:
+            if ind.elo > ind.peak_elo:
+                ind.peak_elo = ind.elo
+    for ind in retired:
+        if ind.elo > ind.peak_elo:
+            ind.peak_elo = ind.elo
 
     return rosters, match_log, title_results, retired, standings_snapshot
 
