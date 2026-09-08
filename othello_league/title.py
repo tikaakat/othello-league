@@ -86,11 +86,14 @@ def run_rikuou_challenge(a_champion, titleholder_params, depth=4):
 
 
 # ============================================================
-# 海王戦：変則トーナメントで挑戦者を決定。5局制3本先取
-# A1=スーパーシード(決勝から), A2=シード(準決勝から), A3=シード(準々決勝から)
-# B1 vs C1 → 勝者 vs A3 → 勝者 vs A2 → 勝者 vs A1 → 挑戦者決定
+# 海王戦：段階的な勝ち上がり（ラダー）方式で挑戦者を決定。5局制3本先取
+# 予選: B1 vs C1 → 勝者 vs A6 → 勝者 vs A5 → 勝者 vs A4 → 勝者 vs A3
+#      → 勝者 vs A2（前陸王 or Aリーグ総当たり1位）→ 勝者 vs A1（陸王 or 新陸王）→ 挑戦者決定
 # ============================================================
-def determine_kaiou_challenger(a1, a2, a3, b1, c1, depth=4):
+def determine_kaiou_challenger(a_slots, b1, c1, depth=4):
+    """
+    a_slots: [A1, A2, A3, A4, A5, A6] の6名（陸王の在位状況に応じて run_season.py 側で組み立てる）
+    """
     bracket_log = []
 
     def single_game(ind_x, ind_y):
@@ -104,10 +107,14 @@ def determine_kaiou_challenger(a1, a2, a3, b1, c1, depth=4):
         })
         return winner_ind
 
-    w1 = single_game(b1, c1)
-    w2 = single_game(w1, a3)
-    w3 = single_game(w2, a2)
-    challenger = single_game(w3, a1)
+    a1, a2, a3, a4, a5, a6 = a_slots
+    winner = single_game(b1, c1)
+    winner = single_game(winner, a6)
+    winner = single_game(winner, a5)
+    winner = single_game(winner, a4)
+    winner = single_game(winner, a3)
+    winner = single_game(winner, a2)
+    challenger = single_game(winner, a1)
 
     return challenger, bracket_log
 
@@ -122,15 +129,12 @@ def run_kaiou_challenge(challenger, titleholder_params, depth=4):
 
 
 # ============================================================
-# 空王戦：全員参加トーナメントで挑戦者決定（上位リーグほどシード優遇）。5局制3本先取
+# 空王戦：Elo上位8名（前年空王在位者は防衛専念枠として除外）による正式シード付きトーナメント。5局制3本先取
 # ============================================================
-LEAGUE_SEED_PRIORITY = {"A": 0, "B": 1, "C": 2, "D": 3}  # 数字が小さいほど上位シード
-
-
 def _bracket_seed_order(n):
     """
     標準的なトーナメントのシード配置順を返す（0-indexed）。
-    例：n=16 → [0,15,7,8,3,12,4,11,1,14,6,9,2,13,5,10]
+    例：n=8 → [0,7,3,4,1,6,2,5]（1位vs8位、4位vs5位、2位vs7位、3位vs6位）
     この順に並べてから隣同士を組めば、1位と2位は決勝まで当たらない、という
     本来のシード制の性質が保証される。
     """
@@ -144,21 +148,18 @@ def _bracket_seed_order(n):
     return result
 
 
-def determine_kuuou_challenger(all_members, depth=4):
+def determine_kuuou_challenger(all_members, exclude_id=None, depth=4, top_n=8):
     """
-    全員参加のシード付きトーナメント。
-    上位リーグ・上位Eloの個体ほど、決勝まで当たりにくい位置に配置する本来のシード方式。
-    人数が2のべき乗に満たない場合は、下位者を除外するのではなく、
-    不足枠を上位シードの「不戦勝（1回戦免除）」として扱う。
+    Elo上位top_n名（既定8名）による正式シードトーナメント。
+    前年空王在位者（exclude_id）は防衛専念枠のため、この母集団からは除外する。
     """
-    ranked = sorted(all_members, key=lambda ind: (LEAGUE_SEED_PRIORITY.get(ind.league, 9), ind.elo * -1))
+    pool = [ind for ind in all_members if ind.id != exclude_id]
+    ranked = sorted(pool, key=lambda ind: -ind.elo)[:top_n]
 
     n = len(ranked)
     bracket_size = 1
     while bracket_size < n:
-        bracket_size *= 2  # nを収められる最小の2のべき乗（不足分は上位シードの不戦勝にする）
-
-    # ranked[i] が None の場合は不戦勝スロット（人数が2のべき乗に満たない分）
+        bracket_size *= 2
     slots = ranked + [None] * (bracket_size - n)
 
     order = _bracket_seed_order(bracket_size)
@@ -167,7 +168,6 @@ def determine_kuuou_challenger(all_members, depth=4):
     bracket_log = []
 
     def single_game(ind_x, ind_y):
-        # どちらかが不戦勝スロット（None）の場合は、対局せずそのまま勝ち上がる
         if ind_x is None:
             return ind_y
         if ind_y is None:
