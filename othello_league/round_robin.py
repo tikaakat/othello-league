@@ -22,7 +22,10 @@ def run_round_robin(members, depth=4):
 
     for i, (ind_a, ind_b) in enumerate(pairs, 1):
         outcome_a, games = play_league_match(ind_a, ind_b, depth=depth)
-        ind_a.elo, ind_b.elo = update_elo(ind_a.elo, ind_b.elo, outcome_a)
+        ind_a.elo, ind_b.elo = update_elo(
+            ind_a.elo, ind_b.elo, outcome_a,
+            total_seasons_a=ind_a.total_seasons, total_seasons_b=ind_b.total_seasons,
+        )
 
         if outcome_a == "win":
             score[ind_a.id] += 1.0
