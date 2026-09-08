@@ -218,6 +218,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
         if champion_ind is not None:
             a_challenger.elo, champion_ind.elo = update_elo(
                 a_challenger.elo, champion_ind.elo, "win" if result["won"] else "loss",
+                total_seasons_a=a_challenger.total_seasons, total_seasons_b=champion_ind.total_seasons,
             )
         results.append({
             "title": "陸王", "season": season, **result,
@@ -258,7 +259,10 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
             ind_a, ind_b = all_members_by_id.get(g["a"]), all_members_by_id.get(g["b"])
             if ind_a and ind_b:
                 outcome_a = "win" if g["winner"] == g["a"] else "loss"
-                ind_a.elo, ind_b.elo = update_elo(ind_a.elo, ind_b.elo, outcome_a)
+                ind_a.elo, ind_b.elo = update_elo(
+                    ind_a.elo, ind_b.elo, outcome_a,
+                    total_seasons_a=ind_a.total_seasons, total_seasons_b=ind_b.total_seasons,
+                )
 
         if titleholders["海王"] is None:
             titleholders["海王"] = {"id": challenger.id, "name": challenger.display_name}
@@ -281,6 +285,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
             if defending_ind is not None:
                 challenger.elo, defending_ind.elo = update_elo(
                     challenger.elo, defending_ind.elo, "win" if result["won"] else "loss",
+                    total_seasons_a=challenger.total_seasons, total_seasons_b=defending_ind.total_seasons,
                 )
             results.append({
                 "title": "海王", "season": season, **result,
@@ -302,7 +307,10 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
         ind_a, ind_b = all_members_by_id.get(g["a"]), all_members_by_id.get(g["b"])
         if ind_a and ind_b:
             outcome_a = "win" if g["winner"] == g["a"] else "loss"
-            ind_a.elo, ind_b.elo = update_elo(ind_a.elo, ind_b.elo, outcome_a)
+            ind_a.elo, ind_b.elo = update_elo(
+                ind_a.elo, ind_b.elo, outcome_a,
+                total_seasons_a=ind_a.total_seasons, total_seasons_b=ind_b.total_seasons,
+            )
 
     if titleholders["空王"] is None:
         titleholders["空王"] = {"id": challenger.id, "name": challenger.display_name}
@@ -319,6 +327,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
         if defending_ind is not None:
             challenger.elo, defending_ind.elo = update_elo(
                 challenger.elo, defending_ind.elo, "win" if result["won"] else "loss",
+                total_seasons_a=challenger.total_seasons, total_seasons_b=defending_ind.total_seasons,
             )
         if result["won"]:
             titleholders["空王"] = {"id": challenger.id, "name": challenger.display_name}
