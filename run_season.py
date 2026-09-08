@@ -213,7 +213,11 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
         else:
             new_rikuou = champion_ind
             rikuou_defended = True
-        results.append({"title": "陸王", "season": season, **result, "challenger_name": a_challenger.display_name})
+        results.append({
+            "title": "陸王", "season": season, **result,
+            "challenger_name": a_challenger.display_name,
+            "holder_name": new_rikuou.display_name, "holder_id": new_rikuou.id,
+        })
 
     # ============================================================
     # 海王：A1〜A6・B1・C1によるラダー方式
@@ -242,13 +246,22 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
             print(f"  ★ 海王 初代襲名: {challenger.display_name}")
             results.append({"title": "海王", "season": season, "event": "初代襲名", "new_holder": challenger.display_name})
         else:
+            defending_holder = titleholders["海王"]  # 更新前の値を先に控えておく
             result = run_kaiou_challenge(challenger, titleholder_params["海王"], depth=depth)
             print(f"  海王戦: {challenger.display_name} {result['challenger_wins']}-{result['titleholder_wins']}"
                   f" → {'奪取！' if result['won'] else '防衛'}")
             if result["won"]:
                 titleholders["海王"] = {"id": challenger.id, "name": challenger.display_name}
                 titleholder_params["海王"] = effective_params(challenger)
-            results.append({"title": "海王", "season": season, **result, "challenger_name": challenger.display_name, "bracket": bracket_log})
+                holder_name, holder_id = challenger.display_name, challenger.id
+            else:
+                holder_name, holder_id = defending_holder["name"], defending_holder["id"]
+            results.append({
+                "title": "海王", "season": season, **result,
+                "challenger_name": challenger.display_name,
+                "holder_name": holder_name, "holder_id": holder_id,
+                "bracket": bracket_log,
+            })
     else:
         print("  海王戦: 参加者不足のため今季は見送り")
 
@@ -264,13 +277,22 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
         print(f"  ★ 空王 初代襲名: {challenger.display_name}")
         results.append({"title": "空王", "season": season, "event": "初代襲名", "new_holder": challenger.display_name})
     else:
+        defending_holder = titleholders["空王"]  # 更新前の値を先に控えておく
         result = run_kuuou_challenge(challenger, titleholder_params["空王"], depth=depth)
         print(f"  空王戦: {challenger.display_name} {result['challenger_wins']}-{result['titleholder_wins']}"
               f" → {'奪取！' if result['won'] else '防衛'}")
         if result["won"]:
             titleholders["空王"] = {"id": challenger.id, "name": challenger.display_name}
             titleholder_params["空王"] = effective_params(challenger)
-        results.append({"title": "空王", "season": season, **result, "challenger_name": challenger.display_name, "bracket": bracket_log})
+            holder_name, holder_id = challenger.display_name, challenger.id
+        else:
+            holder_name, holder_id = defending_holder["name"], defending_holder["id"]
+        results.append({
+            "title": "空王", "season": season, **result,
+            "challenger_name": challenger.display_name,
+            "holder_name": holder_name, "holder_id": holder_id,
+            "bracket": bracket_log,
+        })
 
     return results
 
