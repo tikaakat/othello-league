@@ -53,3 +53,11 @@ def save_match_log(data_dir, season, match_log):
     path = os.path.join(data_dir, "matches", f"season_{season}.json")
     with open(path, "w", encoding="utf-8") as f:
         json.dump(match_log, f, ensure_ascii=False, indent=2)
+
+
+def save_standings(data_dir, season, standings_snapshot):
+    """このシーズンの各リーグ順位・昇降格/新規/引退マークを、シーズン別ファイルとして保存する"""
+    os.makedirs(os.path.join(data_dir, "standings"), exist_ok=True)
+    path = os.path.join(data_dir, "standings", f"season_{season}.json")
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(standings_snapshot, f, ensure_ascii=False, indent=2)
