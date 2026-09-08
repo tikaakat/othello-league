@@ -1,4 +1,7 @@
+import time
+
 from .play import play_league_match
+from .elo import update_elo
 
 
 def swiss_pairing(ranked_ids, played_pairs):
@@ -28,16 +31,19 @@ def run_swiss_league(members, rounds=4, depth=4, league_name="B"):
     score = {ind.id: 0.0 for ind in members}
     played_pairs = set()
     match_log = []
+    start = time.time()
 
     for rnd in range(rounds):
         ranked_ids = sorted(by_id.keys(), key=lambda i: (-score[i], -by_id[i].elo))
         pairs = swiss_pairing(ranked_ids, played_pairs)
+        print(f"    {league_name}リーグ ラウンド{rnd + 1}/{rounds}（{len(pairs)}局）")
 
-        for a_id, b_id in pairs:
+        for j, (a_id, b_id) in enumerate(pairs, 1):
             played_pairs.add(frozenset((a_id, b_id)))
             ind_a, ind_b = by_id[a_id], by_id[b_id]
 
             outcome_a, games = play_league_match(ind_a, ind_b, depth=depth)
+            ind_a.elo, ind_b.elo = update_elo(ind_a.elo, ind_b.elo, outcome_a)
 
             if outcome_a == "win":
                 score[a_id] += 1.0
@@ -51,6 +57,11 @@ def run_swiss_league(members, rounds=4, depth=4, league_name="B"):
                 "individual_a_id": a_id, "individual_b_id": b_id,
                 "result": outcome_a, "games": games, "league": league_name,
             })
+
+            name_a = getattr(ind_a, "display_name", None) or a_id
+            name_b = getattr(ind_b, "display_name", None) or b_id
+            elapsed = time.time() - start
+            print(f"      {league_name}局{j}/{len(pairs)}: {name_a} vs {name_b} → {outcome_a}（経過{elapsed:.0f}秒）")
 
     ranked_ids_final = sorted(by_id.keys(), key=lambda i: (-score[i], -by_id[i].elo))
     ranked_members = [by_id[i] for i in ranked_ids_final]
