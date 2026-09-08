@@ -15,6 +15,8 @@ class LeagueIndividual:
         self.buff_multiplier = None       # 道場バフの倍率（道場所属時のみ使用）
         self.display_name = display_name  # 人名（例：「佐藤2」）
         self.awakened_param = None        # 覚醒で突破したパラメータ名（あれば）
+        self.black_count = 0              # 通算で黒番を持った回数（先後を均等にするための管理用。シーズンをまたいで累積）
+        self.white_count = 0               # 通算で白番を持った回数
         self.generation = generation
         self.parent_a_id = parent_a_id
         self.parent_b_id = parent_b_id
@@ -34,6 +36,8 @@ class LeagueIndividual:
             "buff_multiplier": self.buff_multiplier,
             "display_name": self.display_name,
             "awakened_param": self.awakened_param,
+            "black_count": self.black_count,
+            "white_count": self.white_count,
             "generation": self.generation,
             "parent_a_id": self.parent_a_id,
             "parent_b_id": self.parent_b_id,
@@ -54,6 +58,8 @@ class LeagueIndividual:
         ind.elo = d.get("elo", 1500.0)
         ind.buff_multiplier = d.get("buff_multiplier")
         ind.awakened_param = d.get("awakened_param")
+        ind.black_count = d.get("black_count", 0)
+        ind.white_count = d.get("white_count", 0)
         ind.seasons_in_league = d.get("seasons_in_league", 0)
         ind.total_seasons = d.get("total_seasons", 0)
         ind.retired = d.get("retired", False)
