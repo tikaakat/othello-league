@@ -22,6 +22,7 @@ class LeagueIndividual:
         self.parent_b_id = parent_b_id
 
         self.elo = 1500.0
+        self.peak_elo = 1500.0  # 歴代最高Elo（殿堂ページの表示用）
         self.seasons_in_league = 0        # 現在のリーグに在籍しているシーズン数
         self.total_seasons = 0            # 通算在籍シーズン数（引退判定用）
         self.retired = False
@@ -42,6 +43,7 @@ class LeagueIndividual:
             "parent_a_id": self.parent_a_id,
             "parent_b_id": self.parent_b_id,
             "elo": self.elo,
+            "peak_elo": self.peak_elo,
             "seasons_in_league": self.seasons_in_league,
             "total_seasons": self.total_seasons,
             "retired": self.retired,
@@ -56,6 +58,7 @@ class LeagueIndividual:
             display_name=d.get("display_name"),
         )
         ind.elo = d.get("elo", 1500.0)
+        ind.peak_elo = d.get("peak_elo", ind.elo)
         ind.buff_multiplier = d.get("buff_multiplier")
         ind.awakened_param = d.get("awakened_param")
         ind.black_count = d.get("black_count", 0)
