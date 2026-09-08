@@ -3,14 +3,14 @@ import random
 # 8大流派：それぞれ1つのパラメータを得意分野として持つ。
 # バフ倍率は個体ごとに少しばらつかせてよい（お任せ、とのことなので緩やかな幅を持たせる）
 DOJO_BUFF_PARAM = {
-    "紅": "corner_weight",
-    "蒼": "danger_zone_weight",
-    "翠": "mobility_weight",
-    "橙": "edge_stability_weight",
-    "紫": "frontier_weight",
-    "銀": "disc_weight",
-    "金": "parity_weight",
-    "黒": "center_weight",
+    "真紅": "corner_weight",
+    "紺碧": "danger_zone_weight",
+    "翡翠": "mobility_weight",
+    "琥珀": "edge_stability_weight",
+    "紫苑": "frontier_weight",
+    "白銀": "disc_weight",
+    "黄金": "parity_weight",
+    "漆黒": "center_weight",
 }
 
 MAJOR_DOJOS = list(DOJO_BUFF_PARAM.keys())
@@ -48,9 +48,9 @@ AWAKENING_MULTIPLIER_RANGE = (1.8, 3.0)
 
 
 def maybe_awaken(params, individual_id=None):
-    """paramsのコピーに対し、1%の確率で1パラメータを大きく突破させる。発動有無を返す"""
+    """paramsのコピーに対し、1%の確率で1パラメータを大きく突破させる。(新パラメータ, 突破したキー名 or None) を返す"""
     if random.random() >= AWAKENING_CHANCE:
-        return dict(params), False
+        return dict(params), None
 
     awakened = dict(params)
     key = random.choice(list(awakened.keys()))
@@ -58,4 +58,4 @@ def maybe_awaken(params, individual_id=None):
     awakened[key] = round(awakened.get(key, 1.0) * mult, 3)
     if individual_id:
         print(f"  ★★★ 覚醒！ {individual_id} の「{key}」が突破しました（×{mult:.2f}）")
-    return awakened, True
+    return awakened, key
