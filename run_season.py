@@ -111,8 +111,9 @@ def run_one_season(rosters, season, depth, swiss_rounds, state):
     # --- タイトル戦 ---
     all_members = ranked_A + ranked_B + ranked_C + ranked_D
     title_results = _run_title_matches(
-        ranked_A, ranked_competing_A, champion_ind, ranked_B, ranked_C, all_members, depth, state,
+        ranked_A, ranked_competing_A, champion_ind, ranked_B, ranked_C, all_members, depth, state, season,
     )
+    match_log += _title_results_to_match_log(title_results, season)
 
     # --- 昇降格・弟子補充・引退 ---
     rosters["A"], rosters["B"], rosters["C"], rosters["D"] = ranked_A, ranked_B, ranked_C, ranked_D
@@ -148,7 +149,40 @@ def run_one_season(rosters, season, depth, swiss_rounds, state):
     return rosters, match_log, title_results, retired, standings_snapshot
 
 
-def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ranked_C, all_members, depth, state):
+def _title_results_to_match_log(title_results, season):
+    """
+    タイトル戦の結果を、通常の対局ログと同じ形式（matchesテーブル用）に変換する。
+    本戦（挑戦者 vs ホルダー、複数局）は1つのレコードにまとめて格納する。
+    予選ブラケット（海王のラダー・空王のトーナメント）は、各対局を個別のレコードとして格納する。
+    """
+    entries = []
+    for r in title_results:
+        title = r["title"]
+
+        # 本戦（初代襲名の場合は対局が無いのでスキップ）
+        if "games" in r and r.get("challenger_id"):
+            entries.append({
+                "league": title,  # '陸王' / '海王' / '空王' をリーグ名の代わりに使い、通常戦と区別する
+                "individual_a_id": r["challenger_id"],
+                "individual_b_id": None,  # ホルダーは個体として特定できない場合があるため空欄
+                "result": "win" if r.get("won") else "loss",
+                "games": r["games"],
+            })
+
+        # 予選ブラケット（海王のラダー・空王のトーナメント）
+        for g in r.get("bracket", []):
+            entries.append({
+                "league": f"{title}予選",
+                "individual_a_id": g["a"],
+                "individual_b_id": g["b"],
+                "result": "win" if g["winner"] == g["a"] else "loss",
+                "games": [{"moves": g["moves"], "black": g["black"], "white": g["white"]}],
+            })
+
+    return entries
+
+
+def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ranked_C, all_members, depth, state, season):
     results = []
     titleholders = state.setdefault("titleholders", {"陸王": None, "海王": None, "空王": None})
     titleholder_params = state.setdefault("titleholder_params", {"陸王": None, "海王": None, "空王": None})
@@ -163,7 +197,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
         titleholders["陸王"] = {"id": a_challenger.id, "name": a_challenger.display_name}
         titleholder_params["陸王"] = effective_params(a_challenger)
         print(f"  ★ 陸王 初代襲名: {a_challenger.display_name}")
-        results.append({"title": "陸王", "event": "初代襲名", "new_holder": a_challenger.display_name})
+        results.append({"title": "陸王", "season": season, "event": "初代襲名", "new_holder": a_challenger.display_name})
         new_rikuou = a_challenger
         old_rikuou = None
     else:
@@ -179,7 +213,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
         else:
             new_rikuou = champion_ind
             rikuou_defended = True
-        results.append({"title": "陸王", **result, "challenger_name": a_challenger.display_name})
+        results.append({"title": "陸王", "season": season, **result, "challenger_name": a_challenger.display_name})
 
     # ============================================================
     # 海王：A1〜A6・B1・C1によるラダー方式
@@ -206,7 +240,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
             titleholders["海王"] = {"id": challenger.id, "name": challenger.display_name}
             titleholder_params["海王"] = effective_params(challenger)
             print(f"  ★ 海王 初代襲名: {challenger.display_name}")
-            results.append({"title": "海王", "event": "初代襲名", "new_holder": challenger.display_name})
+            results.append({"title": "海王", "season": season, "event": "初代襲名", "new_holder": challenger.display_name})
         else:
             result = run_kaiou_challenge(challenger, titleholder_params["海王"], depth=depth)
             print(f"  海王戦: {challenger.display_name} {result['challenger_wins']}-{result['titleholder_wins']}"
@@ -214,7 +248,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
             if result["won"]:
                 titleholders["海王"] = {"id": challenger.id, "name": challenger.display_name}
                 titleholder_params["海王"] = effective_params(challenger)
-            results.append({"title": "海王", **result, "challenger_name": challenger.display_name, "bracket": bracket_log})
+            results.append({"title": "海王", "season": season, **result, "challenger_name": challenger.display_name, "bracket": bracket_log})
     else:
         print("  海王戦: 参加者不足のため今季は見送り")
 
@@ -228,7 +262,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
         titleholders["空王"] = {"id": challenger.id, "name": challenger.display_name}
         titleholder_params["空王"] = effective_params(challenger)
         print(f"  ★ 空王 初代襲名: {challenger.display_name}")
-        results.append({"title": "空王", "event": "初代襲名", "new_holder": challenger.display_name})
+        results.append({"title": "空王", "season": season, "event": "初代襲名", "new_holder": challenger.display_name})
     else:
         result = run_kuuou_challenge(challenger, titleholder_params["空王"], depth=depth)
         print(f"  空王戦: {challenger.display_name} {result['challenger_wins']}-{result['titleholder_wins']}"
@@ -236,7 +270,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
         if result["won"]:
             titleholders["空王"] = {"id": challenger.id, "name": challenger.display_name}
             titleholder_params["空王"] = effective_params(challenger)
-        results.append({"title": "空王", **result, "challenger_name": challenger.display_name, "bracket": bracket_log})
+        results.append({"title": "空王", "season": season, **result, "challenger_name": challenger.display_name, "bracket": bracket_log})
 
     return results
 
