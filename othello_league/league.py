@@ -154,19 +154,21 @@ def generate_disciples(season, all_individuals, name_registry=None):
         else:
             child_params = _random_params()
 
-        child_params, awakened = maybe_awaken(child_params, individual_id=new_id)
+        child_params, awakened_key = maybe_awaken(child_params, individual_id=new_id)
 
         child = LeagueIndividualLazy(new_id, "D", dojo=dojo, generation=season,
                                       params=child_params, parent_a_id=parent.id if dojo_members else None,
                                       display_name=registry.generate())
         child.buff_multiplier = assign_buff_multiplier()
+        child.awakened_param = awakened_key
         disciples.append(child)
 
     if random.random() < WILD_DISCIPLE_CHANCE:
         new_id = f"S{season}-Wild-{format(random.randint(0, 4095), 'x').upper()}"
-        wild_params, _ = maybe_awaken(_random_params(), individual_id=new_id)
+        wild_params, awakened_key = maybe_awaken(_random_params(), individual_id=new_id)
         wild = LeagueIndividualLazy(new_id, "D", dojo=None, generation=season, params=wild_params,
                                      display_name=registry.generate())
+        wild.awakened_param = awakened_key
         disciples.append(wild)
         print(f"  → 無流派の新規参入: {wild.id}（{wild.display_name}）")
 
