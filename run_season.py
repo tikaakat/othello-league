@@ -136,22 +136,25 @@ def run_one_season(rosters, season, depth, swiss_rounds, state):
     rosters, new_disciples, registry, retired = promote_and_relegate(rosters, season, registry)
     state["name_registry"] = registry.to_dict()
 
-    # --- 昇降格・新規・引退マークを確定する ---
+    # --- 昇降格・新規・引退マークを確定する（1個体に複数のマークが同時に付くケースを許容する。
+    #     例：新弟子がデビュー初シーズンにいきなり好成績で即昇格した場合、「新規」と「昇級」の両方が該当する） ---
     retired_ids = {ind.id for ind in retired}
     post_move_league_by_id = {ind.id: ind.league for league_list in rosters.values() for ind in league_list}
 
     for row in standings_snapshot:
         iid = row["individual_id"]
-        if iid in retired_ids:
-            row["movement"] = "retired"
-        elif is_first_season_by_id.get(iid):
-            row["movement"] = "new"
-        elif iid in post_move_league_by_id and post_move_league_by_id[iid] != pre_move_league_by_id.get(iid):
+        tags = []
+        if is_first_season_by_id.get(iid):
+            tags.append("new")
+        if iid in post_move_league_by_id and post_move_league_by_id[iid] != pre_move_league_by_id.get(iid):
             new_league, old_league = post_move_league_by_id[iid], pre_move_league_by_id.get(iid)
             league_rank = {"A": 0, "B": 1, "C": 2, "D": 3}
-            row["movement"] = "promoted" if league_rank[new_league] < league_rank[old_league] else "relegated"
-        else:
-            row["movement"] = "stay"
+            tags.append("promoted" if league_rank[new_league] < league_rank[old_league] else "relegated")
+        if iid in retired_ids:
+            tags = ["retired"]  # 引退は今季限りで抜けるため、他の状態より優先して単独表示する
+        if not tags:
+            tags = ["stay"]
+        row["movement"] = ",".join(tags)
 
     print(f"  引退: {len(retired)}名（{', '.join(i.display_name for i in retired)}）" if retired else "  引退: なし")
     print(f"  新弟子: {len(new_disciples)}名")
@@ -171,22 +174,22 @@ def run_one_season(rosters, season, depth, swiss_rounds, state):
 def _title_results_to_match_log(title_results, season):
     """
     タイトル戦の結果を、通常の対局ログと同じ形式（matchesテーブル用）に変換する。
-    本戦（挑戦者 vs ホルダー、複数局）は1つのレコードにまとめて格納する。
-    予選ブラケット（海王のラダー・空王のトーナメント）は、各対局を個別のレコードとして格納する。
+    本戦・予選ともに、1局ごとに1レコードとして格納する（対局数が正しく数えられるように）。
     """
     entries = []
     for r in title_results:
         title = r["title"]
 
-        # 本戦（初代襲名の場合は対局が無いのでスキップ）
+        # 本戦（初代襲名の場合は対局が無いのでスキップ）。1局ずつ個別レコードにする
         if "games" in r and r.get("challenger_id"):
-            entries.append({
-                "league": title,  # '陸王' / '海王' / '空王' をリーグ名の代わりに使い、通常戦と区別する
-                "individual_a_id": r["challenger_id"],
-                "individual_b_id": None,  # ホルダーは個体として特定できない場合があるため空欄
-                "result": "win" if r.get("won") else "loss",
-                "games": r["games"],
-            })
+            for g in r["games"]:
+                entries.append({
+                    "league": title,  # '陸王' / '海王' / '空王' をリーグ名の代わりに使い、通常戦と区別する
+                    "individual_a_id": r["challenger_id"],
+                    "individual_b_id": None,  # ホルダーは個体として特定できない場合があるため空欄
+                    "result": "win" if g.get("winner") == "a" else "loss",
+                    "games": [g],
+                })
 
         # 予選ブラケット（海王のラダー・空王のトーナメント）
         for g in r.get("bracket", []):
