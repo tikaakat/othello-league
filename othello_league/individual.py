@@ -23,6 +23,7 @@ class LeagueIndividual:
 
         self.elo = 1500.0
         self.peak_elo = 1500.0  # 歴代最高Elo（殿堂ページの表示用）
+        self.volatility = 1.0  # ムラ気（隠しパラメータ）。評価ノイズの倍率。基準1.0、高いほど結果が大きく振れる
         self.seasons_in_league = 0        # 現在のリーグに在籍しているシーズン数
         self.total_seasons = 0            # 通算在籍シーズン数（引退判定用）
         self.retired = False
@@ -44,6 +45,7 @@ class LeagueIndividual:
             "parent_b_id": self.parent_b_id,
             "elo": self.elo,
             "peak_elo": self.peak_elo,
+            "volatility": self.volatility,
             "seasons_in_league": self.seasons_in_league,
             "total_seasons": self.total_seasons,
             "retired": self.retired,
@@ -59,6 +61,7 @@ class LeagueIndividual:
         )
         ind.elo = d.get("elo", 1500.0)
         ind.peak_elo = d.get("peak_elo", ind.elo)
+        ind.volatility = d.get("volatility", 1.0)
         ind.buff_multiplier = d.get("buff_multiplier")
         ind.awakened_param = d.get("awakened_param")
         ind.black_count = d.get("black_count", 0)
