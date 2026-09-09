@@ -421,13 +421,12 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
 
 
 def main():
+    import sys, os as _os
+    print(f"[DEBUG] run_season.py 開始。Python: {sys.version}", flush=True)
+    print(f"[DEBUG] 現在のディレクトリ: {_os.getcwd()}", flush=True)
+    print(f"[DEBUG] このファイルの場所: {_os.path.abspath(__file__)}", flush=True)
+    print(f"[DEBUG] コマンドライン引数: {sys.argv}", flush=True)
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-dir", default="data")
-    parser.add_argument("--seasons", type=int, default=1)
-    parser.add_argument("--depth", type=int, default=4)
-    parser.add_argument("--swiss-rounds", type=int, default=4)
-    args = parser.parse_args()
-
-    state = load_season_state(args.data_dir)
-    registry = NameRegistry.from_dict(state.get("name_registry", {}))
-
+    parser.add_argument("--seasons"
