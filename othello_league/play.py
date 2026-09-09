@@ -6,7 +6,8 @@ import random
 MAX_REMATCH_ATTEMPTS = 3  # 引き分けが続いた場合の再戦上限（それでも決着しなければ引き分け扱い）
 
 
-def _play(params_black, params_white, depth_black, depth_white, max_moves=64):
+def _play(params_black, params_white, depth_black, depth_white,
+          noise_scale_black=1.0, noise_scale_white=1.0, max_moves=64):
     """1局対局し、(黒石数, 白石数, 着手履歴) を返す"""
     bd = B.initial_board()
     color = B.BLACK
@@ -22,7 +23,8 @@ def _play(params_black, params_white, depth_black, depth_white, max_moves=64):
 
         params = params_black if color == B.BLACK else params_white
         depth = depth_black if color == B.BLACK else depth_white
-        mv = E.choose_move(bd, color, params, depth=depth)
+        noise_scale = noise_scale_black if color == B.BLACK else noise_scale_white
+        mv = E.choose_move(bd, color, params, depth=depth, noise_scale=noise_scale)
         B.apply_move(bd, mv, color)
         move_history.append({"pos": mv, "color": color})
         color = B.opponent(color)
@@ -63,10 +65,12 @@ def play_league_match(ind_a, ind_b, depth=4, allow_rematch=True):
     attempts = MAX_REMATCH_ATTEMPTS if allow_rematch else 1
     for attempt in range(attempts):
         if a_is_black:
-            black, white, moves = _play(params_a, params_b, depth, depth)
+            black, white, moves = _play(params_a, params_b, depth, depth,
+                                         noise_scale_black=ind_a.volatility, noise_scale_white=ind_b.volatility)
             ind_a.black_count += 1; ind_b.white_count += 1
         else:
-            black, white, moves = _play(params_b, params_a, depth, depth)
+            black, white, moves = _play(params_b, params_a, depth, depth,
+                                         noise_scale_black=ind_b.volatility, noise_scale_white=ind_a.volatility)
             ind_b.black_count += 1; ind_a.white_count += 1
 
         my_score = black if a_is_black else white
