@@ -54,7 +54,7 @@ def _is_frontier(bd, sq):
     return False
 
 
-def evaluate(bd, color, params):
+def evaluate(bd, color, params, noise_scale=1.0):
     """color視点での評価値（正が有利）。paramsは個性パラメータの辞書（8項目）"""
     opp = B.opponent(color)
     phase = B.game_phase(bd)
@@ -133,23 +133,26 @@ def evaluate(bd, color, params):
 
     # ごく僅かなランダムノイズを加える。同じ相手・同じ先後の組み合わせでも、
     # 毎回全く同じ対局が再現されてしまう（決定論的すぎる）のを防ぐための"揺らぎ"。
-    # 戦略の評価自体を歪めない程度の小さな値に留める。
-    score += random.uniform(-1.5, 1.5)
+    # 検証の結果、±1.5では評価スコアの規模（数百〜数千）に対して小さすぎて実質無効だった一方、
+    # ±30以上では逆にノイズが実力差そのものを打ち消してしまい、進化の意味が失われることが判明した。
+    # ±10前後が、実力差をある程度尊重しつつ、決定論を崩せる現実的な落とし所と判断した。
+    # noise_scaleは個体固有の「ムラ気」パラメータで、この基準値(±10)をさらに倍率調整する。
+    score += random.uniform(-10, 10) * noise_scale
 
     return score
 
 
-def minimax(bd, color, depth, alpha, beta, maximizing_color, params):
+def minimax(bd, color, depth, alpha, beta, maximizing_color, params, noise_scale=1.0):
     moves = B.legal_moves(bd, color)
 
     if depth == 0:
-        return evaluate(bd, maximizing_color, params), None
+        return evaluate(bd, maximizing_color, params, noise_scale), None
 
     if not moves:
         opp_moves = B.legal_moves(bd, B.opponent(color))
         if not opp_moves:
-            return evaluate(bd, maximizing_color, params), None  # 両者とも打てず終局
-        value, _ = minimax(bd, B.opponent(color), depth - 1, alpha, beta, maximizing_color, params)
+            return evaluate(bd, maximizing_color, params, noise_scale), None  # 両者とも打てず終局
+        value, _ = minimax(bd, B.opponent(color), depth - 1, alpha, beta, maximizing_color, params, noise_scale)
         return value, None
 
     moves = _order_moves(moves)
@@ -161,7 +164,7 @@ def minimax(bd, color, depth, alpha, beta, maximizing_color, params):
         for mv in moves:
             new_bd = bd.copy()
             B.apply_move(new_bd, mv, color)
-            child_value, _ = minimax(new_bd, B.opponent(color), depth - 1, alpha, beta, maximizing_color, params)
+            child_value, _ = minimax(new_bd, B.opponent(color), depth - 1, alpha, beta, maximizing_color, params, noise_scale)
             if child_value > value:
                 value, best_move = child_value, mv
             alpha = max(alpha, value)
@@ -173,7 +176,7 @@ def minimax(bd, color, depth, alpha, beta, maximizing_color, params):
         for mv in moves:
             new_bd = bd.copy()
             B.apply_move(new_bd, mv, color)
-            child_value, _ = minimax(new_bd, B.opponent(color), depth - 1, alpha, beta, maximizing_color, params)
+            child_value, _ = minimax(new_bd, B.opponent(color), depth - 1, alpha, beta, maximizing_color, params, noise_scale)
             if child_value < value:
                 value, best_move = child_value, mv
             beta = min(beta, value)
@@ -182,12 +185,12 @@ def minimax(bd, color, depth, alpha, beta, maximizing_color, params):
         return value, best_move
 
 
-def choose_move(bd, color, params, depth=5):
-    """個体のパラメータを使って1手選ぶ"""
+def choose_move(bd, color, params, depth=5, noise_scale=1.0):
+    """個体のパラメータを使って1手選ぶ。noise_scaleは個体固有の「ムラ気」倍率"""
     moves = B.legal_moves(bd, color)
     if not moves:
         return None
-    _, move = minimax(bd, color, depth, -math.inf, math.inf, color, params)
+    _, move = minimax(bd, color, depth, -math.inf, math.inf, color, params, noise_scale)
     if move is None:
         move = random.choice(moves)
     return move
