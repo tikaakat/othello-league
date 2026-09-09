@@ -59,11 +59,24 @@ jobs:
 
           for i in $(seq 1 "$TOTAL"); do
             echo "=== Running season batch $i / $TOTAL ==="
+
+            set +e
             python -u run_season.py \
               --data-dir data \
               --seasons 1 \
               --depth "$DEPTH" \
               --swiss-rounds "$SWISS_ROUNDS"
+            PY_EXIT=$?
+            set -e
+
+            echo "=== Python終了コード: $PY_EXIT ==="
+            echo "=== data/ の中身 ==="
+            ls -la data/ 2>&1 || echo "(data/ ディレクトリが存在しません)"
+
+            if [ "$PY_EXIT" -ne 0 ]; then
+              echo "::error::run_season.pyが失敗しました（終了コード $PY_EXIT）。このバッチをスキップして次へ進みます"
+              continue
+            fi
 
             git add data/rosters.json data/season_state.json data/matches data/standings
             if ! git diff --staged --quiet; then
