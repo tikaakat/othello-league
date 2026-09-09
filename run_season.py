@@ -128,7 +128,18 @@ def run_one_season(rosters, season, depth, swiss_rounds, state):
     title_results = _run_title_matches(
         ranked_A, ranked_competing_A, champion_ind, ranked_B, ranked_C, all_members, depth, state, season,
     )
-    match_log += _title_results_to_match_log(title_results, season)
+    title_match_log = _title_results_to_match_log(title_results, season)
+    match_log += title_match_log
+
+    # タイトル戦の勝敗も、このシーズンの成績（standings）に合算する
+    standings_by_id = {row["individual_id"]: row for row in standings_snapshot}
+    for m in title_match_log:
+        for pid, outcome in (
+            (m["individual_a_id"], m["result"]),
+            (m["individual_b_id"], {"win": "loss", "loss": "win", "draw": "draw"}.get(m["result"])),
+        ):
+            if pid and pid in standings_by_id and outcome:
+                standings_by_id[pid][outcome] += 1
 
     # --- 昇降格・弟子補充・引退 ---
     rosters["A"], rosters["B"], rosters["C"], rosters["D"] = ranked_A, ranked_B, ranked_C, ranked_D
