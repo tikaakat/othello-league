@@ -14,12 +14,12 @@ PROMOTE_DOWN_COUNTS = {
 D_TO_C_PROMOTE = 3
 
 # C・D 定員超過時の引退ルール
-MIN_SEASONS_BEFORE_RETIREMENT_ELIGIBLE = 2  # このシーズン数未満は引退対象から除外
+MIN_SEASONS_BEFORE_RETIREMENT_ELIGIBLE = 2  # このシーズン数未満は引退対象から除外（D等の既定値）
+MIN_SEASONS_BEFORE_RETIREMENT_ELIGIBLE_C = 3  # Cリーグは、昇格直後の個体を保護するため猶予を長めにする
 MAX_TOTAL_SEASONS = 30  # 年齢の暫定版：通算30シーズンで強制引退
 D_MAX_SEASONS_IN_D = 5  # Dリーグ在籍上限：この期間内にCへ昇格できなければ、実力に関わらず引退（up-or-out）
 
 DISCIPLES_PER_DOJO_PER_SEASON = 1  # 各道場から毎シーズン何名弟子を出すか
-WILD_DISCIPLE_CHANCE = 1.0          # 無流派の新規参入。8大流派とは別枠で、毎シーズン必ず1名を完全ランダムに追加
 
 MUTATION_RATE = 0.2
 MUTATION_STRENGTH = 0.25
@@ -112,23 +112,25 @@ def promote_and_relegate(rosters, season, name_registry=None):
             ind.seasons_in_league += 1
             ind.total_seasons += 1
 
-    # --- 新弟子の補充（Dリーグに追加） ---
+    # --- 新弟子の補充（Dリーグに追加）：今季Dから抜けた人数（昇格＋up-or-out引退）の分だけ、
+    #     9つの供給源（8道場＋無流派）からランダムに選んで補充する ---
     all_individuals_before = A + B + C + D  # 道場主候補を探すため、昇降格後の全体から選ぶ
-    new_disciples, name_registry = generate_disciples(season, all_individuals_before, name_registry)
+    d_departures = len(d_promote_to_c) + len(d_up_or_out_retired)
+    new_disciples, name_registry = generate_disciples(season, all_individuals_before, name_registry, num_needed=d_departures)
     D = D + new_disciples
 
     # --- C・D の定員超過分を、実力（Elo）が低い順に引退させる（在籍猶予は維持） ---
-    C, retired_c = _enforce_capacity_with_retirement(C, LEAGUE_CAPACITY["C"])
-    D, retired_d = _enforce_capacity_with_retirement(D, LEAGUE_CAPACITY["D"])
+    C, retired_c = _enforce_capacity_with_retirement(C, LEAGUE_CAPACITY["C"], MIN_SEASONS_BEFORE_RETIREMENT_ELIGIBLE_C)
+    D, retired_d = _enforce_capacity_with_retirement(D, LEAGUE_CAPACITY["D"], MIN_SEASONS_BEFORE_RETIREMENT_ELIGIBLE)
     retired_this_season = retired_c + retired_d + age_retired + d_up_or_out_retired
 
     rosters["A"], rosters["B"], rosters["C"], rosters["D"] = A, B, C, D
     return rosters, new_disciples, name_registry, retired_this_season
 
 
-def _enforce_capacity_with_retirement(league_list, capacity):
+def _enforce_capacity_with_retirement(league_list, capacity, min_seasons=MIN_SEASONS_BEFORE_RETIREMENT_ELIGIBLE):
     """
-    定員を超えている場合、在籍シーズン数が MIN_SEASONS_BEFORE_RETIREMENT_ELIGIBLE 以上の個体の中から
+    定員を超えている場合、在籍シーズン数が min_seasons 以上の個体の中から
     実力（Elo）が低い順に引退させ、定員に収める（在籍年数ではなく実力を基準にする）。
     引退対象が見つからない場合（全員が新入りの場合）は、超過をそのまま許容する。
     戻り値: (残ったリスト, 引退した個体のリスト)
@@ -137,7 +139,7 @@ def _enforce_capacity_with_retirement(league_list, capacity):
     if excess <= 0:
         return league_list, []
 
-    eligible = [ind for ind in league_list if ind.seasons_in_league >= MIN_SEASONS_BEFORE_RETIREMENT_ELIGIBLE]
+    eligible = [ind for ind in league_list if ind.seasons_in_league >= min_seasons]
     eligible_sorted = sorted(eligible, key=lambda ind: ind.elo)  # Eloが低い順に先頭へ
 
     retire_targets = eligible_sorted[:excess]
@@ -150,28 +152,50 @@ def _enforce_capacity_with_retirement(league_list, capacity):
     return remaining, retire_targets
 
 
-def generate_disciples(season, all_individuals, name_registry=None):
+def generate_disciples(season, all_individuals, name_registry=None, num_needed=None):
     """
-    8大流派から毎シーズン新弟子を生成する。
-    各道場に所属する（引退していない）個体からランダムに1体選び、その変異クローンを弟子とする
-    （＝各流派から最大1名という均衡は自然に守られる）。
+    8道場＋無流派、計9つの供給源から、新弟子を生成する。
+    num_needed（今シーズンDリーグから抜けた人数）が指定された場合、
+    9つの供給源からランダムにその人数分だけ選んで生成する（＝抜けた分だけ補充する）。
+    指定が無い場合は、後方互換のため全9供給源から生成する（従来の挙動）。
+    各道場に所属する（引退していない）個体からランダムに1体選び、その変異クローンを弟子とする。
     道場に所属者が1人もいない場合は、パラメータ無しの新規個体として生成する（開祖扱い）。
-    それとは別枠で、道場に属さない「無流派」を毎シーズン必ず1名、完全ランダムに追加する。
     """
     from .names import NameRegistry
     registry = name_registry or NameRegistry()
 
     disciples = []
+    sources = list(MAJOR_DOJOS) + [None]  # None = 無流派。合計9つの供給源
 
-    for dojo in MAJOR_DOJOS:
+    if num_needed is not None:
+        num_needed = max(0, min(num_needed, len(sources)))
+        chosen_sources = random.sample(sources, num_needed)
+    else:
+        chosen_sources = sources
+
+    for dojo in chosen_sources:
+        if dojo is None:
+            new_id = f"S{season}-Wild-{format(random.randint(0, 4095), 'x').upper()}"
+            wild_params, awakened_key = maybe_awaken(_random_params(), individual_id=new_id)
+            wild = LeagueIndividualLazy(new_id, "D", dojo=None, generation=season, params=wild_params,
+                                         display_name=registry.generate())
+            wild.awakened_param = awakened_key
+            wild.volatility = random.uniform(0.3, 2.0)  # 無流派はムラ気も完全ランダム
+            disciples.append(wild)
+            print(f"  → 無流派の新規参入: {wild.id}（{wild.display_name}）")
+            continue
+
         dojo_members = [ind for ind in all_individuals if ind.dojo == dojo and not ind.retired]
         new_id = f"S{season}-{dojo}-{format(random.randint(0, 4095), 'x').upper()}"
 
         if dojo_members:
             parent = random.choice(dojo_members)
             child_params = _mutate_params(parent.params)
+            # ムラ気も、親から少しだけ揺らして継承する（他パラメータと同じ発想）
+            child_volatility = max(0.1, min(3.0, parent.volatility + random.uniform(-0.2, 0.2)))
         else:
             child_params = _random_params()
+            child_volatility = random.uniform(0.3, 2.0)
 
         child_params, awakened_key = maybe_awaken(child_params, individual_id=new_id)
 
@@ -180,17 +204,10 @@ def generate_disciples(season, all_individuals, name_registry=None):
                                       display_name=registry.generate())
         child.buff_multiplier = assign_buff_multiplier()
         child.awakened_param = awakened_key
+        child.volatility = child_volatility
         disciples.append(child)
 
-    if random.random() < WILD_DISCIPLE_CHANCE:
-        new_id = f"S{season}-Wild-{format(random.randint(0, 4095), 'x').upper()}"
-        wild_params, awakened_key = maybe_awaken(_random_params(), individual_id=new_id)
-        wild = LeagueIndividualLazy(new_id, "D", dojo=None, generation=season, params=wild_params,
-                                     display_name=registry.generate())
-        wild.awakened_param = awakened_key
-        disciples.append(wild)
-        print(f"  → 無流派の新規参入: {wild.id}（{wild.display_name}）")
-
+    return disciples, registry
     return disciples, registry
 
 
