@@ -197,7 +197,7 @@ def _title_results_to_match_log(title_results, season):
                 entries.append({
                     "league": title,  # '陸王' / '海王' / '空王' をリーグ名の代わりに使い、通常戦と区別する
                     "individual_a_id": r["challenger_id"],
-                    "individual_b_id": None,  # ホルダーは個体として特定できない場合があるため空欄
+                    "individual_b_id": r.get("defender_id"),  # 防衛側個体のID（分かる場合のみ。勝敗集計に必須）
                     "result": "win" if g.get("winner") == "a" else "loss",
                     "games": [g],
                 })
@@ -257,6 +257,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
             "title": "陸王", "season": season, **result,
             "challenger_name": a_challenger.display_name,
             "holder_name": new_rikuou.display_name, "holder_id": new_rikuou.id,
+            "defender_id": champion_ind.id if champion_ind is not None else None,
         })
 
     # ============================================================
@@ -324,6 +325,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
                 "title": "海王", "season": season, **result,
                 "challenger_name": challenger.display_name,
                 "holder_name": holder_name, "holder_id": holder_id,
+                "defender_id": defending_holder["id"],
                 "bracket": bracket_log,
             })
     else:
@@ -372,6 +374,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
             "title": "空王", "season": season, **result,
             "challenger_name": challenger.display_name,
             "holder_name": holder_name, "holder_id": holder_id,
+            "defender_id": defending_holder["id"],
             "bracket": bracket_log,
         })
 
