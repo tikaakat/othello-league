@@ -130,6 +130,12 @@ def evaluate(bd, color, params):
         + params["parity_weight"] * parity_score
         + params["center_weight"] * center_score * phase_center_multiplier
     )
+
+    # ごく僅かなランダムノイズを加える。同じ相手・同じ先後の組み合わせでも、
+    # 毎回全く同じ対局が再現されてしまう（決定論的すぎる）のを防ぐための"揺らぎ"。
+    # 戦略の評価自体を歪めない程度の小さな値に留める。
+    score += random.uniform(-1.5, 1.5)
+
     return score
 
 
