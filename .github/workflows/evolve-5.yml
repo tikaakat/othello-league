@@ -1,0 +1,123 @@
+name: Run Othello League Season
+
+concurrency:
+  group: othello-league
+  cancel-in-progress: false
+
+on:
+  workflow_dispatch:
+    inputs:
+      seasons:
+        description: "何シーズン分進めるか"
+        required: false
+        default: "1"
+      depth:
+        description: "探索深さ"
+        required: false
+        default: "4"
+      swiss_rounds:
+        description: "B/C/Dリーグのスイスラウンド数"
+        required: false
+        default: "4"
+  schedule:
+    - cron: "0 20 * * *"
+
+jobs:
+  run-season:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run season(s) one at a time (with per-season push)
+        timeout-minutes: 340
+        env:
+          XSERVER_HOST: ${{ secrets.XSERVER_HOST }}
+          XSERVER_USER: ${{ secrets.XSERVER_USER }}
+          XSERVER_PORT: ${{ secrets.XSERVER_SSH_PORT }}
+          XSERVER_TARGET_DIR: ${{ secrets.XSERVER_TARGET_DIR }}
+          XSERVER_SSH_KEY: ${{ secrets.XSERVER_SSH_KEY }}
+          IMPORT_URL: "https://lab.spia-net.com/othello-league/import_from_colab.php?key=${{ secrets.IMPORT_SECRET_KEY }}"
+          PULL_IMPORT_URL: "https://lab.spia-net.com/othello-league/import_from_github.php?key=${{ secrets.IMPORT_SECRET_KEY }}"
+        run: |
+          git config user.name "othello-league-bot"
+          git config user.email "actions@users.noreply.github.com"
+
+          echo "$XSERVER_SSH_KEY" > /tmp/deploy_key
+          chmod 600 /tmp/deploy_key
+
+          TOTAL="${{ github.event.inputs.seasons || '1' }}"
+          DEPTH="${{ github.event.inputs.depth || '4' }}"
+          SWISS_ROUNDS="${{ github.event.inputs.swiss_rounds || '4' }}"
+
+          for i in $(seq 1 "$TOTAL"); do
+            echo "=== Running season batch $i / $TOTAL ==="
+
+            set +e
+            python -u run_season.py \
+              --data-dir data \
+              --seasons 1 \
+              --depth "$DEPTH" \
+              --swiss-rounds "$SWISS_ROUNDS"
+            PY_EXIT=$?
+            set -e
+
+            echo "=== Python終了コード: $PY_EXIT ==="
+            echo "=== data/ の中身 ==="
+            ls -la data/ 2>&1 || echo "(data/ ディレクトリが存在しません)"
+
+            if [ "$PY_EXIT" -ne 0 ]; then
+              echo "::error::run_season.pyが失敗しました（終了コード $PY_EXIT）。このバッチをスキップして次へ進みます"
+              continue
+            fi
+
+            git add data/rosters.json data/season_state.json data/matches data/standings
+            if ! git diff --staged --quiet; then
+              git commit -m "Season batch $i/$TOTAL [skip ci]"
+              git pull --rebase origin main
+              git push
+            fi
+
+            echo "--- Xserverへ反映中（バッチ $i）---"
+            PUSH_OK=1
+
+            ssh -i /tmp/deploy_key -p "$XSERVER_PORT" -o StrictHostKeyChecking=no \
+              "$XSERVER_USER@$XSERVER_HOST" "mkdir -p ${XSERVER_TARGET_DIR}matches ${XSERVER_TARGET_DIR}standings" \
+              || { echo "::warning::フォルダ作成に失敗しました（バッチ $i）"; PUSH_OK=0; }
+
+            scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no \
+              data/rosters.json data/season_state.json \
+              "$XSERVER_USER@$XSERVER_HOST:$XSERVER_TARGET_DIR" \
+              || { echo "::warning::scpでの転送に失敗しました（バッチ $i）"; PUSH_OK=0; }
+
+            scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -r \
+              data/matches/. \
+              "$XSERVER_USER@$XSERVER_HOST:${XSERVER_TARGET_DIR}matches/" \
+              || { echo "::warning::matches転送に失敗しました（バッチ $i）"; PUSH_OK=0; }
+
+            scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -r \
+              data/standings/. \
+              "$XSERVER_USER@$XSERVER_HOST:${XSERVER_TARGET_DIR}standings/" \
+              || { echo "::warning::standings転送に失敗しました（バッチ $i）"; PUSH_OK=0; }
+
+            if [ "$PUSH_OK" -eq 1 ]; then
+              echo "--- プッシュ型インポートを実行中（バッチ $i）---"
+              curl -sS -f "$IMPORT_URL" \
+                || { echo "::warning::プッシュ型インポートに失敗しました（バッチ $i）。プル型にフォールバックします"; PUSH_OK=0; }
+            fi
+
+            if [ "$PUSH_OK" -eq 0 ]; then
+              echo "--- scpまたはプッシュ型インポートが失敗したため、プル型（GitHubから直接取得）にフォールバックします（バッチ $i）---"
+              curl -sS -f "$PULL_IMPORT_URL" \
+                || echo "::warning::プル型インポートも失敗しました（バッチ $i）。次のバッチへ続行します"
+            fi
+          done
+
+          rm -f /tmp/deploy_key
