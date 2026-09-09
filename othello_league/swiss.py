@@ -43,7 +43,7 @@ def run_swiss_league(members, rounds=4, depth=4, league_name="B"):
             played_pairs.add(frozenset((a_id, b_id)))
             ind_a, ind_b = by_id[a_id], by_id[b_id]
 
-            outcome_a, games = play_league_match(ind_a, ind_b, depth=depth)
+            outcome_a, games = play_league_match(ind_a, ind_b, depth=depth, allow_rematch=False)
             ind_a.elo, ind_b.elo = update_elo(
                 ind_a.elo, ind_b.elo, outcome_a,
                 total_seasons_a=ind_a.total_seasons, total_seasons_b=ind_b.total_seasons,
