@@ -22,7 +22,7 @@ def run_round_robin(members, depth=4):
     start = time.time()
 
     for i, (ind_a, ind_b) in enumerate(pairs, 1):
-        outcome_a, games = play_league_match(ind_a, ind_b, depth=depth)
+        outcome_a, games = play_league_match(ind_a, ind_b, depth=depth, allow_rematch=False)
         ind_a.elo, ind_b.elo = update_elo(
             ind_a.elo, ind_b.elo, outcome_a,
             total_seasons_a=ind_a.total_seasons, total_seasons_b=ind_b.total_seasons,
@@ -74,12 +74,18 @@ def _resolve_first_place_tie(tied_ids, ranked_ids, by_id, depth, match_log, reco
         outcome_a, games = play_league_match(ind_a, ind_b, depth=depth, allow_rematch=True)
         if outcome_a == "win":
             tie_score[ind_a.id] += 1.0
+            record[ind_a.id]["win"] += 1
+            record[ind_b.id]["loss"] += 1
         elif outcome_a == "loss":
             tie_score[ind_b.id] += 1.0
+            record[ind_b.id]["win"] += 1
+            record[ind_a.id]["loss"] += 1
         else:
             tie_score[ind_a.id] += 0.5
             tie_score[ind_b.id] += 0.5
-        # 順位決定戦は「今季の総当たり成績」とは別物なので、勝敗記録には含めない
+            record[ind_a.id]["draw"] += 1
+            record[ind_b.id]["draw"] += 1
+        # 順位決定戦は、順位確定に必須のため対局履歴を残しつつ、勝敗成績にも反映する
 
         match_log.append({
             "individual_a_id": ind_a.id, "individual_b_id": ind_b.id,
