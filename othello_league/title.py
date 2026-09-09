@@ -4,70 +4,82 @@ from . import board as B
 from . import engine as E
 from .dojo import effective_params
 
-MAX_DRAW_REPLAY = 5  # 引き分けが続いた場合、その1局分を最大何回まで打ち直すか
 
-
-def _play_decisive_game(params_black, params_white, depth):
-    """
-    1局対局し、必ず勝敗が付くまで打ち直す（タイトル戦の"1局"としてカウントするため）。
-    MAX_DRAW_REPLAY回試しても決着しない場合は、コイントスで決める（安全策）。
-    """
-    for _ in range(MAX_DRAW_REPLAY):
-        bd = B.initial_board()
-        color = B.BLACK
-        move_history = []
-        for _ in range(64):
-            if B.is_game_over(bd):
-                break
-            moves = B.legal_moves(bd, color)
-            if not moves:
-                color = B.opponent(color)
-                continue
-            params = params_black if color == B.BLACK else params_white
-            mv = E.choose_move(bd, color, params, depth=depth)
-            B.apply_move(bd, mv, color)
-            move_history.append({"pos": mv, "color": color})
+def _play_one_game(params_black, params_white, depth, noise_black=1.0, noise_white=1.0):
+    """1局対局し、(勝敗 'black'/'white'/'draw', 黒石数, 白石数, 着手履歴) を返す。打ち直しは行わない"""
+    bd = B.initial_board()
+    color = B.BLACK
+    move_history = []
+    for _ in range(64):
+        if B.is_game_over(bd):
+            break
+        moves = B.legal_moves(bd, color)
+        if not moves:
             color = B.opponent(color)
+            continue
+        params = params_black if color == B.BLACK else params_white
+        noise_scale = noise_black if color == B.BLACK else noise_white
+        mv = E.choose_move(bd, color, params, depth=depth, noise_scale=noise_scale)
+        B.apply_move(bd, mv, color)
+        move_history.append({"pos": mv, "color": color})
+        color = B.opponent(color)
 
-        black, white = B.count_discs(bd)
-        if black != white:
-            winner = "black" if black > white else "white"
-            return winner, black, white, move_history
+    black, white = B.count_discs(bd)
+    if black > white:
+        result = "black"
+    elif white > black:
+        result = "white"
+    else:
+        result = "draw"
+    return result, black, white, move_history
 
-    # 安全策：規定回数打ち直しても決着しない場合はコイントス
-    winner = random.choice(["black", "white"])
-    return winner, black, white, move_history
 
-
-def run_best_of_n_match(params_a, params_b, wins_needed, depth):
+def run_best_of_n_match(params_a, params_b, wins_needed, depth, noise_a=1.0, noise_b=1.0):
     """
     先取制のタイトル戦本戦。1局ごとに先後を入れ替える（初戦はAが黒）。
+    引き分けの局も「1局」として記録するが、先取数には加算しない（将棋の千日手と同様の扱い）。
+    どちらかが規定数を先取するまで対局を続ける。
     戻り値: (challenger_won: bool, a_wins, b_wins, games_log)
     """
     a_wins, b_wins = 0, 0
     games_log = []
     game_num = 0
+    # 安全策：極端な連続引き分けでプロセスが実質無限ループにならないよう、上限だけは設ける
+    # （通常のプレイでは到達しない、十分大きな値）
+    MAX_GAMES_SAFETY = 500
 
-    while a_wins < wins_needed and b_wins < wins_needed:
+    while a_wins < wins_needed and b_wins < wins_needed and game_num < MAX_GAMES_SAFETY:
         a_is_black = (game_num % 2 == 0)
         if a_is_black:
-            winner, black, white, moves = _play_decisive_game(params_a, params_b, depth)
+            result, black, white, moves = _play_one_game(params_a, params_b, depth, noise_a, noise_b)
         else:
-            winner, black, white, moves = _play_decisive_game(params_b, params_a, depth)
+            result, black, white, moves = _play_one_game(params_b, params_a, depth, noise_b, noise_a)
 
-        a_won_this_game = (winner == "black") == a_is_black
-        if a_won_this_game:
-            a_wins += 1
+        if result == "draw":
+            outcome_for_log = "draw"
+            note = "　（引き分け。先取数には加算せず）"
         else:
-            b_wins += 1
+            a_won_this_game = (result == "black") == a_is_black
+            if a_won_this_game:
+                a_wins += 1
+                outcome_for_log = "a"
+            else:
+                b_wins += 1
+                outcome_for_log = "b"
+            note = ""
 
         games_log.append({
             "game_num": game_num + 1, "a_was_black": a_is_black,
-            "black": black, "white": white, "winner": "a" if a_won_this_game else "b",
+            "black": black, "white": white, "winner": outcome_for_log,
             "moves": moves,
         })
-        print(f"      第{game_num + 1}局: {'挑戦者' if a_won_this_game else 'ホルダー'}の勝ち（{black}-{white}）"
-              f"　現在 挑戦者{a_wins}勝 - ホルダー{b_wins}勝")
+        if outcome_for_log == "draw":
+            print(f"      第{game_num + 1}局: 引き分け（{black}-{black}）{note}"
+                  f"　現在 挑戦者{a_wins}勝 - ホルダー{b_wins}勝")
+        else:
+            winner_label = "挑戦者" if outcome_for_log == "a" else "ホルダー"
+            print(f"      第{game_num + 1}局: {winner_label}の勝ち（{black}-{white}）"
+                  f"　現在 挑戦者{a_wins}勝 - ホルダー{b_wins}勝")
         game_num += 1
 
     return a_wins > b_wins, a_wins, b_wins, games_log
@@ -76,13 +88,41 @@ def run_best_of_n_match(params_a, params_b, wins_needed, depth):
 # ============================================================
 # 陸王戦：Aリーグ優勝者が自動でタイトルホルダーに挑戦。7局制4本先取
 # ============================================================
-def run_rikuou_challenge(a_champion, titleholder_params, depth=4):
+def run_rikuou_challenge(a_champion, titleholder_params, depth=4, titleholder_volatility=1.0):
     challenger_params = effective_params(a_champion)
-    won, a_wins, b_wins, games = run_best_of_n_match(challenger_params, titleholder_params, wins_needed=4, depth=depth)
+    won, a_wins, b_wins, games = run_best_of_n_match(
+        challenger_params, titleholder_params, wins_needed=4, depth=depth,
+        noise_a=a_champion.volatility, noise_b=titleholder_volatility,
+    )
     return {
         "title": "陸王", "challenger_id": a_champion.id, "won": won,
         "challenger_wins": a_wins, "titleholder_wins": b_wins, "games": games,
     }
+
+
+def _play_until_decided(params_x, params_y, depth, noise_x=1.0, noise_y=1.0, max_attempts=100):
+    """
+    先後を入れ替えながら、決着がつくまで打ち直す（B〜Dリーグの引き分け処理と同じ考え方）。
+    予選（トーナメント・ラダー）は勝者を1人に絞る必要があるため、この方式を使う。
+    全ての対局（引き分けも含む）を記録し、最後に決着した対局の勝者を返す。
+    """
+    x_is_black = True
+    games = []
+    for _ in range(max_attempts):
+        if x_is_black:
+            result, black, white, moves = _play_one_game(params_x, params_y, depth, noise_x, noise_y)
+        else:
+            result, black, white, moves = _play_one_game(params_y, params_x, depth, noise_y, noise_x)
+        games.append({
+            "black": black, "white": white, "moves": moves,
+            "x_was_black": x_is_black, "result": result,
+        })
+        if result != "draw":
+            x_won = (result == "black") == x_is_black
+            return x_won, games
+        x_is_black = not x_is_black
+    # 安全策（実質到達しない想定）：それでも決着しなければXを勝者扱いにする
+    return True, games
 
 
 # ============================================================
@@ -103,13 +143,13 @@ def determine_kaiou_challenger(a_slots, b1, c1, depth=4):
             return ind_y
         if ind_y is None:
             return ind_x
-        winner, black, white, moves = _play_decisive_game(
+        x_won, games = _play_until_decided(
             effective_params(ind_x), effective_params(ind_y), depth,
+            noise_x=ind_x.volatility, noise_y=ind_y.volatility,
         )
-        winner_ind = ind_x if winner == "black" else ind_y
+        winner_ind = ind_x if x_won else ind_y
         bracket_log.append({
-            "a": ind_x.id, "b": ind_y.id, "winner": winner_ind.id,
-            "black": black, "white": white, "moves": moves,
+            "a": ind_x.id, "b": ind_y.id, "winner": winner_ind.id, "games": games,
         })
         return winner_ind
 
@@ -125,9 +165,12 @@ def determine_kaiou_challenger(a_slots, b1, c1, depth=4):
     return challenger, bracket_log
 
 
-def run_kaiou_challenge(challenger, titleholder_params, depth=4):
+def run_kaiou_challenge(challenger, titleholder_params, depth=4, titleholder_volatility=1.0):
     challenger_params = effective_params(challenger)
-    won, c_wins, t_wins, games = run_best_of_n_match(challenger_params, titleholder_params, wins_needed=3, depth=depth)
+    won, c_wins, t_wins, games = run_best_of_n_match(
+        challenger_params, titleholder_params, wins_needed=3, depth=depth,
+        noise_a=challenger.volatility, noise_b=titleholder_volatility,
+    )
     return {
         "title": "海王", "challenger_id": challenger.id, "won": won,
         "challenger_wins": c_wins, "titleholder_wins": t_wins, "games": games,
@@ -178,13 +221,13 @@ def determine_kuuou_challenger(all_members, exclude_id=None, depth=4, top_n=8):
             return ind_y
         if ind_y is None:
             return ind_x
-        winner, black, white, moves = _play_decisive_game(
+        x_won, games = _play_until_decided(
             effective_params(ind_x), effective_params(ind_y), depth,
+            noise_x=ind_x.volatility, noise_y=ind_y.volatility,
         )
-        winner_ind = ind_x if winner == "black" else ind_y
+        winner_ind = ind_x if x_won else ind_y
         bracket_log.append({
-            "a": ind_x.id, "b": ind_y.id, "winner": winner_ind.id,
-            "black": black, "white": white, "moves": moves,
+            "a": ind_x.id, "b": ind_y.id, "winner": winner_ind.id, "games": games,
         })
         return winner_ind
 
@@ -200,9 +243,12 @@ def determine_kuuou_challenger(all_members, exclude_id=None, depth=4, top_n=8):
     return challenger, bracket_log
 
 
-def run_kuuou_challenge(challenger, titleholder_params, depth=4):
+def run_kuuou_challenge(challenger, titleholder_params, depth=4, titleholder_volatility=1.0):
     challenger_params = effective_params(challenger)
-    won, c_wins, t_wins, games = run_best_of_n_match(challenger_params, titleholder_params, wins_needed=3, depth=depth)
+    won, c_wins, t_wins, games = run_best_of_n_match(
+        challenger_params, titleholder_params, wins_needed=3, depth=depth,
+        noise_a=challenger.volatility, noise_b=titleholder_volatility,
+    )
     return {
         "title": "空王", "challenger_id": challenger.id, "won": won,
         "challenger_wins": c_wins, "titleholder_wins": t_wins, "games": games,
