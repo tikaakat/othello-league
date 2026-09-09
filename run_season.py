@@ -429,4 +429,43 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-dir", default="data")
-    parser.add_argument("--seasons"
+    parser.add_argument("--seasons", type=int, default=1)
+    parser.add_argument("--depth", type=int, default=4)
+    parser.add_argument("--swiss-rounds", type=int, default=4)
+    args = parser.parse_args()
+    print(f"[DEBUG] パース済み引数: data_dir={args.data_dir}, seasons={args.seasons}, depth={args.depth}, swiss_rounds={args.swiss_rounds}", flush=True)
+
+    state = load_season_state(args.data_dir)
+    registry = NameRegistry.from_dict(state.get("name_registry", {}))
+
+    rosters = load_rosters(args.data_dir)
+    print(f"[DEBUG] load_rosters結果: {'None（新規作成へ）' if rosters is None else 'ロード成功'}", flush=True)
+    if rosters is None:
+        print("初回起動：ロスターを新規作成します", flush=True)
+        rosters = bootstrap_rosters(registry)
+        state["name_registry"] = registry.to_dict()
+
+    print(f"[DEBUG] これから{args.seasons}シーズン分のループに入ります", flush=True)
+    for _ in range(args.seasons):
+        season = state["current_season"] + 1
+        rosters, match_log, title_results, retired, standings_snapshot = run_one_season(
+            rosters, season, args.depth, args.swiss_rounds, state,
+        )
+        state["current_season"] = season
+        state.setdefault("retired_archive", [])
+        state["retired_archive"] += [ind.to_dict() for ind in retired]
+        state.setdefault("title_history", [])
+        state["title_history"] += title_results
+
+        save_rosters(args.data_dir, rosters)
+        save_match_log(args.data_dir, season, match_log)
+        save_standings(args.data_dir, season, standings_snapshot)
+        save_season_state(args.data_dir, state)
+        print(f"Season {season} 完了・保存しました\n")
+
+
+if __name__ == "__main__":
+    print("[DEBUG] __main__ ガード節に到達、main()を呼び出します", flush=True)
+    main()
+else:
+    print(f"[DEBUG] __name__は'{__name__}'のため、main()は呼び出されません", flush=True)
