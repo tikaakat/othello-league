@@ -1,4 +1,6 @@
 import argparse
+import json
+import os
 import random
 
 from othello_league.individual import LeagueIndividual
@@ -68,7 +70,35 @@ def bootstrap_rosters(registry):
     return rosters
 
 
-def run_one_season(rosters, season, depth, swiss_rounds, state):
+def _build_seed_order(members, league_name, prev_standings_by_id):
+    """
+    スイス方式の初期シード順（＝ラウンド1の並び順、同点時のタイブレーク）を決める。
+    「直近シーズンの順位を継承」：このリーグに残留していた人はそのリーグ内順位のまま、
+    昇格・降格・新規参入した人（＝直近シーズンにこのリーグにいなかった人）は、
+    Eloで判断せず、それぞれ「最下位扱い」で一律に並べる
+    （前のリーグと今のリーグの順位は、数字としては比較できないため、
+    　安易にEloで補うと"前のリーグの相手にしか通用しない強さ"を誤って持ち込んでしまう）。
+    判定材料は、個体に新しく属性を持たせるのではなく、既に保存済みの
+    前シーズンのstandingsファイル（prev_standings_by_id）をそのまま読んで使う。
+    """
+    stayed = []
+    others = []
+    for ind in members:
+        prev = prev_standings_by_id.get(ind.id)
+        if prev is not None and prev["league"] == league_name:
+            stayed.append((ind.id, prev["rank"]))
+        else:
+            others.append(ind.id)
+
+    stayed_sorted = [iid for iid, _ in sorted(stayed, key=lambda t: t[1])]
+    # 昇格・降格・新規参入者の並び順に優劣はつけがたいため、生成順（IDの並び）で安定させる
+    others_sorted = sorted(others)
+
+    return stayed_sorted + others_sorted
+
+
+def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_by_id=None):
+    prev_standings_by_id = prev_standings_by_id or {}
     match_log = []
 
     print(f"=== Season {season} ===")
@@ -91,15 +121,24 @@ def run_one_season(rosters, season, depth, swiss_rounds, state):
         record_A[champion_ind.id] = {"win": 0, "loss": 0, "draw": 0}  # 対局免除のため記録なし
 
     print("  --- Bリーグ（スイス方式） ---")
-    ranked_B, log_B, _, record_B = run_swiss_league(rosters["B"], rounds=swiss_rounds, depth=depth, league_name="B")
+    ranked_B, log_B, _, record_B = run_swiss_league(
+        rosters["B"], rounds=swiss_rounds, depth=depth, league_name="B",
+        seed_order=_build_seed_order(rosters["B"], "B", prev_standings_by_id),
+    )
     match_log += log_B
 
     print("  --- Cリーグ（スイス方式） ---")
-    ranked_C, log_C, _, record_C = run_swiss_league(rosters["C"], rounds=swiss_rounds, depth=depth, league_name="C")
+    ranked_C, log_C, _, record_C = run_swiss_league(
+        rosters["C"], rounds=swiss_rounds, depth=depth, league_name="C",
+        seed_order=_build_seed_order(rosters["C"], "C", prev_standings_by_id),
+    )
     match_log += log_C
 
     print("  --- Dリーグ（スイス方式） ---")
-    ranked_D, log_D, _, record_D = run_swiss_league(rosters["D"], rounds=swiss_rounds, depth=depth, league_name="D")
+    ranked_D, log_D, _, record_D = run_swiss_league(
+        rosters["D"], rounds=swiss_rounds, depth=depth, league_name="D",
+        seed_order=_build_seed_order(rosters["D"], "D", prev_standings_by_id),
+    )
     match_log += log_D
 
     all_records = {**record_A, **record_B, **record_C, **record_D}
@@ -454,8 +493,19 @@ def main():
     print(f"[DEBUG] これから{args.seasons}シーズン分のループに入ります", flush=True)
     for _ in range(args.seasons):
         season = state["current_season"] + 1
+
+        # 直前シーズンのstandingsファイルを読み込み、スイス方式のシード順に使う
+        # （新しく属性を持たせず、既に保存済みのファイルをそのまま参照する）
+        prev_standings_by_id = {}
+        if season > 1:
+            prev_path = os.path.join(args.data_dir, "standings", f"season_{season - 1}.json")
+            if os.path.exists(prev_path):
+                with open(prev_path, "r", encoding="utf-8") as f:
+                    prev_rows = json.load(f)
+                prev_standings_by_id = {row["individual_id"]: row for row in prev_rows}
+
         rosters, match_log, title_results, retired, standings_snapshot = run_one_season(
-            rosters, season, args.depth, args.swiss_rounds, state,
+            rosters, season, args.depth, args.swiss_rounds, state, prev_standings_by_id,
         )
         state["current_season"] = season
         state.setdefault("retired_archive", [])
