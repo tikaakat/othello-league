@@ -1,5 +1,5 @@
 {
-  "current_season": 2,
+  "current_season": 3,
   "name_registry": {
     "吉田凛": 1,
     "遠藤詩織": 1,
@@ -62,16 +62,19 @@
     "上野智子": 1,
     "戸田蒼": 1,
     "小川拓也": 1,
-    "竹内久美子": 1
+    "竹内久美子": 1,
+    "杉山康弘": 1,
+    "佐藤真希": 1,
+    "中田亜希子": 1
   },
   "titleholders": {
     "陸王": {
-      "id": "A0-001",
-      "name": "遠藤詩織"
+      "id": "C0-004",
+      "name": "小田智子"
     },
     "海王": {
-      "id": "B0-006",
-      "name": "武井隆之"
+      "id": "C0-004",
+      "name": "小田智子"
     },
     "空王": {
       "id": "B0-006",
@@ -80,24 +83,24 @@
   },
   "titleholder_params": {
     "陸王": {
-      "corner_weight": 4.578,
-      "danger_zone_weight": 7.409,
-      "mobility_weight": 4.497,
-      "edge_stability_weight": 6.985,
-      "frontier_weight": 4.064,
-      "disc_weight": 3.813,
-      "parity_weight": 7.863,
-      "center_weight": 5.441
+      "corner_weight": 9.46,
+      "danger_zone_weight": 3.346,
+      "mobility_weight": 5.248,
+      "edge_stability_weight": 3.375,
+      "frontier_weight": 5.904,
+      "disc_weight": 3.889,
+      "parity_weight": 7.726,
+      "center_weight": 1.051
     },
     "海王": {
-      "corner_weight": 8.065,
-      "danger_zone_weight": 7.586,
-      "mobility_weight": 7.046,
-      "edge_stability_weight": 4.015,
-      "frontier_weight": 5.565,
-      "disc_weight": 3.194,
-      "parity_weight": 7.005,
-      "center_weight": 2.525
+      "corner_weight": 9.46,
+      "danger_zone_weight": 3.346,
+      "mobility_weight": 5.248,
+      "edge_stability_weight": 3.375,
+      "frontier_weight": 5.904,
+      "disc_weight": 3.889,
+      "parity_weight": 7.726,
+      "center_weight": 1.051
     },
     "空王": {
       "corner_weight": 8.065,
@@ -110,7 +113,278 @@
       "center_weight": 2.525
     }
   },
-  "retired_archive": [],
+  "retired_archive": [
+    {
+      "id": "B0-013",
+      "league": "C",
+      "params": {
+        "corner_weight": 6.218,
+        "danger_zone_weight": 7.924,
+        "mobility_weight": 8.102,
+        "edge_stability_weight": 1.019,
+        "frontier_weight": 1.632,
+        "disc_weight": 7.5,
+        "parity_weight": 4.634,
+        "center_weight": 7.969
+      },
+      "dojo": null,
+      "buff_multiplier": null,
+      "display_name": "松本浩太",
+      "awakened_param": null,
+      "black_count": 6,
+      "white_count": 6,
+      "generation": 0,
+      "parent_a_id": null,
+      "parent_b_id": null,
+      "elo": 1302.335079653075,
+      "peak_elo": 1500.0,
+      "volatility": 1.7872653890658254,
+      "seasons_in_league": 3,
+      "total_seasons": 3,
+      "retired": true,
+      "match_history": []
+    },
+    {
+      "id": "C0-014",
+      "league": "C",
+      "params": {
+        "corner_weight": 5.503,
+        "danger_zone_weight": 3.015,
+        "mobility_weight": 5.422,
+        "edge_stability_weight": 2.128,
+        "frontier_weight": 3.379,
+        "disc_weight": 7.103,
+        "parity_weight": 0.84,
+        "center_weight": 9.442
+      },
+      "dojo": null,
+      "buff_multiplier": null,
+      "display_name": "石岡泉美",
+      "awakened_param": null,
+      "black_count": 6,
+      "white_count": 3,
+      "generation": 0,
+      "parent_a_id": null,
+      "parent_b_id": null,
+      "elo": 1388.9004142904212,
+      "peak_elo": 1500.0,
+      "volatility": 1.6211573829467583,
+      "seasons_in_league": 3,
+      "total_seasons": 3,
+      "retired": true,
+      "match_history": []
+    },
+    {
+      "id": "C0-007",
+      "league": "C",
+      "params": {
+        "corner_weight": 5.132,
+        "danger_zone_weight": 1.145,
+        "mobility_weight": 7.772,
+        "edge_stability_weight": 3.907,
+        "frontier_weight": 9.726,
+        "disc_weight": 2.412,
+        "parity_weight": 6.012,
+        "center_weight": 3.894
+      },
+      "dojo": null,
+      "buff_multiplier": null,
+      "display_name": "田中麻衣",
+      "awakened_param": null,
+      "black_count": 6,
+      "white_count": 6,
+      "generation": 0,
+      "parent_a_id": null,
+      "parent_b_id": null,
+      "elo": 1389.3990028190494,
+      "peak_elo": 1500.0,
+      "volatility": 1.6592420172713953,
+      "seasons_in_league": 3,
+      "total_seasons": 3,
+      "retired": true,
+      "match_history": []
+    },
+    {
+      "id": "B0-009",
+      "league": "C",
+      "params": {
+        "corner_weight": 5.721,
+        "danger_zone_weight": 4.564,
+        "mobility_weight": 6.186,
+        "edge_stability_weight": 3.626,
+        "frontier_weight": 2.676,
+        "disc_weight": 1.105,
+        "parity_weight": 7.192,
+        "center_weight": 4.011
+      },
+      "dojo": null,
+      "buff_multiplier": null,
+      "display_name": "池田淳",
+      "awakened_param": null,
+      "black_count": 6,
+      "white_count": 6,
+      "generation": 0,
+      "parent_a_id": null,
+      "parent_b_id": null,
+      "elo": 1408.8420314610341,
+      "peak_elo": 1510.1208142901105,
+      "volatility": 1.4334118856843736,
+      "seasons_in_league": 3,
+      "total_seasons": 3,
+      "retired": true,
+      "match_history": []
+    },
+    {
+      "id": "B0-008",
+      "league": "C",
+      "params": {
+        "corner_weight": 7.714,
+        "danger_zone_weight": 3.446,
+        "mobility_weight": 8.184,
+        "edge_stability_weight": 3.408,
+        "frontier_weight": 9.278,
+        "disc_weight": 2.713,
+        "parity_weight": 4.475,
+        "center_weight": 5.782
+      },
+      "dojo": null,
+      "buff_multiplier": null,
+      "display_name": "小坂真一",
+      "awakened_param": null,
+      "black_count": 6,
+      "white_count": 6,
+      "generation": 0,
+      "parent_a_id": null,
+      "parent_b_id": null,
+      "elo": 1414.3707708649638,
+      "peak_elo": 1500.0,
+      "volatility": 1.5513586900276874,
+      "seasons_in_league": 3,
+      "total_seasons": 3,
+      "retired": true,
+      "match_history": []
+    },
+    {
+      "id": "D0-012",
+      "league": "C",
+      "params": {
+        "corner_weight": 5.571,
+        "danger_zone_weight": 6.608,
+        "mobility_weight": 1.901,
+        "edge_stability_weight": 1.231,
+        "frontier_weight": 3.689,
+        "disc_weight": 6.387,
+        "parity_weight": 4.537,
+        "center_weight": 5.077
+      },
+      "dojo": "紫苑",
+      "buff_multiplier": null,
+      "display_name": "上野英樹",
+      "awakened_param": null,
+      "black_count": 6,
+      "white_count": 6,
+      "generation": 0,
+      "parent_a_id": null,
+      "parent_b_id": null,
+      "elo": 1416.3919574883612,
+      "peak_elo": 1590.439748597542,
+      "volatility": 1.7520262379690734,
+      "seasons_in_league": 3,
+      "total_seasons": 3,
+      "retired": true,
+      "match_history": []
+    },
+    {
+      "id": "C0-002",
+      "league": "C",
+      "params": {
+        "corner_weight": 0.654,
+        "danger_zone_weight": 3.995,
+        "mobility_weight": 6.775,
+        "edge_stability_weight": 6.808,
+        "frontier_weight": 5.84,
+        "disc_weight": 7.637,
+        "parity_weight": 7.007,
+        "center_weight": 1.284
+      },
+      "dojo": null,
+      "buff_multiplier": null,
+      "display_name": "大西深雪",
+      "awakened_param": null,
+      "black_count": 6,
+      "white_count": 6,
+      "generation": 0,
+      "parent_a_id": null,
+      "parent_b_id": null,
+      "elo": 1443.145513111744,
+      "peak_elo": 1500.0,
+      "volatility": 0.6297082432369261,
+      "seasons_in_league": 3,
+      "total_seasons": 3,
+      "retired": true,
+      "match_history": []
+    },
+    {
+      "id": "C0-010",
+      "league": "C",
+      "params": {
+        "corner_weight": 1.089,
+        "danger_zone_weight": 0.899,
+        "mobility_weight": 1.516,
+        "edge_stability_weight": 5.434,
+        "frontier_weight": 4.848,
+        "disc_weight": 5.613,
+        "parity_weight": 5.032,
+        "center_weight": 7.142
+      },
+      "dojo": null,
+      "buff_multiplier": null,
+      "display_name": "松井裕子",
+      "awakened_param": null,
+      "black_count": 6,
+      "white_count": 6,
+      "generation": 0,
+      "parent_a_id": null,
+      "parent_b_id": null,
+      "elo": 1445.2714407494925,
+      "peak_elo": 1500.0,
+      "volatility": 1.4062757387680844,
+      "seasons_in_league": 3,
+      "total_seasons": 3,
+      "retired": true,
+      "match_history": []
+    },
+    {
+      "id": "C0-011",
+      "league": "C",
+      "params": {
+        "corner_weight": 1.296,
+        "danger_zone_weight": 4.498,
+        "mobility_weight": 1.642,
+        "edge_stability_weight": 2.244,
+        "frontier_weight": 8.68,
+        "disc_weight": 8.878,
+        "parity_weight": 8.444,
+        "center_weight": 1.434
+      },
+      "dojo": null,
+      "buff_multiplier": null,
+      "display_name": "小山綾",
+      "awakened_param": null,
+      "black_count": 6,
+      "white_count": 7,
+      "generation": 0,
+      "parent_a_id": null,
+      "parent_b_id": null,
+      "elo": 1445.8039364835345,
+      "peak_elo": 1500.0,
+      "volatility": 1.188217428436997,
+      "seasons_in_league": 3,
+      "total_seasons": 3,
+      "retired": true,
+      "match_history": []
+    }
+  ],
   "title_history": [
     {
       "title": "陸王",
@@ -10419,6 +10693,7341 @@
               ],
               "x_was_black": true,
               "result": "white"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "陸王",
+      "season": 3,
+      "challenger_id": "C0-004",
+      "won": true,
+      "challenger_wins": 4,
+      "titleholder_wins": 2,
+      "games": [
+        {
+          "game_num": 1,
+          "a_was_black": true,
+          "black": 24,
+          "white": 40,
+          "winner": "b",
+          "moves": [
+            {
+              "pos": 26,
+              "color": 1
+            },
+            {
+              "pos": 20,
+              "color": 2
+            },
+            {
+              "pos": 37,
+              "color": 1
+            },
+            {
+              "pos": 34,
+              "color": 2
+            },
+            {
+              "pos": 18,
+              "color": 1
+            },
+            {
+              "pos": 42,
+              "color": 2
+            },
+            {
+              "pos": 43,
+              "color": 1
+            },
+            {
+              "pos": 44,
+              "color": 2
+            },
+            {
+              "pos": 29,
+              "color": 1
+            },
+            {
+              "pos": 21,
+              "color": 2
+            },
+            {
+              "pos": 19,
+              "color": 1
+            },
+            {
+              "pos": 45,
+              "color": 2
+            },
+            {
+              "pos": 54,
+              "color": 1
+            },
+            {
+              "pos": 25,
+              "color": 2
+            },
+            {
+              "pos": 51,
+              "color": 1
+            },
+            {
+              "pos": 58,
+              "color": 2
+            },
+            {
+              "pos": 17,
+              "color": 1
+            },
+            {
+              "pos": 16,
+              "color": 2
+            },
+            {
+              "pos": 33,
+              "color": 1
+            },
+            {
+              "pos": 40,
+              "color": 2
+            },
+            {
+              "pos": 59,
+              "color": 1
+            },
+            {
+              "pos": 60,
+              "color": 2
+            },
+            {
+              "pos": 41,
+              "color": 1
+            },
+            {
+              "pos": 48,
+              "color": 2
+            },
+            {
+              "pos": 32,
+              "color": 1
+            },
+            {
+              "pos": 24,
+              "color": 2
+            },
+            {
+              "pos": 53,
+              "color": 1
+            },
+            {
+              "pos": 52,
+              "color": 2
+            },
+            {
+              "pos": 50,
+              "color": 1
+            },
+            {
+              "pos": 57,
+              "color": 2
+            },
+            {
+              "pos": 38,
+              "color": 1
+            },
+            {
+              "pos": 63,
+              "color": 2
+            },
+            {
+              "pos": 55,
+              "color": 1
+            },
+            {
+              "pos": 47,
+              "color": 2
+            },
+            {
+              "pos": 31,
+              "color": 1
+            },
+            {
+              "pos": 39,
+              "color": 2
+            },
+            {
+              "pos": 30,
+              "color": 1
+            },
+            {
+              "pos": 23,
+              "color": 2
+            },
+            {
+              "pos": 12,
+              "color": 1
+            },
+            {
+              "pos": 4,
+              "color": 2
+            },
+            {
+              "pos": 9,
+              "color": 1
+            },
+            {
+              "pos": 10,
+              "color": 2
+            },
+            {
+              "pos": 8,
+              "color": 1
+            },
+            {
+              "pos": 0,
+              "color": 2
+            },
+            {
+              "pos": 3,
+              "color": 1
+            },
+            {
+              "pos": 1,
+              "color": 2
+            },
+            {
+              "pos": 11,
+              "color": 1
+            },
+            {
+              "pos": 46,
+              "color": 2
+            },
+            {
+              "pos": 2,
+              "color": 1
+            },
+            {
+              "pos": 62,
+              "color": 2
+            },
+            {
+              "pos": 49,
+              "color": 1
+            },
+            {
+              "pos": 56,
+              "color": 2
+            },
+            {
+              "pos": 13,
+              "color": 1
+            },
+            {
+              "pos": 5,
+              "color": 2
+            },
+            {
+              "pos": 22,
+              "color": 1
+            },
+            {
+              "pos": 15,
+              "color": 2
+            },
+            {
+              "pos": 14,
+              "color": 1
+            },
+            {
+              "pos": 7,
+              "color": 2
+            },
+            {
+              "pos": 6,
+              "color": 1
+            },
+            {
+              "pos": 61,
+              "color": 1
+            }
+          ]
+        },
+        {
+          "game_num": 2,
+          "a_was_black": false,
+          "black": 25,
+          "white": 39,
+          "winner": "a",
+          "moves": [
+            {
+              "pos": 26,
+              "color": 1
+            },
+            {
+              "pos": 20,
+              "color": 2
+            },
+            {
+              "pos": 37,
+              "color": 1
+            },
+            {
+              "pos": 34,
+              "color": 2
+            },
+            {
+              "pos": 42,
+              "color": 1
+            },
+            {
+              "pos": 43,
+              "color": 2
+            },
+            {
+              "pos": 12,
+              "color": 1
+            },
+            {
+              "pos": 21,
+              "color": 2
+            },
+            {
+              "pos": 14,
+              "color": 1
+            },
+            {
+              "pos": 45,
+              "color": 2
+            },
+            {
+              "pos": 44,
+              "color": 1
+            },
+            {
+              "pos": 29,
+              "color": 2
+            },
+            {
+              "pos": 38,
+              "color": 1
+            },
+            {
+              "pos": 4,
+              "color": 2
+            },
+            {
+              "pos": 13,
+              "color": 1
+            },
+            {
+              "pos": 5,
+              "color": 2
+            },
+            {
+              "pos": 30,
+              "color": 1
+            },
+            {
+              "pos": 19,
+              "color": 2
+            },
+            {
+              "pos": 6,
+              "color": 1
+            },
+            {
+              "pos": 7,
+              "color": 2
+            },
+            {
+              "pos": 15,
+              "color": 1
+            },
+            {
+              "pos": 23,
+              "color": 2
+            },
+            {
+              "pos": 22,
+              "color": 1
+            },
+            {
+              "pos": 31,
+              "color": 2
+            },
+            {
+              "pos": 3,
+              "color": 1
+            },
+            {
+              "pos": 11,
+              "color": 2
+            },
+            {
+              "pos": 18,
+              "color": 1
+            },
+            {
+              "pos": 2,
+              "color": 2
+            },
+            {
+              "pos": 39,
+              "color": 1
+            },
+            {
+              "pos": 46,
+              "color": 2
+            },
+            {
+              "pos": 47,
+              "color": 1
+            },
+            {
+              "pos": 55,
+              "color": 2
+            },
+            {
+              "pos": 54,
+              "color": 2
+            },
+            {
+              "pos": 63,
+              "color": 1
+            },
+            {
+              "pos": 53,
+              "color": 2
+            },
+            {
+              "pos": 62,
+              "color": 1
+            },
+            {
+              "pos": 52,
+              "color": 2
+            },
+            {
+              "pos": 61,
+              "color": 1
+            },
+            {
+              "pos": 10,
+              "color": 2
+            },
+            {
+              "pos": 51,
+              "color": 2
+            },
+            {
+              "pos": 60,
+              "color": 1
+            },
+            {
+              "pos": 58,
+              "color": 2
+            },
+            {
+              "pos": 49,
+              "color": 2
+            },
+            {
+              "pos": 33,
+              "color": 1
+            },
+            {
+              "pos": 41,
+              "color": 2
+            },
+            {
+              "pos": 25,
+              "color": 1
+            },
+            {
+              "pos": 50,
+              "color": 2
+            },
+            {
+              "pos": 48,
+              "color": 1
+            },
+            {
+              "pos": 16,
+              "color": 2
+            },
+            {
+              "pos": 24,
+              "color": 1
+            },
+            {
+              "pos": 40,
+              "color": 2
+            },
+            {
+              "pos": 17,
+              "color": 1
+            },
+            {
+              "pos": 56,
+              "color": 2
+            },
+            {
+              "pos": 32,
+              "color": 1
+            },
+            {
+              "pos": 9,
+              "color": 2
+            },
+            {
+              "pos": 0,
+              "color": 1
+            },
+            {
+              "pos": 8,
+              "color": 2
+            },
+            {
+              "pos": 59,
+              "color": 1
+            },
+            {
+              "pos": 57,
+              "color": 2
+            },
+            {
+              "pos": 1,
+              "color": 1
+            }
+          ]
+        },
+        {
+          "game_num": 3,
+          "a_was_black": true,
+          "black": 37,
+          "white": 27,
+          "winner": "a",
+          "moves": [
+            {
+              "pos": 26,
+              "color": 1
+            },
+            {
+              "pos": 20,
+              "color": 2
+            },
+            {
+              "pos": 37,
+              "color": 1
+            },
+            {
+              "pos": 34,
+              "color": 2
+            },
+            {
+              "pos": 18,
+              "color": 1
+            },
+            {
+              "pos": 42,
+              "color": 2
+            },
+            {
+              "pos": 43,
+              "color": 1
+            },
+            {
+              "pos": 44,
+              "color": 2
+            },
+            {
+              "pos": 29,
+              "color": 1
+            },
+            {
+              "pos": 19,
+              "color": 2
+            },
+            {
+              "pos": 45,
+              "color": 1
+            },
+            {
+              "pos": 21,
+              "color": 2
+            },
+            {
+              "pos": 53,
+              "color": 1
+            },
+            {
+              "pos": 61,
+              "color": 2
+            },
+            {
+              "pos": 46,
+              "color": 1
+            },
+            {
+              "pos": 55,
+              "color": 2
+            },
+            {
+              "pos": 38,
+              "color": 1
+            },
+            {
+              "pos": 25,
+              "color": 2
+            },
+            {
+              "pos": 32,
+              "color": 1
+            },
+            {
+              "pos": 16,
+              "color": 2
+            },
+            {
+              "pos": 10,
+              "color": 1
+            },
+            {
+              "pos": 52,
+              "color": 2
+            },
+            {
+              "pos": 47,
+              "color": 1
+            },
+            {
+              "pos": 39,
+              "color": 2
+            },
+            {
+              "pos": 59,
+              "color": 1
+            },
+            {
+              "pos": 51,
+              "color": 2
+            },
+            {
+              "pos": 33,
+              "color": 1
+            },
+            {
+              "pos": 2,
+              "color": 2
+            },
+            {
+              "pos": 11,
+              "color": 1
+            },
+            {
+              "pos": 3,
+              "color": 2
+            },
+            {
+              "pos": 30,
+              "color": 1
+            },
+            {
+              "pos": 22,
+              "color": 2
+            },
+            {
+              "pos": 12,
+              "color": 1
+            },
+            {
+              "pos": 17,
+              "color": 2
+            },
+            {
+              "pos": 13,
+              "color": 1
+            },
+            {
+              "pos": 6,
+              "color": 2
+            },
+            {
+              "pos": 5,
+              "color": 1
+            },
+            {
+              "pos": 4,
+              "color": 2
+            },
+            {
+              "pos": 58,
+              "color": 1
+            },
+            {
+              "pos": 14,
+              "color": 2
+            },
+            {
+              "pos": 9,
+              "color": 1
+            },
+            {
+              "pos": 50,
+              "color": 2
+            },
+            {
+              "pos": 60,
+              "color": 1
+            },
+            {
+              "pos": 49,
+              "color": 2
+            },
+            {
+              "pos": 62,
+              "color": 1
+            },
+            {
+              "pos": 40,
+              "color": 2
+            },
+            {
+              "pos": 31,
+              "color": 1
+            },
+            {
+              "pos": 23,
+              "color": 2
+            },
+            {
+              "pos": 24,
+              "color": 1
+            },
+            {
+              "pos": 41,
+              "color": 2
+            },
+            {
+              "pos": 54,
+              "color": 1
+            },
+            {
+              "pos": 1,
+              "color": 2
+            },
+            {
+              "pos": 0,
+              "color": 1
+            },
+            {
+              "pos": 8,
+              "color": 2
+            },
+            {
+              "pos": 7,
+              "color": 1
+            },
+            {
+              "pos": 63,
+              "color": 2
+            },
+            {
+              "pos": 57,
+              "color": 1
+            },
+            {
+              "pos": 56,
+              "color": 2
+            },
+            {
+              "pos": 48,
+              "color": 1
+            },
+            {
+              "pos": 15,
+              "color": 1
+            }
+          ]
+        },
+        {
+          "game_num": 4,
+          "a_was_black": false,
+          "black": 9,
+          "white": 53,
+          "winner": "a",
+          "moves": [
+            {
+              "pos": 26,
+              "color": 1
+            },
+            {
+              "pos": 20,
+              "color": 2
+            },
+            {
+              "pos": 37,
+              "color": 1
+            },
+            {
+              "pos": 44,
+              "color": 2
+            },
+            {
+              "pos": 29,
+              "color": 1
+            },
+            {
+              "pos": 34,
+              "color": 2
+            },
+            {
+              "pos": 42,
+              "color": 1
+            },
+            {
+              "pos": 43,
+              "color": 2
+            },
+            {
+              "pos": 45,
+              "color": 1
+            },
+            {
+              "pos": 21,
+              "color": 2
+            },
+            {
+              "pos": 14,
+              "color": 1
+            },
+            {
+              "pos": 51,
+              "color": 2
+            },
+            {
+              "pos": 60,
+              "color": 1
+            },
+            {
+              "pos": 59,
+              "color": 2
+            },
+            {
+              "pos": 58,
+              "color": 1
+            },
+            {
+              "pos": 22,
+              "color": 2
+            },
+            {
+              "pos": 52,
+              "color": 1
+            },
+            {
+              "pos": 7,
+              "color": 2
+            },
+            {
+              "pos": 19,
+              "color": 1
+            },
+            {
+              "pos": 50,
+              "color": 2
+            },
+            {
+              "pos": 30,
+              "color": 1
+            },
+            {
+              "pos": 39,
+              "color": 2
+            },
+            {
+              "pos": 57,
+              "color": 1
+            },
+            {
+              "pos": 38,
+              "color": 2
+            },
+            {
+              "pos": 12,
+              "color": 1
+            },
+            {
+              "pos": 3,
+              "color": 2
+            },
+            {
+              "pos": 13,
+              "color": 1
+            },
+            {
+              "pos": 4,
+              "color": 2
+            },
+            {
+              "pos": 23,
+              "color": 1
+            },
+            {
+              "pos": 11,
+              "color": 2
+            },
+            {
+              "pos": 46,
+              "color": 1
+            },
+            {
+              "pos": 15,
+              "color": 2
+            },
+            {
+              "pos": 2,
+              "color": 1
+            },
+            {
+              "pos": 1,
+              "color": 2
+            },
+            {
+              "pos": 5,
+              "color": 1
+            },
+            {
+              "pos": 6,
+              "color": 2
+            },
+            {
+              "pos": 31,
+              "color": 1
+            },
+            {
+              "pos": 47,
+              "color": 2
+            },
+            {
+              "pos": 55,
+              "color": 1
+            },
+            {
+              "pos": 63,
+              "color": 2
+            },
+            {
+              "pos": 10,
+              "color": 1
+            },
+            {
+              "pos": 9,
+              "color": 2
+            },
+            {
+              "pos": 54,
+              "color": 2
+            },
+            {
+              "pos": 62,
+              "color": 1
+            },
+            {
+              "pos": 61,
+              "color": 2
+            },
+            {
+              "pos": 56,
+              "color": 2
+            },
+            {
+              "pos": 53,
+              "color": 2
+            },
+            {
+              "pos": 49,
+              "color": 2
+            },
+            {
+              "pos": 41,
+              "color": 1
+            },
+            {
+              "pos": 40,
+              "color": 2
+            },
+            {
+              "pos": 48,
+              "color": 1
+            },
+            {
+              "pos": 32,
+              "color": 2
+            },
+            {
+              "pos": 24,
+              "color": 1
+            },
+            {
+              "pos": 16,
+              "color": 2
+            },
+            {
+              "pos": 33,
+              "color": 2
+            },
+            {
+              "pos": 25,
+              "color": 1
+            },
+            {
+              "pos": 17,
+              "color": 2
+            },
+            {
+              "pos": 18,
+              "color": 1
+            }
+          ]
+        },
+        {
+          "game_num": 5,
+          "a_was_black": true,
+          "black": 27,
+          "white": 37,
+          "winner": "b",
+          "moves": [
+            {
+              "pos": 37,
+              "color": 1
+            },
+            {
+              "pos": 43,
+              "color": 2
+            },
+            {
+              "pos": 26,
+              "color": 1
+            },
+            {
+              "pos": 29,
+              "color": 2
+            },
+            {
+              "pos": 45,
+              "color": 1
+            },
+            {
+              "pos": 21,
+              "color": 2
+            },
+            {
+              "pos": 20,
+              "color": 1
+            },
+            {
+              "pos": 19,
+              "color": 2
+            },
+            {
+              "pos": 34,
+              "color": 1
+            },
+            {
+              "pos": 42,
+              "color": 2
+            },
+            {
+              "pos": 44,
+              "color": 1
+            },
+            {
+              "pos": 18,
+              "color": 2
+            },
+            {
+              "pos": 9,
+              "color": 1
+            },
+            {
+              "pos": 38,
+              "color": 2
+            },
+            {
+              "pos": 12,
+              "color": 1
+            },
+            {
+              "pos": 5,
+              "color": 2
+            },
+            {
+              "pos": 4,
+              "color": 1
+            },
+            {
+              "pos": 3,
+              "color": 2
+            },
+            {
+              "pos": 46,
+              "color": 1
+            },
+            {
+              "pos": 13,
+              "color": 2
+            },
+            {
+              "pos": 25,
+              "color": 1
+            },
+            {
+              "pos": 24,
+              "color": 2
+            },
+            {
+              "pos": 39,
+              "color": 1
+            },
+            {
+              "pos": 55,
+              "color": 2
+            },
+            {
+              "pos": 47,
+              "color": 1
+            },
+            {
+              "pos": 31,
+              "color": 2
+            },
+            {
+              "pos": 32,
+              "color": 1
+            },
+            {
+              "pos": 40,
+              "color": 2
+            },
+            {
+              "pos": 30,
+              "color": 1
+            },
+            {
+              "pos": 16,
+              "color": 2
+            },
+            {
+              "pos": 33,
+              "color": 1
+            },
+            {
+              "pos": 41,
+              "color": 2
+            },
+            {
+              "pos": 10,
+              "color": 1
+            },
+            {
+              "pos": 52,
+              "color": 2
+            },
+            {
+              "pos": 11,
+              "color": 1
+            },
+            {
+              "pos": 17,
+              "color": 2
+            },
+            {
+              "pos": 1,
+              "color": 1
+            },
+            {
+              "pos": 23,
+              "color": 2
+            },
+            {
+              "pos": 54,
+              "color": 1
+            },
+            {
+              "pos": 22,
+              "color": 2
+            },
+            {
+              "pos": 60,
+              "color": 1
+            },
+            {
+              "pos": 59,
+              "color": 2
+            },
+            {
+              "pos": 58,
+              "color": 1
+            },
+            {
+              "pos": 51,
+              "color": 2
+            },
+            {
+              "pos": 50,
+              "color": 1
+            },
+            {
+              "pos": 63,
+              "color": 2
+            },
+            {
+              "pos": 61,
+              "color": 1
+            },
+            {
+              "pos": 53,
+              "color": 2
+            },
+            {
+              "pos": 8,
+              "color": 1
+            },
+            {
+              "pos": 0,
+              "color": 2
+            },
+            {
+              "pos": 15,
+              "color": 1
+            },
+            {
+              "pos": 7,
+              "color": 2
+            },
+            {
+              "pos": 6,
+              "color": 1
+            },
+            {
+              "pos": 57,
+              "color": 2
+            },
+            {
+              "pos": 62,
+              "color": 1
+            },
+            {
+              "pos": 2,
+              "color": 2
+            },
+            {
+              "pos": 14,
+              "color": 1
+            },
+            {
+              "pos": 49,
+              "color": 2
+            },
+            {
+              "pos": 56,
+              "color": 1
+            },
+            {
+              "pos": 48,
+              "color": 1
+            }
+          ]
+        },
+        {
+          "game_num": 6,
+          "a_was_black": false,
+          "black": 16,
+          "white": 48,
+          "winner": "a",
+          "moves": [
+            {
+              "pos": 37,
+              "color": 1
+            },
+            {
+              "pos": 43,
+              "color": 2
+            },
+            {
+              "pos": 26,
+              "color": 1
+            },
+            {
+              "pos": 19,
+              "color": 2
+            },
+            {
+              "pos": 34,
+              "color": 1
+            },
+            {
+              "pos": 29,
+              "color": 2
+            },
+            {
+              "pos": 21,
+              "color": 1
+            },
+            {
+              "pos": 20,
+              "color": 2
+            },
+            {
+              "pos": 18,
+              "color": 1
+            },
+            {
+              "pos": 42,
+              "color": 2
+            },
+            {
+              "pos": 49,
+              "color": 1
+            },
+            {
+              "pos": 12,
+              "color": 2
+            },
+            {
+              "pos": 5,
+              "color": 1
+            },
+            {
+              "pos": 4,
+              "color": 2
+            },
+            {
+              "pos": 3,
+              "color": 1
+            },
+            {
+              "pos": 41,
+              "color": 2
+            },
+            {
+              "pos": 11,
+              "color": 1
+            },
+            {
+              "pos": 56,
+              "color": 2
+            },
+            {
+              "pos": 44,
+              "color": 1
+            },
+            {
+              "pos": 13,
+              "color": 2
+            },
+            {
+              "pos": 33,
+              "color": 1
+            },
+            {
+              "pos": 24,
+              "color": 2
+            },
+            {
+              "pos": 6,
+              "color": 1
+            },
+            {
+              "pos": 25,
+              "color": 2
+            },
+            {
+              "pos": 51,
+              "color": 1
+            },
+            {
+              "pos": 60,
+              "color": 2
+            },
+            {
+              "pos": 50,
+              "color": 1
+            },
+            {
+              "pos": 59,
+              "color": 2
+            },
+            {
+              "pos": 40,
+              "color": 1
+            },
+            {
+              "pos": 52,
+              "color": 2
+            },
+            {
+              "pos": 17,
+              "color": 1
+            },
+            {
+              "pos": 48,
+              "color": 2
+            },
+            {
+              "pos": 61,
+              "color": 1
+            },
+            {
+              "pos": 62,
+              "color": 2
+            },
+            {
+              "pos": 58,
+              "color": 1
+            },
+            {
+              "pos": 57,
+              "color": 2
+            },
+            {
+              "pos": 32,
+              "color": 1
+            },
+            {
+              "pos": 16,
+              "color": 2
+            },
+            {
+              "pos": 53,
+              "color": 1
+            },
+            {
+              "pos": 54,
+              "color": 2
+            },
+            {
+              "pos": 8,
+              "color": 1
+            },
+            {
+              "pos": 0,
+              "color": 2
+            },
+            {
+              "pos": 9,
+              "color": 2
+            },
+            {
+              "pos": 1,
+              "color": 1
+            },
+            {
+              "pos": 2,
+              "color": 2
+            },
+            {
+              "pos": 10,
+              "color": 2
+            },
+            {
+              "pos": 14,
+              "color": 2
+            },
+            {
+              "pos": 23,
+              "color": 1
+            },
+            {
+              "pos": 7,
+              "color": 2
+            },
+            {
+              "pos": 22,
+              "color": 1
+            },
+            {
+              "pos": 45,
+              "color": 2
+            },
+            {
+              "pos": 30,
+              "color": 1
+            },
+            {
+              "pos": 15,
+              "color": 2
+            },
+            {
+              "pos": 38,
+              "color": 1
+            },
+            {
+              "pos": 46,
+              "color": 2
+            },
+            {
+              "pos": 31,
+              "color": 1
+            },
+            {
+              "pos": 39,
+              "color": 2
+            },
+            {
+              "pos": 63,
+              "color": 1
+            },
+            {
+              "pos": 55,
+              "color": 2
+            },
+            {
+              "pos": 47,
+              "color": 1
+            }
+          ]
+        }
+      ],
+      "challenger_name": "小田智子",
+      "holder_name": "小田智子",
+      "holder_id": "C0-004",
+      "defender_id": "A0-001"
+    },
+    {
+      "title": "海王",
+      "season": 3,
+      "challenger_id": "C0-004",
+      "won": true,
+      "challenger_wins": 3,
+      "titleholder_wins": 2,
+      "games": [
+        {
+          "game_num": 1,
+          "a_was_black": true,
+          "black": 31,
+          "white": 33,
+          "winner": "b",
+          "moves": [
+            {
+              "pos": 37,
+              "color": 1
+            },
+            {
+              "pos": 29,
+              "color": 2
+            },
+            {
+              "pos": 20,
+              "color": 1
+            },
+            {
+              "pos": 43,
+              "color": 2
+            },
+            {
+              "pos": 44,
+              "color": 1
+            },
+            {
+              "pos": 45,
+              "color": 2
+            },
+            {
+              "pos": 26,
+              "color": 1
+            },
+            {
+              "pos": 11,
+              "color": 2
+            },
+            {
+              "pos": 54,
+              "color": 1
+            },
+            {
+              "pos": 21,
+              "color": 2
+            },
+            {
+              "pos": 34,
+              "color": 1
+            },
+            {
+              "pos": 42,
+              "color": 2
+            },
+            {
+              "pos": 51,
+              "color": 1
+            },
+            {
+              "pos": 58,
+              "color": 2
+            },
+            {
+              "pos": 50,
+              "color": 1
+            },
+            {
+              "pos": 57,
+              "color": 2
+            },
+            {
+              "pos": 60,
+              "color": 1
+            },
+            {
+              "pos": 53,
+              "color": 2
+            },
+            {
+              "pos": 38,
+              "color": 1
+            },
+            {
+              "pos": 19,
+              "color": 2
+            },
+            {
+              "pos": 61,
+              "color": 1
+            },
+            {
+              "pos": 63,
+              "color": 2
+            },
+            {
+              "pos": 47,
+              "color": 1
+            },
+            {
+              "pos": 62,
+              "color": 2
+            },
+            {
+              "pos": 18,
+              "color": 1
+            },
+            {
+              "pos": 59,
+              "color": 2
+            },
+            {
+              "pos": 10,
+              "color": 1
+            },
+            {
+              "pos": 55,
+              "color": 2
+            },
+            {
+              "pos": 52,
+              "color": 1
+            },
+            {
+              "pos": 30,
+              "color": 2
+            },
+            {
+              "pos": 46,
+              "color": 1
+            },
+            {
+              "pos": 39,
+              "color": 2
+            },
+            {
+              "pos": 4,
+              "color": 1
+            },
+            {
+              "pos": 25,
+              "color": 2
+            },
+            {
+              "pos": 33,
+              "color": 1
+            },
+            {
+              "pos": 32,
+              "color": 2
+            },
+            {
+              "pos": 24,
+              "color": 1
+            },
+            {
+              "pos": 16,
+              "color": 2
+            },
+            {
+              "pos": 17,
+              "color": 1
+            },
+            {
+              "pos": 8,
+              "color": 2
+            },
+            {
+              "pos": 31,
+              "color": 1
+            },
+            {
+              "pos": 22,
+              "color": 2
+            },
+            {
+              "pos": 12,
+              "color": 1
+            },
+            {
+              "pos": 13,
+              "color": 2
+            },
+            {
+              "pos": 23,
+              "color": 1
+            },
+            {
+              "pos": 15,
+              "color": 2
+            },
+            {
+              "pos": 41,
+              "color": 1
+            },
+            {
+              "pos": 14,
+              "color": 2
+            },
+            {
+              "pos": 7,
+              "color": 1
+            },
+            {
+              "pos": 3,
+              "color": 2
+            },
+            {
+              "pos": 5,
+              "color": 1
+            },
+            {
+              "pos": 6,
+              "color": 2
+            },
+            {
+              "pos": 2,
+              "color": 1
+            },
+            {
+              "pos": 1,
+              "color": 2
+            },
+            {
+              "pos": 0,
+              "color": 1
+            },
+            {
+              "pos": 40,
+              "color": 2
+            },
+            {
+              "pos": 9,
+              "color": 1
+            },
+            {
+              "pos": 48,
+              "color": 1
+            },
+            {
+              "pos": 49,
+              "color": 2
+            },
+            {
+              "pos": 56,
+              "color": 1
+            }
+          ]
+        },
+        {
+          "game_num": 2,
+          "a_was_black": false,
+          "black": 46,
+          "white": 18,
+          "winner": "b",
+          "moves": [
+            {
+              "pos": 26,
+              "color": 1
+            },
+            {
+              "pos": 20,
+              "color": 2
+            },
+            {
+              "pos": 45,
+              "color": 1
+            },
+            {
+              "pos": 34,
+              "color": 2
+            },
+            {
+              "pos": 42,
+              "color": 1
+            },
+            {
+              "pos": 43,
+              "color": 2
+            },
+            {
+              "pos": 44,
+              "color": 1
+            },
+            {
+              "pos": 49,
+              "color": 2
+            },
+            {
+              "pos": 19,
+              "color": 1
+            },
+            {
+              "pos": 41,
+              "color": 2
+            },
+            {
+              "pos": 40,
+              "color": 1
+            },
+            {
+              "pos": 50,
+              "color": 2
+            },
+            {
+              "pos": 13,
+              "color": 1
+            },
+            {
+              "pos": 29,
+              "color": 2
+            },
+            {
+              "pos": 21,
+              "color": 1
+            },
+            {
+              "pos": 33,
+              "color": 2
+            },
+            {
+              "pos": 48,
+              "color": 1
+            },
+            {
+              "pos": 32,
+              "color": 2
+            },
+            {
+              "pos": 24,
+              "color": 1
+            },
+            {
+              "pos": 14,
+              "color": 2
+            },
+            {
+              "pos": 37,
+              "color": 1
+            },
+            {
+              "pos": 25,
+              "color": 2
+            },
+            {
+              "pos": 7,
+              "color": 1
+            },
+            {
+              "pos": 18,
+              "color": 2
+            },
+            {
+              "pos": 57,
+              "color": 1
+            },
+            {
+              "pos": 59,
+              "color": 2
+            },
+            {
+              "pos": 56,
+              "color": 1
+            },
+            {
+              "pos": 52,
+              "color": 2
+            },
+            {
+              "pos": 58,
+              "color": 1
+            },
+            {
+              "pos": 53,
+              "color": 2
+            },
+            {
+              "pos": 51,
+              "color": 1
+            },
+            {
+              "pos": 60,
+              "color": 2
+            },
+            {
+              "pos": 62,
+              "color": 1
+            },
+            {
+              "pos": 11,
+              "color": 2
+            },
+            {
+              "pos": 61,
+              "color": 1
+            },
+            {
+              "pos": 12,
+              "color": 2
+            },
+            {
+              "pos": 16,
+              "color": 1
+            },
+            {
+              "pos": 17,
+              "color": 2
+            },
+            {
+              "pos": 8,
+              "color": 1
+            },
+            {
+              "pos": 6,
+              "color": 2
+            },
+            {
+              "pos": 9,
+              "color": 1
+            },
+            {
+              "pos": 10,
+              "color": 2
+            },
+            {
+              "pos": 4,
+              "color": 1
+            },
+            {
+              "pos": 5,
+              "color": 2
+            },
+            {
+              "pos": 22,
+              "color": 1
+            },
+            {
+              "pos": 3,
+              "color": 2
+            },
+            {
+              "pos": 2,
+              "color": 1
+            },
+            {
+              "pos": 1,
+              "color": 2
+            },
+            {
+              "pos": 0,
+              "color": 1
+            },
+            {
+              "pos": 15,
+              "color": 2
+            },
+            {
+              "pos": 23,
+              "color": 1
+            },
+            {
+              "pos": 31,
+              "color": 2
+            },
+            {
+              "pos": 30,
+              "color": 1
+            },
+            {
+              "pos": 38,
+              "color": 2
+            },
+            {
+              "pos": 39,
+              "color": 1
+            },
+            {
+              "pos": 54,
+              "color": 2
+            },
+            {
+              "pos": 63,
+              "color": 1
+            },
+            {
+              "pos": 55,
+              "color": 2
+            },
+            {
+              "pos": 47,
+              "color": 1
+            },
+            {
+              "pos": 46,
+              "color": 2
+            }
+          ]
+        },
+        {
+          "game_num": 3,
+          "a_was_black": true,
+          "black": 49,
+          "white": 15,
+          "winner": "a",
+          "moves": [
+            {
+              "pos": 26,
+              "color": 1
+            },
+            {
+              "pos": 20,
+              "color": 2
+            },
+            {
+              "pos": 37,
+              "color": 1
+            },
+            {
+              "pos": 42,
+              "color": 2
+            },
+            {
+              "pos": 34,
+              "color": 1
+            },
+            {
+              "pos": 44,
+              "color": 2
+            },
+            {
+              "pos": 45,
+              "color": 1
+            },
+            {
+              "pos": 41,
+              "color": 2
+            },
+            {
+              "pos": 29,
+              "color": 1
+            },
+            {
+              "pos": 38,
+              "color": 2
+            },
+            {
+              "pos": 48,
+              "color": 1
+            },
+            {
+              "pos": 21,
+              "color": 2
+            },
+            {
+              "pos": 43,
+              "color": 1
+            },
+            {
+              "pos": 50,
+              "color": 2
+            },
+            {
+              "pos": 58,
+              "color": 1
+            },
+            {
+              "pos": 49,
+              "color": 2
+            },
+            {
+              "pos": 51,
+              "color": 1
+            },
+            {
+              "pos": 60,
+              "color": 2
+            },
+            {
+              "pos": 56,
+              "color": 1
+            },
+            {
+              "pos": 19,
+              "color": 2
+            },
+            {
+              "pos": 18,
+              "color": 1
+            },
+            {
+              "pos": 25,
+              "color": 2
+            },
+            {
+              "pos": 12,
+              "color": 1
+            },
+            {
+              "pos": 40,
+              "color": 2
+            },
+            {
+              "pos": 32,
+              "color": 1
+            },
+            {
+              "pos": 11,
+              "color": 2
+            },
+            {
+              "pos": 46,
+              "color": 1
+            },
+            {
+              "pos": 55,
+              "color": 2
+            },
+            {
+              "pos": 33,
+              "color": 1
+            },
+            {
+              "pos": 57,
+              "color": 2
+            },
+            {
+              "pos": 59,
+              "color": 1
+            },
+            {
+              "pos": 53,
+              "color": 2
+            },
+            {
+              "pos": 4,
+              "color": 1
+            },
+            {
+              "pos": 2,
+              "color": 2
+            },
+            {
+              "pos": 13,
+              "color": 1
+            },
+            {
+              "pos": 3,
+              "color": 2
+            },
+            {
+              "pos": 1,
+              "color": 1
+            },
+            {
+              "pos": 5,
+              "color": 2
+            },
+            {
+              "pos": 6,
+              "color": 1
+            },
+            {
+              "pos": 10,
+              "color": 2
+            },
+            {
+              "pos": 39,
+              "color": 1
+            },
+            {
+              "pos": 30,
+              "color": 2
+            },
+            {
+              "pos": 22,
+              "color": 1
+            },
+            {
+              "pos": 52,
+              "color": 2
+            },
+            {
+              "pos": 23,
+              "color": 1
+            },
+            {
+              "pos": 31,
+              "color": 2
+            },
+            {
+              "pos": 47,
+              "color": 1
+            },
+            {
+              "pos": 54,
+              "color": 2
+            },
+            {
+              "pos": 63,
+              "color": 1
+            },
+            {
+              "pos": 62,
+              "color": 2
+            },
+            {
+              "pos": 61,
+              "color": 1
+            },
+            {
+              "pos": 24,
+              "color": 2
+            },
+            {
+              "pos": 16,
+              "color": 1
+            },
+            {
+              "pos": 15,
+              "color": 2
+            },
+            {
+              "pos": 7,
+              "color": 1
+            },
+            {
+              "pos": 17,
+              "color": 2
+            },
+            {
+              "pos": 14,
+              "color": 1
+            },
+            {
+              "pos": 8,
+              "color": 1
+            },
+            {
+              "pos": 9,
+              "color": 2
+            },
+            {
+              "pos": 0,
+              "color": 1
+            }
+          ]
+        },
+        {
+          "game_num": 4,
+          "a_was_black": false,
+          "black": 22,
+          "white": 42,
+          "winner": "a",
+          "moves": [
+            {
+              "pos": 37,
+              "color": 1
+            },
+            {
+              "pos": 43,
+              "color": 2
+            },
+            {
+              "pos": 26,
+              "color": 1
+            },
+            {
+              "pos": 29,
+              "color": 2
+            },
+            {
+              "pos": 34,
+              "color": 1
+            },
+            {
+              "pos": 45,
+              "color": 2
+            },
+            {
+              "pos": 51,
+              "color": 1
+            },
+            {
+              "pos": 50,
+              "color": 2
+            },
+            {
+              "pos": 52,
+              "color": 1
+            },
+            {
+              "pos": 59,
+              "color": 2
+            },
+            {
+              "pos": 61,
+              "color": 1
+            },
+            {
+              "pos": 20,
+              "color": 2
+            },
+            {
+              "pos": 21,
+              "color": 1
+            },
+            {
+              "pos": 18,
+              "color": 2
+            },
+            {
+              "pos": 57,
+              "color": 1
+            },
+            {
+              "pos": 19,
+              "color": 2
+            },
+            {
+              "pos": 13,
+              "color": 1
+            },
+            {
+              "pos": 5,
+              "color": 2
+            },
+            {
+              "pos": 44,
+              "color": 1
+            },
+            {
+              "pos": 25,
+              "color": 2
+            },
+            {
+              "pos": 14,
+              "color": 1
+            },
+            {
+              "pos": 22,
+              "color": 2
+            },
+            {
+              "pos": 24,
+              "color": 1
+            },
+            {
+              "pos": 7,
+              "color": 2
+            },
+            {
+              "pos": 6,
+              "color": 1
+            },
+            {
+              "pos": 12,
+              "color": 2
+            },
+            {
+              "pos": 23,
+              "color": 1
+            },
+            {
+              "pos": 15,
+              "color": 2
+            },
+            {
+              "pos": 3,
+              "color": 1
+            },
+            {
+              "pos": 11,
+              "color": 2
+            },
+            {
+              "pos": 17,
+              "color": 1
+            },
+            {
+              "pos": 31,
+              "color": 2
+            },
+            {
+              "pos": 2,
+              "color": 1
+            },
+            {
+              "pos": 30,
+              "color": 2
+            },
+            {
+              "pos": 46,
+              "color": 1
+            },
+            {
+              "pos": 16,
+              "color": 2
+            },
+            {
+              "pos": 8,
+              "color": 1
+            },
+            {
+              "pos": 4,
+              "color": 2
+            },
+            {
+              "pos": 9,
+              "color": 1
+            },
+            {
+              "pos": 55,
+              "color": 2
+            },
+            {
+              "pos": 39,
+              "color": 1
+            },
+            {
+              "pos": 47,
+              "color": 2
+            },
+            {
+              "pos": 10,
+              "color": 1
+            },
+            {
+              "pos": 32,
+              "color": 2
+            },
+            {
+              "pos": 38,
+              "color": 1
+            },
+            {
+              "pos": 0,
+              "color": 2
+            },
+            {
+              "pos": 1,
+              "color": 1
+            },
+            {
+              "pos": 33,
+              "color": 2
+            },
+            {
+              "pos": 42,
+              "color": 1
+            },
+            {
+              "pos": 49,
+              "color": 2
+            },
+            {
+              "pos": 48,
+              "color": 1
+            },
+            {
+              "pos": 41,
+              "color": 2
+            },
+            {
+              "pos": 58,
+              "color": 1
+            },
+            {
+              "pos": 56,
+              "color": 2
+            },
+            {
+              "pos": 40,
+              "color": 1
+            },
+            {
+              "pos": 54,
+              "color": 2
+            },
+            {
+              "pos": 53,
+              "color": 1
+            },
+            {
+              "pos": 60,
+              "color": 2
+            },
+            {
+              "pos": 63,
+              "color": 1
+            },
+            {
+              "pos": 62,
+              "color": 2
+            }
+          ]
+        },
+        {
+          "game_num": 5,
+          "a_was_black": true,
+          "black": 44,
+          "white": 20,
+          "winner": "a",
+          "moves": [
+            {
+              "pos": 37,
+              "color": 1
+            },
+            {
+              "pos": 29,
+              "color": 2
+            },
+            {
+              "pos": 20,
+              "color": 1
+            },
+            {
+              "pos": 43,
+              "color": 2
+            },
+            {
+              "pos": 44,
+              "color": 1
+            },
+            {
+              "pos": 45,
+              "color": 2
+            },
+            {
+              "pos": 26,
+              "color": 1
+            },
+            {
+              "pos": 21,
+              "color": 2
+            },
+            {
+              "pos": 30,
+              "color": 1
+            },
+            {
+              "pos": 19,
+              "color": 2
+            },
+            {
+              "pos": 50,
+              "color": 1
+            },
+            {
+              "pos": 31,
+              "color": 2
+            },
+            {
+              "pos": 38,
+              "color": 1
+            },
+            {
+              "pos": 39,
+              "color": 2
+            },
+            {
+              "pos": 22,
+              "color": 1
+            },
+            {
+              "pos": 42,
+              "color": 2
+            },
+            {
+              "pos": 13,
+              "color": 1
+            },
+            {
+              "pos": 57,
+              "color": 2
+            },
+            {
+              "pos": 11,
+              "color": 1
+            },
+            {
+              "pos": 23,
+              "color": 2
+            },
+            {
+              "pos": 18,
+              "color": 1
+            },
+            {
+              "pos": 34,
+              "color": 2
+            },
+            {
+              "pos": 12,
+              "color": 1
+            },
+            {
+              "pos": 4,
+              "color": 2
+            },
+            {
+              "pos": 51,
+              "color": 1
+            },
+            {
+              "pos": 9,
+              "color": 2
+            },
+            {
+              "pos": 17,
+              "color": 1
+            },
+            {
+              "pos": 16,
+              "color": 2
+            },
+            {
+              "pos": 10,
+              "color": 1
+            },
+            {
+              "pos": 3,
+              "color": 2
+            },
+            {
+              "pos": 0,
+              "color": 1
+            },
+            {
+              "pos": 33,
+              "color": 2
+            },
+            {
+              "pos": 2,
+              "color": 1
+            },
+            {
+              "pos": 25,
+              "color": 2
+            },
+            {
+              "pos": 52,
+              "color": 1
+            },
+            {
+              "pos": 1,
+              "color": 2
+            },
+            {
+              "pos": 5,
+              "color": 1
+            },
+            {
+              "pos": 61,
+              "color": 2
+            },
+            {
+              "pos": 60,
+              "color": 1
+            },
+            {
+              "pos": 59,
+              "color": 2
+            },
+            {
+              "pos": 8,
+              "color": 1
+            },
+            {
+              "pos": 14,
+              "color": 2
+            },
+            {
+              "pos": 58,
+              "color": 1
+            },
+            {
+              "pos": 53,
+              "color": 2
+            },
+            {
+              "pos": 7,
+              "color": 1
+            },
+            {
+              "pos": 49,
+              "color": 2
+            },
+            {
+              "pos": 56,
+              "color": 1
+            },
+            {
+              "pos": 48,
+              "color": 2
+            },
+            {
+              "pos": 62,
+              "color": 1
+            },
+            {
+              "pos": 41,
+              "color": 2
+            },
+            {
+              "pos": 24,
+              "color": 1
+            },
+            {
+              "pos": 6,
+              "color": 2
+            },
+            {
+              "pos": 40,
+              "color": 1
+            },
+            {
+              "pos": 54,
+              "color": 2
+            },
+            {
+              "pos": 15,
+              "color": 1
+            },
+            {
+              "pos": 32,
+              "color": 2
+            },
+            {
+              "pos": 63,
+              "color": 1
+            },
+            {
+              "pos": 55,
+              "color": 2
+            },
+            {
+              "pos": 47,
+              "color": 1
+            },
+            {
+              "pos": 46,
+              "color": 2
+            }
+          ]
+        }
+      ],
+      "challenger_name": "小田智子",
+      "holder_name": "小田智子",
+      "holder_id": "C0-004",
+      "defender_id": "B0-006",
+      "bracket": [
+        {
+          "a": "C0-001",
+          "b": "D0-006",
+          "winner": "C0-001",
+          "games": [
+            {
+              "black": 47,
+              "white": 17,
+              "moves": [
+                {
+                  "pos": 37,
+                  "color": 1
+                },
+                {
+                  "pos": 43,
+                  "color": 2
+                },
+                {
+                  "pos": 34,
+                  "color": 1
+                },
+                {
+                  "pos": 45,
+                  "color": 2
+                },
+                {
+                  "pos": 26,
+                  "color": 1
+                },
+                {
+                  "pos": 20,
+                  "color": 2
+                },
+                {
+                  "pos": 29,
+                  "color": 1
+                },
+                {
+                  "pos": 18,
+                  "color": 2
+                },
+                {
+                  "pos": 19,
+                  "color": 1
+                },
+                {
+                  "pos": 42,
+                  "color": 2
+                },
+                {
+                  "pos": 21,
+                  "color": 1
+                },
+                {
+                  "pos": 12,
+                  "color": 2
+                },
+                {
+                  "pos": 3,
+                  "color": 1
+                },
+                {
+                  "pos": 5,
+                  "color": 2
+                },
+                {
+                  "pos": 54,
+                  "color": 1
+                },
+                {
+                  "pos": 63,
+                  "color": 2
+                },
+                {
+                  "pos": 25,
+                  "color": 1
+                },
+                {
+                  "pos": 46,
+                  "color": 2
+                },
+                {
+                  "pos": 53,
+                  "color": 1
+                },
+                {
+                  "pos": 60,
+                  "color": 2
+                },
+                {
+                  "pos": 13,
+                  "color": 1
+                },
+                {
+                  "pos": 6,
+                  "color": 2
+                },
+                {
+                  "pos": 52,
+                  "color": 1
+                },
+                {
+                  "pos": 32,
+                  "color": 2
+                },
+                {
+                  "pos": 16,
+                  "color": 1
+                },
+                {
+                  "pos": 50,
+                  "color": 2
+                },
+                {
+                  "pos": 58,
+                  "color": 1
+                },
+                {
+                  "pos": 61,
+                  "color": 2
+                },
+                {
+                  "pos": 44,
+                  "color": 1
+                },
+                {
+                  "pos": 17,
+                  "color": 2
+                },
+                {
+                  "pos": 10,
+                  "color": 1
+                },
+                {
+                  "pos": 49,
+                  "color": 2
+                },
+                {
+                  "pos": 8,
+                  "color": 1
+                },
+                {
+                  "pos": 24,
+                  "color": 2
+                },
+                {
+                  "pos": 40,
+                  "color": 1
+                },
+                {
+                  "pos": 56,
+                  "color": 2
+                },
+                {
+                  "pos": 33,
+                  "color": 1
+                },
+                {
+                  "pos": 57,
+                  "color": 2
+                },
+                {
+                  "pos": 59,
+                  "color": 1
+                },
+                {
+                  "pos": 51,
+                  "color": 2
+                },
+                {
+                  "pos": 62,
+                  "color": 1
+                },
+                {
+                  "pos": 11,
+                  "color": 2
+                },
+                {
+                  "pos": 2,
+                  "color": 1
+                },
+                {
+                  "pos": 14,
+                  "color": 2
+                },
+                {
+                  "pos": 22,
+                  "color": 1
+                },
+                {
+                  "pos": 23,
+                  "color": 2
+                },
+                {
+                  "pos": 39,
+                  "color": 1
+                },
+                {
+                  "pos": 41,
+                  "color": 2
+                },
+                {
+                  "pos": 55,
+                  "color": 1
+                },
+                {
+                  "pos": 47,
+                  "color": 2
+                },
+                {
+                  "pos": 4,
+                  "color": 1
+                },
+                {
+                  "pos": 38,
+                  "color": 2
+                },
+                {
+                  "pos": 31,
+                  "color": 1
+                },
+                {
+                  "pos": 1,
+                  "color": 2
+                },
+                {
+                  "pos": 30,
+                  "color": 1
+                },
+                {
+                  "pos": 9,
+                  "color": 2
+                },
+                {
+                  "pos": 0,
+                  "color": 1
+                },
+                {
+                  "pos": 15,
+                  "color": 2
+                },
+                {
+                  "pos": 48,
+                  "color": 1
+                },
+                {
+                  "pos": 7,
+                  "color": 1
+                }
+              ],
+              "x_was_black": true,
+              "result": "black"
+            }
+          ]
+        },
+        {
+          "a": "C0-001",
+          "b": "A0-004",
+          "winner": "A0-004",
+          "games": [
+            {
+              "black": 28,
+              "white": 36,
+              "moves": [
+                {
+                  "pos": 26,
+                  "color": 1
+                },
+                {
+                  "pos": 20,
+                  "color": 2
+                },
+                {
+                  "pos": 29,
+                  "color": 1
+                },
+                {
+                  "pos": 34,
+                  "color": 2
+                },
+                {
+                  "pos": 43,
+                  "color": 1
+                },
+                {
+                  "pos": 21,
+                  "color": 2
+                },
+                {
+                  "pos": 42,
+                  "color": 1
+                },
+                {
+                  "pos": 38,
+                  "color": 2
+                },
+                {
+                  "pos": 22,
+                  "color": 1
+                },
+                {
+                  "pos": 37,
+                  "color": 2
+                },
+                {
+                  "pos": 39,
+                  "color": 1
+                },
+                {
+                  "pos": 15,
+                  "color": 2
+                },
+                {
+                  "pos": 13,
+                  "color": 1
+                },
+                {
+                  "pos": 19,
+                  "color": 2
+                },
+                {
+                  "pos": 14,
+                  "color": 1
+                },
+                {
+                  "pos": 47,
+                  "color": 2
+                },
+                {
+                  "pos": 55,
+                  "color": 1
+                },
+                {
+                  "pos": 5,
+                  "color": 2
+                },
+                {
+                  "pos": 10,
+                  "color": 1
+                },
+                {
+                  "pos": 18,
+                  "color": 2
+                },
+                {
+                  "pos": 9,
+                  "color": 1
+                },
+                {
+                  "pos": 25,
+                  "color": 2
+                },
+                {
+                  "pos": 16,
+                  "color": 1
+                },
+                {
+                  "pos": 2,
+                  "color": 2
+                },
+                {
+                  "pos": 1,
+                  "color": 1
+                },
+                {
+                  "pos": 0,
+                  "color": 2
+                },
+                {
+                  "pos": 23,
+                  "color": 1
+                },
+                {
+                  "pos": 32,
+                  "color": 2
+                },
+                {
+                  "pos": 33,
+                  "color": 1
+                },
+                {
+                  "pos": 46,
+                  "color": 2
+                },
+                {
+                  "pos": 30,
+                  "color": 1
+                },
+                {
+                  "pos": 40,
+                  "color": 2
+                },
+                {
+                  "pos": 44,
+                  "color": 1
+                },
+                {
+                  "pos": 41,
+                  "color": 2
+                },
+                {
+                  "pos": 45,
+                  "color": 1
+                },
+                {
+                  "pos": 50,
+                  "color": 2
+                },
+                {
+                  "pos": 49,
+                  "color": 1
+                },
+                {
+                  "pos": 57,
+                  "color": 2
+                },
+                {
+                  "pos": 56,
+                  "color": 1
+                },
+                {
+                  "pos": 51,
+                  "color": 2
+                },
+                {
+                  "pos": 58,
+                  "color": 1
+                },
+                {
+                  "pos": 7,
+                  "color": 2
+                },
+                {
+                  "pos": 24,
+                  "color": 1
+                },
+                {
+                  "pos": 8,
+                  "color": 2
+                },
+                {
+                  "pos": 48,
+                  "color": 1
+                },
+                {
+                  "pos": 31,
+                  "color": 2
+                },
+                {
+                  "pos": 59,
+                  "color": 1
+                },
+                {
+                  "pos": 63,
+                  "color": 2
+                },
+                {
+                  "pos": 6,
+                  "color": 1
+                },
+                {
+                  "pos": 12,
+                  "color": 2
+                },
+                {
+                  "pos": 52,
+                  "color": 1
+                },
+                {
+                  "pos": 54,
+                  "color": 2
+                },
+                {
+                  "pos": 62,
+                  "color": 1
+                },
+                {
+                  "pos": 53,
+                  "color": 2
+                },
+                {
+                  "pos": 61,
+                  "color": 1
+                },
+                {
+                  "pos": 60,
+                  "color": 2
+                },
+                {
+                  "pos": 11,
+                  "color": 1
+                },
+                {
+                  "pos": 3,
+                  "color": 2
+                },
+                {
+                  "pos": 4,
+                  "color": 1
+                },
+                {
+                  "pos": 17,
+                  "color": 1
+                }
+              ],
+              "x_was_black": true,
+              "result": "white"
+            }
+          ]
+        },
+        {
+          "a": "A0-004",
+          "b": "C0-005",
+          "winner": "A0-004",
+          "games": [
+            {
+              "black": 38,
+              "white": 26,
+              "moves": [
+                {
+                  "pos": 37,
+                  "color": 1
+                },
+                {
+                  "pos": 43,
+                  "color": 2
+                },
+                {
+                  "pos": 26,
+                  "color": 1
+                },
+                {
+                  "pos": 19,
+                  "color": 2
+                },
+                {
+                  "pos": 34,
+                  "color": 1
+                },
+                {
+                  "pos": 29,
+                  "color": 2
+                },
+                {
+                  "pos": 20,
+                  "color": 1
+                },
+                {
+                  "pos": 21,
+                  "color": 2
+                },
+                {
+                  "pos": 45,
+                  "color": 1
+                },
+                {
+                  "pos": 44,
+                  "color": 2
+                },
+                {
+                  "pos": 42,
+                  "color": 1
+                },
+                {
+                  "pos": 49,
+                  "color": 2
+                },
+                {
+                  "pos": 12,
+                  "color": 1
+                },
+                {
+                  "pos": 3,
+                  "color": 2
+                },
+                {
+                  "pos": 5,
+                  "color": 1
+                },
+                {
+                  "pos": 18,
+                  "color": 2
+                },
+                {
+                  "pos": 56,
+                  "color": 1
+                },
+                {
+                  "pos": 54,
+                  "color": 2
+                },
+                {
+                  "pos": 13,
+                  "color": 1
+                },
+                {
+                  "pos": 30,
+                  "color": 2
+                },
+                {
+                  "pos": 41,
+                  "color": 1
+                },
+                {
+                  "pos": 51,
+                  "color": 2
+                },
+                {
+                  "pos": 14,
+                  "color": 1
+                },
+                {
+                  "pos": 22,
+                  "color": 2
+                },
+                {
+                  "pos": 59,
+                  "color": 1
+                },
+                {
+                  "pos": 7,
+                  "color": 2
+                },
+                {
+                  "pos": 52,
+                  "color": 1
+                },
+                {
+                  "pos": 50,
+                  "color": 2
+                },
+                {
+                  "pos": 53,
+                  "color": 1
+                },
+                {
+                  "pos": 61,
+                  "color": 2
+                },
+                {
+                  "pos": 57,
+                  "color": 1
+                },
+                {
+                  "pos": 6,
+                  "color": 2
+                },
+                {
+                  "pos": 60,
+                  "color": 1
+                },
+                {
+                  "pos": 4,
+                  "color": 2
+                },
+                {
+                  "pos": 62,
+                  "color": 1
+                },
+                {
+                  "pos": 58,
+                  "color": 2
+                },
+                {
+                  "pos": 63,
+                  "color": 1
+                },
+                {
+                  "pos": 38,
+                  "color": 2
+                },
+                {
+                  "pos": 46,
+                  "color": 1
+                },
+                {
+                  "pos": 47,
+                  "color": 2
+                },
+                {
+                  "pos": 55,
+                  "color": 1
+                },
+                {
+                  "pos": 32,
+                  "color": 2
+                },
+                {
+                  "pos": 40,
+                  "color": 1
+                },
+                {
+                  "pos": 33,
+                  "color": 2
+                },
+                {
+                  "pos": 39,
+                  "color": 1
+                },
+                {
+                  "pos": 48,
+                  "color": 2
+                },
+                {
+                  "pos": 24,
+                  "color": 1
+                },
+                {
+                  "pos": 25,
+                  "color": 2
+                },
+                {
+                  "pos": 15,
+                  "color": 1
+                },
+                {
+                  "pos": 23,
+                  "color": 2
+                },
+                {
+                  "pos": 31,
+                  "color": 1
+                },
+                {
+                  "pos": 16,
+                  "color": 1
+                },
+                {
+                  "pos": 17,
+                  "color": 2
+                },
+                {
+                  "pos": 8,
+                  "color": 1
+                },
+                {
+                  "pos": 9,
+                  "color": 2
+                },
+                {
+                  "pos": 11,
+                  "color": 1
+                },
+                {
+                  "pos": 10,
+                  "color": 2
+                },
+                {
+                  "pos": 0,
+                  "color": 1
+                },
+                {
+                  "pos": 1,
+                  "color": 2
+                },
+                {
+                  "pos": 2,
+                  "color": 1
+                }
+              ],
+              "x_was_black": true,
+              "result": "black"
+            }
+          ]
+        },
+        {
+          "a": "A0-004",
+          "b": "A0-007",
+          "winner": "A0-007",
+          "games": [
+            {
+              "black": 12,
+              "white": 52,
+              "moves": [
+                {
+                  "pos": 26,
+                  "color": 1
+                },
+                {
+                  "pos": 20,
+                  "color": 2
+                },
+                {
+                  "pos": 37,
+                  "color": 1
+                },
+                {
+                  "pos": 42,
+                  "color": 2
+                },
+                {
+                  "pos": 34,
+                  "color": 1
+                },
+                {
+                  "pos": 44,
+                  "color": 2
+                },
+                {
+                  "pos": 29,
+                  "color": 1
+                },
+                {
+                  "pos": 41,
+                  "color": 2
+                },
+                {
+                  "pos": 43,
+                  "color": 1
+                },
+                {
+                  "pos": 51,
+                  "color": 2
+                },
+                {
+                  "pos": 33,
+                  "color": 1
+                },
+                {
+                  "pos": 24,
+                  "color": 2
+                },
+                {
+                  "pos": 40,
+                  "color": 1
+                },
+                {
+                  "pos": 18,
+                  "color": 2
+                },
+                {
+                  "pos": 59,
+                  "color": 1
+                },
+                {
+                  "pos": 45,
+                  "color": 2
+                },
+                {
+                  "pos": 25,
+                  "color": 1
+                },
+                {
+                  "pos": 50,
+                  "color": 2
+                },
+                {
+                  "pos": 52,
+                  "color": 1
+                },
+                {
+                  "pos": 22,
+                  "color": 2
+                },
+                {
+                  "pos": 58,
+                  "color": 1
+                },
+                {
+                  "pos": 19,
+                  "color": 2
+                },
+                {
+                  "pos": 15,
+                  "color": 1
+                },
+                {
+                  "pos": 32,
+                  "color": 2
+                },
+                {
+                  "pos": 16,
+                  "color": 1
+                },
+                {
+                  "pos": 53,
+                  "color": 2
+                },
+                {
+                  "pos": 62,
+                  "color": 1
+                },
+                {
+                  "pos": 30,
+                  "color": 2
+                },
+                {
+                  "pos": 31,
+                  "color": 1
+                },
+                {
+                  "pos": 21,
+                  "color": 2
+                },
+                {
+                  "pos": 49,
+                  "color": 1
+                },
+                {
+                  "pos": 56,
+                  "color": 2
+                },
+                {
+                  "pos": 13,
+                  "color": 1
+                },
+                {
+                  "pos": 23,
+                  "color": 2
+                },
+                {
+                  "pos": 12,
+                  "color": 1
+                },
+                {
+                  "pos": 14,
+                  "color": 2
+                },
+                {
+                  "pos": 6,
+                  "color": 1
+                },
+                {
+                  "pos": 7,
+                  "color": 2
+                },
+                {
+                  "pos": 17,
+                  "color": 1
+                },
+                {
+                  "pos": 60,
+                  "color": 2
+                },
+                {
+                  "pos": 61,
+                  "color": 1
+                },
+                {
+                  "pos": 57,
+                  "color": 2
+                },
+                {
+                  "pos": 48,
+                  "color": 1
+                },
+                {
+                  "pos": 8,
+                  "color": 2
+                },
+                {
+                  "pos": 9,
+                  "color": 1
+                },
+                {
+                  "pos": 0,
+                  "color": 2
+                },
+                {
+                  "pos": 1,
+                  "color": 1
+                },
+                {
+                  "pos": 63,
+                  "color": 2
+                },
+                {
+                  "pos": 11,
+                  "color": 1
+                },
+                {
+                  "pos": 54,
+                  "color": 2
+                },
+                {
+                  "pos": 46,
+                  "color": 1
+                },
+                {
+                  "pos": 47,
+                  "color": 2
+                },
+                {
+                  "pos": 55,
+                  "color": 1
+                },
+                {
+                  "pos": 39,
+                  "color": 2
+                },
+                {
+                  "pos": 38,
+                  "color": 1
+                },
+                {
+                  "pos": 5,
+                  "color": 2
+                },
+                {
+                  "pos": 3,
+                  "color": 1
+                },
+                {
+                  "pos": 10,
+                  "color": 2
+                },
+                {
+                  "pos": 2,
+                  "color": 1
+                },
+                {
+                  "pos": 4,
+                  "color": 2
+                }
+              ],
+              "x_was_black": true,
+              "result": "white"
+            }
+          ]
+        },
+        {
+          "a": "A0-007",
+          "b": "B0-006",
+          "winner": "B0-006",
+          "games": [
+            {
+              "black": 21,
+              "white": 43,
+              "moves": [
+                {
+                  "pos": 37,
+                  "color": 1
+                },
+                {
+                  "pos": 43,
+                  "color": 2
+                },
+                {
+                  "pos": 26,
+                  "color": 1
+                },
+                {
+                  "pos": 21,
+                  "color": 2
+                },
+                {
+                  "pos": 20,
+                  "color": 1
+                },
+                {
+                  "pos": 19,
+                  "color": 2
+                },
+                {
+                  "pos": 34,
+                  "color": 1
+                },
+                {
+                  "pos": 44,
+                  "color": 2
+                },
+                {
+                  "pos": 29,
+                  "color": 1
+                },
+                {
+                  "pos": 45,
+                  "color": 2
+                },
+                {
+                  "pos": 14,
+                  "color": 1
+                },
+                {
+                  "pos": 25,
+                  "color": 2
+                },
+                {
+                  "pos": 33,
+                  "color": 1
+                },
+                {
+                  "pos": 7,
+                  "color": 2
+                },
+                {
+                  "pos": 16,
+                  "color": 1
+                },
+                {
+                  "pos": 32,
+                  "color": 2
+                },
+                {
+                  "pos": 30,
+                  "color": 1
+                },
+                {
+                  "pos": 39,
+                  "color": 2
+                },
+                {
+                  "pos": 31,
+                  "color": 1
+                },
+                {
+                  "pos": 23,
+                  "color": 2
+                },
+                {
+                  "pos": 13,
+                  "color": 1
+                },
+                {
+                  "pos": 6,
+                  "color": 2
+                },
+                {
+                  "pos": 5,
+                  "color": 1
+                },
+                {
+                  "pos": 12,
+                  "color": 2
+                },
+                {
+                  "pos": 4,
+                  "color": 1
+                },
+                {
+                  "pos": 3,
+                  "color": 2
+                },
+                {
+                  "pos": 22,
+                  "color": 1
+                },
+                {
+                  "pos": 15,
+                  "color": 2
+                },
+                {
+                  "pos": 38,
+                  "color": 1
+                },
+                {
+                  "pos": 46,
+                  "color": 2
+                },
+                {
+                  "pos": 10,
+                  "color": 1
+                },
+                {
+                  "pos": 24,
+                  "color": 2
+                },
+                {
+                  "pos": 40,
+                  "color": 1
+                },
+                {
+                  "pos": 41,
+                  "color": 2
+                },
+                {
+                  "pos": 48,
+                  "color": 1
+                },
+                {
+                  "pos": 18,
+                  "color": 2
+                },
+                {
+                  "pos": 42,
+                  "color": 1
+                },
+                {
+                  "pos": 17,
+                  "color": 2
+                },
+                {
+                  "pos": 50,
+                  "color": 1
+                },
+                {
+                  "pos": 52,
+                  "color": 2
+                },
+                {
+                  "pos": 53,
+                  "color": 1
+                },
+                {
+                  "pos": 61,
+                  "color": 2
+                },
+                {
+                  "pos": 60,
+                  "color": 1
+                },
+                {
+                  "pos": 59,
+                  "color": 2
+                },
+                {
+                  "pos": 62,
+                  "color": 1
+                },
+                {
+                  "pos": 63,
+                  "color": 2
+                },
+                {
+                  "pos": 51,
+                  "color": 1
+                },
+                {
+                  "pos": 58,
+                  "color": 2
+                },
+                {
+                  "pos": 54,
+                  "color": 1
+                },
+                {
+                  "pos": 55,
+                  "color": 2
+                },
+                {
+                  "pos": 47,
+                  "color": 1
+                },
+                {
+                  "pos": 49,
+                  "color": 2
+                },
+                {
+                  "pos": 56,
+                  "color": 1
+                },
+                {
+                  "pos": 57,
+                  "color": 2
+                },
+                {
+                  "pos": 9,
+                  "color": 1
+                },
+                {
+                  "pos": 11,
+                  "color": 2
+                },
+                {
+                  "pos": 8,
+                  "color": 1
+                },
+                {
+                  "pos": 0,
+                  "color": 2
+                },
+                {
+                  "pos": 2,
+                  "color": 1
+                },
+                {
+                  "pos": 1,
+                  "color": 2
+                }
+              ],
+              "x_was_black": true,
+              "result": "white"
+            }
+          ]
+        },
+        {
+          "a": "B0-006",
+          "b": "A0-001",
+          "winner": "A0-001",
+          "games": [
+            {
+              "black": 20,
+              "white": 44,
+              "moves": [
+                {
+                  "pos": 37,
+                  "color": 1
+                },
+                {
+                  "pos": 43,
+                  "color": 2
+                },
+                {
+                  "pos": 26,
+                  "color": 1
+                },
+                {
+                  "pos": 29,
+                  "color": 2
+                },
+                {
+                  "pos": 34,
+                  "color": 1
+                },
+                {
+                  "pos": 19,
+                  "color": 2
+                },
+                {
+                  "pos": 44,
+                  "color": 1
+                },
+                {
+                  "pos": 45,
+                  "color": 2
+                },
+                {
+                  "pos": 52,
+                  "color": 1
+                },
+                {
+                  "pos": 59,
+                  "color": 2
+                },
+                {
+                  "pos": 61,
+                  "color": 1
+                },
+                {
+                  "pos": 42,
+                  "color": 2
+                },
+                {
+                  "pos": 20,
+                  "color": 1
+                },
+                {
+                  "pos": 21,
+                  "color": 2
+                },
+                {
+                  "pos": 54,
+                  "color": 1
+                },
+                {
+                  "pos": 18,
+                  "color": 2
+                },
+                {
+                  "pos": 9,
+                  "color": 1
+                },
+                {
+                  "pos": 10,
+                  "color": 2
+                },
+                {
+                  "pos": 12,
+                  "color": 1
+                },
+                {
+                  "pos": 4,
+                  "color": 2
+                },
+                {
+                  "pos": 51,
+                  "color": 1
+                },
+                {
+                  "pos": 58,
+                  "color": 2
+                },
+                {
+                  "pos": 30,
+                  "color": 1
+                },
+                {
+                  "pos": 31,
+                  "color": 2
+                },
+                {
+                  "pos": 53,
+                  "color": 1
+                },
+                {
+                  "pos": 0,
+                  "color": 2
+                },
+                {
+                  "pos": 50,
+                  "color": 1
+                },
+                {
+                  "pos": 57,
+                  "color": 2
+                },
+                {
+                  "pos": 38,
+                  "color": 1
+                },
+                {
+                  "pos": 39,
+                  "color": 2
+                },
+                {
+                  "pos": 23,
+                  "color": 1
+                },
+                {
+                  "pos": 15,
+                  "color": 2
+                },
+                {
+                  "pos": 46,
+                  "color": 1
+                },
+                {
+                  "pos": 47,
+                  "color": 2
+                },
+                {
+                  "pos": 55,
+                  "color": 1
+                },
+                {
+                  "pos": 63,
+                  "color": 2
+                },
+                {
+                  "pos": 11,
+                  "color": 1
+                },
+                {
+                  "pos": 22,
+                  "color": 2
+                },
+                {
+                  "pos": 62,
+                  "color": 1
+                },
+                {
+                  "pos": 60,
+                  "color": 2
+                },
+                {
+                  "pos": 5,
+                  "color": 1
+                },
+                {
+                  "pos": 6,
+                  "color": 2
+                },
+                {
+                  "pos": 13,
+                  "color": 1
+                },
+                {
+                  "pos": 3,
+                  "color": 2
+                },
+                {
+                  "pos": 1,
+                  "color": 1
+                },
+                {
+                  "pos": 2,
+                  "color": 2
+                },
+                {
+                  "pos": 14,
+                  "color": 1
+                },
+                {
+                  "pos": 7,
+                  "color": 2
+                },
+                {
+                  "pos": 17,
+                  "color": 1
+                },
+                {
+                  "pos": 8,
+                  "color": 2
+                },
+                {
+                  "pos": 25,
+                  "color": 1
+                },
+                {
+                  "pos": 16,
+                  "color": 2
+                },
+                {
+                  "pos": 33,
+                  "color": 1
+                },
+                {
+                  "pos": 24,
+                  "color": 2
+                },
+                {
+                  "pos": 41,
+                  "color": 1
+                },
+                {
+                  "pos": 48,
+                  "color": 2
+                },
+                {
+                  "pos": 32,
+                  "color": 1
+                },
+                {
+                  "pos": 40,
+                  "color": 2
+                },
+                {
+                  "pos": 49,
+                  "color": 1
+                },
+                {
+                  "pos": 56,
+                  "color": 2
+                }
+              ],
+              "x_was_black": true,
+              "result": "white"
+            }
+          ]
+        },
+        {
+          "a": "A0-001",
+          "b": "C0-004",
+          "winner": "C0-004",
+          "games": [
+            {
+              "black": 15,
+              "white": 49,
+              "moves": [
+                {
+                  "pos": 37,
+                  "color": 1
+                },
+                {
+                  "pos": 43,
+                  "color": 2
+                },
+                {
+                  "pos": 26,
+                  "color": 1
+                },
+                {
+                  "pos": 19,
+                  "color": 2
+                },
+                {
+                  "pos": 34,
+                  "color": 1
+                },
+                {
+                  "pos": 29,
+                  "color": 2
+                },
+                {
+                  "pos": 21,
+                  "color": 1
+                },
+                {
+                  "pos": 20,
+                  "color": 2
+                },
+                {
+                  "pos": 18,
+                  "color": 1
+                },
+                {
+                  "pos": 42,
+                  "color": 2
+                },
+                {
+                  "pos": 49,
+                  "color": 1
+                },
+                {
+                  "pos": 12,
+                  "color": 2
+                },
+                {
+                  "pos": 5,
+                  "color": 1
+                },
+                {
+                  "pos": 4,
+                  "color": 2
+                },
+                {
+                  "pos": 3,
+                  "color": 1
+                },
+                {
+                  "pos": 41,
+                  "color": 2
+                },
+                {
+                  "pos": 11,
+                  "color": 1
+                },
+                {
+                  "pos": 56,
+                  "color": 2
+                },
+                {
+                  "pos": 44,
+                  "color": 1
+                },
+                {
+                  "pos": 13,
+                  "color": 2
+                },
+                {
+                  "pos": 33,
+                  "color": 1
+                },
+                {
+                  "pos": 24,
+                  "color": 2
+                },
+                {
+                  "pos": 6,
+                  "color": 1
+                },
+                {
+                  "pos": 25,
+                  "color": 2
+                },
+                {
+                  "pos": 51,
+                  "color": 1
+                },
+                {
+                  "pos": 60,
+                  "color": 2
+                },
+                {
+                  "pos": 50,
+                  "color": 1
+                },
+                {
+                  "pos": 59,
+                  "color": 2
+                },
+                {
+                  "pos": 40,
+                  "color": 1
+                },
+                {
+                  "pos": 52,
+                  "color": 2
+                },
+                {
+                  "pos": 17,
+                  "color": 1
+                },
+                {
+                  "pos": 48,
+                  "color": 2
+                },
+                {
+                  "pos": 61,
+                  "color": 1
+                },
+                {
+                  "pos": 62,
+                  "color": 2
+                },
+                {
+                  "pos": 58,
+                  "color": 1
+                },
+                {
+                  "pos": 57,
+                  "color": 2
+                },
+                {
+                  "pos": 32,
+                  "color": 1
+                },
+                {
+                  "pos": 16,
+                  "color": 2
+                },
+                {
+                  "pos": 53,
+                  "color": 1
+                },
+                {
+                  "pos": 54,
+                  "color": 2
+                },
+                {
+                  "pos": 8,
+                  "color": 1
+                },
+                {
+                  "pos": 0,
+                  "color": 2
+                },
+                {
+                  "pos": 9,
+                  "color": 2
+                },
+                {
+                  "pos": 1,
+                  "color": 1
+                },
+                {
+                  "pos": 2,
+                  "color": 2
+                },
+                {
+                  "pos": 10,
+                  "color": 2
+                },
+                {
+                  "pos": 14,
+                  "color": 2
+                },
+                {
+                  "pos": 23,
+                  "color": 1
+                },
+                {
+                  "pos": 7,
+                  "color": 2
+                },
+                {
+                  "pos": 22,
+                  "color": 1
+                },
+                {
+                  "pos": 45,
+                  "color": 2
+                },
+                {
+                  "pos": 30,
+                  "color": 1
+                },
+                {
+                  "pos": 15,
+                  "color": 2
+                },
+                {
+                  "pos": 38,
+                  "color": 1
+                },
+                {
+                  "pos": 46,
+                  "color": 2
+                },
+                {
+                  "pos": 39,
+                  "color": 1
+                },
+                {
+                  "pos": 31,
+                  "color": 2
+                },
+                {
+                  "pos": 63,
+                  "color": 1
+                },
+                {
+                  "pos": 47,
+                  "color": 2
+                },
+                {
+                  "pos": 55,
+                  "color": 1
+                }
+              ],
+              "x_was_black": true,
+              "result": "white"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "空王",
+      "season": 3,
+      "challenger_id": "C0-004",
+      "won": false,
+      "challenger_wins": 1,
+      "titleholder_wins": 3,
+      "games": [
+        {
+          "game_num": 1,
+          "a_was_black": true,
+          "black": 42,
+          "white": 22,
+          "winner": "a",
+          "moves": [
+            {
+              "pos": 26,
+              "color": 1
+            },
+            {
+              "pos": 34,
+              "color": 2
+            },
+            {
+              "pos": 43,
+              "color": 1
+            },
+            {
+              "pos": 18,
+              "color": 2
+            },
+            {
+              "pos": 44,
+              "color": 1
+            },
+            {
+              "pos": 29,
+              "color": 2
+            },
+            {
+              "pos": 20,
+              "color": 1
+            },
+            {
+              "pos": 37,
+              "color": 2
+            },
+            {
+              "pos": 19,
+              "color": 1
+            },
+            {
+              "pos": 13,
+              "color": 2
+            },
+            {
+              "pos": 21,
+              "color": 1
+            },
+            {
+              "pos": 22,
+              "color": 2
+            },
+            {
+              "pos": 14,
+              "color": 1
+            },
+            {
+              "pos": 53,
+              "color": 2
+            },
+            {
+              "pos": 42,
+              "color": 1
+            },
+            {
+              "pos": 51,
+              "color": 2
+            },
+            {
+              "pos": 45,
+              "color": 1
+            },
+            {
+              "pos": 7,
+              "color": 2
+            },
+            {
+              "pos": 60,
+              "color": 1
+            },
+            {
+              "pos": 46,
+              "color": 2
+            },
+            {
+              "pos": 12,
+              "color": 1
+            },
+            {
+              "pos": 30,
+              "color": 2
+            },
+            {
+              "pos": 61,
+              "color": 1
+            },
+            {
+              "pos": 3,
+              "color": 2
+            },
+            {
+              "pos": 11,
+              "color": 1
+            },
+            {
+              "pos": 4,
+              "color": 2
+            },
+            {
+              "pos": 47,
+              "color": 1
+            },
+            {
+              "pos": 54,
+              "color": 2
+            },
+            {
+              "pos": 38,
+              "color": 1
+            },
+            {
+              "pos": 39,
+              "color": 2
+            },
+            {
+              "pos": 41,
+              "color": 1
+            },
+            {
+              "pos": 10,
+              "color": 2
+            },
+            {
+              "pos": 63,
+              "color": 1
+            },
+            {
+              "pos": 55,
+              "color": 2
+            },
+            {
+              "pos": 31,
+              "color": 1
+            },
+            {
+              "pos": 23,
+              "color": 2
+            },
+            {
+              "pos": 15,
+              "color": 1
+            },
+            {
+              "pos": 48,
+              "color": 2
+            },
+            {
+              "pos": 33,
+              "color": 1
+            },
+            {
+              "pos": 40,
+              "color": 2
+            },
+            {
+              "pos": 24,
+              "color": 1
+            },
+            {
+              "pos": 25,
+              "color": 2
+            },
+            {
+              "pos": 17,
+              "color": 1
+            },
+            {
+              "pos": 49,
+              "color": 2
+            },
+            {
+              "pos": 50,
+              "color": 1
+            },
+            {
+              "pos": 8,
+              "color": 2
+            },
+            {
+              "pos": 56,
+              "color": 1
+            },
+            {
+              "pos": 9,
+              "color": 2
+            },
+            {
+              "pos": 32,
+              "color": 1
+            },
+            {
+              "pos": 52,
+              "color": 2
+            },
+            {
+              "pos": 0,
+              "color": 1
+            },
+            {
+              "pos": 1,
+              "color": 2
+            },
+            {
+              "pos": 59,
+              "color": 1
+            },
+            {
+              "pos": 62,
+              "color": 2
+            },
+            {
+              "pos": 16,
+              "color": 1
+            },
+            {
+              "pos": 57,
+              "color": 2
+            },
+            {
+              "pos": 58,
+              "color": 1
+            },
+            {
+              "pos": 2,
+              "color": 1
+            },
+            {
+              "pos": 5,
+              "color": 1
+            },
+            {
+              "pos": 6,
+              "color": 2
+            }
+          ]
+        },
+        {
+          "game_num": 2,
+          "a_was_black": false,
+          "black": 41,
+          "white": 23,
+          "winner": "b",
+          "moves": [
+            {
+              "pos": 37,
+              "color": 1
+            },
+            {
+              "pos": 43,
+              "color": 2
+            },
+            {
+              "pos": 18,
+              "color": 1
+            },
+            {
+              "pos": 29,
+              "color": 2
+            },
+            {
+              "pos": 21,
+              "color": 1
+            },
+            {
+              "pos": 20,
+              "color": 2
+            },
+            {
+              "pos": 19,
+              "color": 1
+            },
+            {
+              "pos": 14,
+              "color": 2
+            },
+            {
+              "pos": 44,
+              "color": 1
+            },
+            {
+              "pos": 22,
+              "color": 2
+            },
+            {
+              "pos": 23,
+              "color": 1
+            },
+            {
+              "pos": 13,
+              "color": 2
+            },
+            {
+              "pos": 50,
+              "color": 1
+            },
+            {
+              "pos": 34,
+              "color": 2
+            },
+            {
+              "pos": 42,
+              "color": 1
+            },
+            {
+              "pos": 30,
+              "color": 2
+            },
+            {
+              "pos": 15,
+              "color": 1
+            },
+            {
+              "pos": 31,
+              "color": 2
+            },
+            {
+              "pos": 39,
+              "color": 1
+            },
+            {
+              "pos": 49,
+              "color": 2
+            },
+            {
+              "pos": 26,
+              "color": 1
+            },
+            {
+              "pos": 38,
+              "color": 2
+            },
+            {
+              "pos": 56,
+              "color": 1
+            },
+            {
+              "pos": 45,
+              "color": 2
+            },
+            {
+              "pos": 7,
+              "color": 1
+            },
+            {
+              "pos": 6,
+              "color": 2
+            },
+            {
+              "pos": 5,
+              "color": 1
+            },
+            {
+              "pos": 12,
+              "color": 2
+            },
+            {
+              "pos": 4,
+              "color": 1
+            },
+            {
+              "pos": 3,
+              "color": 2
+            },
+            {
+              "pos": 2,
+              "color": 1
+            },
+            {
+              "pos": 11,
+              "color": 2
+            },
+            {
+              "pos": 10,
+              "color": 1
+            },
+            {
+              "pos": 52,
+              "color": 2
+            },
+            {
+              "pos": 47,
+              "color": 1
+            },
+            {
+              "pos": 57,
+              "color": 2
+            },
+            {
+              "pos": 58,
+              "color": 1
+            },
+            {
+              "pos": 33,
+              "color": 2
+            },
+            {
+              "pos": 51,
+              "color": 1
+            },
+            {
+              "pos": 41,
+              "color": 2
+            },
+            {
+              "pos": 60,
+              "color": 1
+            },
+            {
+              "pos": 46,
+              "color": 2
+            },
+            {
+              "pos": 48,
+              "color": 1
+            },
+            {
+              "pos": 25,
+              "color": 2
+            },
+            {
+              "pos": 40,
+              "color": 1
+            },
+            {
+              "pos": 32,
+              "color": 2
+            },
+            {
+              "pos": 55,
+              "color": 1
+            },
+            {
+              "pos": 59,
+              "color": 2
+            },
+            {
+              "pos": 54,
+              "color": 1
+            },
+            {
+              "pos": 63,
+              "color": 2
+            },
+            {
+              "pos": 61,
+              "color": 1
+            },
+            {
+              "pos": 17,
+              "color": 2
+            },
+            {
+              "pos": 8,
+              "color": 1
+            },
+            {
+              "pos": 16,
+              "color": 2
+            },
+            {
+              "pos": 24,
+              "color": 1
+            },
+            {
+              "pos": 62,
+              "color": 2
+            },
+            {
+              "pos": 53,
+              "color": 1
+            },
+            {
+              "pos": 9,
+              "color": 2
+            },
+            {
+              "pos": 0,
+              "color": 1
+            },
+            {
+              "pos": 1,
+              "color": 2
+            }
+          ]
+        },
+        {
+          "game_num": 3,
+          "a_was_black": true,
+          "black": 28,
+          "white": 36,
+          "winner": "b",
+          "moves": [
+            {
+              "pos": 26,
+              "color": 1
+            },
+            {
+              "pos": 20,
+              "color": 2
+            },
+            {
+              "pos": 37,
+              "color": 1
+            },
+            {
+              "pos": 42,
+              "color": 2
+            },
+            {
+              "pos": 34,
+              "color": 1
+            },
+            {
+              "pos": 44,
+              "color": 2
+            },
+            {
+              "pos": 45,
+              "color": 1
+            },
+            {
+              "pos": 41,
+              "color": 2
+            },
+            {
+              "pos": 18,
+              "color": 1
+            },
+            {
+              "pos": 25,
+              "color": 2
+            },
+            {
+              "pos": 43,
+              "color": 1
+            },
+            {
+              "pos": 51,
+              "color": 2
+            },
+            {
+              "pos": 58,
+              "color": 1
+            },
+            {
+              "pos": 60,
+              "color": 2
+            },
+            {
+              "pos": 17,
+              "color": 1
+            },
+            {
+              "pos": 38,
+              "color": 2
+            },
+            {
+              "pos": 24,
+              "color": 1
+            },
+            {
+              "pos": 8,
+              "color": 2
+            },
+            {
+              "pos": 10,
+              "color": 1
+            },
+            {
+              "pos": 2,
+              "color": 2
+            },
+            {
+              "pos": 19,
+              "color": 1
+            },
+            {
+              "pos": 11,
+              "color": 2
+            },
+            {
+              "pos": 31,
+              "color": 1
+            },
+            {
+              "pos": 32,
+              "color": 2
+            },
+            {
+              "pos": 40,
+              "color": 1
+            },
+            {
+              "pos": 33,
+              "color": 2
+            },
+            {
+              "pos": 16,
+              "color": 1
+            },
+            {
+              "pos": 48,
+              "color": 2
+            },
+            {
+              "pos": 59,
+              "color": 1
+            },
+            {
+              "pos": 57,
+              "color": 2
+            },
+            {
+              "pos": 9,
+              "color": 1
+            },
+            {
+              "pos": 52,
+              "color": 2
+            },
+            {
+              "pos": 61,
+              "color": 1
+            },
+            {
+              "pos": 62,
+              "color": 2
+            },
+            {
+              "pos": 50,
+              "color": 1
+            },
+            {
+              "pos": 53,
+              "color": 2
+            },
+            {
+              "pos": 49,
+              "color": 1
+            },
+            {
+              "pos": 56,
+              "color": 2
+            },
+            {
+              "pos": 4,
+              "color": 1
+            },
+            {
+              "pos": 0,
+              "color": 2
+            },
+            {
+              "pos": 1,
+              "color": 1
+            },
+            {
+              "pos": 3,
+              "color": 2
+            },
+            {
+              "pos": 29,
+              "color": 1
+            },
+            {
+              "pos": 22,
+              "color": 2
+            },
+            {
+              "pos": 30,
+              "color": 1
+            },
+            {
+              "pos": 21,
+              "color": 2
+            },
+            {
+              "pos": 12,
+              "color": 1
+            },
+            {
+              "pos": 14,
+              "color": 2
+            },
+            {
+              "pos": 46,
+              "color": 1
+            },
+            {
+              "pos": 5,
+              "color": 2
+            },
+            {
+              "pos": 7,
+              "color": 1
+            },
+            {
+              "pos": 6,
+              "color": 2
+            },
+            {
+              "pos": 13,
+              "color": 1
+            },
+            {
+              "pos": 15,
+              "color": 2
+            },
+            {
+              "pos": 23,
+              "color": 1
+            },
+            {
+              "pos": 47,
+              "color": 2
+            },
+            {
+              "pos": 39,
+              "color": 1
+            },
+            {
+              "pos": 55,
+              "color": 1
+            },
+            {
+              "pos": 54,
+              "color": 2
+            },
+            {
+              "pos": 63,
+              "color": 1
+            }
+          ]
+        },
+        {
+          "game_num": 4,
+          "a_was_black": false,
+          "black": 35,
+          "white": 29,
+          "winner": "b",
+          "moves": [
+            {
+              "pos": 37,
+              "color": 1
+            },
+            {
+              "pos": 43,
+              "color": 2
+            },
+            {
+              "pos": 18,
+              "color": 1
+            },
+            {
+              "pos": 29,
+              "color": 2
+            },
+            {
+              "pos": 21,
+              "color": 1
+            },
+            {
+              "pos": 20,
+              "color": 2
+            },
+            {
+              "pos": 19,
+              "color": 1
+            },
+            {
+              "pos": 14,
+              "color": 2
+            },
+            {
+              "pos": 44,
+              "color": 1
+            },
+            {
+              "pos": 22,
+              "color": 2
+            },
+            {
+              "pos": 23,
+              "color": 1
+            },
+            {
+              "pos": 13,
+              "color": 2
+            },
+            {
+              "pos": 50,
+              "color": 1
+            },
+            {
+              "pos": 34,
+              "color": 2
+            },
+            {
+              "pos": 42,
+              "color": 1
+            },
+            {
+              "pos": 30,
+              "color": 2
+            },
+            {
+              "pos": 15,
+              "color": 1
+            },
+            {
+              "pos": 31,
+              "color": 2
+            },
+            {
+              "pos": 39,
+              "color": 1
+            },
+            {
+              "pos": 49,
+              "color": 2
+            },
+            {
+              "pos": 26,
+              "color": 1
+            },
+            {
+              "pos": 38,
+              "color": 2
+            },
+            {
+              "pos": 56,
+              "color": 1
+            },
+            {
+              "pos": 45,
+              "color": 2
+            },
+            {
+              "pos": 6,
+              "color": 1
+            },
+            {
+              "pos": 4,
+              "color": 2
+            },
+            {
+              "pos": 7,
+              "color": 1
+            },
+            {
+              "pos": 12,
+              "color": 2
+            },
+            {
+              "pos": 5,
+              "color": 1
+            },
+            {
+              "pos": 3,
+              "color": 2
+            },
+            {
+              "pos": 2,
+              "color": 1
+            },
+            {
+              "pos": 11,
+              "color": 2
+            },
+            {
+              "pos": 10,
+              "color": 1
+            },
+            {
+              "pos": 52,
+              "color": 2
+            },
+            {
+              "pos": 47,
+              "color": 1
+            },
+            {
+              "pos": 57,
+              "color": 2
+            },
+            {
+              "pos": 58,
+              "color": 1
+            },
+            {
+              "pos": 33,
+              "color": 2
+            },
+            {
+              "pos": 51,
+              "color": 1
+            },
+            {
+              "pos": 41,
+              "color": 2
+            },
+            {
+              "pos": 60,
+              "color": 1
+            },
+            {
+              "pos": 46,
+              "color": 2
+            },
+            {
+              "pos": 48,
+              "color": 1
+            },
+            {
+              "pos": 25,
+              "color": 2
+            },
+            {
+              "pos": 40,
+              "color": 1
+            },
+            {
+              "pos": 32,
+              "color": 2
+            },
+            {
+              "pos": 55,
+              "color": 1
+            },
+            {
+              "pos": 59,
+              "color": 2
+            },
+            {
+              "pos": 54,
+              "color": 1
+            },
+            {
+              "pos": 63,
+              "color": 2
+            },
+            {
+              "pos": 61,
+              "color": 1
+            },
+            {
+              "pos": 17,
+              "color": 2
+            },
+            {
+              "pos": 8,
+              "color": 1
+            },
+            {
+              "pos": 16,
+              "color": 2
+            },
+            {
+              "pos": 24,
+              "color": 1
+            },
+            {
+              "pos": 9,
+              "color": 2
+            },
+            {
+              "pos": 0,
+              "color": 1
+            },
+            {
+              "pos": 1,
+              "color": 2
+            },
+            {
+              "pos": 53,
+              "color": 1
+            },
+            {
+              "pos": 62,
+              "color": 2
+            }
+          ]
+        }
+      ],
+      "challenger_name": "小田智子",
+      "holder_name": "武井隆之",
+      "holder_id": "B0-006",
+      "defender_id": "B0-006",
+      "bracket": [
+        {
+          "a": "C0-004",
+          "b": "C0-000",
+          "winner": "C0-004",
+          "games": [
+            {
+              "black": 57,
+              "white": 5,
+              "moves": [
+                {
+                  "pos": 26,
+                  "color": 1
+                },
+                {
+                  "pos": 20,
+                  "color": 2
+                },
+                {
+                  "pos": 37,
+                  "color": 1
+                },
+                {
+                  "pos": 42,
+                  "color": 2
+                },
+                {
+                  "pos": 34,
+                  "color": 1
+                },
+                {
+                  "pos": 18,
+                  "color": 2
+                },
+                {
+                  "pos": 29,
+                  "color": 1
+                },
+                {
+                  "pos": 45,
+                  "color": 2
+                },
+                {
+                  "pos": 19,
+                  "color": 1
+                },
+                {
+                  "pos": 21,
+                  "color": 2
+                },
+                {
+                  "pos": 43,
+                  "color": 1
+                },
+                {
+                  "pos": 44,
+                  "color": 2
+                },
+                {
+                  "pos": 51,
+                  "color": 1
+                },
+                {
+                  "pos": 60,
+                  "color": 2
+                },
+                {
+                  "pos": 38,
+                  "color": 1
+                },
+                {
+                  "pos": 39,
+                  "color": 2
+                },
+                {
+                  "pos": 30,
+                  "color": 1
+                },
+                {
+                  "pos": 31,
+                  "color": 2
+                },
+                {
+                  "pos": 46,
+                  "color": 1
+                },
+                {
+                  "pos": 12,
+                  "color": 2
+                },
+                {
+                  "pos": 58,
+                  "color": 1
+                },
+                {
+                  "pos": 50,
+                  "color": 2
+                },
+                {
+                  "pos": 11,
+                  "color": 1
+                },
+                {
+                  "pos": 47,
+                  "color": 2
+                },
+                {
+                  "pos": 52,
+                  "color": 1
+                },
+                {
+                  "pos": 3,
+                  "color": 2
+                },
+                {
+                  "pos": 53,
+                  "color": 1
+                },
+                {
+                  "pos": 62,
+                  "color": 2
+                },
+                {
+                  "pos": 61,
+                  "color": 1
+                },
+                {
+                  "pos": 59,
+                  "color": 2
+                },
+                {
+                  "pos": 63,
+                  "color": 1
+                },
+                {
+                  "pos": 57,
+                  "color": 2
+                },
+                {
+                  "pos": 56,
+                  "color": 1
+                },
+                {
+                  "pos": 54,
+                  "color": 2
+                },
+                {
+                  "pos": 55,
+                  "color": 1
+                },
+                {
+                  "pos": 23,
+                  "color": 1
+                },
+                {
+                  "pos": 22,
+                  "color": 2
+                },
+                {
+                  "pos": 15,
+                  "color": 1
+                },
+                {
+                  "pos": 14,
+                  "color": 2
+                },
+                {
+                  "pos": 49,
+                  "color": 1
+                },
+                {
+                  "pos": 41,
+                  "color": 2
+                },
+                {
+                  "pos": 40,
+                  "color": 1
+                },
+                {
+                  "pos": 48,
+                  "color": 2
+                },
+                {
+                  "pos": 7,
+                  "color": 1
+                },
+                {
+                  "pos": 6,
+                  "color": 2
+                },
+                {
+                  "pos": 5,
+                  "color": 1
+                },
+                {
+                  "pos": 32,
+                  "color": 2
+                },
+                {
+                  "pos": 13,
+                  "color": 1
+                },
+                {
+                  "pos": 4,
+                  "color": 1
+                },
+                {
+                  "pos": 24,
+                  "color": 1
+                },
+                {
+                  "pos": 33,
+                  "color": 1
+                },
+                {
+                  "pos": 25,
+                  "color": 2
+                },
+                {
+                  "pos": 16,
+                  "color": 1
+                },
+                {
+                  "pos": 9,
+                  "color": 1
+                },
+                {
+                  "pos": 10,
+                  "color": 2
+                },
+                {
+                  "pos": 17,
+                  "color": 1
+                },
+                {
+                  "pos": 8,
+                  "color": 2
+                },
+                {
+                  "pos": 0,
+                  "color": 1
+                }
+              ],
+              "x_was_black": true,
+              "result": "black"
+            }
+          ]
+        },
+        {
+          "a": "C0-001",
+          "b": "B0-011",
+          "winner": "B0-011",
+          "games": [
+            {
+              "black": 10,
+              "white": 54,
+              "moves": [
+                {
+                  "pos": 26,
+                  "color": 1
+                },
+                {
+                  "pos": 20,
+                  "color": 2
+                },
+                {
+                  "pos": 29,
+                  "color": 1
+                },
+                {
+                  "pos": 34,
+                  "color": 2
+                },
+                {
+                  "pos": 42,
+                  "color": 1
+                },
+                {
+                  "pos": 43,
+                  "color": 2
+                },
+                {
+                  "pos": 37,
+                  "color": 1
+                },
+                {
+                  "pos": 44,
+                  "color": 2
+                },
+                {
+                  "pos": 21,
+                  "color": 1
+                },
+                {
+                  "pos": 22,
+                  "color": 2
+                },
+                {
+                  "pos": 13,
+                  "color": 1
+                },
+                {
+                  "pos": 4,
+                  "color": 2
+                },
+                {
+                  "pos": 6,
+                  "color": 1
+                },
+                {
+                  "pos": 17,
+                  "color": 2
+                },
+                {
+                  "pos": 18,
+                  "color": 1
+                },
+                {
+                  "pos": 25,
+                  "color": 2
+                },
+                {
+                  "pos": 8,
+                  "color": 1
+                },
+                {
+                  "pos": 10,
+                  "color": 2
+                },
+                {
+                  "pos": 2,
+                  "color": 1
+                },
+                {
+                  "pos": 33,
+                  "color": 2
+                },
+                {
+                  "pos": 23,
+                  "color": 1
+                },
+                {
+                  "pos": 41,
+                  "color": 2
+                },
+                {
+                  "pos": 53,
+                  "color": 1
+                },
+                {
+                  "pos": 45,
+                  "color": 2
+                },
+                {
+                  "pos": 48,
+                  "color": 1
+                },
+                {
+                  "pos": 40,
+                  "color": 2
+                },
+                {
+                  "pos": 32,
+                  "color": 1
+                },
+                {
+                  "pos": 19,
+                  "color": 2
+                },
+                {
+                  "pos": 49,
+                  "color": 1
+                },
+                {
+                  "pos": 12,
+                  "color": 2
+                },
+                {
+                  "pos": 3,
+                  "color": 1
+                },
+                {
+                  "pos": 56,
+                  "color": 2
+                },
+                {
+                  "pos": 5,
+                  "color": 1
+                },
+                {
+                  "pos": 24,
+                  "color": 2
+                },
+                {
+                  "pos": 11,
+                  "color": 1
+                },
+                {
+                  "pos": 16,
+                  "color": 2
+                },
+                {
+                  "pos": 51,
+                  "color": 1
+                },
+                {
+                  "pos": 0,
+                  "color": 2
+                },
+                {
+                  "pos": 57,
+                  "color": 1
+                },
+                {
+                  "pos": 1,
+                  "color": 2
+                },
+                {
+                  "pos": 54,
+                  "color": 1
+                },
+                {
+                  "pos": 58,
+                  "color": 2
+                },
+                {
+                  "pos": 50,
+                  "color": 1
+                },
+                {
+                  "pos": 7,
+                  "color": 2
+                },
+                {
+                  "pos": 9,
+                  "color": 1
+                },
+                {
+                  "pos": 63,
+                  "color": 2
+                },
+                {
+                  "pos": 46,
+                  "color": 1
+                },
+                {
+                  "pos": 14,
+                  "color": 2
+                },
+                {
+                  "pos": 55,
+                  "color": 1
+                },
+                {
+                  "pos": 15,
+                  "color": 2
+                },
+                {
+                  "pos": 38,
+                  "color": 1
+                },
+                {
+                  "pos": 52,
+                  "color": 2
+                },
+                {
+                  "pos": 60,
+                  "color": 1
+                },
+                {
+                  "pos": 62,
+                  "color": 2
+                },
+                {
+                  "pos": 59,
+                  "color": 1
+                },
+                {
+                  "pos": 61,
+                  "color": 2
+                },
+                {
+                  "pos": 47,
+                  "color": 2
+                },
+                {
+                  "pos": 30,
+                  "color": 1
+                },
+                {
+                  "pos": 31,
+                  "color": 2
+                },
+                {
+                  "pos": 39,
+                  "color": 1
+                }
+              ],
+              "x_was_black": true,
+              "result": "white"
+            }
+          ]
+        },
+        {
+          "a": "D0-015",
+          "b": "D0-010",
+          "winner": "D0-015",
+          "games": [
+            {
+              "black": 42,
+              "white": 22,
+              "moves": [
+                {
+                  "pos": 26,
+                  "color": 1
+                },
+                {
+                  "pos": 20,
+                  "color": 2
+                },
+                {
+                  "pos": 37,
+                  "color": 1
+                },
+                {
+                  "pos": 25,
+                  "color": 2
+                },
+                {
+                  "pos": 17,
+                  "color": 1
+                },
+                {
+                  "pos": 42,
+                  "color": 2
+                },
+                {
+                  "pos": 24,
+                  "color": 1
+                },
+                {
+                  "pos": 38,
+                  "color": 2
+                },
+                {
+                  "pos": 44,
+                  "color": 1
+                },
+                {
+                  "pos": 34,
+                  "color": 2
+                },
+                {
+                  "pos": 43,
+                  "color": 1
+                },
+                {
+                  "pos": 8,
+                  "color": 2
+                },
+                {
+                  "pos": 39,
+                  "color": 1
+                },
+                {
+                  "pos": 51,
+                  "color": 2
+                },
+                {
+                  "pos": 52,
+                  "color": 1
+                },
+                {
+                  "pos": 45,
+                  "color": 2
+                },
+                {
+                  "pos": 58,
+                  "color": 1
+                },
+                {
+                  "pos": 29,
+                  "color": 2
+                },
+                {
+                  "pos": 19,
+                  "color": 1
+                },
+                {
+                  "pos": 50,
+                  "color": 2
+                },
+                {
+                  "pos": 18,
+                  "color": 1
+                },
+                {
+                  "pos": 31,
+                  "color": 2
+                },
+                {
+                  "pos": 23,
+                  "color": 1
+                },
+                {
+                  "pos": 41,
+                  "color": 2
+                },
+                {
+                  "pos": 54,
+                  "color": 1
+                },
+                {
+                  "pos": 11,
+                  "color": 2
+                },
+                {
+                  "pos": 3,
+                  "color": 1
+                },
+                {
+                  "pos": 33,
+                  "color": 2
+                },
+                {
+                  "pos": 32,
+                  "color": 1
+                },
+                {
+                  "pos": 10,
+                  "color": 2
+                },
+                {
+                  "pos": 40,
+                  "color": 1
+                },
+                {
+                  "pos": 63,
+                  "color": 2
+                },
+                {
+                  "pos": 57,
+                  "color": 1
+                },
+                {
+                  "pos": 49,
+                  "color": 2
+                },
+                {
+                  "pos": 2,
+                  "color": 1
+                },
+                {
+                  "pos": 61,
+                  "color": 2
+                },
+                {
+                  "pos": 60,
+                  "color": 1
+                },
+                {
+                  "pos": 53,
+                  "color": 2
+                },
+                {
+                  "pos": 56,
+                  "color": 1
+                },
+                {
+                  "pos": 59,
+                  "color": 2
+                },
+                {
+                  "pos": 16,
+                  "color": 1
+                },
+                {
+                  "pos": 4,
+                  "color": 2
+                },
+                {
+                  "pos": 0,
+                  "color": 1
+                },
+                {
+                  "pos": 1,
+                  "color": 2
+                },
+                {
+                  "pos": 62,
+                  "color": 1
+                },
+                {
+                  "pos": 9,
+                  "color": 2
+                },
+                {
+                  "pos": 5,
+                  "color": 1
+                },
+                {
+                  "pos": 48,
+                  "color": 2
+                },
+                {
+                  "pos": 12,
+                  "color": 1
+                },
+                {
+                  "pos": 21,
+                  "color": 2
+                },
+                {
+                  "pos": 55,
+                  "color": 1
+                },
+                {
+                  "pos": 47,
+                  "color": 2
+                },
+                {
+                  "pos": 14,
+                  "color": 1
+                },
+                {
+                  "pos": 13,
+                  "color": 2
+                },
+                {
+                  "pos": 22,
+                  "color": 1
+                },
+                {
+                  "pos": 30,
+                  "color": 2
+                },
+                {
+                  "pos": 46,
+                  "color": 1
+                },
+                {
+                  "pos": 6,
+                  "color": 2
+                },
+                {
+                  "pos": 7,
+                  "color": 1
+                },
+                {
+                  "pos": 15,
+                  "color": 2
+                }
+              ],
+              "x_was_black": true,
+              "result": "black"
+            }
+          ]
+        },
+        {
+          "a": "D0-006",
+          "b": "A0-007",
+          "winner": "A0-007",
+          "games": [
+            {
+              "black": 26,
+              "white": 38,
+              "moves": [
+                {
+                  "pos": 37,
+                  "color": 1
+                },
+                {
+                  "pos": 43,
+                  "color": 2
+                },
+                {
+                  "pos": 34,
+                  "color": 1
+                },
+                {
+                  "pos": 29,
+                  "color": 2
+                },
+                {
+                  "pos": 20,
+                  "color": 1
+                },
+                {
+                  "pos": 42,
+                  "color": 2
+                },
+                {
+                  "pos": 21,
+                  "color": 1
+                },
+                {
+                  "pos": 46,
+                  "color": 2
+                },
+                {
+                  "pos": 45,
+                  "color": 1
+                },
+                {
+                  "pos": 33,
+                  "color": 2
+                },
+                {
+                  "pos": 47,
+                  "color": 1
+                },
+                {
+                  "pos": 44,
+                  "color": 2
+                },
+                {
+                  "pos": 19,
+                  "color": 1
+                },
+                {
+                  "pos": 38,
+                  "color": 2
+                },
+                {
+                  "pos": 50,
+                  "color": 1
+                },
+                {
+                  "pos": 58,
+                  "color": 2
+                },
+                {
+                  "pos": 52,
+                  "color": 1
+                },
+                {
+                  "pos": 51,
+                  "color": 2
+                },
+                {
+                  "pos": 25,
+                  "color": 1
+                },
+                {
+                  "pos": 22,
+                  "color": 2
+                },
+                {
+                  "pos": 32,
+                  "color": 1
+                },
+                {
+                  "pos": 61,
+                  "color": 2
+                },
+                {
+                  "pos": 23,
+                  "color": 1
+                },
+                {
+                  "pos": 53,
+                  "color": 2
+                },
+                {
+                  "pos": 41,
+                  "color": 1
+                },
+                {
+                  "pos": 39,
+                  "color": 2
+                },
+                {
+                  "pos": 31,
+                  "color": 1
+                },
+                {
+                  "pos": 30,
+                  "color": 2
+                },
+                {
+                  "pos": 55,
+                  "color": 1
+                },
+                {
+                  "pos": 18,
+                  "color": 2
+                },
+                {
+                  "pos": 11,
+                  "color": 1
+                },
+                {
+                  "pos": 26,
+                  "color": 2
+                },
+                {
+                  "pos": 49,
+                  "color": 1
+                },
+                {
+                  "pos": 24,
+                  "color": 2
+                },
+                {
+                  "pos": 16,
+                  "color": 1
+                },
+                {
+                  "pos": 56,
+                  "color": 2
+                },
+                {
+                  "pos": 17,
+                  "color": 1
+                },
+                {
+                  "pos": 40,
+                  "color": 2
+                },
+                {
+                  "pos": 60,
+                  "color": 1
+                },
+                {
+                  "pos": 59,
+                  "color": 2
+                },
+                {
+                  "pos": 54,
+                  "color": 1
+                },
+                {
+                  "pos": 10,
+                  "color": 2
+                },
+                {
+                  "pos": 3,
+                  "color": 1
+                },
+                {
+                  "pos": 63,
+                  "color": 2
+                },
+                {
+                  "pos": 62,
+                  "color": 1
+                },
+                {
+                  "pos": 8,
+                  "color": 2
+                },
+                {
+                  "pos": 48,
+                  "color": 1
+                },
+                {
+                  "pos": 57,
+                  "color": 2
+                },
+                {
+                  "pos": 0,
+                  "color": 1
+                },
+                {
+                  "pos": 14,
+                  "color": 2
+                },
+                {
+                  "pos": 13,
+                  "color": 1
+                },
+                {
+                  "pos": 12,
+                  "color": 2
+                },
+                {
+                  "pos": 4,
+                  "color": 1
+                },
+                {
+                  "pos": 1,
+                  "color": 2
+                },
+                {
+                  "pos": 9,
+                  "color": 1
+                },
+                {
+                  "pos": 2,
+                  "color": 2
+                },
+                {
+                  "pos": 7,
+                  "color": 1
+                },
+                {
+                  "pos": 15,
+                  "color": 2
+                },
+                {
+                  "pos": 6,
+                  "color": 1
+                },
+                {
+                  "pos": 5,
+                  "color": 2
+                }
+              ],
+              "x_was_black": true,
+              "result": "white"
+            }
+          ]
+        },
+        {
+          "a": "C0-004",
+          "b": "B0-011",
+          "winner": "C0-004",
+          "games": [
+            {
+              "black": 38,
+              "white": 26,
+              "moves": [
+                {
+                  "pos": 37,
+                  "color": 1
+                },
+                {
+                  "pos": 43,
+                  "color": 2
+                },
+                {
+                  "pos": 26,
+                  "color": 1
+                },
+                {
+                  "pos": 21,
+                  "color": 2
+                },
+                {
+                  "pos": 29,
+                  "color": 1
+                },
+                {
+                  "pos": 19,
+                  "color": 2
+                },
+                {
+                  "pos": 18,
+                  "color": 1
+                },
+                {
+                  "pos": 17,
+                  "color": 2
+                },
+                {
+                  "pos": 34,
+                  "color": 1
+                },
+                {
+                  "pos": 44,
+                  "color": 2
+                },
+                {
+                  "pos": 42,
+                  "color": 1
+                },
+                {
+                  "pos": 49,
+                  "color": 2
+                },
+                {
+                  "pos": 13,
+                  "color": 1
+                },
+                {
+                  "pos": 14,
+                  "color": 2
+                },
+                {
+                  "pos": 20,
+                  "color": 1
+                },
+                {
+                  "pos": 46,
+                  "color": 2
+                },
+                {
+                  "pos": 45,
+                  "color": 1
+                },
+                {
+                  "pos": 5,
+                  "color": 2
+                },
+                {
+                  "pos": 47,
+                  "color": 1
+                },
+                {
+                  "pos": 12,
+                  "color": 2
+                },
+                {
+                  "pos": 4,
+                  "color": 1
+                },
+                {
+                  "pos": 3,
+                  "color": 2
+                },
+                {
+                  "pos": 7,
+                  "color": 1
+                },
+                {
+                  "pos": 41,
+                  "color": 2
+                },
+                {
+                  "pos": 56,
+                  "color": 1
+                },
+                {
+                  "pos": 23,
+                  "color": 2
+                },
+                {
+                  "pos": 11,
+                  "color": 1
+                },
+                {
+                  "pos": 10,
+                  "color": 2
+                },
+                {
+                  "pos": 6,
+                  "color": 1
+                },
+                {
+                  "pos": 38,
+                  "color": 2
+                },
+                {
+                  "pos": 15,
+                  "color": 1
+                },
+                {
+                  "pos": 57,
+                  "color": 2
+                },
+                {
+                  "pos": 30,
+                  "color": 1
+                },
+                {
+                  "pos": 31,
+                  "color": 2
+                },
+                {
+                  "pos": 39,
+                  "color": 1
+                },
+                {
+                  "pos": 50,
+                  "color": 2
+                },
+                {
+                  "pos": 2,
+                  "color": 1
+                },
+                {
+                  "pos": 53,
+                  "color": 2
+                },
+                {
+                  "pos": 60,
+                  "color": 1
+                },
+                {
+                  "pos": 62,
+                  "color": 2
+                },
+                {
+                  "pos": 51,
+                  "color": 1
+                },
+                {
+                  "pos": 52,
+                  "color": 2
+                },
+                {
+                  "pos": 1,
+                  "color": 1
+                },
+                {
+                  "pos": 9,
+                  "color": 2
+                },
+                {
+                  "pos": 0,
+                  "color": 1
+                },
+                {
+                  "pos": 25,
+                  "color": 2
+                },
+                {
+                  "pos": 32,
+                  "color": 1
+                },
+                {
+                  "pos": 24,
+                  "color": 2
+                },
+                {
+                  "pos": 16,
+                  "color": 1
+                },
+                {
+                  "pos": 8,
+                  "color": 2
+                },
+                {
+                  "pos": 40,
+                  "color": 1
+                },
+                {
+                  "pos": 48,
+                  "color": 2
+                },
+                {
+                  "pos": 59,
+                  "color": 1
+                },
+                {
+                  "pos": 54,
+                  "color": 2
+                },
+                {
+                  "pos": 58,
+                  "color": 1
+                },
+                {
+                  "pos": 55,
+                  "color": 2
+                },
+                {
+                  "pos": 63,
+                  "color": 1
+                },
+                {
+                  "pos": 61,
+                  "color": 2
+                },
+                {
+                  "pos": 33,
+                  "color": 1
+                },
+                {
+                  "pos": 22,
+                  "color": 2
+                }
+              ],
+              "x_was_black": true,
+              "result": "black"
+            }
+          ]
+        },
+        {
+          "a": "D0-015",
+          "b": "A0-007",
+          "winner": "D0-015",
+          "games": [
+            {
+              "black": 47,
+              "white": 17,
+              "moves": [
+                {
+                  "pos": 37,
+                  "color": 1
+                },
+                {
+                  "pos": 43,
+                  "color": 2
+                },
+                {
+                  "pos": 26,
+                  "color": 1
+                },
+                {
+                  "pos": 21,
+                  "color": 2
+                },
+                {
+                  "pos": 29,
+                  "color": 1
+                },
+                {
+                  "pos": 19,
+                  "color": 2
+                },
+                {
+                  "pos": 18,
+                  "color": 1
+                },
+                {
+                  "pos": 17,
+                  "color": 2
+                },
+                {
+                  "pos": 34,
+                  "color": 1
+                },
+                {
+                  "pos": 25,
+                  "color": 2
+                },
+                {
+                  "pos": 8,
+                  "color": 1
+                },
+                {
+                  "pos": 16,
+                  "color": 2
+                },
+                {
+                  "pos": 24,
+                  "color": 1
+                },
+                {
+                  "pos": 32,
+                  "color": 2
+                },
+                {
+                  "pos": 40,
+                  "color": 1
+                },
+                {
+                  "pos": 33,
+                  "color": 2
+                },
+                {
+                  "pos": 41,
+                  "color": 1
+                },
+                {
+                  "pos": 42,
+                  "color": 2
+                },
+                {
+                  "pos": 52,
+                  "color": 1
+                },
+                {
+                  "pos": 51,
+                  "color": 2
+                },
+                {
+                  "pos": 59,
+                  "color": 1
+                },
+                {
+                  "pos": 44,
+                  "color": 2
+                },
+                {
+                  "pos": 50,
+                  "color": 1
+                },
+                {
+                  "pos": 49,
+                  "color": 2
+                },
+                {
+                  "pos": 13,
+                  "color": 1
+                },
+                {
+                  "pos": 20,
+                  "color": 2
+                },
+                {
+                  "pos": 56,
+                  "color": 1
+                },
+                {
+                  "pos": 6,
+                  "color": 2
+                },
+                {
+                  "pos": 12,
+                  "color": 1
+                },
+                {
+                  "pos": 57,
+                  "color": 2
+                },
+                {
+                  "pos": 58,
+                  "color": 1
+                },
+                {
+                  "pos": 4,
+                  "color": 2
+                },
+                {
+                  "pos": 5,
+                  "color": 1
+                },
+                {
+                  "pos": 14,
+                  "color": 2
+                },
+                {
+                  "pos": 48,
+                  "color": 1
+                },
+                {
+                  "pos": 3,
+                  "color": 2
+                },
+                {
+                  "pos": 7,
+                  "color": 1
+                },
+                {
+                  "pos": 38,
+                  "color": 2
+                },
+                {
+                  "pos": 2,
+                  "color": 1
+                },
+                {
+                  "pos": 10,
+                  "color": 2
+                },
+                {
+                  "pos": 11,
+                  "color": 1
+                },
+                {
+                  "pos": 9,
+                  "color": 2
+                },
+                {
+                  "pos": 53,
+                  "color": 1
+                },
+                {
+                  "pos": 62,
+                  "color": 2
+                },
+                {
+                  "pos": 54,
+                  "color": 1
+                },
+                {
+                  "pos": 30,
+                  "color": 2
+                },
+                {
+                  "pos": 31,
+                  "color": 1
+                },
+                {
+                  "pos": 46,
+                  "color": 2
+                },
+                {
+                  "pos": 0,
+                  "color": 1
+                },
+                {
+                  "pos": 1,
+                  "color": 2
+                },
+                {
+                  "pos": 45,
+                  "color": 1
+                },
+                {
+                  "pos": 39,
+                  "color": 2
+                },
+                {
+                  "pos": 63,
+                  "color": 1
+                },
+                {
+                  "pos": 61,
+                  "color": 2
+                },
+                {
+                  "pos": 60,
+                  "color": 1
+                },
+                {
+                  "pos": 55,
+                  "color": 2
+                },
+                {
+                  "pos": 47,
+                  "color": 1
+                },
+                {
+                  "pos": 15,
+                  "color": 2
+                },
+                {
+                  "pos": 23,
+                  "color": 1
+                },
+                {
+                  "pos": 22,
+                  "color": 2
+                }
+              ],
+              "x_was_black": true,
+              "result": "black"
+            }
+          ]
+        },
+        {
+          "a": "C0-004",
+          "b": "D0-015",
+          "winner": "C0-004",
+          "games": [
+            {
+              "black": 36,
+              "white": 28,
+              "moves": [
+                {
+                  "pos": 26,
+                  "color": 1
+                },
+                {
+                  "pos": 20,
+                  "color": 2
+                },
+                {
+                  "pos": 37,
+                  "color": 1
+                },
+                {
+                  "pos": 44,
+                  "color": 2
+                },
+                {
+                  "pos": 45,
+                  "color": 1
+                },
+                {
+                  "pos": 46,
+                  "color": 2
+                },
+                {
+                  "pos": 29,
+                  "color": 1
+                },
+                {
+                  "pos": 21,
+                  "color": 2
+                },
+                {
+                  "pos": 55,
+                  "color": 1
+                },
+                {
+                  "pos": 30,
+                  "color": 2
+                },
+                {
+                  "pos": 54,
+                  "color": 1
+                },
+                {
+                  "pos": 53,
+                  "color": 2
+                },
+                {
+                  "pos": 43,
+                  "color": 1
+                },
+                {
+                  "pos": 39,
+                  "color": 2
+                },
+                {
+                  "pos": 61,
+                  "color": 1
+                },
+                {
+                  "pos": 19,
+                  "color": 2
+                },
+                {
+                  "pos": 23,
+                  "color": 1
+                },
+                {
+                  "pos": 34,
+                  "color": 2
+                },
+                {
+                  "pos": 38,
+                  "color": 1
+                },
+                {
+                  "pos": 63,
+                  "color": 2
+                },
+                {
+                  "pos": 47,
+                  "color": 1
+                },
+                {
+                  "pos": 31,
+                  "color": 2
+                },
+                {
+                  "pos": 22,
+                  "color": 1
+                },
+                {
+                  "pos": 13,
+                  "color": 2
+                },
+                {
+                  "pos": 10,
+                  "color": 1
+                },
+                {
+                  "pos": 62,
+                  "color": 2
+                },
+                {
+                  "pos": 18,
+                  "color": 1
+                },
+                {
+                  "pos": 60,
+                  "color": 2
+                },
+                {
+                  "pos": 52,
+                  "color": 1
+                },
+                {
+                  "pos": 51,
+                  "color": 2
+                },
+                {
+                  "pos": 59,
+                  "color": 1
+                },
+                {
+                  "pos": 58,
+                  "color": 2
+                },
+                {
+                  "pos": 50,
+                  "color": 1
+                },
+                {
+                  "pos": 57,
+                  "color": 2
+                },
+                {
+                  "pos": 42,
+                  "color": 1
+                },
+                {
+                  "pos": 11,
+                  "color": 2
+                },
+                {
+                  "pos": 4,
+                  "color": 1
+                },
+                {
+                  "pos": 3,
+                  "color": 2
+                },
+                {
+                  "pos": 2,
+                  "color": 1
+                },
+                {
+                  "pos": 12,
+                  "color": 2
+                },
+                {
+                  "pos": 5,
+                  "color": 1
+                },
+                {
+                  "pos": 14,
+                  "color": 2
+                },
+                {
+                  "pos": 6,
+                  "color": 1
+                },
+                {
+                  "pos": 7,
+                  "color": 2
+                },
+                {
+                  "pos": 15,
+                  "color": 1
+                },
+                {
+                  "pos": 1,
+                  "color": 2
+                },
+                {
+                  "pos": 49,
+                  "color": 1
+                },
+                {
+                  "pos": 56,
+                  "color": 2
+                },
+                {
+                  "pos": 33,
+                  "color": 1
+                },
+                {
+                  "pos": 9,
+                  "color": 2
+                },
+                {
+                  "pos": 17,
+                  "color": 1
+                },
+                {
+                  "pos": 40,
+                  "color": 2
+                },
+                {
+                  "pos": 0,
+                  "color": 1
+                },
+                {
+                  "pos": 41,
+                  "color": 2
+                },
+                {
+                  "pos": 32,
+                  "color": 1
+                },
+                {
+                  "pos": 24,
+                  "color": 2
+                },
+                {
+                  "pos": 25,
+                  "color": 1
+                },
+                {
+                  "pos": 8,
+                  "color": 2
+                },
+                {
+                  "pos": 16,
+                  "color": 1
+                },
+                {
+                  "pos": 48,
+                  "color": 1
+                }
+              ],
+              "x_was_black": true,
+              "result": "black"
             }
           ]
         }
