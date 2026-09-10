@@ -328,7 +328,10 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
             titleholders["海王"] = {"id": challenger.id, "name": challenger.display_name}
             titleholder_params["海王"] = effective_params(challenger)
             print(f"  ★ 海王 初代襲名: {challenger.display_name}")
-            results.append({"title": "海王", "season": season, "event": "初代襲名", "new_holder": challenger.display_name})
+            results.append({
+                "title": "海王", "season": season, "event": "初代襲名",
+                "new_holder": challenger.display_name, "bracket": bracket_log,
+            })
         else:
             defending_holder = titleholders["海王"]  # 更新前の値を先に控えておく
             defending_ind_for_volatility = all_members_by_id.get(defending_holder["id"])
@@ -386,7 +389,10 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
         titleholders["空王"] = {"id": challenger.id, "name": challenger.display_name}
         titleholder_params["空王"] = effective_params(challenger)
         print(f"  ★ 空王 初代襲名: {challenger.display_name}")
-        results.append({"title": "空王", "season": season, "event": "初代襲名", "new_holder": challenger.display_name})
+        results.append({
+            "title": "空王", "season": season, "event": "初代襲名",
+            "new_holder": challenger.display_name, "bracket": bracket_log,
+        })
     else:
         defending_holder = titleholders["空王"]  # 更新前の値を先に控えておく
         defending_ind_for_volatility = all_members_by_id.get(defending_holder["id"])
