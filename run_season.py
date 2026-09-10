@@ -338,16 +338,19 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
 
     kaiou_slots = [kaiou_a1, kaiou_a2] + remaining
 
-    # A1が海王在位者自身と同一人物の場合（＝自分自身に挑戦する矛盾を避けるため）、
-    # A1の関門は不在（不戦勝）として扱う
+    # 海王在位者が、A1に限らずラダーのどのスロット（A2〜A6）に入っていても
+    # 自分自身への挑戦にならないよう、該当スロットは不戦勝（None）扱いにする
     kaiou_holder_id_check = (titleholders.get("海王") or {}).get("id")
-    if kaiou_slots[0] is not None and kaiou_holder_id_check and kaiou_slots[0].id == kaiou_holder_id_check:
-        kaiou_slots[0] = None
+    if kaiou_holder_id_check:
+        kaiou_slots = [None if (s is not None and s.id == kaiou_holder_id_check) else s for s in kaiou_slots]
 
     if len(kaiou_slots) == 6 and ranked_B and ranked_C:
+        kaiou_b1 = None if (kaiou_holder_id_check and ranked_B[0].id == kaiou_holder_id_check) else ranked_B[0]
+        kaiou_c1 = None if (kaiou_holder_id_check and ranked_C[0].id == kaiou_holder_id_check) else ranked_C[0]
         challenger, bracket_log = determine_kaiou_challenger(
-            kaiou_slots, ranked_B[0], ranked_C[0], depth=depth,
+            kaiou_slots, kaiou_b1, kaiou_c1, depth=depth,
         )
+        
         # ラダー予選の各対局もEloに反映する（引き分けの再戦も含め、実際に指された各局ごとに更新する）
         for matchup in bracket_log:
             ind_a, ind_b = all_members_by_id.get(matchup["a"]), all_members_by_id.get(matchup["b"])
