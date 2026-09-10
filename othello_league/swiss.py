@@ -69,9 +69,12 @@ def swiss_pairing(ranked_ids, played_pairs, scores):
     return pairs
 
 
-def run_swiss_league(members, rounds=4, depth=4, league_name="B"):
+def run_swiss_league(members, rounds=4, depth=4, league_name="B", seed_order=None):
     """
     B/C/Dリーグのスイス方式トーナメント。
+    seed_order: 初期シード順（同点時のタイブレークにも使う）のID列。
+    「直近シーズンの順位を継承」した順で渡されることを想定（Eloではなく実績ベース）。
+    指定が無い場合は、後方互換のためElo順にフォールバックする。
     戻り値: (順位確定済みリスト, 対局ログ, 勝ち点, 個体ごとの勝敗分dict)
     """
     by_id = {ind.id: ind for ind in members}
@@ -81,8 +84,13 @@ def run_swiss_league(members, rounds=4, depth=4, league_name="B"):
     match_log = []
     start = time.time()
 
+    if seed_order:
+        seed_rank = {iid: i for i, iid in enumerate(seed_order)}
+    else:
+        seed_rank = {iid: -by_id[iid].elo for iid in by_id}  # 後方互換フォールバック
+
     for rnd in range(rounds):
-        ranked_ids = sorted(by_id.keys(), key=lambda i: (-score[i], -by_id[i].elo))
+        ranked_ids = sorted(by_id.keys(), key=lambda i: (-score[i], seed_rank.get(i, 0)))
         pairs = swiss_pairing(ranked_ids, played_pairs, score)
         print(f"    {league_name}リーグ ラウンド{rnd + 1}/{rounds}（{len(pairs)}局）")
 
@@ -120,6 +128,6 @@ def run_swiss_league(members, rounds=4, depth=4, league_name="B"):
             elapsed = time.time() - start
             print(f"      {league_name}局{j}/{len(pairs)}: {name_a} vs {name_b} → {outcome_a}（経過{elapsed:.0f}秒）")
 
-    ranked_ids_final = sorted(by_id.keys(), key=lambda i: (-score[i], -by_id[i].elo))
+    ranked_ids_final = sorted(by_id.keys(), key=lambda i: (-score[i], seed_rank.get(i, 0)))
     ranked_members = [by_id[i] for i in ranked_ids_final]
     return ranked_members, match_log, score, record
