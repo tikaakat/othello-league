@@ -363,7 +363,9 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
             if ind is not None and ind.id == suzaku_holder_id_check:
                 suzaku_slots[key] = None
 
-    if all(suzaku_slots[k] is not None for k in ("a1", "b1", "c1", "d1")):
+    # 「本当にB/C/Dリーグが空っぽ（構造的な参加者不足）」の場合だけ見送りにする。
+    # 朱雀在位者自身が除外ガードでNoneになったスロットは、single_gameが不戦勝として正しく処理できるので対象外
+    if ranked_B and ranked_C and ranked_D:
         # a0・a2は青龍が空位の初年度等でNoneになりうるが、single_gameがNoneを不戦勝扱いにするので問題ない
         challenger, bracket_log = determine_suzaku_challenger(
             suzaku_slots["a0"], suzaku_slots["a1"], suzaku_slots["a2"],
