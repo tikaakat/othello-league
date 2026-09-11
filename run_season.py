@@ -318,7 +318,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
         old_seiryuu = None
     else:
         result = run_seiryuu_challenge(
-            a_challenger, titleholder_params["青龍"], depth=3,
+            a_challenger, titleholder_params["青龍"], depth=,
             titleholder_volatility=champion_ind.volatility if champion_ind is not None else 1.0,
         )
         print(f"  青龍戦: {a_challenger.display_name} {result['challenger_wins']}-{result['titleholder_wins']}"
@@ -369,7 +369,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
         # a0・a2は青龍が空位の初年度等でNoneになりうるが、single_gameがNoneを不戦勝扱いにするので問題ない
         challenger, bracket_log = determine_suzaku_challenger(
             suzaku_slots["a0"], suzaku_slots["a1"], suzaku_slots["a2"],
-            suzaku_slots["b1"], suzaku_slots["c1"], suzaku_slots["d1"], depth=depth,
+            suzaku_slots["b1"], suzaku_slots["c1"], suzaku_slots["d1"], depth=,
         )
 
         for matchup in bracket_log:
@@ -457,7 +457,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
         defending_holder = titleholders["白虎"]
         defending_ind_for_volatility = all_members_by_id.get(defending_holder["id"])
         result = run_byakko_challenge(
-            challenger, titleholder_params["白虎"], depth=2,
+            challenger, titleholder_params["白虎"], depth=,
             titleholder_volatility=defending_ind_for_volatility.volatility if defending_ind_for_volatility else 1.0,
         )
         print(f"  白虎戦: {challenger.display_name} {result['challenger_wins']}-{result['titleholder_wins']}"
