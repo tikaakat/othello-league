@@ -91,7 +91,7 @@ def run_best_of_n_match(params_a, params_b, wins_needed, depth, noise_a=1.0, noi
 def run_seiryuu_challenge(a_champion, titleholder_params, depth=4, titleholder_volatility=1.0):
     challenger_params = effective_params(a_champion)
     won, a_wins, b_wins, games = run_best_of_n_match(
-        challenger_params, titleholder_params, wins_needed=4, depth=depth,
+        challenger_params, titleholder_params, wins_needed=4, depth=3,
         noise_a=a_champion.volatility, noise_b=titleholder_volatility,
     )
     return {
@@ -129,7 +129,7 @@ def _play_until_decided(params_x, params_y, depth, noise_x=1.0, noise_y=1.0, max
 # 朱雀戦：C1×B1の勝者がA1と対戦→Y、A2×D1の勝者がA0（青龍）と対戦→W、Y×Wで挑戦者決定。
 # 5局制3本先取
 # ============================================================
-def determine_suzaku_challenger(a0, a1, a2, b1, c1, d1, depth=4):
+def determine_suzaku_challenger(a0, a1, a2, b1, c1, d1, depth=2):
     """
     a0=青龍在位者（Aリーグの防衛専念枠）、a1/a2=Aリーグ総当たりの実質1位・2位、
     b1/c1/d1=B/C/Dリーグの今季1位。
@@ -194,7 +194,7 @@ def _bracket_seed_order(n):
     return result
 
 
-def determine_byakko_challenger(all_members, exclude_id=None, depth=3, top_n=16):
+def determine_byakko_challenger(all_members, exclude_id=None, depth=2, top_n=16):
     """
     Elo上位top_n名（既定16名）による正式シードトーナメント。
     前年白虎在位者（exclude_id）は防衛専念枠のため、この母集団からは除外する。
@@ -240,7 +240,7 @@ def determine_byakko_challenger(all_members, exclude_id=None, depth=3, top_n=16)
     return challenger, bracket_log
 
 
-def run_byakko_challenge(challenger, titleholder_params, depth=3, titleholder_volatility=1.0):
+def run_byakko_challenge(challenger, titleholder_params, depth=2, titleholder_volatility=1.0):
     challenger_params = effective_params(challenger)
     won, c_wins, t_wins, games = run_best_of_n_match(
         challenger_params, titleholder_params, wins_needed=3, depth=depth,
@@ -256,7 +256,7 @@ def run_byakko_challenge(challenger, titleholder_params, depth=3, titleholder_vo
 # 玄武戦：完全ランダム抽選トーナメント（ブラケットサイズ64、Elo上位者は1回戦バイ）。
 # 探索深さ2の超早指し戦
 # ============================================================
-def determine_genbu_challenger(all_members, exclude_id=None, depth=2, bracket_size=64):
+def determine_genbu_challenger(all_members, exclude_id=None, depth=1, bracket_size=64):
     """
     全所属個体が参加する、ほぼ完全ランダムの抽選トーナメント。
     バイ（1回戦不戦勝＝2回戦から登場）の人数は bracket_size - 参加人数 で自動算出し、
@@ -313,7 +313,7 @@ def determine_genbu_challenger(all_members, exclude_id=None, depth=2, bracket_si
     return challenger, bracket_log
 
 
-def run_genbu_challenge(challenger, titleholder_params, depth=2, titleholder_volatility=1.0):
+def run_genbu_challenge(challenger, titleholder_params, depth=1, titleholder_volatility=1.0):
     challenger_params = effective_params(challenger)
     won, c_wins, t_wins, games = run_best_of_n_match(
         challenger_params, titleholder_params, wins_needed=3, depth=depth,
