@@ -73,13 +73,6 @@ def bootstrap_rosters(registry):
 def _build_seed_order(members, league_name, prev_standings_by_id):
     """
     スイス方式の初期シード順（＝ラウンド1の並び順、同点時のタイブレーク）を決める。
-    「直近シーズンの順位を継承」：このリーグに残留していた人はそのリーグ内順位のまま、
-    昇格・降格・新規参入した人（＝直近シーズンにこのリーグにいなかった人）は、
-    Eloで判断せず、それぞれ「最下位扱い」で一律に並べる
-    （前のリーグと今のリーグの順位は、数字としては比較できないため、
-    　安易にEloで補うと"前のリーグの相手にしか通用しない強さ"を誤って持ち込んでしまう）。
-    判定材料は、個体に新しく属性を持たせるのではなく、既に保存済みの
-    前シーズンのstandingsファイル（prev_standings_by_id）をそのまま読んで使う。
     """
     stayed = []
     others = []
@@ -91,7 +84,6 @@ def _build_seed_order(members, league_name, prev_standings_by_id):
             others.append(ind.id)
 
     stayed_sorted = [iid for iid, _ in sorted(stayed, key=lambda t: t[1])]
-    # 昇格・降格・新規参入者の並び順に優劣はつけがたいため、生成順（IDの並び）で安定させる
     others_sorted = sorted(others)
 
     return stayed_sorted + others_sorted
@@ -158,13 +150,11 @@ def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_b
         top = ranked[0]
         print(f"  {name}リーグ1位: {top.display_name}（{top.id}）")
 
-    # --- 順位スナップショットを記録（昇降格が起きる"前"の、今シーズンの結果としての順位） ---
+    # --- 順位スナップショットを記録 ---
     standings_snapshot = []
     for league_name, ranked in (("A", ranked_A), ("B", ranked_B), ("C", ranked_C), ("D", ranked_D)):
         for rank, ind in enumerate(ranked, 1):
             rec = all_records.get(ind.id, {"win": 0, "loss": 0, "draw": 0})
-            # 陸王在位者で、今季の総当たり（順位戦）を免除された個体には明示的にフラグを立てる
-            # （表示側で「番号を振らず別枠にする」判定に、推測ではなくこの事実を直接使う）
             no_roundrobin = bool(champion_ind is not None and ind.id == champion_ind.id)
             standings_snapshot.append({
                 "season": season, "league": league_name, "rank": rank,
@@ -176,7 +166,6 @@ def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_b
     pre_move_league_by_id = {ind.id: league_name for league_name, ranked in
                               (("A", ranked_A), ("B", ranked_B), ("C", ranked_C), ("D", ranked_D))
                               for ind in ranked}
-    # 「まだ一度も対局したことが無い（total_seasonsが0）」個体を、このシーズンの新規参入としてマークする
     is_first_season_by_id = {ind.id: (ind.total_seasons == 0) for league_name, ranked in
                               (("A", ranked_A), ("B", ranked_B), ("C", ranked_C), ("D", ranked_D))
                               for ind in ranked}
@@ -209,7 +198,7 @@ def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_b
             league_rank = {"A": 0, "B": 1, "C": 2, "D": 3}
             tags.append("promoted" if league_rank[new_league] < league_rank[old_league] else "relegated")
         if iid in retired_ids:
-            tags = ["retired"]  # 引退は今季限りで抜けるため、他の状態より優先して単独表示する
+            tags = ["retired"]
         if not tags:
             tags = ["stay"]
         row["movement"] = ",".join(tags)
@@ -217,7 +206,7 @@ def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_b
     print(f"  引退: {len(retired)}名（{', '.join(i.display_name for i in retired)}）" if retired else "  引退: なし")
     print(f"  新弟子: {len(new_disciples)}名")
 
-    # 歴代最高Eloを更新する（殿堂ページの表示用）
+    # 歴代最高Eloを更新する
     for league_list in rosters.values():
         for ind in league_list:
             if ind.elo > ind.peak_elo:
@@ -281,7 +270,13 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
     a_challenger = ranked_competing_A[0]
     rikuou_defended = None
 
-    if titleholders["陸王"] is None:
+    # 「titleholders[陸王]の記録はあるが、在位者本人が今季のロスターに見当たらない」
+    # （引退等で消えた）場合も、記録が無い場合と同じく空位＝新規襲名として扱う
+    rikuou_vacant = titleholders["陸王"] is not None and champion_ind is None
+    if rikuou_vacant:
+        print(f"  ※ 陸王在位者（{titleholders['陸王'].get('name')}）がロスターに見当たらないため、空位として扱います")
+
+    if titleholders["陸王"] is None or rikuou_vacant:
         titleholders["陸王"] = {"id": a_challenger.id, "name": a_challenger.display_name}
         titleholder_params["陸王"] = effective_params(a_challenger)
         print(f"  ★ 陸王 初代襲名: {a_challenger.display_name}")
