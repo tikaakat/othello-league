@@ -1,229 +1,328 @@
 import random
 
-from .individual import LeagueIndividual
-from .dojo import MAJOR_DOJOS, assign_buff_multiplier, maybe_awaken
-from .names import NameRegistry
-
-# リーグの定員
-LEAGUE_CAPACITY = {"A": 8, "B": 12, "C": 16, "D": 20}
-
-# 昇降格の定員設定
-A_TO_B_RELEGATE = 2  # A→B降格人数（＝B→A昇格人数）
-B_TO_C_RELEGATE = 3  # B→C降格人数（＝C→B昇格人数）
-D_TO_C_PROMOTE = 4   # D→C昇格人数
-
-RETIREMENT_AGE = 60
-D_CONSECUTIVE_LOSING_LIMIT = 2
-C_TO_D_RELEGATE = 3  # C→D降格人数（B→Cと同数）
-
-PARAM_KEYS = [
-    "corner_weight", "danger_zone_weight", "mobility_weight", "edge_stability_weight",
-    "frontier_weight", "disc_weight", "parity_weight", "center_weight",
-]
+from . import board as B
+from . import engine as E
+from .dojo import effective_params
 
 
-def promote_and_relegate(rosters, season, name_registry=None, titleholders=None):
+def _play_one_game(params_black, params_white, depth, noise_black=1.0, noise_white=1.0):
+    """1局対局し、(勝敗 'black'/'white'/'draw', 黒石数, 白石数, 着手履歴) を返す。打ち直しは行わない"""
+    bd = B.initial_board()
+    color = B.BLACK
+    move_history = []
+    for _ in range(64):
+        if B.is_game_over(bd):
+            break
+        moves = B.legal_moves(bd, color)
+        if not moves:
+            color = B.opponent(color)
+            continue
+        params = params_black if color == B.BLACK else params_white
+        noise_scale = noise_black if color == B.BLACK else noise_white
+        mv = E.choose_move(bd, color, params, depth=depth, noise_scale=noise_scale)
+        B.apply_move(bd, mv, color)
+        move_history.append({"pos": mv, "color": color})
+        color = B.opponent(color)
+
+    black, white = B.count_discs(bd)
+    if black > white:
+        result = "black"
+    elif white > black:
+        result = "white"
+    else:
+        result = "draw"
+    return result, black, white, move_history
+
+
+def run_best_of_n_match(params_a, params_b, wins_needed, depth, noise_a=1.0, noise_b=1.0):
     """
-    1シーズン終了後の昇降格、定員超過/不足の調整、新弟子の生成を行う。
-    戻り値: (更新後のrosters dict, 新弟子リスト, 更新後のname_registry, 引退者リスト)
+    先取制のタイトル戦本戦。1局ごとに先後を入れ替える（初戦はAが黒）。
+    引き分けの局も「1局」として記録するが、先取数には加算しない（将棋の千日手と同様の扱い）。
+    どちらかが規定数を先取するまで対局を続ける。
+    戻り値: (challenger_won: bool, a_wins, b_wins, games_log)
     """
-    if name_registry is None:
-        name_registry = NameRegistry()
+    a_wins, b_wins = 0, 0
+    games_log = []
+    game_num = 0
+    # 安全策：極端な連続引き分けでプロセスが実質無限ループにならないよう、上限だけは設ける
+    # （通常のプレイでは到達しない、十分大きな値）
+    MAX_GAMES_SAFETY = 500
 
-    A = list(rosters["A"])
-    B = list(rosters["B"])
-    C = list(rosters["C"])
-    D = list(rosters["D"])
+    while a_wins < wins_needed and b_wins < wins_needed and game_num < MAX_GAMES_SAFETY:
+        a_is_black = (game_num % 2 == 0)
+        if a_is_black:
+            result, black, white, moves = _play_one_game(params_a, params_b, depth, noise_a, noise_b)
+        else:
+            result, black, white, moves = _play_one_game(params_b, params_a, depth, noise_b, noise_a)
 
-    # --- 60歳以上、かつ無冠（どのタイトルも持っていない）の個体は強制引退させる。
-    #     タイトルを1つでも持っていれば、全て失冠するまで猶予が続く ---
-    titleholder_ids = set()
-    if titleholders:
-        for info in titleholders.values():
-            if info and info.get("id"):
-                titleholder_ids.add(info["id"])
-
-    age_retired = []
-    def _filter_aged_out(members):
-        keep, retired = [], []
-        for ind in members:
-            if ind.age >= RETIREMENT_AGE and ind.id not in titleholder_ids:
-                ind.retired = True
-                retired.append(ind)
+        if result == "draw":
+            outcome_for_log = "draw"
+            note = "　（引き分け。先取数には加算せず）"
+        else:
+            a_won_this_game = (result == "black") == a_is_black
+            if a_won_this_game:
+                a_wins += 1
+                outcome_for_log = "a"
             else:
-                keep.append(ind)
-        return keep, retired
+                b_wins += 1
+                outcome_for_log = "b"
+            note = ""
 
-    A, r = _filter_aged_out(A); age_retired += r
-    B, r = _filter_aged_out(B); age_retired += r
-    C, r = _filter_aged_out(C); age_retired += r
-    D, r = _filter_aged_out(D); age_retired += r
-
-    # 昇降格枠数の決定
-    ab_n = min(A_TO_B_RELEGATE, len(A), len(B))
-    bc_n = min(B_TO_C_RELEGATE, len(B), len(C))
-
-    a_relegate = A[-ab_n:]
-    a_remain = A[:-ab_n]
-
-    b_promote_to_a = B[:ab_n]
-    b_relegate_to_c = B[-bc_n:]
-    b_remain = B[ab_n:-bc_n]
-
-    c_promote_to_b = C[:bc_n]
-    c_relegate_to_d = C[-C_TO_D_RELEGATE:]
-    c_remain = C[bc_n:-C_TO_D_RELEGATE]
-
-    d_promote_to_c = D[:D_TO_C_PROMOTE]
-    d_remain = D[D_TO_C_PROMOTE:]
-
-    A = a_remain + b_promote_to_a
-    B = b_remain + a_relegate + c_promote_to_b
-    C = c_remain + b_relegate_to_c + d_promote_to_c
-    D = d_remain + c_relegate_to_d
-
-    # --- Dリーグ：2シーズン連続で負け越したら、実力・在籍年数に関わらず即引退 ---
-    d_up_or_out_retired = []
-    d_keep = []
-    for ind in D:
-        if ind.loss_this_season > ind.win_this_season:
-            ind.consecutive_losing_seasons += 1
+        games_log.append({
+            "game_num": game_num + 1, "a_was_black": a_is_black,
+            "black": black, "white": white, "winner": outcome_for_log,
+            "moves": moves,
+        })
+        if outcome_for_log == "draw":
+            print(f"      第{game_num + 1}局: 引き分け（{black}-{black}）{note}"
+                  f"　現在 挑戦者{a_wins}勝 - ホルダー{b_wins}勝")
         else:
-            ind.consecutive_losing_seasons = 0
-        if ind.consecutive_losing_seasons >= D_CONSECUTIVE_LOSING_LIMIT:
-            ind.retired = True
-            d_up_or_out_retired.append(ind)
+            winner_label = "挑戦者" if outcome_for_log == "a" else "ホルダー"
+            print(f"      第{game_num + 1}局: {winner_label}の勝ち（{black}-{white}）"
+                  f"　現在 挑戦者{a_wins}勝 - ホルダー{b_wins}勝")
+        game_num += 1
+
+    return a_wins > b_wins, a_wins, b_wins, games_log
+
+
+# ============================================================
+# 青龍戦：Aリーグ優勝者が自動でタイトルホルダーに挑戦。7局制4本先取
+# ============================================================
+def run_seiryuu_challenge(a_champion, titleholder_params, depth=4, titleholder_volatility=1.0):
+    challenger_params = effective_params(a_champion)
+    won, a_wins, b_wins, games = run_best_of_n_match(
+        challenger_params, titleholder_params, wins_needed=4, depth=depth,
+        noise_a=a_champion.volatility, noise_b=titleholder_volatility,
+    )
+    return {
+        "title": "青龍", "challenger_id": a_champion.id, "won": won,
+        "challenger_wins": a_wins, "titleholder_wins": b_wins, "games": games,
+    }
+
+
+def _play_until_decided(params_x, params_y, depth, noise_x=1.0, noise_y=1.0, max_attempts=100):
+    """
+    先後を入れ替えながら、決着がつくまで打ち直す（B〜Dリーグの引き分け処理と同じ考え方）。
+    予選（トーナメント・ラダー）は勝者を1人に絞る必要があるため、この方式を使う。
+    全ての対局（引き分けも含む）を記録し、最後に決着した対局の勝者を返す。
+    """
+    x_is_black = True
+    games = []
+    for _ in range(max_attempts):
+        if x_is_black:
+            result, black, white, moves = _play_one_game(params_x, params_y, depth, noise_x, noise_y)
         else:
-            d_keep.append(ind)
-    D = d_keep
+            result, black, white, moves = _play_one_game(params_y, params_x, depth, noise_y, noise_x)
+        games.append({
+            "black": black, "white": white, "moves": moves,
+            "x_was_black": x_is_black, "result": result,
+        })
+        if result != "draw":
+            x_won = (result == "black") == x_is_black
+            return x_won, games
+        x_is_black = not x_is_black
+    # 安全策（実質到達しない想定）：それでも決着しなければXを勝者扱いにする
+    return True, games
 
-    # --- 年齢引退等でA・B・Cに定員割れが生じた場合、下位リーグのElo上位から繰り上げて埋める ---
-    def _backfill(upper, lower, capacity):
-        shortage = capacity - len(upper)
-        if shortage <= 0 or not lower:
-            return upper, lower
-        lower_sorted = sorted(lower, key=lambda ind: ind.elo, reverse=True)
-        take = lower_sorted[:shortage]
-        take_ids = {ind.id for ind in take}
-        lower_remaining = [ind for ind in lower if ind.id not in take_ids]
-        return upper + take, lower_remaining
 
-    A, B = _backfill(A, B, LEAGUE_CAPACITY["A"])
-    B, C = _backfill(B, C, LEAGUE_CAPACITY["B"])
-    C, D = _backfill(C, D, LEAGUE_CAPACITY["C"])
+# ============================================================
+# 海王戦：段階的な勝ち上がり（ラダー）方式で挑戦者を決定。5局制3本先取
+# 予選: B1 vs C1 → 勝者 vs A6 → 勝者 vs A5 → 勝者 vs A4 → 勝者 vs A3
+#      → 勝者 vs A2（前陸王 or Aリーグ総当たり1位）→ 勝者 vs A1（陸王 or 新陸王）→ 挑戦者決定
+# ============================================================
+def determine_kaiou_challenger(a_slots, b1, c1, depth=4):
+    """
+    a_slots: [A1, A2, A3, A4, A5, A6] の6名（陸王の在位状況に応じて run_season.py 側で組み立てる）。
+    A1が海王在位者自身と同一人物の場合（自分自身への挑戦を避けるため）、
+    run_season.py側でA1にNoneを渡すことで、その関門を不戦勝扱いにできる。
+    """
+    bracket_log = []
 
-    # リーグ所属情報・在籍年数の更新
-    all_retired = age_retired + d_up_or_out_retired
-
-    for league_name, members in (("A", A), ("B", B), ("C", C), ("D", D)):
-        for ind in members:
-            if ind.league != league_name:
-                ind.league = league_name
-                ind.seasons_in_league = 0
-            else:
-                ind.seasons_in_league += 1
-            ind.total_seasons += 1
-
-    # Dリーグの補充（新弟子の生成）
-    d_departures = LEAGUE_CAPACITY["D"] - len(D)
-    new_disciples = []
-    if d_departures > 0:
-        candidates = A + B + C + D
-        new_disciples = generate_disciples(
-            count=d_departures, season=season, pool=candidates, name_registry=name_registry
+    def single_game(ind_x, ind_y):
+        if ind_x is None:
+            return ind_y
+        if ind_y is None:
+            return ind_x
+        x_won, games = _play_until_decided(
+            effective_params(ind_x), effective_params(ind_y), depth,
+            noise_x=ind_x.volatility, noise_y=ind_y.volatility,
         )
-        D.extend(new_disciples)
+        winner_ind = ind_x if x_won else ind_y
+        bracket_log.append({
+            "a": ind_x.id, "b": ind_y.id, "winner": winner_ind.id, "games": games,
+        })
+        return winner_ind
 
-    # C・Dリーグの定員超過調整（Elo下位をカットして引退扱い）
-    c_over_retired = []
-    if len(C) > LEAGUE_CAPACITY["C"]:
-        C.sort(key=lambda ind: ind.elo, reverse=True)
-        c_over_retired = C[LEAGUE_CAPACITY["C"]:]
-        C = C[:LEAGUE_CAPACITY["C"]]
-        for ind in c_over_retired:
-            ind.retired = True
+    a1, a2, a3, a4, a5, a6 = a_slots
+    winner = single_game(b1, c1)
+    winner = single_game(winner, a6)
+    winner = single_game(winner, a5)
+    winner = single_game(winner, a4)
+    winner = single_game(winner, a3)
+    winner = single_game(winner, a2)
+    challenger = single_game(winner, a1)
 
-    d_over_retired = []
-    if len(D) > LEAGUE_CAPACITY["D"]:
-        D.sort(key=lambda ind: ind.elo, reverse=True)
-        d_over_retired = D[LEAGUE_CAPACITY["D"]:]
-        D = D[:LEAGUE_CAPACITY["D"]]
-        for ind in d_over_retired:
-            ind.retired = True
-
-    all_retired.extend(c_over_retired + d_over_retired)
-
-    new_rosters = {"A": A, "B": B, "C": C, "D": D}
-    return new_rosters, new_disciples, name_registry, all_retired
+    return challenger, bracket_log
 
 
-def generate_disciples(count, season, pool, name_registry):
-    """新弟子（Dリーグ参入個体）を生成する"""
-    disciples = []
-    for i in range(count):
-        ind_id = f"D{season}-{i:03d}"
-        display_name = name_registry.generate()
+def run_kaiou_challenge(challenger, titleholder_params, depth=4, titleholder_volatility=1.0):
+    challenger_params = effective_params(challenger)
+    won, c_wins, t_wins, games = run_best_of_n_match(
+        challenger_params, titleholder_params, wins_needed=3, depth=depth,
+        noise_a=challenger.volatility, noise_b=titleholder_volatility,
+    )
+    return {
+        "title": "海王", "challenger_id": challenger.id, "won": won,
+        "challenger_wins": c_wins, "titleholder_wins": t_wins, "games": games,
+    }
 
-        # 有効な個体プール（引退していない者）から親を選択
-        active_pool = [ind for ind in pool if not ind.retired]
-        if len(active_pool) >= 2:
-            parent_a, parent_b = random.sample(active_pool, 2)
-            params, gen = breed_params(parent_a, parent_b)
-            p_a_id, p_b_id = parent_a.id, parent_b.id
-            dojo = parent_a.dojo if random.random() < 0.5 else parent_b.dojo
-        elif len(active_pool) == 1:
-            parent_a = active_pool[0]
-            params, gen = breed_params(parent_a, parent_a)
-            p_a_id, p_b_id = parent_a.id, None
-            dojo = parent_a.dojo
-        else:
-            params = {k: round(random.uniform(0.5, 5.0), 3) for k in PARAM_KEYS}
-            gen = 0
-            p_a_id, p_b_id = None, None
-            dojo = random.choice(MAJOR_DOJOS)
 
-        # 覚醒判定
-        params, awakened = maybe_awaken(params, individual_id=ind_id)
+# ============================================================
+# 白虎戦：Elo上位16名（前年白虎在位者は防衛専念枠として除外）による正式シード付きトーナメント。5局制3本先取
+# ============================================================
+def _bracket_seed_order(n):
+    """
+    標準的なトーナメントのシード配置順を返す（0-indexed）。
+    例：n=8 → [0,7,3,4,1,6,2,5]（1位vs8位、4位vs5位、2位vs7位、3位vs6位）
+    この順に並べてから隣同士を組めば、1位と2位は決勝まで当たらない、という
+    本来のシード制の性質が保証される。
+    """
+    if n == 1:
+        return [0]
+    prev = _bracket_seed_order(n // 2)
+    result = []
+    for s in prev:
+        result.append(s)
+        result.append(n - 1 - s)
+    return result
 
-        ind = LeagueIndividual(
-            ind_id, "D", params=params, dojo=dojo, generation=gen,
-            parent_a_id=p_a_id, parent_b_id=p_b_id, display_name=display_name,
+
+def determine_byakko_challenger(all_members, exclude_id=None, depth=3, top_n=16):
+    """
+    Elo上位top_n名（既定16名）による正式シードトーナメント。
+    前年白虎在位者（exclude_id）は防衛専念枠のため、この母集団からは除外する。
+    """
+    pool = [ind for ind in all_members if ind.id != exclude_id]
+    ranked = sorted(pool, key=lambda ind: -ind.elo)[:top_n]
+
+    n = len(ranked)
+    bracket_size = 1
+    while bracket_size < n:
+        bracket_size *= 2
+    slots = ranked + [None] * (bracket_size - n)
+
+    order = _bracket_seed_order(bracket_size)
+    bracketed = [slots[i] for i in order]
+
+    bracket_log = []
+
+    def single_game(ind_x, ind_y):
+        if ind_x is None:
+            return ind_y
+        if ind_y is None:
+            return ind_x
+        x_won, games = _play_until_decided(
+            effective_params(ind_x), effective_params(ind_y), depth,
+            noise_x=ind_x.volatility, noise_y=ind_y.volatility,
         )
-        ind.awakened_param = awakened
-        if dojo:
-            ind.buff_multiplier = assign_buff_multiplier()
+        winner_ind = ind_x if x_won else ind_y
+        bracket_log.append({
+            "a": ind_x.id, "b": ind_y.id, "winner": winner_ind.id, "games": games,
+        })
+        return winner_ind
 
-        # 親の平均ムラ気を継承しつつ、少し変異（ノイズ）を加える
-        if p_a_id and p_b_id:
-            parent_a_obj = next((x for x in active_pool if x.id == p_a_id), None)
-            parent_b_obj = next((x for x in active_pool if x.id == p_b_id), None)
-            base_vol = (parent_a_obj.volatility + parent_b_obj.volatility) / 2.0 if (parent_a_obj and parent_b_obj) else 1.0
-        elif p_a_id:
-            parent_a_obj = next((x for x in active_pool if x.id == p_a_id), None)
-            base_vol = parent_a_obj.volatility if parent_a_obj else 1.0
-        else:
-            base_vol = random.uniform(0.3, 2.0)
+    round_members = bracketed
+    while len(round_members) > 1:
+        next_round = []
+        for i in range(0, len(round_members), 2):
+            winner = single_game(round_members[i], round_members[i + 1])
+            next_round.append(winner)
+        round_members = next_round
 
-        # ムラ気の変異（±0.2程度）
-        vol = base_vol + random.uniform(-0.2, 0.2)
-        ind.volatility = max(0.1, min(3.0, round(vol, 2)))
-
-        disciples.append(ind)
-
-    return disciples
+    challenger = round_members[0]
+    return challenger, bracket_log
 
 
-def breed_params(parent_a, parent_b):
-    """2個体のパラメータを交叉・変異させて新しいパラメータセットを生成する"""
-    child_params = {}
-    for k in PARAM_KEYS:
-        val_a = parent_a.params.get(k, 1.0)
-        val_b = parent_b.params.get(k, 1.0)
-        # 交叉：親の平均
-        base = (val_a + val_b) / 2.0
-        # 変異：±15%程度のノイズ
-        mutation = random.uniform(0.85, 1.15)
-        child_params[k] = max(0.1, round(base * mutation, 3))
+def run_byakko_challenge(challenger, titleholder_params, depth=3, titleholder_volatility=1.0):
+    challenger_params = effective_params(challenger)
+    won, c_wins, t_wins, games = run_best_of_n_match(
+        challenger_params, titleholder_params, wins_needed=3, depth=depth,
+        noise_a=challenger.volatility, noise_b=titleholder_volatility,
+    )
+    return {
+        "title": "白虎", "challenger_id": challenger.id, "won": won,
+        "challenger_wins": c_wins, "titleholder_wins": t_wins, "games": games,
+    }
 
-    max_gen = max(parent_a.generation, parent_b.generation)
-    return child_params, max_gen + 1
+
+# ============================================================
+# 玄武戦：完全ランダム抽選トーナメント（ブラケットサイズ64、Elo上位者は1回戦バイ）。
+# 探索深さ2の超早指し戦
+# ============================================================
+def determine_genbu_challenger(all_members, exclude_id=None, depth=2, bracket_size=64):
+    """
+    全所属個体が参加する、ほぼ完全ランダムの抽選トーナメント。
+    バイ（1回戦不戦勝＝2回戦から登場）の人数は bracket_size - 参加人数 で自動算出し、
+    Elo上位からその人数分を割り当てる（上位シード同士が早期に当たらないよう分散配置）。
+    バイに入らない残り全員は、完全ランダムに1回戦を組む。
+    前年玄武在位者（exclude_id）は防衛専念枠のため、この母集団からは除外する。
+    """
+    pool = [ind for ind in all_members if ind.id != exclude_id]
+    n = len(pool)
+    if n > bracket_size:
+        # 参加人数がbracket_sizeを超えることは通常想定していないが、
+        # 万一超えた場合はElo下位から間引く
+        pool = sorted(pool, key=lambda ind: -ind.elo)[:bracket_size]
+        n = bracket_size
+
+    bye_count = bracket_size - n
+    elo_ranked = sorted(pool, key=lambda ind: -ind.elo)
+    seeded = elo_ranked[:bye_count]   # 上位bye_count名：1回戦バイ（2回戦から登場）
+    rest = elo_ranked[bye_count:]     # 残り：完全ランダムに1回戦を組む
+    random.shuffle(rest)
+
+    # 標準シード配置で、上位シード（バイ勢）を互いに離れた山に均等配置する。
+    # Noneは「不在」を表し、Noneと当たった側が不戦勝で2回戦へ進む。
+    seed_list = seeded + rest + [None] * bye_count
+    order = _bracket_seed_order(bracket_size)
+    bracketed = [seed_list[i] for i in order]
+
+    bracket_log = []
+
+    def single_game(ind_x, ind_y):
+        if ind_x is None:
+            return ind_y
+        if ind_y is None:
+            return ind_x
+        x_won, games = _play_until_decided(
+            effective_params(ind_x), effective_params(ind_y), depth,
+            noise_x=ind_x.volatility, noise_y=ind_y.volatility,
+        )
+        winner_ind = ind_x if x_won else ind_y
+        bracket_log.append({
+            "a": ind_x.id, "b": ind_y.id, "winner": winner_ind.id, "games": games,
+        })
+        return winner_ind
+
+    round_members = bracketed
+    while len(round_members) > 1:
+        next_round = []
+        for i in range(0, len(round_members), 2):
+            winner = single_game(round_members[i], round_members[i + 1])
+            next_round.append(winner)
+        round_members = next_round
+
+    challenger = round_members[0]
+    return challenger, bracket_log
+
+
+def run_genbu_challenge(challenger, titleholder_params, depth=2, titleholder_volatility=1.0):
+    challenger_params = effective_params(challenger)
+    won, c_wins, t_wins, games = run_best_of_n_match(
+        challenger_params, titleholder_params, wins_needed=3, depth=depth,
+        noise_a=challenger.volatility, noise_b=titleholder_volatility,
+    )
+    return {
+        "title": "玄武", "challenger_id": challenger.id, "won": won,
+        "challenger_wins": c_wins, "titleholder_wins": t_wins, "games": games,
+    }
