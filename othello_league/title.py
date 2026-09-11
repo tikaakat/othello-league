@@ -162,10 +162,10 @@ def determine_suzaku_challenger(a0, a1, a2, b1, c1, d1, depth=2):
     return challenger, bracket_log
 
 
-def run_suzaku_challenge(challenger, titleholder_params, depth=, titleholder_volatility=1.0):
+def run_suzaku_challenge(challenger, titleholder_params, depth=2, titleholder_volatility=1.0):
     challenger_params = effective_params(challenger)
     won, c_wins, t_wins, games = run_best_of_n_match(
-        challenger_params, titleholder_params, wins_needed=3, depth=depth,
+        challenger_params, titleholder_params, wins_needed=3, depth=2,
         noise_a=challenger.volatility, noise_b=titleholder_volatility,
     )
     return {
