@@ -1,48 +1,53 @@
 import random
 
+from .individual import LeagueIndividual
 from .dojo import MAJOR_DOJOS, assign_buff_multiplier, maybe_awaken
+from .names import NameRegistry
 
-# ============================================================
-# リーグ定員・昇降格人数（固定値。ここを崩すと人数が発散するので注意）
-# ============================================================
-LEAGUE_CAPACITY = {"A": 8, "B": 16, "C": 16, "D": 16}
-PROMOTE_DOWN_COUNTS = {
-    ("A", "B"): 2,   # A下位2名がBへ降格、B上位2名がAへ昇格
-    ("B", "C"): 3,   # B下位3名がCへ降格、C上位3名がBへ昇格
-}
-# C⇄D間は「降格」が無い。Dの上位3名がCへ昇格するのみ。
-D_TO_C_PROMOTE = 3
+# リーグの定員
+LEAGUE_CAPACITY = {"A": 8, "B": 12, "C": 16, "D": 20}
 
-# C・D 定員超過時の引退ルール
-MIN_SEASONS_BEFORE_RETIREMENT_ELIGIBLE = 2  # このシーズン数未満は引退対象から除外（D等の既定値）
-MIN_SEASONS_BEFORE_RETIREMENT_ELIGIBLE_C = 3  # Cリーグは、昇格直後の個体を保護するため猶予を長めにする
-MAX_TOTAL_SEASONS = 30  # 年齢の暫定版：通算30シーズンで強制引退
-D_MAX_SEASONS_IN_D = 5  # Dリーグ在籍上限：この期間内にCへ昇格できなければ、実力に関わらず引退（up-or-out）
+# 昇降格の定員設定
+A_TO_B_RELEGATE = 2  # A→B降格人数（＝B→A昇格人数）
+B_TO_C_RELEGATE = 3  # B→C降格人数（＝C→B昇格人数）
+D_TO_C_PROMOTE = 4   # D→C昇格人数
 
-DISCIPLES_PER_DOJO_PER_SEASON = 1  # 各道場から毎シーズン何名弟子を出すか
+RETIREMENT_AGE = 60
+D_CONSECUTIVE_LOSING_LIMIT = 2
+C_TO_D_RELEGATE = 3  # C→D降格人数（B→Cと同数）
 
-MUTATION_RATE = 0.2
-MUTATION_STRENGTH = 0.25
 PARAM_KEYS = [
     "corner_weight", "danger_zone_weight", "mobility_weight", "edge_stability_weight",
     "frontier_weight", "disc_weight", "parity_weight", "center_weight",
 ]
 
 
-def promote_and_relegate(rosters, season, name_registry=None):
+def promote_and_relegate(rosters, season, name_registry=None, titleholders=None):
     """
-    rosters: {"A": [LeagueIndividual, ...], "B": [...], "C": [...], "D": [...]}
-             各リストは事前に「そのシーズンの成績順」にソート済みであること（先頭が1位）
-    戻り値: 更新後の rosters（同じ dict を書き換えて返す）
+    1シーズン終了後の昇降格、定員超過/不足の調整、新弟子の生成を行う。
+    戻り値: (更新後のrosters dict, 新弟子リスト, 更新後のname_registry, 引退者リスト)
     """
-    A, B, C, D = rosters["A"], rosters["B"], rosters["C"], rosters["D"]
+    if name_registry is None:
+        name_registry = NameRegistry()
 
-    # --- 通算30シーズンに達した個体は、リーグを問わず強制引退させる（年齢の暫定ルール） ---
+    A = list(rosters["A"])
+    B = list(rosters["B"])
+    C = list(rosters["C"])
+    D = list(rosters["D"])
+
+    # --- 60歳以上、かつ無冠（どのタイトルも持っていない）の個体は強制引退させる。
+    #     タイトルを1つでも持っていれば、全て失冠するまで猶予が続く ---
+    titleholder_ids = set()
+    if titleholders:
+        for info in titleholders.values():
+            if info and info.get("id"):
+                titleholder_ids.add(info["id"])
+
     age_retired = []
     def _filter_aged_out(members):
         keep, retired = [], []
         for ind in members:
-            if ind.total_seasons >= MAX_TOTAL_SEASONS:
+            if ind.age >= RETIREMENT_AGE and ind.id not in titleholder_ids:
                 ind.retired = True
                 retired.append(ind)
             else:
@@ -54,11 +59,9 @@ def promote_and_relegate(rosters, season, name_registry=None):
     C, r = _filter_aged_out(C); age_retired += r
     D, r = _filter_aged_out(D); age_retired += r
 
-    # --- 各リーグの昇降格対象を、"今季本来の成績"だけで独立に確定する ---
-    # （他リーグから移動してきたばかりの個体が、同じ処理内で即座に再降格に巻き込まれるバグを防ぐため、
-    #   ここでは元のリストから素直にスライスするだけに留め、リストの組み立ては最後にまとめて行う）
-    ab_n = PROMOTE_DOWN_COUNTS[("A", "B")]
-    bc_n = PROMOTE_DOWN_COUNTS[("B", "C")]
+    # 昇降格枠数の決定
+    ab_n = min(A_TO_B_RELEGATE, len(A), len(B))
+    bc_n = min(B_TO_C_RELEGATE, len(B), len(C))
 
     a_relegate = A[-ab_n:]
     a_remain = A[:-ab_n]
@@ -68,164 +71,159 @@ def promote_and_relegate(rosters, season, name_registry=None):
     b_remain = B[ab_n:-bc_n]
 
     c_promote_to_b = C[:bc_n]
-    c_remain = C[bc_n:]
+    c_relegate_to_d = C[-C_TO_D_RELEGATE:]
+    c_remain = C[bc_n:-C_TO_D_RELEGATE]
 
     d_promote_to_c = D[:D_TO_C_PROMOTE]
     d_remain = D[D_TO_C_PROMOTE:]
 
-    # --- ここで初めて、移動結果をまとめて新しいロスターに組み立てる ---
     A = a_remain + b_promote_to_a
     B = b_remain + a_relegate + c_promote_to_b
     C = c_remain + b_relegate_to_c + d_promote_to_c
-    D = d_remain
+    D = d_remain + c_relegate_to_d
 
-    # --- Dリーグ在籍上限（up-or-out）：5シーズン以内に昇格できなければ、実力に関わらず引退 ---
+    # --- Dリーグ：2シーズン連続で負け越したら、実力・在籍年数に関わらず即引退 ---
     d_up_or_out_retired = []
     d_keep = []
     for ind in D:
-        if ind.seasons_in_league >= D_MAX_SEASONS_IN_D:
+        if ind.loss_this_season > ind.win_this_season:
+            ind.consecutive_losing_seasons += 1
+        else:
+            ind.consecutive_losing_seasons = 0
+        if ind.consecutive_losing_seasons >= D_CONSECUTIVE_LOSING_LIMIT:
             ind.retired = True
             d_up_or_out_retired.append(ind)
         else:
             d_keep.append(ind)
     D = d_keep
 
-    # 昇降格したので、リーグ移動があった個体は在籍シーズン数をリセットする
-    for ind in A:
-        if ind.league != "A":
-            ind.seasons_in_league = 0
-        ind.league = "A"
-    for ind in B:
-        if ind.league != "B":
-            ind.seasons_in_league = 0
-        ind.league = "B"
-    for ind in C:
-        if ind.league != "C":
-            ind.seasons_in_league = 0
-        ind.league = "C"
-    for ind in D:
-        ind.league = "D"
+    # --- 年齢引退等でA・B・Cに定員割れが生じた場合、下位リーグのElo上位から繰り上げて埋める ---
+    def _backfill(upper, lower, capacity):
+        shortage = capacity - len(upper)
+        if shortage <= 0 or not lower:
+            return upper, lower
+        lower_sorted = sorted(lower, key=lambda ind: ind.elo, reverse=True)
+        take = lower_sorted[:shortage]
+        take_ids = {ind.id for ind in take}
+        lower_remaining = [ind for ind in lower if ind.id not in take_ids]
+        return upper + take, lower_remaining
 
-    # --- 在籍シーズン数を加算 ---
-    for league_list in (A, B, C, D):
-        for ind in league_list:
-            ind.seasons_in_league += 1
+    A, B = _backfill(A, B, LEAGUE_CAPACITY["A"])
+    B, C = _backfill(B, C, LEAGUE_CAPACITY["B"])
+    C, D = _backfill(C, D, LEAGUE_CAPACITY["C"])
+
+    # リーグ所属情報・在籍年数の更新
+    all_retired = age_retired + d_up_or_out_retired
+
+    for league_name, members in (("A", A), ("B", B), ("C", C), ("D", D)):
+        for ind in members:
+            if ind.league != league_name:
+                ind.league = league_name
+                ind.seasons_in_league = 0
+            else:
+                ind.seasons_in_league += 1
             ind.total_seasons += 1
 
-    # --- 新弟子の補充（Dリーグに追加）：今季Dから抜けた人数（昇格＋up-or-out引退）の分だけ、
-    #     9つの供給源（8道場＋無流派）からランダムに選んで補充する ---
-    all_individuals_before = A + B + C + D  # 道場主候補を探すため、昇降格後の全体から選ぶ
-    d_departures = len(d_promote_to_c) + len(d_up_or_out_retired)
-    new_disciples, name_registry = generate_disciples(season, all_individuals_before, name_registry, num_needed=d_departures)
-    D = D + new_disciples
+    # Dリーグの補充（新弟子の生成）
+    d_departures = LEAGUE_CAPACITY["D"] - len(D)
+    new_disciples = []
+    if d_departures > 0:
+        candidates = A + B + C + D
+        new_disciples = generate_disciples(
+            count=d_departures, season=season, pool=candidates, name_registry=name_registry
+        )
+        D.extend(new_disciples)
 
-    # --- C・D の定員超過分を、実力（Elo）が低い順に引退させる（在籍猶予は維持） ---
-    C, retired_c = _enforce_capacity_with_retirement(C, LEAGUE_CAPACITY["C"], MIN_SEASONS_BEFORE_RETIREMENT_ELIGIBLE_C)
-    D, retired_d = _enforce_capacity_with_retirement(D, LEAGUE_CAPACITY["D"], MIN_SEASONS_BEFORE_RETIREMENT_ELIGIBLE)
-    retired_this_season = retired_c + retired_d + age_retired + d_up_or_out_retired
+    # C・Dリーグの定員超過調整（Elo下位をカットして引退扱い）
+    c_over_retired = []
+    if len(C) > LEAGUE_CAPACITY["C"]:
+        C.sort(key=lambda ind: ind.elo, reverse=True)
+        c_over_retired = C[LEAGUE_CAPACITY["C"]:]
+        C = C[:LEAGUE_CAPACITY["C"]]
+        for ind in c_over_retired:
+            ind.retired = True
 
-    rosters["A"], rosters["B"], rosters["C"], rosters["D"] = A, B, C, D
-    return rosters, new_disciples, name_registry, retired_this_season
+    d_over_retired = []
+    if len(D) > LEAGUE_CAPACITY["D"]:
+        D.sort(key=lambda ind: ind.elo, reverse=True)
+        d_over_retired = D[LEAGUE_CAPACITY["D"]:]
+        D = D[:LEAGUE_CAPACITY["D"]]
+        for ind in d_over_retired:
+            ind.retired = True
 
+    all_retired.extend(c_over_retired + d_over_retired)
 
-def _enforce_capacity_with_retirement(league_list, capacity, min_seasons=MIN_SEASONS_BEFORE_RETIREMENT_ELIGIBLE):
-    """
-    定員を超えている場合、在籍シーズン数が min_seasons 以上の個体の中から
-    実力（Elo）が低い順に引退させ、定員に収める（在籍年数ではなく実力を基準にする）。
-    引退対象が見つからない場合（全員が新入りの場合）は、超過をそのまま許容する。
-    戻り値: (残ったリスト, 引退した個体のリスト)
-    """
-    excess = len(league_list) - capacity
-    if excess <= 0:
-        return league_list, []
-
-    eligible = [ind for ind in league_list if ind.seasons_in_league >= min_seasons]
-    eligible_sorted = sorted(eligible, key=lambda ind: ind.elo)  # Eloが低い順に先頭へ
-
-    retire_targets = eligible_sorted[:excess]
-    retire_ids = {ind.id for ind in retire_targets}
-
-    for ind in retire_targets:
-        ind.retired = True
-
-    remaining = [ind for ind in league_list if ind.id not in retire_ids]
-    return remaining, retire_targets
+    new_rosters = {"A": A, "B": B, "C": C, "D": D}
+    return new_rosters, new_disciples, name_registry, all_retired
 
 
-def generate_disciples(season, all_individuals, name_registry=None, num_needed=None):
-    """
-    8道場＋無流派、計9つの供給源から、新弟子を生成する。
-    num_needed（今シーズンDリーグから抜けた人数）が指定された場合、
-    9つの供給源からランダムにその人数分だけ選んで生成する（＝抜けた分だけ補充する）。
-    指定が無い場合は、後方互換のため全9供給源から生成する（従来の挙動）。
-    各道場に所属する（引退していない）個体からランダムに1体選び、その変異クローンを弟子とする。
-    道場に所属者が1人もいない場合は、パラメータ無しの新規個体として生成する（開祖扱い）。
-    """
-    from .names import NameRegistry
-    registry = name_registry or NameRegistry()
-
+def generate_disciples(count, season, pool, name_registry):
+    """新弟子（Dリーグ参入個体）を生成する"""
     disciples = []
-    sources = list(MAJOR_DOJOS) + [None]  # None = 無流派。合計9つの供給源
+    for i in range(count):
+        ind_id = f"D{season}-{i:03d}"
+        display_name = name_registry.generate()
 
-    if num_needed is not None:
-        num_needed = max(0, min(num_needed, len(sources)))
-        chosen_sources = random.sample(sources, num_needed)
-    else:
-        chosen_sources = sources
-
-    for dojo in chosen_sources:
-        if dojo is None:
-            new_id = f"S{season}-Wild-{format(random.randint(0, 4095), 'x').upper()}"
-            wild_params, awakened_key = maybe_awaken(_random_params(), individual_id=new_id)
-            wild = LeagueIndividualLazy(new_id, "D", dojo=None, generation=season, params=wild_params,
-                                         display_name=registry.generate())
-            wild.awakened_param = awakened_key
-            wild.volatility = random.uniform(0.3, 2.0)  # 無流派はムラ気も完全ランダム
-            disciples.append(wild)
-            print(f"  → 無流派の新規参入: {wild.id}（{wild.display_name}）")
-            continue
-
-        dojo_members = [ind for ind in all_individuals if ind.dojo == dojo and not ind.retired]
-        new_id = f"S{season}-{dojo}-{format(random.randint(0, 4095), 'x').upper()}"
-
-        if dojo_members:
-            parent = random.choice(dojo_members)
-            child_params = _mutate_params(parent.params)
-            # ムラ気も、親から少しだけ揺らして継承する（他パラメータと同じ発想）
-            child_volatility = max(0.1, min(3.0, parent.volatility + random.uniform(-0.2, 0.2)))
+        # 有効な個体プール（引退していない者）から親を選択
+        active_pool = [ind for ind in pool if not ind.retired]
+        if len(active_pool) >= 2:
+            parent_a, parent_b = random.sample(active_pool, 2)
+            params, gen = breed_params(parent_a, parent_b)
+            p_a_id, p_b_id = parent_a.id, parent_b.id
+            dojo = parent_a.dojo if random.random() < 0.5 else parent_b.dojo
+        elif len(active_pool) == 1:
+            parent_a = active_pool[0]
+            params, gen = breed_params(parent_a, parent_a)
+            p_a_id, p_b_id = parent_a.id, None
+            dojo = parent_a.dojo
         else:
-            child_params = _random_params()
-            child_volatility = random.uniform(0.3, 2.0)
+            params = {k: round(random.uniform(0.5, 5.0), 3) for k in PARAM_KEYS}
+            gen = 0
+            p_a_id, p_b_id = None, None
+            dojo = random.choice(MAJOR_DOJOS)
 
-        child_params, awakened_key = maybe_awaken(child_params, individual_id=new_id)
+        # 覚醒判定
+        params, awakened = maybe_awaken(params, individual_id=ind_id)
 
-        child = LeagueIndividualLazy(new_id, "D", dojo=dojo, generation=season,
-                                      params=child_params, parent_a_id=parent.id if dojo_members else None,
-                                      display_name=registry.generate())
-        child.buff_multiplier = assign_buff_multiplier()
-        child.awakened_param = awakened_key
-        child.volatility = child_volatility
-        disciples.append(child)
+        ind = LeagueIndividual(
+            ind_id, "D", params=params, dojo=dojo, generation=gen,
+            parent_a_id=p_a_id, parent_b_id=p_b_id, display_name=display_name,
+        )
+        ind.awakened_param = awakened
+        if dojo:
+            ind.buff_multiplier = assign_buff_multiplier()
 
-    return disciples, registry
-    return disciples, registry
+        # 親の平均ムラ気を継承しつつ、少し変異（ノイズ）を加える
+        if p_a_id and p_b_id:
+            parent_a_obj = next((x for x in active_pool if x.id == p_a_id), None)
+            parent_b_obj = next((x for x in active_pool if x.id == p_b_id), None)
+            base_vol = (parent_a_obj.volatility + parent_b_obj.volatility) / 2.0 if (parent_a_obj and parent_b_obj) else 1.0
+        elif p_a_id:
+            parent_a_obj = next((x for x in active_pool if x.id == p_a_id), None)
+            base_vol = parent_a_obj.volatility if parent_a_obj else 1.0
+        else:
+            base_vol = random.uniform(0.3, 2.0)
+
+        # ムラ気の変異（±0.2程度）
+        vol = base_vol + random.uniform(-0.2, 0.2)
+        ind.volatility = max(0.1, min(3.0, round(vol, 2)))
+
+        disciples.append(ind)
+
+    return disciples
 
 
-def _random_params():
-    return {key: round(random.uniform(0.5, 10.0), 3) for key in PARAM_KEYS}
+def breed_params(parent_a, parent_b):
+    """2個体のパラメータを交叉・変異させて新しいパラメータセットを生成する"""
+    child_params = {}
+    for k in PARAM_KEYS:
+        val_a = parent_a.params.get(k, 1.0)
+        val_b = parent_b.params.get(k, 1.0)
+        # 交叉：親の平均
+        base = (val_a + val_b) / 2.0
+        # 変異：±15%程度のノイズ
+        mutation = random.uniform(0.85, 1.15)
+        child_params[k] = max(0.1, round(base * mutation, 3))
 
-
-def _mutate_params(parent_params):
-    child = {}
-    for key in PARAM_KEYS:
-        val = parent_params.get(key, 1.0)
-        if random.random() < MUTATION_RATE:
-            val *= random.uniform(1 - MUTATION_STRENGTH, 1 + MUTATION_STRENGTH)
-        child[key] = round(max(0.01, val), 3)
-    return child
-
-
-def LeagueIndividualLazy(*args, **kwargs):
-    """循環importを避けるための遅延インポート経由の生成ヘルパー"""
-    from .individual import LeagueIndividual
-    return LeagueIndividual(*args, **kwargs)
+    max_gen = max(parent_a.generation, parent_b.generation)
+    return child_params, max_gen + 1
