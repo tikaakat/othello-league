@@ -5,7 +5,7 @@ import random
 
 from othello_league.individual import LeagueIndividual
 from othello_league.league import promote_and_relegate, LEAGUE_CAPACITY
-from othello_league.dojo import MAJOR_DOJOS, effective_params
+from othello_league.dojo import MAJOR_DOJOS, effective_params, roll_age_multipliers
 from othello_league.round_robin import run_round_robin
 from othello_league.swiss import run_swiss_league
 from othello_league.title import (
@@ -103,6 +103,11 @@ def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_b
 
     print(f"=== Season {season} ===")
 
+    # --- 年齢バフを毎シーズン再抽選する（対局が始まる前に） ---
+    for league_list in rosters.values():
+        for ind in league_list:
+            ind.age_multipliers = roll_age_multipliers(ind.age, PARAM_KEYS)
+
     # --- 陸王在位者は、Aリーグの総当たり（順位戦）を免除される（防衛専念枠） ---
     titleholders = state.setdefault("titleholders", {"陸王": None, "海王": None, "空王": None})
     rikuou_holder_id = (titleholders.get("陸王") or {}).get("id")
@@ -143,6 +148,12 @@ def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_b
 
     all_records = {**record_A, **record_B, **record_C, **record_D}
 
+    for league_list in (ranked_A, ranked_B, ranked_C, ranked_D):
+        for ind in league_list:
+            rec = all_records.get(ind.id, {"win": 0, "loss": 0, "draw": 0})
+            ind.win_this_season = rec["win"]
+            ind.loss_this_season = rec["loss"]
+
     for name, ranked in (("A", ranked_A), ("B", ranked_B), ("C", ranked_C), ("D", ranked_D)):
         top = ranked[0]
         print(f"  {name}リーグ1位: {top.display_name}（{top.id}）")
@@ -177,19 +188,14 @@ def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_b
     )
     title_match_log = _title_results_to_match_log(title_results, season)
     match_log += title_match_log
-    # standings（シーズン成績）はリーグ戦（総当たり・スイス）の結果のみを反映する。
-    # タイトル戦の勝敗はここには合算しない（「順位」タブは順位戦の記録として見せるため）。
-    # 個体詳細ページの「シーズンごとの成績」で必要なタイトル戦の記録は、
-    # api.php側でmatchesテーブルから別途集計して表示する。
 
     # --- 昇降格・弟子補充・引退 ---
     rosters["A"], rosters["B"], rosters["C"], rosters["D"] = ranked_A, ranked_B, ranked_C, ranked_D
     registry = NameRegistry.from_dict(state.get("name_registry", {}))
-    rosters, new_disciples, registry, retired = promote_and_relegate(rosters, season, registry)
+    rosters, new_disciples, registry, retired = promote_and_relegate(rosters, season, registry, titleholders=titleholders)
     state["name_registry"] = registry.to_dict()
 
-    # --- 昇降格・新規・引退マークを確定する（1個体に複数のマークが同時に付くケースを許容する。
-    #     例：新弟子がデビュー初シーズンにいきなり好成績で即昇格した場合、「新規」と「昇級」の両方が該当する） ---
+    # --- 昇降格・新規・引退マークを確定する ---
     retired_ids = {ind.id for ind in retired}
     post_move_league_by_id = {ind.id: ind.league for league_list in rosters.values() for ind in league_list}
 
@@ -224,38 +230,29 @@ def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_b
 
 
 def _result_from_winner_tag(tag):
-    """games_log/bracket_logの 'winner' 値（'a'/'b'/'draw' または個体ID）から、a視点の結果文字列を返す"""
     if tag == "draw":
         return "draw"
     return "win" if tag == "a" else "loss"
 
 
 def _title_results_to_match_log(title_results, season):
-    """
-    タイトル戦の結果を、通常の対局ログと同じ形式（matchesテーブル用）に変換する。
-    本戦・予選ともに、実際に指された局を1局ずつ個別レコードにする（引き分けの局も含む）。
-    """
     entries = []
     for r in title_results:
         title = r["title"]
 
-        # 本戦（初代襲名の場合は対局が無いのでスキップ）。1局ずつ個別レコードにする（引き分けも含む）
         if "games" in r and r.get("challenger_id"):
             for g in r["games"]:
                 entries.append({
-                    "league": title,  # '陸王' / '海王' / '空王' をリーグ名の代わりに使い、通常戦と区別する
+                    "league": title,
                     "individual_a_id": r["challenger_id"],
-                    "individual_b_id": r.get("defender_id"),  # 防衛側個体のID（分かる場合のみ。勝敗集計に必須）
+                    "individual_b_id": r.get("defender_id"),
                     "result": _result_from_winner_tag(g.get("winner")),
                     "games": [g],
                 })
 
-        # 予選ブラケット（海王のラダー・空王のトーナメント）：
-        # 1マッチアップにつき、決着がつくまで指した全局（引き分けの再戦も含む）を個別レコードにする
         for matchup in r.get("bracket", []):
             x_id, y_id, winner_id = matchup["a"], matchup["b"], matchup["winner"]
             for g in matchup.get("games", []):
-                # gは {"black":.., "white":.., "moves":.., "x_was_black":.., "result": 'black'/'white'/'draw'}
                 if g["result"] == "draw":
                     result_for_log = "draw"
                 else:
@@ -282,7 +279,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
     # 陸王：Aリーグ総当たり1位が挑戦（陸王在位者は対局免除で待ち受ける）
     # ============================================================
     a_challenger = ranked_competing_A[0]
-    rikuou_defended = None  # 防衛結果（海王シードの組み立てに使う）
+    rikuou_defended = None
 
     if titleholders["陸王"] is None:
         titleholders["陸王"] = {"id": a_challenger.id, "name": a_challenger.display_name}
@@ -307,7 +304,6 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
         else:
             new_rikuou = champion_ind
             rikuou_defended = True
-        # 陸王在位者は必ずAリーグに在籍しているので、両者ともEloを更新する
         if champion_ind is not None:
             a_challenger.elo, champion_ind.elo = update_elo(
                 a_challenger.elo, champion_ind.elo, "win" if result["won"] else "loss",
@@ -322,8 +318,6 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
 
     # ============================================================
     # 海王：A1〜A6・B1・C1によるラダー方式
-    #   防衛時: A1=陸王, A2=Aリーグ総当たり1位
-    #   奪取/初代時: A1=新陸王, A2=前陸王（前陸王がいなければ総当たり2位）
     # ============================================================
     if rikuou_defended is True:
         kaiou_a1, kaiou_a2 = new_rikuou, ranked_competing_A[0]
@@ -332,14 +326,11 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
         kaiou_a1, kaiou_a2 = new_rikuou, old_rikuou
         remaining = ranked_competing_A[1:5]
     else:
-        # 初代襲名（前陸王が存在しない）：総当たり順位からそのままA1〜A6を割り当てる
         kaiou_a1, kaiou_a2 = ranked_competing_A[0], ranked_competing_A[1]
         remaining = ranked_competing_A[2:6]
 
     kaiou_slots = [kaiou_a1, kaiou_a2] + remaining
 
-    # 海王在位者が、A1に限らずラダーのどのスロット（A2〜A6）に入っていても
-    # 自分自身への挑戦にならないよう、該当スロットは不戦勝（None）扱いにする
     kaiou_holder_id_check = (titleholders.get("海王") or {}).get("id")
     if kaiou_holder_id_check:
         kaiou_slots = [None if (s is not None and s.id == kaiou_holder_id_check) else s for s in kaiou_slots]
@@ -351,7 +342,6 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
             kaiou_slots, kaiou_b1, kaiou_c1, depth=depth,
         )
         
-        # ラダー予選の各対局もEloに反映する（引き分けの再戦も含め、実際に指された各局ごとに更新する）
         for matchup in bracket_log:
             ind_a, ind_b = all_members_by_id.get(matchup["a"]), all_members_by_id.get(matchup["b"])
             if ind_a and ind_b:
@@ -375,7 +365,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
                 "new_holder": challenger.display_name, "bracket": bracket_log,
             })
         else:
-            defending_holder = titleholders["海王"]  # 更新前の値を先に控えておく
+            defending_holder = titleholders["海王"]
             defending_ind_for_volatility = all_members_by_id.get(defending_holder["id"])
             result = run_kaiou_challenge(
                 challenger, titleholder_params["海王"], depth=depth,
@@ -389,7 +379,6 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
                 holder_name, holder_id = challenger.display_name, challenger.id
             else:
                 holder_name, holder_id = defending_holder["name"], defending_holder["id"]
-            # 本戦：現在の海王在位者がまだ現役なら、両者Eloを更新する（引退・降格等で見当たらなければ挑戦者側は更新しない）
             defending_ind = all_members_by_id.get(defending_holder["id"])
             if defending_ind is not None:
                 challenger.elo, defending_ind.elo = update_elo(
@@ -407,12 +396,11 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
         print("  海王戦: 参加者不足のため今季は見送り")
 
     # ============================================================
-    # 空王：Elo上位8名（前年空王在位者は防衛専念枠として除外）による正式シードトーナメント
+    # 空王：Elo上位8名による正式シードトーナメント
     # ============================================================
     kuuou_holder_id = (titleholders.get("空王") or {}).get("id")
     challenger, bracket_log = determine_kuuou_challenger(all_members, exclude_id=kuuou_holder_id, depth=depth)
 
-    # トーナメントの各対局もEloに反映する（引き分けの再戦も含め、実際に指された各局ごとに更新する）
     for matchup in bracket_log:
         ind_a, ind_b = all_members_by_id.get(matchup["a"]), all_members_by_id.get(matchup["b"])
         if ind_a and ind_b:
@@ -436,7 +424,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
             "new_holder": challenger.display_name, "bracket": bracket_log,
         })
     else:
-        defending_holder = titleholders["空王"]  # 更新前の値を先に控えておく
+        defending_holder = titleholders["空王"]
         defending_ind_for_volatility = all_members_by_id.get(defending_holder["id"])
         result = run_kuuou_challenge(
             challenger, titleholder_params["空王"], depth=depth,
@@ -444,7 +432,6 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
         )
         print(f"  空王戦: {challenger.display_name} {result['challenger_wins']}-{result['titleholder_wins']}"
               f" → {'奪取！' if result['won'] else '防衛'}")
-        # 本戦：現在の空王在位者がまだ現役なら、両者Eloを更新する
         defending_ind = all_members_by_id.get(defending_holder["id"])
         if defending_ind is not None:
             challenger.elo, defending_ind.elo = update_elo(
@@ -497,8 +484,6 @@ def main():
     for _ in range(args.seasons):
         season = state["current_season"] + 1
 
-        # 直前シーズンのstandingsファイルを読み込み、スイス方式のシード順に使う
-        # （新しく属性を持たせず、既に保存済みのファイルをそのまま参照する）
         prev_standings_by_id = {}
         if season > 1:
             prev_path = os.path.join(args.data_dir, "standings", f"season_{season - 1}.json")
