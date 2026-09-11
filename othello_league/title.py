@@ -88,10 +88,10 @@ def run_best_of_n_match(params_a, params_b, wins_needed, depth, noise_a=1.0, noi
 # ============================================================
 # 青龍戦：Aリーグ優勝者が自動でタイトルホルダーに挑戦。7局制4本先取
 # ============================================================
-def run_seiryuu_challenge(a_champion, titleholder_params, depth=, titleholder_volatility=1.0):
+def run_seiryuu_challenge(a_champion, titleholder_params, depth=2, titleholder_volatility=1.0):
     challenger_params = effective_params(a_champion)
     won, a_wins, b_wins, games = run_best_of_n_match(
-        challenger_params, titleholder_params, wins_needed=4, depth=3,
+        challenger_params, titleholder_params, wins_needed=4, depth=2,
         noise_a=a_champion.volatility, noise_b=titleholder_volatility,
     )
     return {
@@ -194,7 +194,7 @@ def _bracket_seed_order(n):
     return result
 
 
-def determine_byakko_challenger(all_members, exclude_id=None, depth=, top_n=16):
+def determine_byakko_challenger(all_members, exclude_id=None, depth=1, top_n=16):
     """
     Elo上位top_n名（既定16名）による正式シードトーナメント。
     前年白虎在位者（exclude_id）は防衛専念枠のため、この母集団からは除外する。
@@ -240,7 +240,7 @@ def determine_byakko_challenger(all_members, exclude_id=None, depth=, top_n=16):
     return challenger, bracket_log
 
 
-def run_byakko_challenge(challenger, titleholder_params, depth=, titleholder_volatility=1.0):
+def run_byakko_challenge(challenger, titleholder_params, depth=1, titleholder_volatility=1.0):
     challenger_params = effective_params(challenger)
     won, c_wins, t_wins, games = run_best_of_n_match(
         challenger_params, titleholder_params, wins_needed=3, depth=depth,
