@@ -17,6 +17,27 @@ MAJOR_DOJOS = list(DOJO_BUFF_PARAM.keys())
 
 BUFF_MULTIPLIER_RANGE = (1.05, 1.20)  # 道場バフの倍率レンジ（個体ごとに少しばらつく）
 
+AGE_BUFF_RANGES = [
+    (0, 29, (0.95, 1.20)),
+    (30, 39, (0.90, 1.10)),
+    (40, 49, (0.85, 1.10)),
+    (50, 59, (0.80, 1.05)),
+    (60, 999, (0.75, 1.00)),
+]
+
+
+def _age_range_for(age):
+    for lo, hi, rng in AGE_BUFF_RANGES:
+        if lo <= age <= hi:
+            return rng
+    return AGE_BUFF_RANGES[-1][2]
+
+
+def roll_age_multipliers(age, param_keys):
+    """年齢帯に応じた倍率レンジから、パラメータごとに独立に抽選する。シーズン開始時に1回呼ぶ想定"""
+    lo, hi = _age_range_for(age)
+    return {key: round(random.uniform(lo, hi), 3) for key in param_keys}
+
 
 def assign_buff_multiplier():
     return round(random.uniform(*BUFF_MULTIPLIER_RANGE), 3)
@@ -34,10 +55,14 @@ def apply_dojo_buff(params, dojo, buff_multiplier=None):
 
 
 def effective_params(individual):
-    """個体の実効パラメータ（道場バフを反映した後の値）を返す。評価関数にはこれを渡す"""
+    """個体の実効パラメータ（道場バフ・年齢バフを反映した後の値）を返す。評価関数にはこれを渡す"""
+    params = individual.params
     if individual.dojo:
-        return apply_dojo_buff(individual.params, individual.dojo, getattr(individual, "buff_multiplier", None))
-    return individual.params
+        params = apply_dojo_buff(params, individual.dojo, getattr(individual, "buff_multiplier", None))
+    age_mult = getattr(individual, "age_multipliers", None)
+    if age_mult:
+        params = {k: v * age_mult.get(k, 1.0) for k, v in params.items()}
+    return params
 
 
 # ============================================================
