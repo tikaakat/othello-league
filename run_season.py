@@ -296,7 +296,8 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
         old_tp.setdefault("玄武", None)
         
     titleholders = state.setdefault("titleholders", {"青龍": None, "白虎": None, "玄武": None, "朱雀": None})
-    titleholder_params = state.setdefault("titleholder_params", {"青龍": None, "白虎": None, "玄武": None, "朱雀": None})    all_members_by_id = {ind.id: ind for ind in all_members}
+    titleholder_params = state.setdefault("titleholder_params", {"青龍": None, "白虎": None, "玄武": None, "朱雀": None})
+    all_members_by_id = {ind.id: ind for ind in all_members}
 
     # ============================================================
     # 青龍：Aリーグ総当たり1位が挑戦（青龍在位者は対局免除で待ち受ける）
