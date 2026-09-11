@@ -9,8 +9,9 @@ from othello_league.dojo import MAJOR_DOJOS, effective_params, roll_age_multipli
 from othello_league.round_robin import run_round_robin
 from othello_league.swiss import run_swiss_league
 from othello_league.title import (
-    run_rikuou_challenge, determine_kaiou_challenger, run_kaiou_challenge,
-    determine_kuuou_challenger, run_kuuou_challenge,
+    run_seiryuu_challenge, determine_kaiou_challenger, run_kaiou_challenge,
+    determine_byakko_challenger, run_byakko_challenge,
+    determine_genbu_challenger, run_genbu_challenge,
 )
 from othello_league.names import NameRegistry
 from othello_league.elo import update_elo
@@ -100,19 +101,19 @@ def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_b
         for ind in league_list:
             ind.age_multipliers = roll_age_multipliers(ind.age, PARAM_KEYS)
 
-    # --- 陸王在位者は、Aリーグの総当たり（順位戦）を免除される（防衛専念枠） ---
-    titleholders = state.setdefault("titleholders", {"陸王": None, "海王": None, "空王": None})
-    rikuou_holder_id = (titleholders.get("陸王") or {}).get("id")
+    # --- 青龍在位者は、Aリーグの総当たり（順位戦）を免除される（防衛専念枠） ---
+    titleholders = state.setdefault("titleholders", {"青龍": None, "白虎": None, "玄武": None, "海王": None})
+    seiryuu_holder_id = (titleholders.get("青龍") or {}).get("id")
 
     a_roster = rosters["A"]
-    champion_ind = next((ind for ind in a_roster if ind.id == rikuou_holder_id), None) if rikuou_holder_id else None
+    champion_ind = next((ind for ind in a_roster if ind.id == seiryuu_holder_id), None) if seiryuu_holder_id else None
     competing_A = [ind for ind in a_roster if champion_ind is None or ind.id != champion_ind.id]
 
-    print("  --- Aリーグ（総当たり） ---" + ("　※陸王在位者は防衛専念枠のため対局免除" if champion_ind else ""))
+    print("  --- Aリーグ（総当たり） ---" + ("　※青龍在位者は防衛専念枠のため対局免除" if champion_ind else ""))
     ranked_competing_A, log_A, _, record_A = run_round_robin(competing_A, depth=depth)
     match_log += log_A
 
-    # 公式Aリーグ順位：陸王在位者がいれば1位に据え、以降は総当たり結果を続ける
+    # 公式Aリーグ順位：青龍在位者がいれば1位に据え、以降は総当たり結果を続ける
     ranked_A = ([champion_ind] + ranked_competing_A) if champion_ind else ranked_competing_A
     if champion_ind:
         record_A[champion_ind.id] = {"win": 0, "loss": 0, "draw": 0}  # 対局免除のため記録なし
@@ -260,65 +261,63 @@ def _title_results_to_match_log(title_results, season):
 
 def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ranked_C, all_members, depth, state, season):
     results = []
-    titleholders = state.setdefault("titleholders", {"陸王": None, "海王": None, "空王": None})
-    titleholder_params = state.setdefault("titleholder_params", {"陸王": None, "海王": None, "空王": None})
+    titleholders = state.setdefault("titleholders", {"青龍": None, "白虎": None, "玄武": None, "海王": None})
+    titleholder_params = state.setdefault("titleholder_params", {"青龍": None, "白虎": None, "玄武": None, "海王": None})
     all_members_by_id = {ind.id: ind for ind in all_members}
 
     # ============================================================
-    # 陸王：Aリーグ総当たり1位が挑戦（陸王在位者は対局免除で待ち受ける）
+    # 青龍：Aリーグ総当たり1位が挑戦（青龍在位者は対局免除で待ち受ける）
     # ============================================================
     a_challenger = ranked_competing_A[0]
-    rikuou_defended = None
+    seiryuu_defended = None
 
-    # 「titleholders[陸王]の記録はあるが、在位者本人が今季のロスターに見当たらない」
-    # （引退等で消えた）場合も、記録が無い場合と同じく空位＝新規襲名として扱う
-    rikuou_vacant = titleholders["陸王"] is not None and champion_ind is None
-    if rikuou_vacant:
-        print(f"  ※ 陸王在位者（{titleholders['陸王'].get('name')}）がロスターに見当たらないため、空位として扱います")
+    seiryuu_vacant = titleholders["青龍"] is not None and champion_ind is None
+    if seiryuu_vacant:
+        print(f"  ※ 青龍在位者（{titleholders['青龍'].get('name')}）がロスターに見当たらないため、空位として扱います")
 
-    if titleholders["陸王"] is None or rikuou_vacant:
-        titleholders["陸王"] = {"id": a_challenger.id, "name": a_challenger.display_name}
-        titleholder_params["陸王"] = effective_params(a_challenger)
-        print(f"  ★ 陸王 初代襲名: {a_challenger.display_name}")
-        results.append({"title": "陸王", "season": season, "event": "初代襲名", "new_holder": a_challenger.display_name})
-        new_rikuou = a_challenger
-        old_rikuou = None
+    if titleholders["青龍"] is None or seiryuu_vacant:
+        titleholders["青龍"] = {"id": a_challenger.id, "name": a_challenger.display_name}
+        titleholder_params["青龍"] = effective_params(a_challenger)
+        print(f"  ★ 青龍 初代襲名: {a_challenger.display_name}")
+        results.append({"title": "青龍", "season": season, "event": "初代襲名", "new_holder": a_challenger.display_name})
+        new_seiryuu = a_challenger
+        old_seiryuu = None
     else:
-        result = run_rikuou_challenge(
-            a_challenger, titleholder_params["陸王"], depth=depth,
+        result = run_seiryuu_challenge(
+            a_challenger, titleholder_params["青龍"], depth=depth,
             titleholder_volatility=champion_ind.volatility if champion_ind is not None else 1.0,
         )
-        print(f"  陸王戦: {a_challenger.display_name} {result['challenger_wins']}-{result['titleholder_wins']}"
+        print(f"  青龍戦: {a_challenger.display_name} {result['challenger_wins']}-{result['titleholder_wins']}"
               f" → {'奪取！' if result['won'] else '防衛'}")
-        old_rikuou = champion_ind
+        old_seiryuu = champion_ind
         if result["won"]:
-            titleholders["陸王"] = {"id": a_challenger.id, "name": a_challenger.display_name}
-            titleholder_params["陸王"] = effective_params(a_challenger)
-            new_rikuou = a_challenger
-            rikuou_defended = False
+            titleholders["青龍"] = {"id": a_challenger.id, "name": a_challenger.display_name}
+            titleholder_params["青龍"] = effective_params(a_challenger)
+            new_seiryuu = a_challenger
+            seiryuu_defended = False
         else:
-            new_rikuou = champion_ind
-            rikuou_defended = True
+            new_seiryuu = champion_ind
+            seiryuu_defended = True
         if champion_ind is not None:
             a_challenger.elo, champion_ind.elo = update_elo(
                 a_challenger.elo, champion_ind.elo, "win" if result["won"] else "loss",
                 total_seasons_a=a_challenger.total_seasons, total_seasons_b=champion_ind.total_seasons,
             )
         results.append({
-            "title": "陸王", "season": season, **result,
+            "title": "青龍", "season": season, **result,
             "challenger_name": a_challenger.display_name,
-            "holder_name": new_rikuou.display_name, "holder_id": new_rikuou.id,
+            "holder_name": new_seiryuu.display_name, "holder_id": new_seiryuu.id,
             "defender_id": champion_ind.id if champion_ind is not None else None,
         })
 
     # ============================================================
     # 海王：A1〜A6・B1・C1によるラダー方式
     # ============================================================
-    if rikuou_defended is True:
-        kaiou_a1, kaiou_a2 = new_rikuou, ranked_competing_A[0]
+    if seiryuu_defended is True:
+        kaiou_a1, kaiou_a2 = new_seiryuu, ranked_competing_A[0]
         remaining = ranked_competing_A[1:5]
-    elif rikuou_defended is False:
-        kaiou_a1, kaiou_a2 = new_rikuou, old_rikuou
+    elif seiryuu_defended is False:
+        kaiou_a1, kaiou_a2 = new_seiryuu, old_seiryuu
         remaining = ranked_competing_A[1:5]
     else:
         kaiou_a1, kaiou_a2 = ranked_competing_A[0], ranked_competing_A[1]
@@ -391,10 +390,10 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
         print("  海王戦: 参加者不足のため今季は見送り")
 
     # ============================================================
-    # 空王：Elo上位8名による正式シードトーナメント
+    # 白虎：Elo上位16名（前年白虎在位者は防衛専念枠として除外）による正式シードトーナメント。深さ3
     # ============================================================
-    kuuou_holder_id = (titleholders.get("空王") or {}).get("id")
-    challenger, bracket_log = determine_kuuou_challenger(all_members, exclude_id=kuuou_holder_id, depth=depth)
+    byakko_holder_id = (titleholders.get("白虎") or {}).get("id")
+    challenger, bracket_log = determine_byakko_challenger(all_members, exclude_id=byakko_holder_id, depth=3, top_n=16)
 
     for matchup in bracket_log:
         ind_a, ind_b = all_members_by_id.get(matchup["a"]), all_members_by_id.get(matchup["b"])
@@ -410,22 +409,22 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
                     total_seasons_a=ind_a.total_seasons, total_seasons_b=ind_b.total_seasons,
                 )
 
-    if titleholders["空王"] is None:
-        titleholders["空王"] = {"id": challenger.id, "name": challenger.display_name}
-        titleholder_params["空王"] = effective_params(challenger)
-        print(f"  ★ 空王 初代襲名: {challenger.display_name}")
+    if titleholders["白虎"] is None:
+        titleholders["白虎"] = {"id": challenger.id, "name": challenger.display_name}
+        titleholder_params["白虎"] = effective_params(challenger)
+        print(f"  ★ 白虎 初代襲名: {challenger.display_name}")
         results.append({
-            "title": "空王", "season": season, "event": "初代襲名",
+            "title": "白虎", "season": season, "event": "初代襲名",
             "new_holder": challenger.display_name, "bracket": bracket_log,
         })
     else:
-        defending_holder = titleholders["空王"]
+        defending_holder = titleholders["白虎"]
         defending_ind_for_volatility = all_members_by_id.get(defending_holder["id"])
-        result = run_kuuou_challenge(
-            challenger, titleholder_params["空王"], depth=depth,
+        result = run_byakko_challenge(
+            challenger, titleholder_params["白虎"], depth=3,
             titleholder_volatility=defending_ind_for_volatility.volatility if defending_ind_for_volatility else 1.0,
         )
-        print(f"  空王戦: {challenger.display_name} {result['challenger_wins']}-{result['titleholder_wins']}"
+        print(f"  白虎戦: {challenger.display_name} {result['challenger_wins']}-{result['titleholder_wins']}"
               f" → {'奪取！' if result['won'] else '防衛'}")
         defending_ind = all_members_by_id.get(defending_holder["id"])
         if defending_ind is not None:
@@ -434,13 +433,70 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
                 total_seasons_a=challenger.total_seasons, total_seasons_b=defending_ind.total_seasons,
             )
         if result["won"]:
-            titleholders["空王"] = {"id": challenger.id, "name": challenger.display_name}
-            titleholder_params["空王"] = effective_params(challenger)
+            titleholders["白虎"] = {"id": challenger.id, "name": challenger.display_name}
+            titleholder_params["白虎"] = effective_params(challenger)
             holder_name, holder_id = challenger.display_name, challenger.id
         else:
             holder_name, holder_id = defending_holder["name"], defending_holder["id"]
         results.append({
-            "title": "空王", "season": season, **result,
+            "title": "白虎", "season": season, **result,
+            "challenger_name": challenger.display_name,
+            "holder_name": holder_name, "holder_id": holder_id,
+            "defender_id": defending_holder["id"],
+            "bracket": bracket_log,
+        })
+
+    # ============================================================
+    # 玄武：完全ランダム抽選トーナメント（ブラケットサイズ64、Elo上位者はバイ）。深さ2
+    # ============================================================
+    genbu_holder_id = (titleholders.get("玄武") or {}).get("id")
+    challenger, bracket_log = determine_genbu_challenger(all_members, exclude_id=genbu_holder_id, depth=2, bracket_size=64)
+
+    for matchup in bracket_log:
+        ind_a, ind_b = all_members_by_id.get(matchup["a"]), all_members_by_id.get(matchup["b"])
+        if ind_a and ind_b:
+            for g in matchup.get("games", []):
+                if g["result"] == "draw":
+                    outcome_a = "draw"
+                else:
+                    x_won = (g["result"] == "black") == g["x_was_black"]
+                    outcome_a = "win" if x_won else "loss"
+                ind_a.elo, ind_b.elo = update_elo(
+                    ind_a.elo, ind_b.elo, outcome_a,
+                    total_seasons_a=ind_a.total_seasons, total_seasons_b=ind_b.total_seasons,
+                )
+
+    if titleholders["玄武"] is None:
+        titleholders["玄武"] = {"id": challenger.id, "name": challenger.display_name}
+        titleholder_params["玄武"] = effective_params(challenger)
+        print(f"  ★ 玄武 初代襲名: {challenger.display_name}")
+        results.append({
+            "title": "玄武", "season": season, "event": "初代襲名",
+            "new_holder": challenger.display_name, "bracket": bracket_log,
+        })
+    else:
+        defending_holder = titleholders["玄武"]
+        defending_ind_for_volatility = all_members_by_id.get(defending_holder["id"])
+        result = run_genbu_challenge(
+            challenger, titleholder_params["玄武"], depth=2,
+            titleholder_volatility=defending_ind_for_volatility.volatility if defending_ind_for_volatility else 1.0,
+        )
+        print(f"  玄武戦: {challenger.display_name} {result['challenger_wins']}-{result['titleholder_wins']}"
+              f" → {'奪取！' if result['won'] else '防衛'}")
+        defending_ind = all_members_by_id.get(defending_holder["id"])
+        if defending_ind is not None:
+            challenger.elo, defending_ind.elo = update_elo(
+                challenger.elo, defending_ind.elo, "win" if result["won"] else "loss",
+                total_seasons_a=challenger.total_seasons, total_seasons_b=defending_ind.total_seasons,
+            )
+        if result["won"]:
+            titleholders["玄武"] = {"id": challenger.id, "name": challenger.display_name}
+            titleholder_params["玄武"] = effective_params(challenger)
+            holder_name, holder_id = challenger.display_name, challenger.id
+        else:
+            holder_name, holder_id = defending_holder["name"], defending_holder["id"]
+        results.append({
+            "title": "玄武", "season": season, **result,
             "challenger_name": challenger.display_name,
             "holder_name": holder_name, "holder_id": holder_id,
             "defender_id": defending_holder["id"],
