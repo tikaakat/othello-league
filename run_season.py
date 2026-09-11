@@ -101,6 +101,18 @@ def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_b
         for ind in league_list:
             ind.age_multipliers = roll_age_multipliers(ind.age, PARAM_KEYS)
 
+# --- 旧タイトル名（陸王・空王）から新タイトル名（青龍・白虎）への1回限りの移行 ---
+    old_th = state.get("titleholders")
+    if old_th is not None and "陸王" in old_th:
+        old_th["青龍"] = old_th.pop("陸王")
+        old_th["白虎"] = old_th.pop("空王")
+        old_th.setdefault("玄武", None)
+    old_tp = state.get("titleholder_params")
+    if old_tp is not None and "陸王" in old_tp:
+        old_tp["青龍"] = old_tp.pop("陸王")
+        old_tp["白虎"] = old_tp.pop("空王")
+        old_tp.setdefault("玄武", None)
+    
     # --- 青龍在位者は、Aリーグの総当たり（順位戦）を免除される（防衛専念枠） ---
     titleholders = state.setdefault("titleholders", {"青龍": None, "白虎": None, "玄武": None, "海王": None})
     seiryuu_holder_id = (titleholders.get("青龍") or {}).get("id")
@@ -261,6 +273,18 @@ def _title_results_to_match_log(title_results, season):
 
 def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ranked_C, all_members, depth, state, season):
     results = []
+    
+# --- 旧タイトル名（陸王・空王）から新タイトル名（青龍・白虎）への1回限りの移行 ---
+    old_th = state.get("titleholders")
+    if old_th is not None and "陸王" in old_th:
+        old_th["青龍"] = old_th.pop("陸王")
+        old_th["白虎"] = old_th.pop("空王")
+        old_th.setdefault("玄武", None)
+    old_tp = state.get("titleholder_params")
+    if old_tp is not None and "陸王" in old_tp:
+        old_tp["青龍"] = old_tp.pop("陸王")
+        old_tp["白虎"] = old_tp.pop("空王")
+        old_tp.setdefault("玄武", None)
     titleholders = state.setdefault("titleholders", {"青龍": None, "白虎": None, "玄武": None, "海王": None})
     titleholder_params = state.setdefault("titleholder_params", {"青龍": None, "白虎": None, "玄武": None, "海王": None})
     all_members_by_id = {ind.id: ind for ind in all_members}
