@@ -86,16 +86,16 @@ def run_best_of_n_match(params_a, params_b, wins_needed, depth, noise_a=1.0, noi
 
 
 # ============================================================
-# 陸王戦：Aリーグ優勝者が自動でタイトルホルダーに挑戦。7局制4本先取
+# 青龍戦：Aリーグ優勝者が自動でタイトルホルダーに挑戦。7局制4本先取
 # ============================================================
-def run_rikuou_challenge(a_champion, titleholder_params, depth=4, titleholder_volatility=1.0):
+def run_seiryuu_challenge(a_champion, titleholder_params, depth=4, titleholder_volatility=1.0):
     challenger_params = effective_params(a_champion)
     won, a_wins, b_wins, games = run_best_of_n_match(
         challenger_params, titleholder_params, wins_needed=4, depth=depth,
         noise_a=a_champion.volatility, noise_b=titleholder_volatility,
     )
     return {
-        "title": "陸王", "challenger_id": a_champion.id, "won": won,
+        "title": "青龍", "challenger_id": a_champion.id, "won": won,
         "challenger_wins": a_wins, "titleholder_wins": b_wins, "games": games,
     }
 
@@ -178,7 +178,7 @@ def run_kaiou_challenge(challenger, titleholder_params, depth=4, titleholder_vol
 
 
 # ============================================================
-# 空王戦：Elo上位8名（前年空王在位者は防衛専念枠として除外）による正式シード付きトーナメント。5局制3本先取
+# 白虎戦：Elo上位16名（前年白虎在位者は防衛専念枠として除外）による正式シード付きトーナメント。5局制3本先取
 # ============================================================
 def _bracket_seed_order(n):
     """
@@ -197,10 +197,10 @@ def _bracket_seed_order(n):
     return result
 
 
-def determine_kuuou_challenger(all_members, exclude_id=None, depth=4, top_n=8):
+def determine_byakko_challenger(all_members, exclude_id=None, depth=3, top_n=16):
     """
-    Elo上位top_n名（既定8名）による正式シードトーナメント。
-    前年空王在位者（exclude_id）は防衛専念枠のため、この母集団からは除外する。
+    Elo上位top_n名（既定16名）による正式シードトーナメント。
+    前年白虎在位者（exclude_id）は防衛専念枠のため、この母集団からは除外する。
     """
     pool = [ind for ind in all_members if ind.id != exclude_id]
     ranked = sorted(pool, key=lambda ind: -ind.elo)[:top_n]
@@ -243,13 +243,86 @@ def determine_kuuou_challenger(all_members, exclude_id=None, depth=4, top_n=8):
     return challenger, bracket_log
 
 
-def run_kuuou_challenge(challenger, titleholder_params, depth=4, titleholder_volatility=1.0):
+def run_byakko_challenge(challenger, titleholder_params, depth=3, titleholder_volatility=1.0):
     challenger_params = effective_params(challenger)
     won, c_wins, t_wins, games = run_best_of_n_match(
         challenger_params, titleholder_params, wins_needed=3, depth=depth,
         noise_a=challenger.volatility, noise_b=titleholder_volatility,
     )
     return {
-        "title": "空王", "challenger_id": challenger.id, "won": won,
+        "title": "白虎", "challenger_id": challenger.id, "won": won,
+        "challenger_wins": c_wins, "titleholder_wins": t_wins, "games": games,
+    }
+
+
+# ============================================================
+# 玄武戦：完全ランダム抽選トーナメント（ブラケットサイズ64、Elo上位者は1回戦バイ）。
+# 探索深さ2の超早指し戦
+# ============================================================
+def determine_genbu_challenger(all_members, exclude_id=None, depth=2, bracket_size=64):
+    """
+    全所属個体が参加する、ほぼ完全ランダムの抽選トーナメント。
+    バイ（1回戦不戦勝＝2回戦から登場）の人数は bracket_size - 参加人数 で自動算出し、
+    Elo上位からその人数分を割り当てる（上位シード同士が早期に当たらないよう分散配置）。
+    バイに入らない残り全員は、完全ランダムに1回戦を組む。
+    前年玄武在位者（exclude_id）は防衛専念枠のため、この母集団からは除外する。
+    """
+    pool = [ind for ind in all_members if ind.id != exclude_id]
+    n = len(pool)
+    if n > bracket_size:
+        # 参加人数がbracket_sizeを超えることは通常想定していないが、
+        # 万一超えた場合はElo下位から間引く
+        pool = sorted(pool, key=lambda ind: -ind.elo)[:bracket_size]
+        n = bracket_size
+
+    bye_count = bracket_size - n
+    elo_ranked = sorted(pool, key=lambda ind: -ind.elo)
+    seeded = elo_ranked[:bye_count]   # 上位bye_count名：1回戦バイ（2回戦から登場）
+    rest = elo_ranked[bye_count:]     # 残り：完全ランダムに1回戦を組む
+    random.shuffle(rest)
+
+    # 標準シード配置で、上位シード（バイ勢）を互いに離れた山に均等配置する。
+    # Noneは「不在」を表し、Noneと当たった側が不戦勝で2回戦へ進む。
+    seed_list = seeded + rest + [None] * bye_count
+    order = _bracket_seed_order(bracket_size)
+    bracketed = [seed_list[i] for i in order]
+
+    bracket_log = []
+
+    def single_game(ind_x, ind_y):
+        if ind_x is None:
+            return ind_y
+        if ind_y is None:
+            return ind_x
+        x_won, games = _play_until_decided(
+            effective_params(ind_x), effective_params(ind_y), depth,
+            noise_x=ind_x.volatility, noise_y=ind_y.volatility,
+        )
+        winner_ind = ind_x if x_won else ind_y
+        bracket_log.append({
+            "a": ind_x.id, "b": ind_y.id, "winner": winner_ind.id, "games": games,
+        })
+        return winner_ind
+
+    round_members = bracketed
+    while len(round_members) > 1:
+        next_round = []
+        for i in range(0, len(round_members), 2):
+            winner = single_game(round_members[i], round_members[i + 1])
+            next_round.append(winner)
+        round_members = next_round
+
+    challenger = round_members[0]
+    return challenger, bracket_log
+
+
+def run_genbu_challenge(challenger, titleholder_params, depth=2, titleholder_volatility=1.0):
+    challenger_params = effective_params(challenger)
+    won, c_wins, t_wins, games = run_best_of_n_match(
+        challenger_params, titleholder_params, wins_needed=3, depth=depth,
+        noise_a=challenger.volatility, noise_b=titleholder_volatility,
+    )
+    return {
+        "title": "玄武", "challenger_id": challenger.id, "won": won,
         "challenger_wins": c_wins, "titleholder_wins": t_wins, "games": games,
     }
