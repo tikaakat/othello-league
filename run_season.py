@@ -318,7 +318,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
         old_seiryuu = None
     else:
         result = run_seiryuu_challenge(
-            a_challenger, titleholder_params["青龍"], depth=depth,
+            a_challenger, titleholder_params["青龍"], depth=3,
             titleholder_volatility=champion_ind.volatility if champion_ind is not None else 1.0,
         )
         print(f"  青龍戦: {a_challenger.display_name} {result['challenger_wins']}-{result['titleholder_wins']}"
@@ -398,7 +398,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
             defending_holder = titleholders["朱雀"]
             defending_ind_for_volatility = all_members_by_id.get(defending_holder["id"])
             result = run_suzaku_challenge(
-                challenger, titleholder_params["朱雀"], depth=depth,
+                challenger, titleholder_params["朱雀"], depth=2,
                 titleholder_volatility=defending_ind_for_volatility.volatility if defending_ind_for_volatility else 1.0,
             )
             print(f"  朱雀戦: {challenger.display_name} {result['challenger_wins']}-{result['titleholder_wins']}"
@@ -457,7 +457,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
         defending_holder = titleholders["白虎"]
         defending_ind_for_volatility = all_members_by_id.get(defending_holder["id"])
         result = run_byakko_challenge(
-            challenger, titleholder_params["白虎"], depth=3,
+            challenger, titleholder_params["白虎"], depth=2,
             titleholder_volatility=defending_ind_for_volatility.volatility if defending_ind_for_volatility else 1.0,
         )
         print(f"  白虎戦: {challenger.display_name} {result['challenger_wins']}-{result['titleholder_wins']}"
@@ -514,7 +514,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
         defending_holder = titleholders["玄武"]
         defending_ind_for_volatility = all_members_by_id.get(defending_holder["id"])
         result = run_genbu_challenge(
-            challenger, titleholder_params["玄武"], depth=2,
+            challenger, titleholder_params["玄武"], depth=1,
             titleholder_volatility=defending_ind_for_volatility.volatility if defending_ind_for_volatility else 1.0,
         )
         print(f"  玄武戦: {challenger.display_name} {result['challenger_wins']}-{result['titleholder_wins']}"
