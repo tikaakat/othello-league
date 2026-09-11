@@ -126,15 +126,15 @@ def _play_until_decided(params_x, params_y, depth, noise_x=1.0, noise_y=1.0, max
 
 
 # ============================================================
-# 海王戦：段階的な勝ち上がり（ラダー）方式で挑戦者を決定。5局制3本先取
-# 予選: B1 vs C1 → 勝者 vs A6 → 勝者 vs A5 → 勝者 vs A4 → 勝者 vs A3
-#      → 勝者 vs A2（前陸王 or Aリーグ総当たり1位）→ 勝者 vs A1（陸王 or 新陸王）→ 挑戦者決定
+# 朱雀戦：C1×B1の勝者がA1と対戦→Y、A2×D1の勝者がA0（青龍）と対戦→W、Y×Wで挑戦者決定。
+# 5局制3本先取
 # ============================================================
-def determine_kaiou_challenger(a_slots, b1, c1, depth=4):
+def determine_suzaku_challenger(a0, a1, a2, b1, c1, d1, depth=4):
     """
-    a_slots: [A1, A2, A3, A4, A5, A6] の6名（陸王の在位状況に応じて run_season.py 側で組み立てる）。
-    A1が海王在位者自身と同一人物の場合（自分自身への挑戦を避けるため）、
-    run_season.py側でA1にNoneを渡すことで、その関門を不戦勝扱いにできる。
+    a0=青龍在位者（Aリーグの防衛専念枠）、a1/a2=Aリーグ総当たりの実質1位・2位、
+    b1/c1/d1=B/C/Dリーグの今季1位。
+    朱雀在位者自身と同一人物のスロットがあれば、run_season.py側でそのスロットにNoneを渡すことで
+    不戦勝扱いにできる（どのスロットでも安全に機能する）。
     """
     bracket_log = []
 
@@ -153,26 +153,23 @@ def determine_kaiou_challenger(a_slots, b1, c1, depth=4):
         })
         return winner_ind
 
-    a1, a2, a3, a4, a5, a6 = a_slots
-    winner = single_game(b1, c1)
-    winner = single_game(winner, a6)
-    winner = single_game(winner, a5)
-    winner = single_game(winner, a4)
-    winner = single_game(winner, a3)
-    winner = single_game(winner, a2)
-    challenger = single_game(winner, a1)
+    x = single_game(c1, b1)
+    y = single_game(x, a1)
+    z = single_game(a2, d1)
+    w = single_game(z, a0)
+    challenger = single_game(y, w)
 
     return challenger, bracket_log
 
 
-def run_kaiou_challenge(challenger, titleholder_params, depth=4, titleholder_volatility=1.0):
+def run_suzaku_challenge(challenger, titleholder_params, depth=4, titleholder_volatility=1.0):
     challenger_params = effective_params(challenger)
     won, c_wins, t_wins, games = run_best_of_n_match(
         challenger_params, titleholder_params, wins_needed=3, depth=depth,
         noise_a=challenger.volatility, noise_b=titleholder_volatility,
     )
     return {
-        "title": "海王", "challenger_id": challenger.id, "won": won,
+        "title": "朱雀", "challenger_id": challenger.id, "won": won,
         "challenger_wins": c_wins, "titleholder_wins": t_wins, "games": games,
     }
 
