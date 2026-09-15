@@ -363,6 +363,21 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
             if ind is not None and ind.id == suzaku_holder_id_check:
                 suzaku_slots[key] = None
 
+    # 同一人物が複数スロットに重複して入るケースをガードする
+    # （代表例：Aリーグ総当たり1位がそのまま今季の青龍を獲得すると、a0＝new_seiryuuとa1＝
+    #   ranked_competing_A[0]が同一人物になり、その人が「a0として」「a1として」二重に対局し、
+    #   ブラケット上に同じ対戦カードが重複して現れてしまう）。
+    # a0（防衛専念枠）を最優先で残し、後から出てきた重複スロットはNone（不戦勝扱い）にする
+    seen_ids = set()
+    for key in ("a0", "a1", "a2", "b1", "c1", "d1"):
+        ind = suzaku_slots[key]
+        if ind is None:
+            continue
+        if ind.id in seen_ids:
+            suzaku_slots[key] = None
+        else:
+            seen_ids.add(ind.id)
+
     # 「本当にB/C/Dリーグが空っぽ（構造的な参加者不足）」の場合だけ見送りにする。
     # 朱雀在位者自身が除外ガードでNoneになったスロットは、single_gameが不戦勝として正しく処理できるので対象外
     if ranked_B and ranked_C and ranked_D:
