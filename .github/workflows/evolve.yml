@@ -12,9 +12,9 @@ on:
         required: false
         default: "1"
       depth:
-        description: "探索深さ"
+        description: "探索深さ（現在は常に1固定。手動で変えたい場合のみ上書き可）"
         required: false
-        default: "4"
+        default: "1"
       swiss_rounds:
         description: "B/C/Dリーグのスイスラウンド数"
         required: false
@@ -57,6 +57,23 @@ jobs:
           echo "$XSERVER_SSH_KEY" > /tmp/deploy_key
           chmod 600 /tmp/deploy_key
 
+          # xserverへの接続が一時的なタイムアウトで失敗することがあるため、
+          # ネットワーク系コマンドは指数バックオフで数回リトライしてから諦める
+          retry_cmd() {
+            local max_attempts=4
+            local delay=5
+            local attempt=1
+            until "$@"; do
+              if [ "$attempt" -ge "$max_attempts" ]; then
+                return 1
+              fi
+              echo "::warning::コマンド失敗（試行 $attempt/$max_attempts）。${delay}秒後にリトライします: $*"
+              sleep "$delay"
+              delay=$((delay * 2))
+              attempt=$((attempt + 1))
+            done
+          }
+
           RESET="${{ github.event.inputs.reset || 'false' }}"
           if [ "$RESET" = "true" ]; then
             echo "=== 一括リセット: 既存データを削除してシーズン1からやり直します ==="
@@ -73,14 +90,14 @@ jobs:
             fi
 
             echo "--- Xserver側のデータも削除中 ---"
-            ssh -i /tmp/deploy_key -p "$XSERVER_PORT" -o StrictHostKeyChecking=no \
+            retry_cmd ssh -i /tmp/deploy_key -p "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
               "$XSERVER_USER@$XSERVER_HOST" \
               "rm -rf ${XSERVER_TARGET_DIR}matches ${XSERVER_TARGET_DIR}standings ${XSERVER_TARGET_DIR}rosters.json ${XSERVER_TARGET_DIR}season_state.json && mkdir -p ${XSERVER_TARGET_DIR}matches ${XSERVER_TARGET_DIR}standings" \
               || echo "::warning::Xserver側のリセットに失敗しました。手動で確認してください"
           fi
 
           TOTAL="${{ github.event.inputs.seasons || '1' }}"
-          DEPTH="${{ github.event.inputs.depth || '4' }}"
+          DEPTH="${{ github.event.inputs.depth || '1' }}"
           SWISS_ROUNDS="${{ github.event.inputs.swiss_rounds || '4' }}"
 
           for i in $(seq 1 "$TOTAL"); do
@@ -114,36 +131,61 @@ jobs:
             echo "--- Xserverへ反映中（バッチ $i）---"
             PUSH_OK=1
 
-            ssh -i /tmp/deploy_key -p "$XSERVER_PORT" -o StrictHostKeyChecking=no \
+            retry_cmd ssh -i /tmp/deploy_key -p "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
               "$XSERVER_USER@$XSERVER_HOST" "mkdir -p ${XSERVER_TARGET_DIR}matches ${XSERVER_TARGET_DIR}standings" \
               || { echo "::warning::フォルダ作成に失敗しました（バッチ $i）"; PUSH_OK=0; }
 
-            scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no \
+            retry_cmd scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
               data/rosters.json data/season_state.json \
               "$XSERVER_USER@$XSERVER_HOST:$XSERVER_TARGET_DIR" \
               || { echo "::warning::scpでの転送に失敗しました（バッチ $i）"; PUSH_OK=0; }
 
-            scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -r \
+            retry_cmd scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 -r \
               data/matches/. \
               "$XSERVER_USER@$XSERVER_HOST:${XSERVER_TARGET_DIR}matches/" \
               || { echo "::warning::matches転送に失敗しました（バッチ $i）"; PUSH_OK=0; }
 
-            scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -r \
+            retry_cmd scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 -r \
               data/standings/. \
               "$XSERVER_USER@$XSERVER_HOST:${XSERVER_TARGET_DIR}standings/" \
               || { echo "::warning::standings転送に失敗しました（バッチ $i）"; PUSH_OK=0; }
 
             if [ "$PUSH_OK" -eq 1 ]; then
               echo "--- プッシュ型インポートを実行中（バッチ $i）---"
-              curl -sS -f "$IMPORT_URL" \
+              retry_cmd curl -sS -f --connect-timeout 15 --max-time 60 "$IMPORT_URL" \
                 || { echo "::warning::プッシュ型インポートに失敗しました（バッチ $i）。プル型にフォールバックします"; PUSH_OK=0; }
             fi
 
             if [ "$PUSH_OK" -eq 0 ]; then
               echo "--- scpまたはプッシュ型インポートが失敗したため、プル型（GitHubから直接取得）にフォールバックします（バッチ $i）---"
-              curl -sS -f "$PULL_IMPORT_URL" \
+              retry_cmd curl -sS -f --connect-timeout 15 --max-time 60 "$PULL_IMPORT_URL" \
                 || echo "::warning::プル型インポートも失敗しました（バッチ $i）。次のバッチへ続行します"
             fi
           done
+
+          # 全バッチ終了後、途中の同期失敗でサイト側が古いままになっていないか最終確認として、
+          # 最新のrosters.json/season_state.jsonでもう一度だけ反映を試みる（自己修復）
+          echo "=== 最終同期チェック ==="
+          FINAL_OK=1
+          retry_cmd ssh -i /tmp/deploy_key -p "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
+            "$XSERVER_USER@$XSERVER_HOST" "mkdir -p ${XSERVER_TARGET_DIR}matches ${XSERVER_TARGET_DIR}standings" \
+            || FINAL_OK=0
+          retry_cmd scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
+            data/rosters.json data/season_state.json \
+            "$XSERVER_USER@$XSERVER_HOST:$XSERVER_TARGET_DIR" \
+            || FINAL_OK=0
+          retry_cmd scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 -r \
+            data/matches/. "$XSERVER_USER@$XSERVER_HOST:${XSERVER_TARGET_DIR}matches/" \
+            || FINAL_OK=0
+          retry_cmd scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 -r \
+            data/standings/. "$XSERVER_USER@$XSERVER_HOST:${XSERVER_TARGET_DIR}standings/" \
+            || FINAL_OK=0
+          if [ "$FINAL_OK" -eq 1 ]; then
+            retry_cmd curl -sS -f --connect-timeout 15 --max-time 60 "$IMPORT_URL" || FINAL_OK=0
+          fi
+          if [ "$FINAL_OK" -eq 0 ]; then
+            retry_cmd curl -sS -f --connect-timeout 15 --max-time 60 "$PULL_IMPORT_URL" \
+              || echo "::warning::最終同期にも失敗しました。xserver側の状態を手動で確認してください（GitHub上のデータ自体は正常に保存されています）"
+          fi
 
           rm -f /tmp/deploy_key

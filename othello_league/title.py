@@ -88,7 +88,7 @@ def run_best_of_n_match(params_a, params_b, wins_needed, depth, noise_a=1.0, noi
 # ============================================================
 # 青龍戦：Aリーグ優勝者が自動でタイトルホルダーに挑戦。7局制4本先取
 # ============================================================
-def run_seiryuu_challenge(a_champion, titleholder_params, depth=2, titleholder_volatility=1.0):
+def run_seiryuu_challenge(a_champion, titleholder_params, depth=1, titleholder_volatility=1.0):
     challenger_params = effective_params(a_champion)
     won, a_wins, b_wins, games = run_best_of_n_match(
         challenger_params, titleholder_params, wins_needed=4, depth=2,
@@ -129,7 +129,7 @@ def _play_until_decided(params_x, params_y, depth, noise_x=1.0, noise_y=1.0, max
 # 朱雀戦：C1×B1の勝者がA1と対戦→Y、A2×D1の勝者がA0（青龍）と対戦→W、Y×Wで挑戦者決定。
 # 5局制3本先取
 # ============================================================
-def determine_suzaku_challenger(a0, a1, a2, b1, c1, d1, depth=2):
+def determine_suzaku_challenger(a0, a1, a2, b1, c1, d1, depth=1):
     """
     a0=青龍在位者（Aリーグの防衛専念枠）、a1/a2=Aリーグ総当たりの実質1位・2位、
     b1/c1/d1=B/C/Dリーグの今季1位。
@@ -162,7 +162,7 @@ def determine_suzaku_challenger(a0, a1, a2, b1, c1, d1, depth=2):
     return challenger, bracket_log
 
 
-def run_suzaku_challenge(challenger, titleholder_params, depth=2, titleholder_volatility=1.0):
+def run_suzaku_challenge(challenger, titleholder_params, depth=1, titleholder_volatility=1.0):
     challenger_params = effective_params(challenger)
     won, c_wins, t_wins, games = run_best_of_n_match(
         challenger_params, titleholder_params, wins_needed=3, depth=2,
@@ -254,7 +254,7 @@ def run_byakko_challenge(challenger, titleholder_params, depth=1, titleholder_vo
 
 # ============================================================
 # 玄武戦：完全ランダム抽選トーナメント（ブラケットサイズ64、Elo上位者は1回戦バイ）。
-# 探索深さ2の超早指し戦
+# 超早指し戦
 # ============================================================
 def determine_genbu_challenger(all_members, exclude_id=None, depth=1, bracket_size=64):
     """

@@ -318,7 +318,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
         old_seiryuu = None
     else:
         result = run_seiryuu_challenge(
-            a_challenger, titleholder_params["青龍"], depth=2,
+            a_challenger, titleholder_params["青龍"], depth=1,
             titleholder_volatility=champion_ind.volatility if champion_ind is not None else 1.0,
         )
         print(f"  青龍戦: {a_challenger.display_name} {result['challenger_wins']}-{result['titleholder_wins']}"
@@ -363,13 +363,28 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
             if ind is not None and ind.id == suzaku_holder_id_check:
                 suzaku_slots[key] = None
 
+    # 同一人物が複数スロットに重複して入るケースをガードする
+    # （代表例：Aリーグ総当たり1位がそのまま今季の青龍を獲得すると、a0＝new_seiryuuとa1＝
+    #   ranked_competing_A[0]が同一人物になり、その人が「a0として」「a1として」二重に対局し、
+    #   ブラケット上に同じ対戦カードが重複して現れてしまう）。
+    # a0（防衛専念枠）を最優先で残し、後から出てきた重複スロットはNone（不戦勝扱い）にする
+    seen_ids = set()
+    for key in ("a0", "a1", "a2", "b1", "c1", "d1"):
+        ind = suzaku_slots[key]
+        if ind is None:
+            continue
+        if ind.id in seen_ids:
+            suzaku_slots[key] = None
+        else:
+            seen_ids.add(ind.id)
+
     # 「本当にB/C/Dリーグが空っぽ（構造的な参加者不足）」の場合だけ見送りにする。
     # 朱雀在位者自身が除外ガードでNoneになったスロットは、single_gameが不戦勝として正しく処理できるので対象外
     if ranked_B and ranked_C and ranked_D:
         # a0・a2は青龍が空位の初年度等でNoneになりうるが、single_gameがNoneを不戦勝扱いにするので問題ない
         challenger, bracket_log = determine_suzaku_challenger(
             suzaku_slots["a0"], suzaku_slots["a1"], suzaku_slots["a2"],
-            suzaku_slots["b1"], suzaku_slots["c1"], suzaku_slots["d1"], depth=2,
+            suzaku_slots["b1"], suzaku_slots["c1"], suzaku_slots["d1"], depth=1,
         )
 
         for matchup in bracket_log:
@@ -398,7 +413,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
             defending_holder = titleholders["朱雀"]
             defending_ind_for_volatility = all_members_by_id.get(defending_holder["id"])
             result = run_suzaku_challenge(
-                challenger, titleholder_params["朱雀"], depth=2,
+                challenger, titleholder_params["朱雀"], depth=1,
                 titleholder_volatility=defending_ind_for_volatility.volatility if defending_ind_for_volatility else 1.0,
             )
             print(f"  朱雀戦: {challenger.display_name} {result['challenger_wins']}-{result['titleholder_wins']}"
@@ -426,10 +441,10 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
         print("  朱雀戦: 参加者不足のため今季は見送り")
 
     # ============================================================
-    # 白虎：Elo上位16名（前年白虎在位者は防衛専念枠として除外）による正式シードトーナメント。深さ3
+    # 白虎：Elo上位16名（前年白虎在位者は防衛専念枠として除外）による正式シードトーナメント
     # ============================================================
     byakko_holder_id = (titleholders.get("白虎") or {}).get("id")
-    challenger, bracket_log = determine_byakko_challenger(all_members, exclude_id=byakko_holder_id, depth=3, top_n=16)
+    challenger, bracket_log = determine_byakko_challenger(all_members, exclude_id=byakko_holder_id, depth=1, top_n=16)
 
     for matchup in bracket_log:
         ind_a, ind_b = all_members_by_id.get(matchup["a"]), all_members_by_id.get(matchup["b"])
@@ -483,10 +498,10 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
         })
 
     # ============================================================
-    # 玄武：完全ランダム抽選トーナメント（ブラケットサイズ64、Elo上位者はバイ）。深さ2
+    # 玄武：完全ランダム抽選トーナメント（ブラケットサイズ64、Elo上位者はバイ）
     # ============================================================
     genbu_holder_id = (titleholders.get("玄武") or {}).get("id")
-    challenger, bracket_log = determine_genbu_challenger(all_members, exclude_id=genbu_holder_id, depth=2, bracket_size=64)
+    challenger, bracket_log = determine_genbu_challenger(all_members, exclude_id=genbu_holder_id, depth=1, bracket_size=64)
 
     for matchup in bracket_log:
         ind_a, ind_b = all_members_by_id.get(matchup["a"]), all_members_by_id.get(matchup["b"])
@@ -552,7 +567,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-dir", default="data")
     parser.add_argument("--seasons", type=int, default=1)
-    parser.add_argument("--depth", type=int, default=4)
+    parser.add_argument("--depth", type=int, default=1)
     parser.add_argument("--swiss-rounds", type=int, default=4)
     args = parser.parse_args()
     print(f"[DEBUG] パース済み引数: data_dir={args.data_dir}, seasons={args.seasons}, depth={args.depth}, swiss_rounds={args.swiss_rounds}", flush=True)
