@@ -17,6 +17,27 @@ MAJOR_DOJOS = list(DOJO_BUFF_PARAM.keys())
 
 BUFF_MULTIPLIER_RANGE = (1.05, 1.20)  # 道場バフの倍率レンジ（個体ごとに少しばらつく）
 
+# 無流派の親同士から、稀に新たな道場入門が起こる確率
+# （無流派は世代を経ると純粋な偶然（遺伝的浮動）で多数派になりやすく、
+#  何もしないと8流派が数世代で先細り・絶滅してしまうため、僅かな補充を行う）
+DOJO_FOUNDING_CHANCE = 0.03
+
+
+def inherit_dojo(dojo_a, dojo_b):
+    """
+    新弟子の道場を、両親の道場から決める。
+    ・両親とも道場所属なら、どちらかの道場をランダムに継承する
+    ・片方だけ道場所属なら、その道場を継承する（無流派は劣性）
+    ・両親とも無流派なら、通常は無流派のままだが、稀に新規入門で道場に入る
+    """
+    if dojo_a and dojo_b:
+        return random.choice([dojo_a, dojo_b])
+    if dojo_a or dojo_b:
+        return dojo_a or dojo_b
+    if random.random() < DOJO_FOUNDING_CHANCE:
+        return random.choice(MAJOR_DOJOS)
+    return None
+
 AGE_BUFF_RANGES = [
     (0, 29, (0.95, 1.20)),
     (30, 39, (0.90, 1.10)),
