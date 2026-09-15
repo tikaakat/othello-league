@@ -10,7 +10,7 @@ LEAGUE_CAPACITY = {"A": 8, "B": 12, "C": 16, "D": 20}
 # 昇降格の定員設定
 A_TO_B_RELEGATE = 2  # A→B降格人数（＝B→A昇格人数）
 B_TO_C_RELEGATE = 3  # B→C降格人数（＝C→B昇格人数）
-D_TO_C_PROMOTE = 4   # D→C昇格人数
+D_TO_C_PROMOTE = 3   # D→C昇格人数（C→D降格人数と揃え、Cリーグの定員超過を防ぐ）
 
 RETIREMENT_AGE = 60
 D_CONSECUTIVE_LOSING_LIMIT = 2
@@ -82,6 +82,26 @@ def promote_and_relegate(rosters, season, name_registry=None, titleholders=None)
     C = c_remain + b_relegate_to_c + d_promote_to_c
     D = d_remain + c_relegate_to_d
 
+    # --- Cリーグが定員超過した場合はDへ降格させる（引退ではない。
+    #     A〜Cリーグの引退条件は年齢のみとする方針のため、Elo下位を退場させるのではなく
+    #     降格として扱う。本来D_TO_C_PROMOTEとC_TO_D_RELEGATEを揃えていれば
+    #     超過しないはずだが、初期ロスターが定員通りでない場合などへの保険） ---
+    def _relegate_overflow(members, capacity):
+        if len(members) <= capacity:
+            return members, []
+        protected = [ind for ind in members if ind.id in titleholder_ids]
+        sorted_members = sorted(
+            (ind for ind in members if ind.id not in titleholder_ids),
+            key=lambda ind: ind.elo, reverse=True,
+        )
+        shortage = len(members) - capacity
+        keep = sorted_members[:max(0, len(sorted_members) - shortage)]
+        overflow = sorted_members[max(0, len(sorted_members) - shortage):]
+        return protected + keep, overflow
+
+    C, c_relegate_overflow = _relegate_overflow(C, LEAGUE_CAPACITY["C"])
+    D = D + c_relegate_overflow
+
     # --- Dリーグ：2シーズン連続で負け越したら、実力・在籍年数に関わらず即引退
     #     （ただしタイトル保持者は、age_retiredと同様に猶予対象） ---
     d_up_or_out_retired = []
@@ -135,7 +155,8 @@ def promote_and_relegate(rosters, season, name_registry=None, titleholders=None)
         )
         D.extend(new_disciples)
 
-    # C・Dリーグの定員超過調整（Elo下位をカットして引退扱い。タイトル保持者はカット対象から除外）
+    # Dリーグの定員超過調整（Elo下位をカットして引退扱い。タイトル保持者はカット対象から除外。
+    # Dより下のリーグはないため、ここだけは引退させるしかない）
     def _cut_overflow(members, capacity):
         if len(members) <= capacity:
             return members, []
@@ -151,10 +172,9 @@ def promote_and_relegate(rosters, season, name_registry=None, titleholders=None)
             ind.retired = True
         return protected + keep_cuttable, over
 
-    C, c_over_retired = _cut_overflow(C, LEAGUE_CAPACITY["C"])
     D, d_over_retired = _cut_overflow(D, LEAGUE_CAPACITY["D"])
 
-    all_retired.extend(c_over_retired + d_over_retired)
+    all_retired.extend(d_over_retired)
 
     new_rosters = {"A": A, "B": B, "C": C, "D": D}
     return new_rosters, new_disciples, name_registry, all_retired
