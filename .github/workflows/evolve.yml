@@ -19,6 +19,10 @@ on:
         description: "B/C/Dリーグのスイスラウンド数"
         required: false
         default: "4"
+      reset:
+        description: "trueにすると、既存データ（ロスター・対局ログ・順位表・タイトル保持者など）を全て削除し、シーズン1から最初にやり直します"
+        required: false
+        default: "false"
   schedule:
     - cron: "0 20 * * *"
 
@@ -52,6 +56,28 @@ jobs:
 
           echo "$XSERVER_SSH_KEY" > /tmp/deploy_key
           chmod 600 /tmp/deploy_key
+
+          RESET="${{ github.event.inputs.reset || 'false' }}"
+          if [ "$RESET" = "true" ]; then
+            echo "=== 一括リセット: 既存データを削除してシーズン1からやり直します ==="
+
+            rm -rf data/rosters.json data/season_state.json data/matches data/standings
+            mkdir -p data/matches data/standings
+            touch data/matches/.gitkeep data/standings/.gitkeep
+
+            git add -A data
+            if ! git diff --staged --quiet; then
+              git commit -m "Reset season data [skip ci]"
+              git pull --rebase origin main
+              git push
+            fi
+
+            echo "--- Xserver側のデータも削除中 ---"
+            ssh -i /tmp/deploy_key -p "$XSERVER_PORT" -o StrictHostKeyChecking=no \
+              "$XSERVER_USER@$XSERVER_HOST" \
+              "rm -rf ${XSERVER_TARGET_DIR}matches ${XSERVER_TARGET_DIR}standings ${XSERVER_TARGET_DIR}rosters.json ${XSERVER_TARGET_DIR}season_state.json && mkdir -p ${XSERVER_TARGET_DIR}matches ${XSERVER_TARGET_DIR}standings" \
+              || echo "::warning::Xserver側のリセットに失敗しました。手動で確認してください"
+          fi
 
           TOTAL="${{ github.event.inputs.seasons || '1' }}"
           DEPTH="${{ github.event.inputs.depth || '4' }}"

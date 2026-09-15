@@ -1,7 +1,7 @@
 import random
 
 from .individual import LeagueIndividual
-from .dojo import MAJOR_DOJOS, assign_buff_multiplier, maybe_awaken
+from .dojo import MAJOR_DOJOS, assign_buff_multiplier, maybe_awaken, inherit_dojo
 from .names import NameRegistry
 
 # リーグの定員
@@ -82,7 +82,8 @@ def promote_and_relegate(rosters, season, name_registry=None, titleholders=None)
     C = c_remain + b_relegate_to_c + d_promote_to_c
     D = d_remain + c_relegate_to_d
 
-    # --- Dリーグ：2シーズン連続で負け越したら、実力・在籍年数に関わらず即引退 ---
+    # --- Dリーグ：2シーズン連続で負け越したら、実力・在籍年数に関わらず即引退
+    #     （ただしタイトル保持者は、age_retiredと同様に猶予対象） ---
     d_up_or_out_retired = []
     d_keep = []
     for ind in D:
@@ -90,7 +91,7 @@ def promote_and_relegate(rosters, season, name_registry=None, titleholders=None)
             ind.consecutive_losing_seasons += 1
         else:
             ind.consecutive_losing_seasons = 0
-        if ind.consecutive_losing_seasons >= D_CONSECUTIVE_LOSING_LIMIT:
+        if ind.consecutive_losing_seasons >= D_CONSECUTIVE_LOSING_LIMIT and ind.id not in titleholder_ids:
             ind.retired = True
             d_up_or_out_retired.append(ind)
         else:
@@ -134,22 +135,24 @@ def promote_and_relegate(rosters, season, name_registry=None, titleholders=None)
         )
         D.extend(new_disciples)
 
-    # C・Dリーグの定員超過調整（Elo下位をカットして引退扱い）
-    c_over_retired = []
-    if len(C) > LEAGUE_CAPACITY["C"]:
-        C.sort(key=lambda ind: ind.elo, reverse=True)
-        c_over_retired = C[LEAGUE_CAPACITY["C"]:]
-        C = C[:LEAGUE_CAPACITY["C"]]
-        for ind in c_over_retired:
+    # C・Dリーグの定員超過調整（Elo下位をカットして引退扱い。タイトル保持者はカット対象から除外）
+    def _cut_overflow(members, capacity):
+        if len(members) <= capacity:
+            return members, []
+        protected = [ind for ind in members if ind.id in titleholder_ids]
+        cuttable = sorted(
+            (ind for ind in members if ind.id not in titleholder_ids),
+            key=lambda ind: ind.elo, reverse=True,
+        )
+        shortage = len(members) - capacity
+        keep_cuttable = cuttable[:max(0, len(cuttable) - shortage)]
+        over = cuttable[max(0, len(cuttable) - shortage):]
+        for ind in over:
             ind.retired = True
+        return protected + keep_cuttable, over
 
-    d_over_retired = []
-    if len(D) > LEAGUE_CAPACITY["D"]:
-        D.sort(key=lambda ind: ind.elo, reverse=True)
-        d_over_retired = D[LEAGUE_CAPACITY["D"]:]
-        D = D[:LEAGUE_CAPACITY["D"]]
-        for ind in d_over_retired:
-            ind.retired = True
+    C, c_over_retired = _cut_overflow(C, LEAGUE_CAPACITY["C"])
+    D, d_over_retired = _cut_overflow(D, LEAGUE_CAPACITY["D"])
 
     all_retired.extend(c_over_retired + d_over_retired)
 
@@ -158,49 +161,50 @@ def promote_and_relegate(rosters, season, name_registry=None, titleholders=None)
 
 
 def generate_disciples(count, season, pool, name_registry):
-    """新弟子（Dリーグ参入個体）を生成する"""
+    """新弟子（Dリーグ参入個体）を生成する。師弟関係のため、親（師匠）は常に1人"""
     disciples = []
+
+    # 現在ロスターに1人もいない道場（絶えかけている流派）があれば、
+    # 今季の新弟子枠を使って優先的に再興させる（8大流派を恒久的に維持するため）
+    active_pool_all = [ind for ind in pool if not ind.retired]
+    existing_dojos = {ind.dojo for ind in active_pool_all if ind.dojo}
+    missing_dojos = [d for d in MAJOR_DOJOS if d not in existing_dojos]
+    random.shuffle(missing_dojos)
+
     for i in range(count):
         ind_id = f"D{season}-{i:03d}"
         display_name = name_registry.generate()
 
-        # 有効な個体プール（引退していない者）から親を選択
+        force_dojo = missing_dojos.pop() if missing_dojos else None
+
+        # 師匠（有効な個体プールからランダムに1人）を選び、その弟子として生成する
         active_pool = [ind for ind in pool if not ind.retired]
-        if len(active_pool) >= 2:
-            parent_a, parent_b = random.sample(active_pool, 2)
-            params, gen = breed_params(parent_a, parent_b)
-            p_a_id, p_b_id = parent_a.id, parent_b.id
-            dojo = parent_a.dojo if random.random() < 0.5 else parent_b.dojo
-        elif len(active_pool) == 1:
-            parent_a = active_pool[0]
-            params, gen = breed_params(parent_a, parent_a)
-            p_a_id, p_b_id = parent_a.id, None
-            dojo = parent_a.dojo
+        if active_pool:
+            master = random.choice(active_pool)
+            params, gen = mutate_params(master)
+            master_id = master.id
+            dojo = force_dojo or inherit_dojo(master.dojo)
         else:
             params = {k: round(random.uniform(0.5, 5.0), 3) for k in PARAM_KEYS}
             gen = 0
-            p_a_id, p_b_id = None, None
-            dojo = random.choice(MAJOR_DOJOS)
+            master_id = None
+            dojo = force_dojo or random.choice(MAJOR_DOJOS)
 
         # 覚醒判定
         params, awakened = maybe_awaken(params, individual_id=ind_id)
 
         ind = LeagueIndividual(
             ind_id, "D", params=params, dojo=dojo, generation=gen,
-            parent_a_id=p_a_id, parent_b_id=p_b_id, display_name=display_name,
+            parent_a_id=master_id, parent_b_id=None, display_name=display_name,
         )
         ind.awakened_param = awakened
         if dojo:
             ind.buff_multiplier = assign_buff_multiplier()
 
-        # 親の平均ムラ気を継承しつつ、少し変異（ノイズ）を加える
-        if p_a_id and p_b_id:
-            parent_a_obj = next((x for x in active_pool if x.id == p_a_id), None)
-            parent_b_obj = next((x for x in active_pool if x.id == p_b_id), None)
-            base_vol = (parent_a_obj.volatility + parent_b_obj.volatility) / 2.0 if (parent_a_obj and parent_b_obj) else 1.0
-        elif p_a_id:
-            parent_a_obj = next((x for x in active_pool if x.id == p_a_id), None)
-            base_vol = parent_a_obj.volatility if parent_a_obj else 1.0
+        # 師匠のムラ気を継承しつつ、少し変異（ノイズ）を加える
+        if master_id:
+            master_obj = next((x for x in active_pool if x.id == master_id), None)
+            base_vol = master_obj.volatility if master_obj else 1.0
         else:
             base_vol = random.uniform(0.3, 2.0)
 
@@ -213,17 +217,12 @@ def generate_disciples(count, season, pool, name_registry):
     return disciples
 
 
-def breed_params(parent_a, parent_b):
-    """2個体のパラメータを交叉・変異させて新しいパラメータセットを生成する"""
+def mutate_params(master):
+    """師匠のパラメータを継承しつつ、弟子ごとに変異（±15%程度のノイズ）を加える"""
     child_params = {}
     for k in PARAM_KEYS:
-        val_a = parent_a.params.get(k, 1.0)
-        val_b = parent_b.params.get(k, 1.0)
-        # 交叉：親の平均
-        base = (val_a + val_b) / 2.0
-        # 変異：±15%程度のノイズ
+        val = master.params.get(k, 1.0)
         mutation = random.uniform(0.85, 1.15)
-        child_params[k] = max(0.1, round(base * mutation, 3))
+        child_params[k] = max(0.1, round(val * mutation, 3))
 
-    max_gen = max(parent_a.generation, parent_b.generation)
-    return child_params, max_gen + 1
+    return child_params, master.generation + 1
