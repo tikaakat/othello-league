@@ -567,7 +567,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-dir", default="data")
     parser.add_argument("--seasons", type=int, default=1)
-    parser.add_argument("--depth", type=int, default=4)
+    parser.add_argument("--depth", type=int, default=1)
     parser.add_argument("--swiss-rounds", type=int, default=4)
     args = parser.parse_args()
     print(f"[DEBUG] パース済み引数: data_dir={args.data_dir}, seasons={args.seasons}, depth={args.depth}, swiss_rounds={args.swiss_rounds}", flush=True)
