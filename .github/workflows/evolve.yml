@@ -58,9 +58,12 @@ jobs:
           chmod 600 /tmp/deploy_key
 
           # xserverへの接続が一時的なタイムアウトで失敗することがあるため、
-          # ネットワーク系コマンドは指数バックオフで数回リトライしてから諦める
+          # ネットワーク系コマンドは短いリトライを1回だけ挟んでから諦める
+          # （xserver自体が長時間ダウンしている場合にリトライを重ねると、
+          #  1バッチあたり何分も無駄になりシーズン進行が大幅に遅くなるため、
+          #  ここでの粘りは最小限にとどめる）
           retry_cmd() {
-            local max_attempts=4
+            local max_attempts=2
             local delay=5
             local attempt=1
             until "$@"; do
@@ -69,10 +72,15 @@ jobs:
               fi
               echo "::warning::コマンド失敗（試行 $attempt/$max_attempts）。${delay}秒後にリトライします: $*"
               sleep "$delay"
-              delay=$((delay * 2))
               attempt=$((attempt + 1))
             done
           }
+
+          # xserverが今回のバッチ実行中に一度でも完全に応答不能と判明したら、
+          # 以降のバッチではリトライ・フォールバックを省略して即座に諦め、
+          # 無駄な待ち時間でシーズン進行を遅らせないようにする
+          # （最後にもう一度だけ、最終同期チェックでまとめて再挑戦する）
+          XSERVER_LIKELY_DOWN=0
 
           RESET="${{ github.event.inputs.reset || 'false' }}"
           if [ "$RESET" = "true" ]; then
@@ -128,38 +136,47 @@ jobs:
               git push
             fi
 
-            echo "--- Xserverへ反映中（バッチ $i）---"
-            PUSH_OK=1
-
-            retry_cmd ssh -i /tmp/deploy_key -p "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
-              "$XSERVER_USER@$XSERVER_HOST" "mkdir -p ${XSERVER_TARGET_DIR}matches ${XSERVER_TARGET_DIR}standings" \
-              || { echo "::warning::フォルダ作成に失敗しました（バッチ $i）"; PUSH_OK=0; }
-
-            retry_cmd scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
-              data/rosters.json data/season_state.json \
-              "$XSERVER_USER@$XSERVER_HOST:$XSERVER_TARGET_DIR" \
-              || { echo "::warning::scpでの転送に失敗しました（バッチ $i）"; PUSH_OK=0; }
-
-            retry_cmd scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 -r \
-              data/matches/. \
-              "$XSERVER_USER@$XSERVER_HOST:${XSERVER_TARGET_DIR}matches/" \
-              || { echo "::warning::matches転送に失敗しました（バッチ $i）"; PUSH_OK=0; }
-
-            retry_cmd scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 -r \
-              data/standings/. \
-              "$XSERVER_USER@$XSERVER_HOST:${XSERVER_TARGET_DIR}standings/" \
-              || { echo "::warning::standings転送に失敗しました（バッチ $i）"; PUSH_OK=0; }
-
-            if [ "$PUSH_OK" -eq 1 ]; then
-              echo "--- プッシュ型インポートを実行中（バッチ $i）---"
-              retry_cmd curl -sS -f --connect-timeout 15 --max-time 60 "$IMPORT_URL" \
-                || { echo "::warning::プッシュ型インポートに失敗しました（バッチ $i）。プル型にフォールバックします"; PUSH_OK=0; }
+            if [ "$XSERVER_LIKELY_DOWN" -eq 1 ]; then
+              echo "--- Xserverが今回既に応答不能と判明しているため、バッチ $i の反映は1回だけ軽く試みてスキップします ---"
+              ssh -i /tmp/deploy_key -p "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=8 \
+                "$XSERVER_USER@$XSERVER_HOST" "mkdir -p ${XSERVER_TARGET_DIR}matches ${XSERVER_TARGET_DIR}standings" >/dev/null 2>&1 \
+                && XSERVER_LIKELY_DOWN=0 || echo "::warning::引き続き応答なし（バッチ $i、以降も最終同期まで反映をスキップします）"
             fi
 
-            if [ "$PUSH_OK" -eq 0 ]; then
-              echo "--- scpまたはプッシュ型インポートが失敗したため、プル型（GitHubから直接取得）にフォールバックします（バッチ $i）---"
-              retry_cmd curl -sS -f --connect-timeout 15 --max-time 60 "$PULL_IMPORT_URL" \
-                || echo "::warning::プル型インポートも失敗しました（バッチ $i）。次のバッチへ続行します"
+            if [ "$XSERVER_LIKELY_DOWN" -eq 0 ]; then
+              echo "--- Xserverへ反映中（バッチ $i）---"
+              PUSH_OK=1
+
+              retry_cmd ssh -i /tmp/deploy_key -p "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=8 \
+                "$XSERVER_USER@$XSERVER_HOST" "mkdir -p ${XSERVER_TARGET_DIR}matches ${XSERVER_TARGET_DIR}standings" \
+                || { echo "::warning::フォルダ作成に失敗しました（バッチ $i）"; PUSH_OK=0; }
+
+              retry_cmd scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=8 \
+                data/rosters.json data/season_state.json \
+                "$XSERVER_USER@$XSERVER_HOST:$XSERVER_TARGET_DIR" \
+                || { echo "::warning::scpでの転送に失敗しました（バッチ $i）"; PUSH_OK=0; }
+
+              retry_cmd scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=8 -r \
+                data/matches/. \
+                "$XSERVER_USER@$XSERVER_HOST:${XSERVER_TARGET_DIR}matches/" \
+                || { echo "::warning::matches転送に失敗しました（バッチ $i）"; PUSH_OK=0; }
+
+              retry_cmd scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=8 -r \
+                data/standings/. \
+                "$XSERVER_USER@$XSERVER_HOST:${XSERVER_TARGET_DIR}standings/" \
+                || { echo "::warning::standings転送に失敗しました（バッチ $i）"; PUSH_OK=0; }
+
+              if [ "$PUSH_OK" -eq 1 ]; then
+                echo "--- プッシュ型インポートを実行中（バッチ $i）---"
+                retry_cmd curl -sS -f --connect-timeout 8 --max-time 20 "$IMPORT_URL" \
+                  || { echo "::warning::プッシュ型インポートに失敗しました（バッチ $i）。プル型にフォールバックします"; PUSH_OK=0; }
+              fi
+
+              if [ "$PUSH_OK" -eq 0 ]; then
+                echo "--- scpまたはプッシュ型インポートが失敗したため、プル型（GitHubから直接取得）にフォールバックします（バッチ $i）---"
+                retry_cmd curl -sS -f --connect-timeout 8 --max-time 20 "$PULL_IMPORT_URL" \
+                  || { echo "::warning::プル型インポートも失敗しました（バッチ $i）。以降のバッチはXserverへの反映を省略し、最終同期でまとめて再挑戦します"; XSERVER_LIKELY_DOWN=1; }
+              fi
             fi
           done
 
@@ -167,24 +184,24 @@ jobs:
           # 最新のrosters.json/season_state.jsonでもう一度だけ反映を試みる（自己修復）
           echo "=== 最終同期チェック ==="
           FINAL_OK=1
-          retry_cmd ssh -i /tmp/deploy_key -p "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
+          retry_cmd ssh -i /tmp/deploy_key -p "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=8 \
             "$XSERVER_USER@$XSERVER_HOST" "mkdir -p ${XSERVER_TARGET_DIR}matches ${XSERVER_TARGET_DIR}standings" \
             || FINAL_OK=0
-          retry_cmd scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
+          retry_cmd scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=8 \
             data/rosters.json data/season_state.json \
             "$XSERVER_USER@$XSERVER_HOST:$XSERVER_TARGET_DIR" \
             || FINAL_OK=0
-          retry_cmd scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 -r \
+          retry_cmd scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=8 -r \
             data/matches/. "$XSERVER_USER@$XSERVER_HOST:${XSERVER_TARGET_DIR}matches/" \
             || FINAL_OK=0
-          retry_cmd scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 -r \
+          retry_cmd scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=8 -r \
             data/standings/. "$XSERVER_USER@$XSERVER_HOST:${XSERVER_TARGET_DIR}standings/" \
             || FINAL_OK=0
           if [ "$FINAL_OK" -eq 1 ]; then
-            retry_cmd curl -sS -f --connect-timeout 15 --max-time 60 "$IMPORT_URL" || FINAL_OK=0
+            retry_cmd curl -sS -f --connect-timeout 8 --max-time 20 "$IMPORT_URL" || FINAL_OK=0
           fi
           if [ "$FINAL_OK" -eq 0 ]; then
-            retry_cmd curl -sS -f --connect-timeout 15 --max-time 60 "$PULL_IMPORT_URL" \
+            retry_cmd curl -sS -f --connect-timeout 8 --max-time 20 "$PULL_IMPORT_URL" \
               || echo "::warning::最終同期にも失敗しました。xserver側の状態を手動で確認してください（GitHub上のデータ自体は正常に保存されています）"
           fi
 
