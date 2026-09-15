@@ -77,10 +77,16 @@ def promote_and_relegate(rosters, season, name_registry=None, titleholders=None)
     d_promote_to_c = D[:D_TO_C_PROMOTE]
     d_remain = D[D_TO_C_PROMOTE:]
 
+    # Dリーグを卒業（Cへ昇格）する個体は、「2連続負け越し」のカウンタをリセットする。
+    # このカウンタはDリーグ在籍中の成績のみを反映すべきものなので、
+    # リセットしないと「昔Dにいた時の負け越し1回」が記録に残ったまま何季も引き継がれ、
+    # 何季も後にDへ舞い戻った際に、実際には連続していない負け越しで即引退扱いになってしまう。
+    for ind in d_promote_to_c:
+        ind.consecutive_losing_seasons = 0
+
     A = a_remain + b_promote_to_a
     B = b_remain + a_relegate + c_promote_to_b
     C = c_remain + b_relegate_to_c + d_promote_to_c
-    D = d_remain + c_relegate_to_d
 
     # --- Cリーグが定員超過した場合はDへ降格させる（引退ではない。
     #     A〜Cリーグの引退条件は年齢のみとする方針のため、Elo下位を退場させるのではなく
@@ -100,13 +106,16 @@ def promote_and_relegate(rosters, season, name_registry=None, titleholders=None)
         return protected + keep, overflow
 
     C, c_relegate_overflow = _relegate_overflow(C, LEAGUE_CAPACITY["C"])
-    D = D + c_relegate_overflow
 
     # --- Dリーグ：2シーズン連続で負け越したら、実力・在籍年数に関わらず即引退
-    #     （ただしタイトル保持者は、age_retiredと同様に猶予対象） ---
+    #     （ただしタイトル保持者は、age_retiredと同様に猶予対象）。
+    #     この判定は「今季も引き続きDに在籍していた個体（d_remain）」のみを対象にする。
+    #     今季Cから降格してきた個体（c_relegate_to_d・c_relegate_overflow）は、
+    #     まだDでの対局実績が無い（直前の成績はC所属時のもの）ため対象外とし、
+    #     カウンタを0にリセットして「Dでの連続負け越し」を来季以降ゼロから数え直す。 ---
     d_up_or_out_retired = []
     d_keep = []
-    for ind in D:
+    for ind in d_remain:
         if ind.loss_this_season > ind.win_this_season:
             ind.consecutive_losing_seasons += 1
         else:
@@ -116,7 +125,11 @@ def promote_and_relegate(rosters, season, name_registry=None, titleholders=None)
             d_up_or_out_retired.append(ind)
         else:
             d_keep.append(ind)
-    D = d_keep
+
+    new_d_arrivals = c_relegate_to_d + c_relegate_overflow
+    for ind in new_d_arrivals:
+        ind.consecutive_losing_seasons = 0
+    D = d_keep + new_d_arrivals
 
     # --- 年齢引退等でA・B・Cに定員割れが生じた場合、下位リーグのElo上位から繰り上げて埋める ---
     def _backfill(upper, lower, capacity):
