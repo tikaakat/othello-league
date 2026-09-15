@@ -318,7 +318,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
         old_seiryuu = None
     else:
         result = run_seiryuu_challenge(
-            a_challenger, titleholder_params["青龍"], depth=2,
+            a_challenger, titleholder_params["青龍"], depth=1,
             titleholder_volatility=champion_ind.volatility if champion_ind is not None else 1.0,
         )
         print(f"  青龍戦: {a_challenger.display_name} {result['challenger_wins']}-{result['titleholder_wins']}"
@@ -384,7 +384,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
         # a0・a2は青龍が空位の初年度等でNoneになりうるが、single_gameがNoneを不戦勝扱いにするので問題ない
         challenger, bracket_log = determine_suzaku_challenger(
             suzaku_slots["a0"], suzaku_slots["a1"], suzaku_slots["a2"],
-            suzaku_slots["b1"], suzaku_slots["c1"], suzaku_slots["d1"], depth=2,
+            suzaku_slots["b1"], suzaku_slots["c1"], suzaku_slots["d1"], depth=1,
         )
 
         for matchup in bracket_log:
@@ -413,7 +413,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
             defending_holder = titleholders["朱雀"]
             defending_ind_for_volatility = all_members_by_id.get(defending_holder["id"])
             result = run_suzaku_challenge(
-                challenger, titleholder_params["朱雀"], depth=2,
+                challenger, titleholder_params["朱雀"], depth=1,
                 titleholder_volatility=defending_ind_for_volatility.volatility if defending_ind_for_volatility else 1.0,
             )
             print(f"  朱雀戦: {challenger.display_name} {result['challenger_wins']}-{result['titleholder_wins']}"
@@ -441,10 +441,10 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
         print("  朱雀戦: 参加者不足のため今季は見送り")
 
     # ============================================================
-    # 白虎：Elo上位16名（前年白虎在位者は防衛専念枠として除外）による正式シードトーナメント。深さ3
+    # 白虎：Elo上位16名（前年白虎在位者は防衛専念枠として除外）による正式シードトーナメント
     # ============================================================
     byakko_holder_id = (titleholders.get("白虎") or {}).get("id")
-    challenger, bracket_log = determine_byakko_challenger(all_members, exclude_id=byakko_holder_id, depth=3, top_n=16)
+    challenger, bracket_log = determine_byakko_challenger(all_members, exclude_id=byakko_holder_id, depth=1, top_n=16)
 
     for matchup in bracket_log:
         ind_a, ind_b = all_members_by_id.get(matchup["a"]), all_members_by_id.get(matchup["b"])
@@ -498,10 +498,10 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
         })
 
     # ============================================================
-    # 玄武：完全ランダム抽選トーナメント（ブラケットサイズ64、Elo上位者はバイ）。深さ2
+    # 玄武：完全ランダム抽選トーナメント（ブラケットサイズ64、Elo上位者はバイ）
     # ============================================================
     genbu_holder_id = (titleholders.get("玄武") or {}).get("id")
-    challenger, bracket_log = determine_genbu_challenger(all_members, exclude_id=genbu_holder_id, depth=2, bracket_size=64)
+    challenger, bracket_log = determine_genbu_challenger(all_members, exclude_id=genbu_holder_id, depth=1, bracket_size=64)
 
     for matchup in bracket_log:
         ind_a, ind_b = all_members_by_id.get(matchup["a"]), all_members_by_id.get(matchup["b"])
