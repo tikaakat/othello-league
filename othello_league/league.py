@@ -131,19 +131,27 @@ def promote_and_relegate(rosters, season, name_registry=None, titleholders=None)
         ind.consecutive_losing_seasons = 0
     D = d_keep + new_d_arrivals
 
-    # --- 年齢引退等でA・B・Cに定員割れが生じた場合、下位リーグのElo上位から繰り上げて埋める ---
-    def _backfill(upper, lower, capacity):
+    # --- 年齢引退等でA・B・Cに定員割れが生じた場合、下位リーグのElo上位から繰り上げて埋める。
+    #     ただし、今季ちょうど1つ下のリーグから昇格してきたばかりの個体（exclude_ids）は
+    #     対象から除外する。タイトル奪取による大幅なElo上昇は昇降格判定より先に反映されるため、
+    #     除外しないと「今季C→B昇格 かつ タイトル獲得でEloが急騰」のような個体が、
+    #     同じ季のうちにB→Aへもバックフィルされ、CからAへ一気に飛び級してしまう ---
+    def _backfill(upper, lower, capacity, exclude_ids=frozenset()):
         shortage = capacity - len(upper)
         if shortage <= 0 or not lower:
             return upper, lower
-        lower_sorted = sorted(lower, key=lambda ind: ind.elo, reverse=True)
+        eligible = [ind for ind in lower if ind.id not in exclude_ids]
+        lower_sorted = sorted(eligible, key=lambda ind: ind.elo, reverse=True)
         take = lower_sorted[:shortage]
         take_ids = {ind.id for ind in take}
         lower_remaining = [ind for ind in lower if ind.id not in take_ids]
         return upper + take, lower_remaining
 
-    A, B = _backfill(A, B, LEAGUE_CAPACITY["A"])
-    B, C = _backfill(B, C, LEAGUE_CAPACITY["B"])
+    c_promote_to_b_ids = {ind.id for ind in c_promote_to_b}
+    d_promote_to_c_ids = {ind.id for ind in d_promote_to_c}
+
+    A, B = _backfill(A, B, LEAGUE_CAPACITY["A"], exclude_ids=c_promote_to_b_ids)
+    B, C = _backfill(B, C, LEAGUE_CAPACITY["B"], exclude_ids=d_promote_to_c_ids)
     C, D = _backfill(C, D, LEAGUE_CAPACITY["C"])
 
     # リーグ所属情報・在籍年数の更新
