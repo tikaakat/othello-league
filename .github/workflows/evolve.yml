@@ -93,8 +93,10 @@ jobs:
             git add -A data
             if ! git diff --staged --quiet; then
               git commit -m "Reset season data [skip ci]"
-              git pull --rebase origin main
-              git push
+              retry_cmd git pull --rebase origin main \
+                || echo "::warning::git pull --rebaseに失敗しました（リセット時）。そのままpushを試みます"
+              retry_cmd git push \
+                || echo "::warning::git pushに失敗しました（リセット時）。次のバッチでまとめて再pushを試みます"
             fi
 
             echo "--- Xserver側のデータも削除中 ---"
@@ -132,8 +134,10 @@ jobs:
             git add data/rosters.json data/season_state.json data/matches data/standings
             if ! git diff --staged --quiet; then
               git commit -m "Season batch $i/$TOTAL [skip ci]"
-              git pull --rebase origin main
-              git push
+              retry_cmd git pull --rebase origin main \
+                || echo "::warning::git pull --rebaseに失敗しました（バッチ $i）。そのままpushを試みます"
+              retry_cmd git push \
+                || echo "::warning::git pushに失敗しました（バッチ $i、GitHub側の一時エラーの可能性）。コミットはローカルに残り、次のバッチでまとめて再pushを試みます"
             fi
 
             if [ "$XSERVER_LIKELY_DOWN" -eq 1 ]; then
