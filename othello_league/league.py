@@ -201,6 +201,9 @@ def promote_and_relegate(rosters, season, name_registry=None, titleholders=None)
     return new_rosters, new_disciples, name_registry, all_retired
 
 
+MASTER_MIN_AGE = 30  # 師匠になれる最低年齢（師匠より年下の弟子が生まれないようにするため）
+
+
 def generate_disciples(count, season, pool, name_registry):
     """新弟子（Dリーグ参入個体）を生成する。師弟関係のため、親（師匠）は常に1人"""
     disciples = []
@@ -212,16 +215,30 @@ def generate_disciples(count, season, pool, name_registry):
     missing_dojos = [d for d in MAJOR_DOJOS if d not in existing_dojos]
     random.shuffle(missing_dojos)
 
+    # 師匠になれるのは一定年齢以上の個体のみ（該当者が誰もいない序盤などは制限なしにフォールバック）
+    eligible_masters = [ind for ind in active_pool_all if ind.age >= MASTER_MIN_AGE] or active_pool_all
+
     for i in range(count):
         ind_id = f"D{season}-{i:03d}"
         display_name = name_registry.generate()
 
         force_dojo = missing_dojos.pop() if missing_dojos else None
 
-        # 師匠（有効な個体プールからランダムに1人）を選び、その弟子として生成する
-        active_pool = [ind for ind in pool if not ind.retired]
-        if active_pool:
-            master = random.choice(active_pool)
+        # 師匠（年齢条件を満たす個体からランダムに1人）を選び、その弟子として生成する
+        if eligible_masters:
+            if force_dojo:
+                # 消滅道場の復興は、既に他の道場に属する師匠の継承を上書きしないよう、
+                # 無流派の師匠がいる場合に限って行う。いなければ今季の復興は見送り、
+                # 次に無流派の師匠候補が現れた季まで持ち越す
+                dojoless_masters = [ind for ind in eligible_masters if not ind.dojo]
+                if dojoless_masters:
+                    master = random.choice(dojoless_masters)
+                else:
+                    master = random.choice(eligible_masters)
+                    missing_dojos.append(force_dojo)
+                    force_dojo = None
+            else:
+                master = random.choice(eligible_masters)
             params, gen = mutate_params(master)
             master_id = master.id
             dojo = force_dojo or inherit_dojo(master.dojo)
@@ -244,8 +261,7 @@ def generate_disciples(count, season, pool, name_registry):
 
         # 師匠のムラ気を継承しつつ、少し変異（ノイズ）を加える
         if master_id:
-            master_obj = next((x for x in active_pool if x.id == master_id), None)
-            base_vol = master_obj.volatility if master_obj else 1.0
+            base_vol = master.volatility
         else:
             base_vol = random.uniform(0.3, 2.0)
 
