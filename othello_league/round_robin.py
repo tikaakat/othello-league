@@ -6,9 +6,9 @@ from .play import play_league_match
 from .elo import update_elo
 
 
-def run_round_robin(members, depth=4):
+def run_round_robin(members, depth=4, league_name="A", log_prefix="A"):
     """
-    Aリーグの総当たり戦。全ペアが1回ずつ対局する。
+    総当たり戦（Aリーグ、および朱雀戦の紅白リーグで使用）。全ペアが1回ずつ対局する。
     戻り値: (順位確定済みリスト, 対局ログ, 勝ち点, 個体ごとの勝敗分dict)
     """
     score = {ind.id: 0.0 for ind in members}
@@ -44,13 +44,13 @@ def run_round_robin(members, depth=4):
 
         match_log.append({
             "individual_a_id": ind_a.id, "individual_b_id": ind_b.id,
-            "result": outcome_a, "games": games, "league": "A",
+            "result": outcome_a, "games": games, "league": league_name,
         })
 
         name_a = getattr(ind_a, "display_name", None) or ind_a.id
         name_b = getattr(ind_b, "display_name", None) or ind_b.id
         elapsed = time.time() - start
-        print(f"    A局{i}/{total}: {name_a} vs {name_b} → {outcome_a}（経過{elapsed:.0f}秒）")
+        print(f"    {log_prefix}局{i}/{total}: {name_a} vs {name_b} → {outcome_a}（経過{elapsed:.0f}秒）")
 
     ranked_ids = sorted(score.keys(), key=lambda i: -score[i])
 
@@ -59,13 +59,13 @@ def run_round_robin(members, depth=4):
     tied_for_first = [i for i in ranked_ids if score[i] == top_score]
     if len(tied_for_first) > 1:
         print(f"    1位タイ（{len(tied_for_first)}名）→ 順位決定戦を実施")
-        ranked_ids = _resolve_first_place_tie(tied_for_first, ranked_ids, by_id, depth, match_log, record)
+        ranked_ids = _resolve_first_place_tie(tied_for_first, ranked_ids, by_id, depth, match_log, record, league_name)
 
     ranked_members = [by_id[i] for i in ranked_ids]
     return ranked_members, match_log, score, record
 
 
-def _resolve_first_place_tie(tied_ids, ranked_ids, by_id, depth, match_log, record):
+def _resolve_first_place_tie(tied_ids, ranked_ids, by_id, depth, match_log, record, league_name="A"):
     """1位タイの場合のみ、当事者同士で順位決定戦を行う（2名なら1局、3名以上なら総当たり）"""
     tied_members = [by_id[i] for i in tied_ids]
     tie_score = {i: 0.0 for i in tied_ids}
@@ -89,7 +89,7 @@ def _resolve_first_place_tie(tied_ids, ranked_ids, by_id, depth, match_log, reco
 
         match_log.append({
             "individual_a_id": ind_a.id, "individual_b_id": ind_b.id,
-            "result": outcome_a, "games": games, "league": "A-playoff",
+            "result": outcome_a, "games": games, "league": f"{league_name}-playoff",
         })
 
     tied_ids_resolved = sorted(tied_ids, key=lambda i: -tie_score[i])
