@@ -196,7 +196,7 @@ def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_b
 
     # --- タイトル戦 ---
     all_members = ranked_A + ranked_B + ranked_C + ranked_D
-    title_results, title_extra_match_log = _run_title_matches(
+    title_results, title_extra_match_log, suzaku_group_snapshot = _run_title_matches(
         ranked_A, ranked_competing_A, champion_ind, ranked_B, ranked_C, ranked_D, all_members, depth, state, season,
     )
     title_match_log = _title_results_to_match_log(title_results, season)
@@ -229,6 +229,10 @@ def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_b
         if not tags:
             tags = ["stay"]
         row["movement"] = ",".join(tags)
+
+    # 朱雀紅白リーグの順位・残留/陥落は、上のA〜D用ロジック（movementの上書き）の対象外として、
+    # _run_title_matchesで既に確定した正しい値のまま追加する
+    standings_snapshot += suzaku_group_snapshot
 
     print(f"  引退: {len(retired)}名（{', '.join(i.display_name for i in retired)}）" if retired else "  引退: なし")
     print(f"  新弟子: {len(new_disciples)}名")
@@ -323,6 +327,7 @@ def _title_results_to_match_log(title_results, season):
 def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ranked_C, ranked_D, all_members, depth, state, season):
     results = []
     extra_match_log = []  # タイトル戦のうち、title_history（保持者の記録）には載せない付随対局（朱雀の紅白リーグ戦等）
+    suzaku_group_snapshot = []  # 朱雀紅白リーグの順位・残留/陥落を、サイト側が独自に再計算せず正確に表示できるよう記録する
 
 # --- 旧タイトル名（陸王・空王）から新タイトル名（青龍・白虎）への1回限りの移行 ---
     old_th = state.get("titleholders")
@@ -422,7 +427,9 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
     white_others, white_holder_parked = _prep_suzaku_group(suzaku_state.get("white", []))
 
     if red_others and white_others:
-        red_ranked, white_ranked, group_match_log = run_suzaku_group_stage(red_others, white_others, depth=1)
+        red_ranked, white_ranked, red_record, white_record, group_match_log = run_suzaku_group_stage(
+            red_others, white_others, depth=1,
+        )
         extra_match_log += group_match_log
 
         red_relegate_n = min(2, len(red_ranked))
@@ -430,6 +437,35 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
         red_returning = red_ranked[:len(red_ranked) - red_relegate_n] + red_holder_parked
         white_returning = white_ranked[:len(white_ranked) - white_relegate_n] + white_holder_parked
         returning = red_returning + white_returning
+
+        # 紅白リーグの順位・残留/陥落は、この時点で決まった正しい判定をそのまま記録する。
+        # サイト側で対局結果から独自に順位を再計算すると、同率タイの並び順がここでの
+        # 実際の判定と食い違う恐れがあるため（1位タイの決定戦は考慮できても、
+        # 残留/陥落の境界で同率が起きた場合はサイト側では再現しようがない）
+        for group_name, ranked, relegate_n, record, holder_parked in (
+            ("朱雀紅組", red_ranked, red_relegate_n, red_record, red_holder_parked),
+            ("朱雀白組", white_ranked, white_relegate_n, white_record, white_holder_parked),
+        ):
+            cutoff = len(ranked) - relegate_n
+            for rank, ind in enumerate(ranked, 1):
+                rec = record.get(ind.id, {"win": 0, "loss": 0, "draw": 0})
+                suzaku_group_snapshot.append({
+                    "season": season, "league": group_name, "rank": rank,
+                    "individual_id": ind.id, "display_name": ind.display_name,
+                    "elo": round(ind.elo, 1),
+                    "win": rec["win"], "loss": rec["loss"], "draw": rec["draw"],
+                    "no_roundrobin": False,
+                    "movement": "relegated" if rank > cutoff else "stay",
+                })
+            for ind in holder_parked:
+                suzaku_group_snapshot.append({
+                    "season": season, "league": group_name, "rank": 0,
+                    "individual_id": ind.id, "display_name": ind.display_name,
+                    "elo": round(ind.elo, 1),
+                    "win": 0, "loss": 0, "draw": 0,
+                    "no_roundrobin": True,
+                    "movement": "stay",
+                })
 
         red_champion, white_champion = red_ranked[0], white_ranked[0]
         challenger, decision_info = run_suzaku_challenger_decision(red_champion, white_champion, depth=1)
@@ -639,7 +675,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
             "bracket": bracket_log,
         })
 
-    return results, extra_match_log
+    return results, extra_match_log, suzaku_group_snapshot
 
 
 def main():

@@ -159,14 +159,14 @@ def bootstrap_suzaku_league(all_members, titleholder_ids=frozenset(), a_league_o
 def run_suzaku_group_stage(red_members, white_members, depth=1):
     """
     紅組・白組それぞれで総当たりを行う。
-    戻り値: (紅組の順位確定済みリスト, 白組の順位確定済みリスト, 対局ログ)
+    戻り値: (紅組の順位確定済みリスト, 白組の順位確定済みリスト, 紅組の勝敗record, 白組の勝敗record, 対局ログ)
     """
     match_log = []
-    red_ranked, red_log, _, _ = run_round_robin(red_members, depth=depth, league_name="朱雀紅組", log_prefix="朱雀紅")
+    red_ranked, red_log, _, red_record = run_round_robin(red_members, depth=depth, league_name="朱雀紅組", log_prefix="朱雀紅")
     match_log += red_log
-    white_ranked, white_log, _, _ = run_round_robin(white_members, depth=depth, league_name="朱雀白組", log_prefix="朱雀白")
+    white_ranked, white_log, _, white_record = run_round_robin(white_members, depth=depth, league_name="朱雀白組", log_prefix="朱雀白")
     match_log += white_log
-    return red_ranked, white_ranked, match_log
+    return red_ranked, white_ranked, red_record, white_record, match_log
 
 
 def run_suzaku_challenger_decision(red_champion, white_champion, depth=1):
