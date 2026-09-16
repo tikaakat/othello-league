@@ -256,11 +256,14 @@ def run_byakko_challenge(challenger, titleholder_params, depth=1, titleholder_vo
 # 玄武戦：完全ランダム抽選トーナメント（ブラケットサイズ64、Elo上位者は1回戦バイ）。
 # 超早指し戦
 # ============================================================
-def determine_genbu_challenger(all_members, exclude_id=None, depth=1, bracket_size=64):
+def determine_genbu_challenger(all_members, exclude_id=None, depth=1, bracket_size=64,
+                                titleholder_ids=frozenset(), a_league_order=()):
     """
     全所属個体が参加する、ほぼ完全ランダムの抽選トーナメント。
     バイ（1回戦不戦勝＝2回戦から登場）の人数は bracket_size - 参加人数 で自動算出し、
-    Elo上位からその人数分を割り当てる（上位シード同士が早期に当たらないよう分散配置）。
+    優先度の高い順にその人数分を割り当てる（上位シード同士が早期に当たらないよう分散配置）。
+    優先度：①タイトル保持者（青龍・朱雀・白虎・玄武のいずれか） ②Aリーグ順位（今季、上位ほど優先）
+    ③どちらにも該当しない個体はElo順（最後のタイブレークとしてのみ使用）。
     バイに入らない残り全員は、完全ランダムに1回戦を組む。
     前年玄武在位者（exclude_id）は防衛専念枠のため、この母集団からは除外する。
     """
@@ -273,9 +276,17 @@ def determine_genbu_challenger(all_members, exclude_id=None, depth=1, bracket_si
         n = bracket_size
 
     bye_count = bracket_size - n
-    elo_ranked = sorted(pool, key=lambda ind: -ind.elo)
-    seeded = elo_ranked[:bye_count]   # 上位bye_count名：1回戦バイ（2回戦から登場）
-    rest = elo_ranked[bye_count:]     # 残り：完全ランダムに1回戦を組む
+    a_rank_by_id = {iid: rank for rank, iid in enumerate(a_league_order)}
+    not_in_a = len(a_league_order)  # Aリーグに所属していない個体は最下位扱い
+
+    def seed_priority(ind):
+        is_titleholder = ind.id in titleholder_ids
+        a_rank = a_rank_by_id.get(ind.id, not_in_a)
+        return (0 if is_titleholder else 1, a_rank, -ind.elo)
+
+    priority_ranked = sorted(pool, key=seed_priority)
+    seeded = priority_ranked[:bye_count]   # 優先度上位bye_count名：1回戦バイ（2回戦から登場）
+    rest = priority_ranked[bye_count:]     # 残り：完全ランダムに1回戦を組む
     random.shuffle(rest)
 
     # 標準シード配置で、上位シード（バイ勢）を互いに離れた山に均等配置する。
