@@ -101,7 +101,7 @@ def _build_seed_order(members, league_name, prev_standings_by_id):
     return stayed_sorted + others_sorted
 
 
-def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_by_id=None):
+def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_by_id=None, pending_characters=None):
     prev_standings_by_id = prev_standings_by_id or {}
     match_log = []
 
@@ -206,7 +206,9 @@ def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_b
     # --- 昇降格・弟子補充・引退 ---
     rosters["A"], rosters["B"], rosters["C"], rosters["D"] = ranked_A, ranked_B, ranked_C, ranked_D
     registry = NameRegistry.from_dict(state.get("name_registry", {}))
-    rosters, new_disciples, registry, retired = promote_and_relegate(rosters, season, registry, titleholders=titleholders)
+    rosters, new_disciples, registry, retired = promote_and_relegate(
+        rosters, season, registry, titleholders=titleholders, pending_characters=pending_characters,
+    )
     state["name_registry"] = registry.to_dict()
 
     # --- 昇降格・新規・引退マークを確定する ---
@@ -665,8 +667,20 @@ def main():
         rosters = bootstrap_rosters(registry)
         state["name_registry"] = registry.to_dict()
 
+    # キャラクリエイト機能：サイト側から取得済みの「作成リクエスト」があれば、このプロセスが
+    # 処理する最初のシーズンにのみ適用する（複数シーズンをまとめて回す場合、2季目以降で
+    # 重複適用しないよう、読み込んだ時点でファイルは削除する）
+    pending_characters_path = os.path.join(args.data_dir, "pending_characters.json")
+    pending_characters = None
+    if os.path.exists(pending_characters_path):
+        with open(pending_characters_path, "r", encoding="utf-8") as f:
+            pending_characters = json.load(f) or None
+        os.remove(pending_characters_path)
+        if pending_characters:
+            print(f"[DEBUG] キャラクリエイトのリクエスト{len(pending_characters)}件を今季のDリーグに適用します", flush=True)
+
     print(f"[DEBUG] これから{args.seasons}シーズン分のループに入ります", flush=True)
-    for _ in range(args.seasons):
+    for i in range(args.seasons):
         season = state["current_season"] + 1
 
         prev_standings_by_id = {}
@@ -679,6 +693,7 @@ def main():
 
         rosters, match_log, title_results, retired, standings_snapshot = run_one_season(
             rosters, season, args.depth, args.swiss_rounds, state, prev_standings_by_id,
+            pending_characters=(pending_characters if i == 0 else None),
         )
         state["current_season"] = season
         state.setdefault("retired_archive", [])

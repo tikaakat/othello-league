@@ -50,6 +50,7 @@ jobs:
           XSERVER_SSH_KEY: ${{ secrets.XSERVER_SSH_KEY }}
           IMPORT_URL: "https://lab.spia-net.com/othello-league/import_from_colab.php?key=${{ secrets.IMPORT_SECRET_KEY }}"
           PULL_IMPORT_URL: "https://lab.spia-net.com/othello-league/import_from_github.php?key=${{ secrets.IMPORT_SECRET_KEY }}"
+          PENDING_CHAR_URL: "https://lab.spia-net.com/othello-league/export_pending_characters.php?key=${{ secrets.IMPORT_SECRET_KEY }}"
         run: |
           git config user.name "othello-league-bot"
           git config user.email "actions@users.noreply.github.com"
@@ -109,6 +110,11 @@ jobs:
           TOTAL="${{ github.event.inputs.seasons || '1' }}"
           DEPTH="${{ github.event.inputs.depth || '1' }}"
           SWISS_ROUNDS="${{ github.event.inputs.swiss_rounds || '4' }}"
+
+          echo "=== キャラクリエイト：保留中の作成リクエストを取得 ==="
+          retry_cmd curl -sS -f --connect-timeout 8 --max-time 20 -o /tmp/pending_char_response.json "$PENDING_CHAR_URL" \
+            && jq '.characters // []' /tmp/pending_char_response.json > data/pending_characters.json \
+            || { echo "::warning::キャラクリエイトのリクエスト取得に失敗しました。今回は適用をスキップします"; echo '[]' > data/pending_characters.json; }
 
           for i in $(seq 1 "$TOTAL"); do
             echo "=== Running season batch $i / $TOTAL ==="

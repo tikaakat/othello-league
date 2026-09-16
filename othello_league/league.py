@@ -22,9 +22,11 @@ PARAM_KEYS = [
 ]
 
 
-def promote_and_relegate(rosters, season, name_registry=None, titleholders=None):
+def promote_and_relegate(rosters, season, name_registry=None, titleholders=None, pending_characters=None):
     """
     1シーズン終了後の昇降格、定員超過/不足の調整、新弟子の生成を行う。
+    pending_charactersが与えられた場合、キャラクリエイト機能でリクエストされた個体を
+    通常の新弟子生成より優先してDリーグに新規参入させる（要素は {"name":, "type":} の形）。
     戻り値: (更新後のrosters dict, 新弟子リスト, 更新後のname_registry, 引退者リスト)
     """
     if name_registry is None:
@@ -166,25 +168,38 @@ def promote_and_relegate(rosters, season, name_registry=None, titleholders=None)
                 ind.seasons_in_league += 1
             ind.total_seasons += 1
 
-    # Dリーグの補充（新弟子の生成）
+    # Dリーグの補充：まずキャラクリエイトのリクエストを優先的に参入させ、
+    # 残り枠のみ通常の新弟子生成で埋める
     d_departures = LEAGUE_CAPACITY["D"] - len(D)
+    created_characters = []
+    if pending_characters:
+        created_characters = [
+            _build_character_creation_individual(req, season, i)
+            for i, req in enumerate(pending_characters)
+        ]
+        D.extend(created_characters)
+
     new_disciples = []
-    if d_departures > 0:
+    remaining_slots = d_departures - len(created_characters)
+    if remaining_slots > 0:
         candidates = A + B + C + D
         new_disciples = generate_disciples(
-            count=d_departures, season=season, pool=candidates, name_registry=name_registry,
+            count=remaining_slots, season=season, pool=candidates, name_registry=name_registry,
             titleholder_ids=titleholder_ids,
         )
         D.extend(new_disciples)
+    new_disciples = created_characters + new_disciples
 
-    # Dリーグの定員超過調整（Elo下位をカットして引退扱い。タイトル保持者はカット対象から除外。
-    # Dより下のリーグはないため、ここだけは引退させるしかない）
+    # Dリーグの定員超過調整（Elo下位をカットして引退扱い。タイトル保持者・今季作成された
+    # キャラクリ個体はカット対象から除外。Dより下のリーグはないため、ここだけは引退させるしかない）
+    created_character_ids = {ind.id for ind in created_characters}
+
     def _cut_overflow(members, capacity):
         if len(members) <= capacity:
             return members, []
-        protected = [ind for ind in members if ind.id in titleholder_ids]
+        protected = [ind for ind in members if ind.id in titleholder_ids or ind.id in created_character_ids]
         cuttable = sorted(
-            (ind for ind in members if ind.id not in titleholder_ids),
+            (ind for ind in members if ind.id not in titleholder_ids and ind.id not in created_character_ids),
             key=lambda ind: ind.elo, reverse=True,
         )
         shortage = len(members) - capacity
@@ -216,6 +231,36 @@ def _master_weight(ind, titleholder_ids):
     elo_bonus = max(0.0, (ind.elo - 1500) / 200)
     title_bonus = 3.0 if ind.id in titleholder_ids else 0.0
     return 1.0 + elo_bonus + title_bonus
+
+
+# キャラクリエイト機能：サイトから指定されたタイプ傾向に応じて、該当パラメータの
+# 抽選レンジを引き上げる（強制はせず、あくまで緩やかな傾向づけにとどめる）
+CHARACTER_TYPE_BOOST_KEYS = {
+    "balanced": [],
+    "aggressive": ["mobility_weight", "frontier_weight"],
+    "defensive": ["edge_stability_weight", "danger_zone_weight"],
+    "corner": ["corner_weight", "center_weight"],
+}
+
+
+def _character_creation_params(type_tendency):
+    boosted = CHARACTER_TYPE_BOOST_KEYS.get(type_tendency, [])
+    return {
+        k: round(random.uniform(2.5, 6.0) if k in boosted else random.uniform(0.5, 5.0), 3)
+        for k in PARAM_KEYS
+    }
+
+
+def _build_character_creation_individual(request, season, index):
+    """キャラクリエイトのリクエスト（{"name":, "type":}）から新規開祖として1体生成する"""
+    ind_id = f"CC{season}-{index:03d}"
+    ind = LeagueIndividual(
+        ind_id, "D", params=_character_creation_params(request.get("type", "balanced")), generation=0,
+        parent_a_id=None, parent_b_id=None,
+        display_name=request.get("name") or ind_id, clan_root_id=ind_id,
+    )
+    ind.volatility = round(max(0.1, min(3.0, random.uniform(0.3, 2.0))), 2)
+    return ind
 
 
 def generate_disciples(count, season, pool, name_registry, titleholder_ids=frozenset()):
