@@ -51,6 +51,7 @@ jobs:
           IMPORT_URL: "https://lab.spia-net.com/othello-league/import_from_colab.php?key=${{ secrets.IMPORT_SECRET_KEY }}"
           PULL_IMPORT_URL: "https://lab.spia-net.com/othello-league/import_from_github.php?key=${{ secrets.IMPORT_SECRET_KEY }}"
           PENDING_CHAR_URL: "https://lab.spia-net.com/othello-league/export_pending_characters.php?key=${{ secrets.IMPORT_SECRET_KEY }}"
+          RESET_DB_URL: "https://lab.spia-net.com/othello-league/reset_database.php?key=${{ secrets.IMPORT_SECRET_KEY }}"
         run: |
           git config user.name "othello-league-bot"
           git config user.email "actions@users.noreply.github.com"
@@ -105,6 +106,10 @@ jobs:
               "$XSERVER_USER@$XSERVER_HOST" \
               "rm -rf ${XSERVER_TARGET_DIR}matches ${XSERVER_TARGET_DIR}standings ${XSERVER_TARGET_DIR}rosters.json ${XSERVER_TARGET_DIR}season_state.json && mkdir -p ${XSERVER_TARGET_DIR}matches ${XSERVER_TARGET_DIR}standings" \
               || echo "::warning::Xserver側のリセットに失敗しました。手動で確認してください"
+
+            echo "--- MySQL側の全テーブルもクリア中 ---"
+            retry_cmd curl -sS -f --connect-timeout 8 --max-time 20 "$RESET_DB_URL" \
+              || echo "::warning::MySQL側のリセットに失敗しました。手動で確認してください"
           fi
 
           TOTAL="${{ github.event.inputs.seasons || '1' }}"
