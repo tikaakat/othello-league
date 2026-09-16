@@ -4,7 +4,7 @@ import os
 import random
 
 from othello_league.individual import LeagueIndividual
-from othello_league.league import promote_and_relegate, LEAGUE_CAPACITY
+from othello_league.league import promote_and_relegate, LEAGUE_CAPACITY, RETIREMENT_AGE
 from othello_league.dojo import MAJOR_DOJOS, effective_params, roll_age_multipliers
 from othello_league.round_robin import run_round_robin
 from othello_league.swiss import run_swiss_league
@@ -42,8 +42,16 @@ def _random_volatility():
     return random.uniform(0.3, 2.0)
 
 
+def _random_initial_age():
+    """初年度メンバーの年齢：師弟の年齢制限（MASTER_MIN_AGE）とは無関係に、
+    18歳〜引退年齢直前までの実在しそうな年齢層を広く取り、最初から様々な世代がいる状態にする"""
+    return random.randint(18, RETIREMENT_AGE - 1)
+
+
 def bootstrap_rosters(registry):
-    """初回起動時：A/B/Cはランダム個体、Dは8大流派の開祖2名ずつで初期化する"""
+    """初回起動時：A/B/Cはランダム個体、Dは8大流派の開祖2名ずつで初期化する。
+    能力（パラメータ合計上限）はリーグが上がるほど高くなるよう傾斜配置するが、
+    年齢はリーグに関係なく幅広くランダムにする"""
     rosters = {}
     for league in ("A", "B", "C"):
         cap = LEAGUE_CAPACITY[league]
@@ -52,6 +60,7 @@ def bootstrap_rosters(registry):
                 f"{league}0-{i:03d}", league,
                 params=_random_params_with_cap(INITIAL_SUM_CAP[league]),
                 display_name=registry.generate(),
+                initial_age=_random_initial_age(),
             )
             for i in range(cap)
         ]
@@ -65,6 +74,7 @@ def bootstrap_rosters(registry):
             f"D0-{i:03d}", "D", dojo=dojo,
             params=_random_params_with_cap(INITIAL_SUM_CAP["D"]),
             display_name=registry.generate(),
+            initial_age=_random_initial_age(),
         )
         ind.volatility = _random_volatility()
         d_members.append(ind)
