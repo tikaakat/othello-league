@@ -203,6 +203,7 @@ def promote_and_relegate(rosters, season, name_registry=None, titleholders=None)
 
 
 MASTER_MIN_AGE = 30  # 師匠になれる最低年齢（師匠より年下の弟子が生まれないようにするため）
+AWAKENED_INITIAL_AGE_RANGE = (14, 16)  # 覚醒個体の参入年齢（通常は18〜24歳）
 
 # 一門イベントの確率（新弟子1人あたり）
 CLAN_BRANCH_CHANCE = 0.03       # 師匠の弟子になるが、本人が新しい一門の開祖として分岐する
@@ -252,13 +253,14 @@ def generate_disciples(count, season, pool, name_registry, titleholder_ids=froze
             master_id = None
             clan_root_id = ind_id
 
-        # 覚醒判定
+        # 覚醒判定：覚醒した個体は「神童」的な扱いとして、通常より若い年齢で参入することがある
         params, awakened = maybe_awaken(params, individual_id=ind_id)
+        initial_age = random.randint(*AWAKENED_INITIAL_AGE_RANGE) if awakened else None
 
         ind = LeagueIndividual(
             ind_id, "D", params=params, generation=gen,
             parent_a_id=master_id, parent_b_id=None, display_name=display_name,
-            clan_root_id=clan_root_id,
+            clan_root_id=clan_root_id, initial_age=initial_age,
         )
         ind.awakened_param = awakened
 
