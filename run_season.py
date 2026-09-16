@@ -5,7 +5,7 @@ import random
 
 from othello_league.individual import LeagueIndividual
 from othello_league.league import promote_and_relegate, LEAGUE_CAPACITY, RETIREMENT_AGE
-from othello_league.dojo import MAJOR_DOJOS, effective_params, roll_age_multipliers
+from othello_league.buffs import effective_params, roll_age_multipliers
 from othello_league.round_robin import run_round_robin
 from othello_league.swiss import run_swiss_league
 from othello_league.title import (
@@ -69,9 +69,8 @@ def bootstrap_rosters(registry):
 
     d_members = []
     for i in range(LEAGUE_CAPACITY["D"]):
-        dojo = MAJOR_DOJOS[i % len(MAJOR_DOJOS)]
         ind = LeagueIndividual(
-            f"D0-{i:03d}", "D", dojo=dojo,
+            f"D0-{i:03d}", "D",
             params=_random_params_with_cap(INITIAL_SUM_CAP["D"]),
             display_name=registry.generate(),
             initial_age=_random_initial_age(),
@@ -183,7 +182,7 @@ def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_b
             standings_snapshot.append({
                 "season": season, "league": league_name, "rank": rank,
                 "individual_id": ind.id, "display_name": ind.display_name,
-                "dojo": ind.dojo, "elo": round(ind.elo, 1),
+                "elo": round(ind.elo, 1),
                 "win": rec["win"], "loss": rec["loss"], "draw": rec["draw"],
                 "no_roundrobin": no_roundrobin,
             })

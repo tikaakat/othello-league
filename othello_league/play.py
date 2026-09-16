@@ -1,6 +1,6 @@
 from . import board as B
 from . import engine as E
-from .dojo import effective_params
+from .buffs import effective_params
 import random
 
 MAX_REMATCH_ATTEMPTS = 3  # 引き分けが続いた場合の再戦上限（それでも決着しなければ引き分け扱い）

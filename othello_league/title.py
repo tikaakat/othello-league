@@ -2,7 +2,7 @@ import random
 
 from . import board as B
 from . import engine as E
-from .dojo import effective_params
+from .buffs import effective_params
 
 
 def _play_one_game(params_black, params_white, depth, noise_black=1.0, noise_white=1.0):

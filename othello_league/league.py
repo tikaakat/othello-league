@@ -1,7 +1,7 @@
 import random
 
 from .individual import LeagueIndividual
-from .dojo import MAJOR_DOJOS, assign_buff_multiplier, maybe_awaken, inherit_dojo
+from .buffs import maybe_awaken
 from .names import NameRegistry
 
 # リーグの定員
@@ -172,7 +172,8 @@ def promote_and_relegate(rosters, season, name_registry=None, titleholders=None)
     if d_departures > 0:
         candidates = A + B + C + D
         new_disciples = generate_disciples(
-            count=d_departures, season=season, pool=candidates, name_registry=name_registry
+            count=d_departures, season=season, pool=candidates, name_registry=name_registry,
+            titleholder_ids=titleholder_ids,
         )
         D.extend(new_disciples)
 
@@ -203,18 +204,29 @@ def promote_and_relegate(rosters, season, name_registry=None, titleholders=None)
 
 MASTER_MIN_AGE = 30  # 師匠になれる最低年齢（師匠より年下の弟子が生まれないようにするため）
 
+# 一門イベントの確率（新弟子1人あたり）
+CLAN_BRANCH_CHANCE = 0.03       # 師匠の弟子になるが、本人が新しい一門の開祖として分岐する
+CLAN_NEW_FOUNDER_CHANCE = 0.01  # 師匠を持たず、完全ランダムな能力の新規開祖として参入する
 
-def generate_disciples(count, season, pool, name_registry):
-    """新弟子（Dリーグ参入個体）を生成する。師弟関係のため、親（師匠）は常に1人"""
+
+def _master_weight(ind, titleholder_ids):
+    """師匠として選ばれやすさの重み。Eloが高いほど、タイトルを保持しているほど選ばれやすくする
+    （強い一門ほど自然と子孫を残しやすくなる。ベースは1.0なので誰にでもチャンスはある）"""
+    elo_bonus = max(0.0, (ind.elo - 1500) / 200)
+    title_bonus = 3.0 if ind.id in titleholder_ids else 0.0
+    return 1.0 + elo_bonus + title_bonus
+
+
+def generate_disciples(count, season, pool, name_registry, titleholder_ids=frozenset()):
+    """
+    新弟子（Dリーグ参入個体）を生成する。師弟関係のため、親（師匠）は常に1人。
+    師匠はElo・タイトル保持で重み付けした抽選で選ばれる（強い一門ほど子孫を残しやすい）。
+    稀に「分岐」（弟子ではあるが新しい一門の開祖になる）や「新規開祖」
+    （師匠を持たず完全ランダムな能力で参入する）が起きる。
+    """
     disciples = []
 
-    # 現在ロスターに1人もいない道場（絶えかけている流派）があれば、
-    # 今季の新弟子枠を使って優先的に再興させる（8大流派を恒久的に維持するため）
     active_pool_all = [ind for ind in pool if not ind.retired]
-    existing_dojos = {ind.dojo for ind in active_pool_all if ind.dojo}
-    missing_dojos = [d for d in MAJOR_DOJOS if d not in existing_dojos]
-    random.shuffle(missing_dojos)
-
     # 師匠になれるのは一定年齢以上の個体のみ（該当者が誰もいない序盤などは制限なしにフォールバック）
     eligible_masters = [ind for ind in active_pool_all if ind.age >= MASTER_MIN_AGE] or active_pool_all
 
@@ -222,48 +234,36 @@ def generate_disciples(count, season, pool, name_registry):
         ind_id = f"D{season}-{i:03d}"
         display_name = name_registry.generate()
 
-        force_dojo = missing_dojos.pop() if missing_dojos else None
+        if not eligible_masters:
+            master = None  # 現役個体が誰もいない極端なケース：師匠なしで生成するしかない
+        elif random.random() < CLAN_NEW_FOUNDER_CHANCE:
+            master = None  # 新規開祖：あえて師匠を持たない
+        else:
+            weights = [_master_weight(ind, titleholder_ids) for ind in eligible_masters]
+            master = random.choices(eligible_masters, weights=weights, k=1)[0]
 
-        # 師匠（年齢条件を満たす個体からランダムに1人）を選び、その弟子として生成する
-        if eligible_masters:
-            if force_dojo:
-                # 消滅道場の復興は、既に他の道場に属する師匠の継承を上書きしないよう、
-                # 無流派の師匠がいる場合に限って行う。いなければ今季の復興は見送り、
-                # 次に無流派の師匠候補が現れた季まで持ち越す
-                dojoless_masters = [ind for ind in eligible_masters if not ind.dojo]
-                if dojoless_masters:
-                    master = random.choice(dojoless_masters)
-                else:
-                    master = random.choice(eligible_masters)
-                    missing_dojos.append(force_dojo)
-                    force_dojo = None
-            else:
-                master = random.choice(eligible_masters)
+        if master:
             params, gen = mutate_params(master)
             master_id = master.id
-            dojo = force_dojo or inherit_dojo(master.dojo)
+            clan_root_id = ind_id if random.random() < CLAN_BRANCH_CHANCE else master.clan_root_id
         else:
             params = {k: round(random.uniform(0.5, 5.0), 3) for k in PARAM_KEYS}
             gen = 0
             master_id = None
-            dojo = force_dojo or random.choice(MAJOR_DOJOS)
+            clan_root_id = ind_id
 
         # 覚醒判定
         params, awakened = maybe_awaken(params, individual_id=ind_id)
 
         ind = LeagueIndividual(
-            ind_id, "D", params=params, dojo=dojo, generation=gen,
+            ind_id, "D", params=params, generation=gen,
             parent_a_id=master_id, parent_b_id=None, display_name=display_name,
+            clan_root_id=clan_root_id,
         )
         ind.awakened_param = awakened
-        if dojo:
-            ind.buff_multiplier = assign_buff_multiplier()
 
         # 師匠のムラ気を継承しつつ、少し変異（ノイズ）を加える
-        if master_id:
-            base_vol = master.volatility
-        else:
-            base_vol = random.uniform(0.3, 2.0)
+        base_vol = master.volatility if master else random.uniform(0.3, 2.0)
 
         # ムラ気の変異（±0.2程度）
         vol = base_vol + random.uniform(-0.2, 0.2)
