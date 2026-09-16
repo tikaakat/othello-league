@@ -10,7 +10,8 @@ from othello_league.round_robin import run_round_robin
 from othello_league.swiss import run_swiss_league
 from othello_league.title import (
     run_seiryuu_challenge,
-    determine_suzaku_challenger, run_suzaku_challenge,
+    bootstrap_suzaku_league, run_suzaku_group_stage, run_suzaku_challenger_decision,
+    determine_suzaku_qualifiers, assign_suzaku_groups, run_suzaku_challenge,
     determine_byakko_challenger, run_byakko_challenge,
     determine_genbu_challenger, run_genbu_challenge,
 )
@@ -195,11 +196,12 @@ def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_b
 
     # --- タイトル戦 ---
     all_members = ranked_A + ranked_B + ranked_C + ranked_D
-    title_results = _run_title_matches(
+    title_results, title_extra_match_log = _run_title_matches(
         ranked_A, ranked_competing_A, champion_ind, ranked_B, ranked_C, ranked_D, all_members, depth, state, season,
     )
     title_match_log = _title_results_to_match_log(title_results, season)
     match_log += title_match_log
+    match_log += title_extra_match_log
 
     # --- 昇降格・弟子補充・引退 ---
     rosters["A"], rosters["B"], rosters["C"], rosters["D"] = ranked_A, ranked_B, ranked_C, ranked_D
@@ -247,6 +249,41 @@ def _result_from_winner_tag(tag):
     return "win" if tag == "a" else "loss"
 
 
+def _best_of_n_to_match_log(games, league_name, a_id, b_id):
+    """run_best_of_n_matchのgames_log（先取制の本戦・決定戦）をmatch_logの形式に変換する"""
+    entries = []
+    for g in games:
+        entries.append({
+            "league": league_name,
+            "individual_a_id": a_id,
+            "individual_b_id": b_id,
+            "result": _result_from_winner_tag(g.get("winner")),
+            "games": [g],
+        })
+    return entries
+
+
+def _bracket_log_to_match_log(bracket_log, league_name):
+    """determine_*_challenger等のbracket_log（トーナメント）をmatch_logの形式に変換する"""
+    entries = []
+    for matchup in bracket_log:
+        x_id, y_id = matchup["a"], matchup["b"]
+        for g in matchup.get("games", []):
+            if g["result"] == "draw":
+                result_for_log = "draw"
+            else:
+                x_won = (g["result"] == "black") == g["x_was_black"]
+                result_for_log = "win" if x_won else "loss"
+            entries.append({
+                "league": league_name,
+                "individual_a_id": x_id,
+                "individual_b_id": y_id,
+                "result": result_for_log,
+                "games": [g],
+            })
+    return entries
+
+
 def _title_results_to_match_log(title_results, season):
     entries = []
     for r in title_results:
@@ -283,7 +320,8 @@ def _title_results_to_match_log(title_results, season):
 
 def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ranked_C, ranked_D, all_members, depth, state, season):
     results = []
-    
+    extra_match_log = []  # タイトル戦のうち、title_history（保持者の記録）には載せない付随対局（朱雀の紅白リーグ戦等）
+
 # --- 旧タイトル名（陸王・空王）から新タイトル名（青龍・白虎）への1回限りの移行 ---
     old_th = state.get("titleholders")
     if old_th is not None and "陸王" in old_th:
@@ -354,61 +392,56 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
         })
 
     # ============================================================
-    # 朱雀：C1×B1の勝者→A1、A2×D1の勝者→A0（青龍）、その勝者同士で挑戦者決定
+    # 朱雀：紅白2組（各5名）の永続サブリーグ。両組の総当たり→両組1位による挑戦者決定戦→
+    # 朱雀本戦。両組下位2名（計4名）が陥落し、紅白リーグ外の全個体による4ブロック入れ替え戦
+    # （タイトル保持者＞Aリーグ順位のシード）で補充する。
     # ============================================================
-    suzaku_a0 = new_seiryuu
-    suzaku_a1 = ranked_competing_A[0] if len(ranked_competing_A) >= 1 else None
-    suzaku_a2 = ranked_competing_A[1] if len(ranked_competing_A) >= 2 else None
-    suzaku_b1 = ranked_B[0] if ranked_B else None
-    suzaku_c1 = ranked_C[0] if ranked_C else None
-    suzaku_d1 = ranked_D[0] if ranked_D else None
+    suzaku_holder_id = (titleholders.get("朱雀") or {}).get("id")
+    suzaku_seed_titleholder_ids = {info["id"] for info in titleholders.values() if info and info.get("id")}
+    suzaku_seed_a_order = [ind.id for ind in ranked_A]
+    suzaku_state = state.setdefault("suzaku_league", {"red": [], "white": []})
 
-    # 朱雀在位者自身がどのスロットに入っていても自己対戦にならないよう、全スロット共通でガードする
-    suzaku_holder_id_check = (titleholders.get("朱雀") or {}).get("id")
-    suzaku_slots = {"a0": suzaku_a0, "a1": suzaku_a1, "a2": suzaku_a2,
-                     "b1": suzaku_b1, "c1": suzaku_c1, "d1": suzaku_d1}
-    if suzaku_holder_id_check:
-        for key, ind in suzaku_slots.items():
-            if ind is not None and ind.id == suzaku_holder_id_check:
-                suzaku_slots[key] = None
-
-    # 同一人物が複数スロットに重複して入るケースをガードする
-    # （代表例：Aリーグ総当たり1位がそのまま今季の青龍を獲得すると、a0＝new_seiryuuとa1＝
-    #   ranked_competing_A[0]が同一人物になり、その人が「a0として」「a1として」二重に対局し、
-    #   ブラケット上に同じ対戦カードが重複して現れてしまう）。
-    # a0（防衛専念枠）を最優先で残し、後から出てきた重複スロットはNone（不戦勝扱い）にする
-    seen_ids = set()
-    for key in ("a0", "a1", "a2", "b1", "c1", "d1"):
-        ind = suzaku_slots[key]
-        if ind is None:
-            continue
-        if ind.id in seen_ids:
-            suzaku_slots[key] = None
-        else:
-            seen_ids.add(ind.id)
-
-    # 「本当にB/C/Dリーグが空っぽ（構造的な参加者不足）」の場合だけ見送りにする。
-    # 朱雀在位者自身が除外ガードでNoneになったスロットは、single_gameが不戦勝として正しく処理できるので対象外
-    if ranked_B and ranked_C and ranked_D:
-        # a0・a2は青龍が空位の初年度等でNoneになりうるが、single_gameがNoneを不戦勝扱いにするので問題ない
-        challenger, bracket_log = determine_suzaku_challenger(
-            suzaku_slots["a0"], suzaku_slots["a1"], suzaku_slots["a2"],
-            suzaku_slots["b1"], suzaku_slots["c1"], suzaku_slots["d1"], depth=1,
+    if not suzaku_state.get("red") and not suzaku_state.get("white"):
+        bootstrap_pool = [ind for ind in all_members if ind.id != suzaku_holder_id]
+        red_ids, white_ids = bootstrap_suzaku_league(
+            bootstrap_pool, titleholder_ids=suzaku_seed_titleholder_ids, a_league_order=suzaku_seed_a_order,
         )
+        suzaku_state["red"], suzaku_state["white"] = red_ids, white_ids
 
-        for matchup in bracket_log:
-            ind_a, ind_b = all_members_by_id.get(matchup["a"]), all_members_by_id.get(matchup["b"])
-            if ind_a and ind_b:
-                for g in matchup.get("games", []):
-                    if g["result"] == "draw":
-                        outcome_a = "draw"
-                    else:
-                        x_won = (g["result"] == "black") == g["x_was_black"]
-                        outcome_a = "win" if x_won else "loss"
-                    ind_a.elo, ind_b.elo = update_elo(
-                        ind_a.elo, ind_b.elo, outcome_a,
-                        total_seasons_a=ind_a.total_seasons, total_seasons_b=ind_b.total_seasons,
-                    )
+    def _prep_suzaku_group(ids):
+        # 在位者は防衛専念枠のため、紅白リーグに在籍していても今季の総当たりには参加させず、
+        # 無条件で「残留」扱いにする（他タイトルの在位者除外パターンと同じ考え方）
+        members = [all_members_by_id[i] for i in ids if i in all_members_by_id]
+        holder_parked = [m for m in members if m.id == suzaku_holder_id]
+        others = [m for m in members if m.id != suzaku_holder_id]
+        return others, holder_parked
+
+    red_others, red_holder_parked = _prep_suzaku_group(suzaku_state.get("red", []))
+    white_others, white_holder_parked = _prep_suzaku_group(suzaku_state.get("white", []))
+
+    if red_others and white_others:
+        red_ranked, white_ranked, group_match_log = run_suzaku_group_stage(red_others, white_others, depth=1)
+        extra_match_log += group_match_log
+
+        red_relegate_n = min(2, len(red_ranked))
+        white_relegate_n = min(2, len(white_ranked))
+        red_returning = red_ranked[:len(red_ranked) - red_relegate_n] + red_holder_parked
+        white_returning = white_ranked[:len(white_ranked) - white_relegate_n] + white_holder_parked
+        returning = red_returning + white_returning
+
+        red_champion, white_champion = red_ranked[0], white_ranked[0]
+        challenger, decision_info = run_suzaku_challenger_decision(red_champion, white_champion, depth=1)
+        print(f"  朱雀・挑戦者決定戦: {red_champion.display_name}（紅組1位） {decision_info['red_wins']}"
+              f"-{decision_info['white_wins']} {white_champion.display_name}（白組1位） → 挑戦者は{challenger.display_name}")
+        extra_match_log += _best_of_n_to_match_log(
+            decision_info["games"], "朱雀挑戦者決定戦", red_champion.id, white_champion.id,
+        )
+        for g in decision_info["games"]:
+            outcome_red = _result_from_winner_tag(g.get("winner"))
+            red_champion.elo, white_champion.elo = update_elo(
+                red_champion.elo, white_champion.elo, outcome_red,
+                total_seasons_a=red_champion.total_seasons, total_seasons_b=white_champion.total_seasons,
+            )
 
         if titleholders["朱雀"] is None:
             titleholders["朱雀"] = {"id": challenger.id, "name": challenger.display_name}
@@ -416,7 +449,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
             print(f"  ★ 朱雀 初代襲名: {challenger.display_name}")
             results.append({
                 "title": "朱雀", "season": season, "event": "初代襲名",
-                "new_holder": challenger.display_name, "bracket": bracket_log,
+                "new_holder": challenger.display_name,
             })
         else:
             defending_holder = titleholders["朱雀"]
@@ -444,10 +477,41 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
                 "challenger_name": challenger.display_name,
                 "holder_name": holder_name, "holder_id": holder_id,
                 "defender_id": defending_holder["id"],
-                "bracket": bracket_log,
             })
+
+        # 新王者になった挑戦者は、来季は防衛専念枠に回るため残留組からは外す
+        new_holder_id = titleholders["朱雀"]["id"]
+        returning = [ind for ind in returning if ind.id != new_holder_id]
+
+        num_new_needed = max(0, 10 - len(returning))
+        suzaku_exclude_ids = {m.id for m in red_others + white_others + red_holder_parked + white_holder_parked}
+        if suzaku_holder_id:
+            suzaku_exclude_ids.add(suzaku_holder_id)
+        suzaku_exclude_ids.add(new_holder_id)
+        qualifiers, qualifier_bracket_log = determine_suzaku_qualifiers(
+            all_members, exclude_ids=suzaku_exclude_ids, depth=1, num_blocks=num_new_needed,
+            titleholder_ids=suzaku_seed_titleholder_ids, a_league_order=suzaku_seed_a_order,
+        )
+        extra_match_log += _bracket_log_to_match_log(qualifier_bracket_log, "朱雀予選")
+
+        for matchup in qualifier_bracket_log:
+            ind_a, ind_b = all_members_by_id.get(matchup["a"]), all_members_by_id.get(matchup["b"])
+            if ind_a and ind_b:
+                for g in matchup.get("games", []):
+                    if g["result"] == "draw":
+                        outcome_a = "draw"
+                    else:
+                        x_won = (g["result"] == "black") == g["x_was_black"]
+                        outcome_a = "win" if x_won else "loss"
+                    ind_a.elo, ind_b.elo = update_elo(
+                        ind_a.elo, ind_b.elo, outcome_a,
+                        total_seasons_a=ind_a.total_seasons, total_seasons_b=ind_b.total_seasons,
+                    )
+
+        red_ids_next, white_ids_next = assign_suzaku_groups(returning, qualifiers)
+        suzaku_state["red"], suzaku_state["white"] = red_ids_next, white_ids_next
     else:
-        print("  朱雀戦: 参加者不足のため今季は見送り")
+        print("  朱雀戦: 紅白リーグの参加者不足のため今季は見送り")
 
     # ============================================================
     # 白虎：Elo上位16名（前年白虎在位者は防衛専念枠として除外）による正式シードトーナメント
@@ -568,7 +632,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
             "bracket": bracket_log,
         })
 
-    return results
+    return results, extra_match_log
 
 
 def main():

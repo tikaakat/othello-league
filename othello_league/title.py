@@ -3,6 +3,7 @@ import random
 from . import board as B
 from . import engine as E
 from .buffs import effective_params
+from .round_robin import run_round_robin
 
 
 def _play_one_game(params_black, params_white, depth, noise_black=1.0, noise_white=1.0):
@@ -126,16 +127,94 @@ def _play_until_decided(params_x, params_y, depth, noise_x=1.0, noise_y=1.0, max
 
 
 # ============================================================
-# 朱雀戦：C1×B1の勝者がA1と対戦→Y、A2×D1の勝者がA0（青龍）と対戦→W、Y×Wで挑戦者決定。
-# 5局制3本先取
+# 朱雀戦：紅白2組（各5名）の永続サブリーグ方式。
+# 毎季、紅組・白組それぞれで総当たりを行い、両組1位同士の挑戦者決定戦（5局制3本先取）で
+# 朱雀への挑戦者を決める。両組の下位2名（計4名）は陥落し、紅白リーグ外の全個体による
+# 4ブロックトーナメント（ブロックごとに優勝者1名、シードはタイトル保持者＞Aリーグ順位）で
+# 入れ替えの4名を決定する。残留6名（紅白各3名）と新規4名は、来季また紅白各3名+2名に
+# ランダムに組み直される。
 # ============================================================
-def determine_suzaku_challenger(a0, a1, a2, b1, c1, d1, depth=1):
+def bootstrap_suzaku_league(all_members, titleholder_ids=frozenset(), a_league_order=(), size_per_group=5):
     """
-    a0=青龍在位者（Aリーグの防衛専念枠）、a1/a2=Aリーグ総当たりの実質1位・2位、
-    b1/c1/d1=B/C/Dリーグの今季1位。
-    朱雀在位者自身と同一人物のスロットがあれば、run_season.py側でそのスロットにNoneを渡すことで
-    不戦勝扱いにできる（どのスロットでも安全に機能する）。
+    紅白リーグがまだ存在しない最初の季に、初期メンバー10名を選出して紅白に振り分ける。
+    優先度はタイトル保持者＞Aリーグ順位＞Elo（玄武戦のシード優先度と同じ考え方）。
+    戻り値: (red_ids, white_ids)
     """
+    a_rank_by_id = {iid: rank for rank, iid in enumerate(a_league_order)}
+    not_in_a = len(a_league_order)
+
+    def seed_priority(ind):
+        is_title = ind.id in titleholder_ids
+        a_rank = a_rank_by_id.get(ind.id, not_in_a)
+        return (0 if is_title else 1, a_rank, -ind.elo)
+
+    ranked = sorted(all_members, key=seed_priority)
+    chosen = ranked[:size_per_group * 2]
+    random.shuffle(chosen)
+    red = chosen[:size_per_group]
+    white = chosen[size_per_group:size_per_group * 2]
+    return [ind.id for ind in red], [ind.id for ind in white]
+
+
+def run_suzaku_group_stage(red_members, white_members, depth=1):
+    """
+    紅組・白組それぞれで総当たりを行う。
+    戻り値: (紅組の順位確定済みリスト, 白組の順位確定済みリスト, 対局ログ)
+    """
+    match_log = []
+    red_ranked, red_log, _, _ = run_round_robin(red_members, depth=depth, league_name="朱雀紅組", log_prefix="朱雀紅")
+    match_log += red_log
+    white_ranked, white_log, _, _ = run_round_robin(white_members, depth=depth, league_name="朱雀白組", log_prefix="朱雀白")
+    match_log += white_log
+    return red_ranked, white_ranked, match_log
+
+
+def run_suzaku_challenger_decision(red_champion, white_champion, depth=1):
+    """紅組1位 vs 白組1位で朱雀への挑戦者を決める（5局制3本先取）"""
+    x_won, x_wins, y_wins, games = run_best_of_n_match(
+        effective_params(red_champion), effective_params(white_champion), wins_needed=3, depth=depth,
+        noise_a=red_champion.volatility, noise_b=white_champion.volatility,
+    )
+    challenger = red_champion if x_won else white_champion
+    return challenger, {
+        "red_id": red_champion.id, "white_id": white_champion.id,
+        "winner_id": challenger.id, "red_wins": x_wins, "white_wins": y_wins, "games": games,
+    }
+
+
+def determine_suzaku_qualifiers(all_members, exclude_ids=frozenset(), depth=1, num_blocks=4,
+                                 titleholder_ids=frozenset(), a_league_order=()):
+    """
+    紅白リーグ外の全個体による入れ替え戦。優先度（タイトル保持者＞Aリーグ順位＞Elo）順に
+    num_blocks個のブロックへスネーク配分し、ブロックごとにシード付き単独トーナメントを行い、
+    ブロック優勝者（計num_blocks名）を返す。
+    戻り値: (優勝者のリスト, 対局ログ)
+    """
+    pool = [ind for ind in all_members if ind.id not in exclude_ids]
+    a_rank_by_id = {iid: rank for rank, iid in enumerate(a_league_order)}
+    not_in_a = len(a_league_order)
+
+    def seed_priority(ind):
+        is_title = ind.id in titleholder_ids
+        a_rank = a_rank_by_id.get(ind.id, not_in_a)
+        return (0 if is_title else 1, a_rank, -ind.elo)
+
+    ranked = sorted(pool, key=seed_priority)
+
+    # スネーク配分：1,2,3,4番目のシードを別々のブロックへ最初に割り当て、以降は折り返しながら配る
+    blocks = [[] for _ in range(num_blocks)]
+    b, direction = 0, 1
+    for ind in ranked:
+        blocks[b].append(ind)
+        if direction == 1:
+            b += 1
+            if b == num_blocks:
+                b, direction = num_blocks - 1, -1
+        else:
+            b -= 1
+            if b < 0:
+                b, direction = 0, 1
+
     bracket_log = []
 
     def single_game(ind_x, ind_y):
@@ -153,13 +232,54 @@ def determine_suzaku_challenger(a0, a1, a2, b1, c1, d1, depth=1):
         })
         return winner_ind
 
-    x = single_game(c1, b1)
-    y = single_game(x, a1)
-    z = single_game(a2, d1)
-    w = single_game(z, a0)
-    challenger = single_game(y, w)
+    winners = []
+    for block in blocks:
+        if not block:
+            continue
+        n = len(block)
+        bracket_size = 1
+        while bracket_size < n:
+            bracket_size *= 2
+        slots = block + [None] * (bracket_size - n)
+        order = _bracket_seed_order(bracket_size)
+        round_members = [slots[i] for i in order]
+        while len(round_members) > 1:
+            next_round = []
+            for i in range(0, len(round_members), 2):
+                next_round.append(single_game(round_members[i], round_members[i + 1]))
+            round_members = next_round
+        winners.append(round_members[0])
 
-    return challenger, bracket_log
+    return winners, bracket_log
+
+
+def assign_suzaku_groups(returning, new_qualifiers, size_per_group=5):
+    """
+    紅白リーグの来季メンバーを決める：残留メンバー（通常6名）を各組3名を目安に均等に振り分け、
+    新規メンバー（通常4名、入れ替え戦のブロック優勝者）を残り枠（各組2名を目安）に均等に配分する。
+    在位者除外等の事情で残留・新規の人数が通常と異なる場合も、各組size_per_group名になるよう
+    できるだけ均等に配分する（通常ケースでは各組「残留3名＋新規2名」になる）。
+    戻り値: (red_ids, white_ids)
+    """
+    returning_shuffled = list(returning)
+    random.shuffle(returning_shuffled)
+    new_shuffled = list(new_qualifiers)
+    random.shuffle(new_shuffled)
+
+    target_returning_per_group = max(0, size_per_group - 2)  # 通常3名
+    red, white = [], []
+    for i, ind in enumerate(returning_shuffled):
+        if len(red) < target_returning_per_group and (len(white) >= target_returning_per_group or i % 2 == 0):
+            red.append(ind)
+        elif len(white) < target_returning_per_group:
+            white.append(ind)
+        else:
+            (red if len(red) <= len(white) else white).append(ind)
+
+    for ind in new_shuffled:
+        (red if len(red) <= len(white) else white).append(ind)
+
+    return [ind.id for ind in red], [ind.id for ind in white]
 
 
 def run_suzaku_challenge(challenger, titleholder_params, depth=1, titleholder_volatility=1.0):
