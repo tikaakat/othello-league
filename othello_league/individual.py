@@ -4,15 +4,17 @@ import random
 class LeagueIndividual:
     """
     リーグ制における個体。
-    通常のパラメータ・血統情報に加えて、所属リーグ・在籍シーズン数・道場情報を持つ。
+    通常のパラメータ・血統情報に加えて、所属リーグ・在籍シーズン数・一門情報を持つ。
     """
-    def __init__(self, ind_id, league, params=None, dojo=None, generation=0,
-                 parent_a_id=None, parent_b_id=None, display_name=None, initial_age=None):
+    def __init__(self, ind_id, league, params=None, generation=0,
+                 parent_a_id=None, parent_b_id=None, display_name=None, initial_age=None,
+                 clan_root_id=None):
         self.id = ind_id
         self.league = league              # 'A' / 'B' / 'C' / 'D'
         self.params = params or {}
-        self.dojo = dojo                  # 所属道場（8大流派名 or None＝無流派）
-        self.buff_multiplier = None       # 道場バフの倍率（道場所属時のみ使用）
+        # 一門の開祖ID。通常は師匠のclan_root_idをそのまま継承するが、
+        # 稀に本人がここで新しい一門の開祖になる（分岐）。未指定時は自分自身が開祖（＝新規開祖）
+        self.clan_root_id = clan_root_id if clan_root_id is not None else ind_id
         self.display_name = display_name  # 人名（例：「佐藤2」）
         self.awakened_param = None        # 覚醒で突破したパラメータ名（あれば）
         self.black_count = 0              # 通算で黒番を持った回数（先後を均等にするための管理用。シーズンをまたいで累積）
@@ -46,8 +48,7 @@ class LeagueIndividual:
             "id": self.id,
             "league": self.league,
             "params": self.params,
-            "dojo": self.dojo,
-            "buff_multiplier": self.buff_multiplier,
+            "clan_root_id": self.clan_root_id,
             "display_name": self.display_name,
             "awakened_param": self.awakened_param,
             "black_count": self.black_count,
@@ -70,9 +71,12 @@ class LeagueIndividual:
     @staticmethod
     def from_dict(d):
         ind = LeagueIndividual(
-            d["id"], d["league"], d.get("params"), d.get("dojo"),
+            d["id"], d["league"], d.get("params"),
             d.get("generation", 0), d.get("parent_a_id"), d.get("parent_b_id"),
             display_name=d.get("display_name"),
+            # 一門制導入前の既存個体はclan_root_idを持たないため、移行時のみ自分自身を開祖として扱う
+            # （過去の血統を遡っての一門再構築はしない、という割り切り）
+            clan_root_id=d.get("clan_root_id"),
         )
         ind.initial_age = d.get("initial_age", random.randint(18, 24))  # 既存個体は移行時のみランダム付与
         ind.age_multipliers = d.get("age_multipliers", {})
@@ -80,7 +84,6 @@ class LeagueIndividual:
         ind.elo = d.get("elo", 1500.0)
         ind.peak_elo = d.get("peak_elo", ind.elo)
         ind.volatility = d.get("volatility", 1.0)
-        ind.buff_multiplier = d.get("buff_multiplier")
         ind.awakened_param = d.get("awakened_param")
         ind.black_count = d.get("black_count", 0)
         ind.white_count = d.get("white_count", 0)
