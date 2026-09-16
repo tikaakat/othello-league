@@ -464,6 +464,11 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
                 titleholders["朱雀"] = {"id": challenger.id, "name": challenger.display_name}
                 titleholder_params["朱雀"] = effective_params(challenger)
                 holder_name, holder_id = challenger.display_name, challenger.id
+                # 奪取された旧保持者は、防衛専念枠を外れて来季の紅白リーグに無条件で復帰する
+                # （青龍・白虎・玄武と同様、失冠した個体がそのまま母集団に戻るのが本来の仕様）
+                dethroned_ind = all_members_by_id.get(defending_holder["id"])
+                if dethroned_ind is not None:
+                    returning.append(dethroned_ind)
             else:
                 holder_name, holder_id = defending_holder["name"], defending_holder["id"]
             defending_ind = all_members_by_id.get(defending_holder["id"])
