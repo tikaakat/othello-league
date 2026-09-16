@@ -511,7 +511,12 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
     # 玄武：完全ランダム抽選トーナメント（ブラケットサイズ64、Elo上位者はバイ）
     # ============================================================
     genbu_holder_id = (titleholders.get("玄武") or {}).get("id")
-    challenger, bracket_log = determine_genbu_challenger(all_members, exclude_id=genbu_holder_id, depth=1, bracket_size=64)
+    genbu_seed_titleholder_ids = {info["id"] for info in titleholders.values() if info and info.get("id")}
+    genbu_seed_a_order = [ind.id for ind in ranked_A]
+    challenger, bracket_log = determine_genbu_challenger(
+        all_members, exclude_id=genbu_holder_id, depth=1, bracket_size=64,
+        titleholder_ids=genbu_seed_titleholder_ids, a_league_order=genbu_seed_a_order,
+    )
 
     for matchup in bracket_log:
         ind_a, ind_b = all_members_by_id.get(matchup["a"]), all_members_by_id.get(matchup["b"])
