@@ -220,27 +220,34 @@ def promote_and_relegate(rosters, season, name_registry=None, titleholders=None,
 MASTER_MIN_AGE = 30  # 師匠になれる最低年齢（師匠より年下の弟子が生まれないようにするため）
 AWAKENED_INITIAL_AGE_RANGE = (14, 16)  # 覚醒個体の参入年齢（通常は18〜24歳）
 
-# 一門イベントの確率（新弟子1人あたり）
-CLAN_BRANCH_CHANCE = 0.03       # 師匠の弟子になるが、本人が新しい一門の開祖として分岐する
-CLAN_NEW_FOUNDER_CHANCE = 0.01  # 師匠を持たず、完全ランダムな能力の新規開祖として参入する
+# 一門イベントの確率（新弟子1人あたり）。
+# 旧数値（0.03/0.01）だと一門がほぼ集約されてしまったため、分岐・新規開祖とも頻度を上げた
+CLAN_BRANCH_CHANCE = 0.08       # 師匠の弟子になるが、本人が新しい一門の開祖として分岐する
+CLAN_NEW_FOUNDER_CHANCE = 0.03  # 師匠を持たず、完全ランダムな能力の新規開祖として参入する
 
 
 def _master_weight(ind, titleholder_ids):
     """師匠として選ばれやすさの重み。Eloが高いほど、タイトルを保持しているほど選ばれやすくする
-    （強い一門ほど自然と子孫を残しやすくなる。ベースは1.0なので誰にでもチャンスはある）"""
-    elo_bonus = max(0.0, (ind.elo - 1500) / 200)
-    title_bonus = 3.0 if ind.id in titleholder_ids else 0.0
+    （強い一門ほど自然と子孫を残しやすくなる。ベースは1.0なので誰にでもチャンスはある）。
+    旧数値（÷200, +3.0）だと強い一門への集約が急激すぎたため、やや緩めた"""
+    elo_bonus = max(0.0, (ind.elo - 1500) / 300)
+    title_bonus = 2.0 if ind.id in titleholder_ids else 0.0
     return 1.0 + elo_bonus + title_bonus
 
 
 # キャラクリエイト機能：サイトから指定されたタイプ傾向に応じて、該当パラメータの
-# 抽選レンジを引き上げる（強制はせず、あくまで緩やかな傾向づけにとどめる）
+# 抽選レンジを引き上げる（強制はせず、あくまで緩やかな傾向づけにとどめる）。
+# タイプ傾向の代わりに、サイト側で直接8パラメータを割り振った場合（params）はそちらを優先する
 CHARACTER_TYPE_BOOST_KEYS = {
     "balanced": [],
     "aggressive": ["mobility_weight", "frontier_weight"],
     "defensive": ["edge_stability_weight", "danger_zone_weight"],
     "corner": ["corner_weight", "center_weight"],
 }
+
+CHARACTER_PARAM_MIN = 0.1
+CHARACTER_PARAM_MAX = 10.0
+CHARACTER_PARAM_BUDGET = 40.0  # 8パラメータ合計の上限（サイト側の割り振りUIと一致させる）
 
 
 def _character_creation_params(type_tendency):
@@ -251,11 +258,31 @@ def _character_creation_params(type_tendency):
     }
 
 
+def _character_creation_params_from_custom(custom_params):
+    """サイト側で直接割り振られた8パラメータを検証・正規化する。
+    値の範囲・合計予算を超えていた場合は、比率を保ったまま予算内に収める"""
+    values = {}
+    for k in PARAM_KEYS:
+        v = custom_params.get(k)
+        if not isinstance(v, (int, float)):
+            return None
+        values[k] = max(CHARACTER_PARAM_MIN, min(CHARACTER_PARAM_MAX, float(v)))
+    total = sum(values.values())
+    if total > CHARACTER_PARAM_BUDGET:
+        scale = CHARACTER_PARAM_BUDGET / total
+        values = {k: v * scale for k, v in values.items()}
+    return {k: round(v, 3) for k, v in values.items()}
+
+
 def _build_character_creation_individual(request, season, index):
-    """キャラクリエイトのリクエスト（{"name":, "type":}）から新規開祖として1体生成する"""
+    """キャラクリエイトのリクエスト（{"name":, "type":, "params":}）から新規開祖として1体生成する。
+    paramsが指定されていればそれを優先し、無ければtypeに応じたランダム生成にフォールバックする"""
     ind_id = f"CC{season}-{index:03d}"
+    custom_params = request.get("params")
+    params = (_character_creation_params_from_custom(custom_params) if isinstance(custom_params, dict) else None) \
+        or _character_creation_params(request.get("type", "balanced"))
     ind = LeagueIndividual(
-        ind_id, "D", params=_character_creation_params(request.get("type", "balanced")), generation=0,
+        ind_id, "D", params=params, generation=0,
         parent_a_id=None, parent_b_id=None,
         display_name=request.get("name") or ind_id, clan_root_id=ind_id,
     )
@@ -293,7 +320,9 @@ def generate_disciples(count, season, pool, name_registry, titleholder_ids=froze
             master_id = master.id
             clan_root_id = ind_id if random.random() < CLAN_BRANCH_CHANCE else master.clan_root_id
         else:
-            params = {k: round(random.uniform(0.5, 5.0), 3) for k in PARAM_KEYS}
+            # 新規開祖は、既存の一門（世代を重ねて強化されてきた血統）に対抗できるよう、
+            # 旧レンジ（0.5〜5.0、平均2.75）よりやや強めのベースラインで生成する
+            params = {k: round(random.uniform(1.0, 7.0), 3) for k in PARAM_KEYS}
             gen = 0
             master_id = None
             clan_root_id = ind_id
