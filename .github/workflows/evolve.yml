@@ -52,6 +52,7 @@ jobs:
           PULL_IMPORT_URL: "https://lab.spia-net.com/othello-league/import_from_github.php?key=${{ secrets.IMPORT_SECRET_KEY }}"
           PENDING_CHAR_URL: "https://lab.spia-net.com/othello-league/export_pending_characters.php?key=${{ secrets.IMPORT_SECRET_KEY }}"
           RESET_DB_URL: "https://lab.spia-net.com/othello-league/reset_database.php?key=${{ secrets.IMPORT_SECRET_KEY }}"
+          MIGRATIONS_URL: "https://lab.spia-net.com/othello-league/run_migrations.php?key=${{ secrets.IMPORT_SECRET_KEY }}"
         run: |
           git config user.name "othello-league-bot"
           git config user.email "actions@users.noreply.github.com"
@@ -83,6 +84,10 @@ jobs:
           # 無駄な待ち時間でシーズン進行を遅らせないようにする
           # （最後にもう一度だけ、最終同期チェックでまとめて再挑戦する）
           XSERVER_LIKELY_DOWN=0
+
+          echo "=== 未適用のDBマイグレーションを自動適用 ==="
+          retry_cmd curl -sS -f --connect-timeout 8 --max-time 20 "$MIGRATIONS_URL" \
+            || echo "::warning::マイグレーションの適用に失敗しました。手動で確認してください"
 
           RESET="${{ github.event.inputs.reset || 'false' }}"
           if [ "$RESET" = "true" ]; then
