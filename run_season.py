@@ -206,8 +206,11 @@ def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_b
     # --- 昇降格・弟子補充・引退 ---
     rosters["A"], rosters["B"], rosters["C"], rosters["D"] = ranked_A, ranked_B, ranked_C, ranked_D
     registry = NameRegistry.from_dict(state.get("name_registry", {}))
+    suzaku_league_ids = set(state.get("suzaku_league", {}).get("red", [])) | \
+        set(state.get("suzaku_league", {}).get("white", []))
     rosters, new_disciples, registry, retired = promote_and_relegate(
         rosters, season, registry, titleholders=titleholders, pending_characters=pending_characters,
+        suzaku_league_ids=suzaku_league_ids,
     )
     state["name_registry"] = registry.to_dict()
 

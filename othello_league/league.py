@@ -22,11 +22,14 @@ PARAM_KEYS = [
 ]
 
 
-def promote_and_relegate(rosters, season, name_registry=None, titleholders=None, pending_characters=None):
+def promote_and_relegate(rosters, season, name_registry=None, titleholders=None, pending_characters=None,
+                          suzaku_league_ids=None):
     """
     1シーズン終了後の昇降格、定員超過/不足の調整、新弟子の生成を行う。
     pending_charactersが与えられた場合、キャラクリエイト機能でリクエストされた個体を
     通常の新弟子生成より優先してDリーグに新規参入させる（要素は {"name":, "type":} の形）。
+    suzaku_league_idsが与えられた場合、朱雀紅白リーグに在籍中の個体は年齢による強制引退
+    （60歳）の対象から除外する（他の引退・降格条件はタイトル保持者と異なり免除しない）。
     戻り値: (更新後のrosters dict, 新弟子リスト, 更新後のname_registry, 引退者リスト)
     """
     if name_registry is None:
@@ -38,18 +41,23 @@ def promote_and_relegate(rosters, season, name_registry=None, titleholders=None,
     D = list(rosters["D"])
 
     # --- 60歳以上、かつ無冠（どのタイトルも持っていない）の個体は強制引退させる。
-    #     タイトルを1つでも持っていれば、全て失冠するまで猶予が続く ---
+    #     タイトルを1つでも持っていれば、全て失冠するまで猶予が続く。
+    #     朱雀紅白リーグ在籍者も、在籍中は同様に年齢引退を免除する ---
     titleholder_ids = set()
     if titleholders:
         for info in titleholders.values():
             if info and info.get("id"):
                 titleholder_ids.add(info["id"])
 
+    age_exempt_ids = set(titleholder_ids)
+    if suzaku_league_ids:
+        age_exempt_ids.update(suzaku_league_ids)
+
     age_retired = []
     def _filter_aged_out(members):
         keep, retired = [], []
         for ind in members:
-            if ind.age >= RETIREMENT_AGE and ind.id not in titleholder_ids:
+            if ind.age >= RETIREMENT_AGE and ind.id not in age_exempt_ids:
                 ind.retired = True
                 retired.append(ind)
             else:
