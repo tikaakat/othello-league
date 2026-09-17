@@ -128,7 +128,7 @@ def _play_until_decided(params_x, params_y, depth, noise_x=1.0, noise_y=1.0, max
 
 # ============================================================
 # 朱雀戦：紅白2組（各5名）の永続サブリーグ方式。
-# 毎季、紅組・白組それぞれで総当たりを行い、両組1位同士の挑戦者決定戦（5局制3本先取）で
+# 毎季、紅組・白組それぞれで総当たりを行い、両組1位同士の挑戦者決定戦（3局制2本先取）で
 # 朱雀への挑戦者を決める。両組の下位2名（計4名）は陥落し、紅白リーグ外の全個体による
 # 4ブロックトーナメント（ブロックごとに優勝者1名、シードはタイトル保持者＞Aリーグ順位）で
 # 入れ替えの4名を決定する。残留6名（紅白各3名）と新規4名は、来季また紅白各3名+2名に
@@ -170,9 +170,9 @@ def run_suzaku_group_stage(red_members, white_members, depth=1):
 
 
 def run_suzaku_challenger_decision(red_champion, white_champion, depth=1):
-    """紅組1位 vs 白組1位で朱雀への挑戦者を決める（5局制3本先取）"""
+    """紅組1位 vs 白組1位で朱雀への挑戦者を決める（3局制2本先取）"""
     x_won, x_wins, y_wins, games = run_best_of_n_match(
-        effective_params(red_champion), effective_params(white_champion), wins_needed=3, depth=depth,
+        effective_params(red_champion), effective_params(white_champion), wins_needed=2, depth=depth,
         noise_a=red_champion.volatility, noise_b=white_champion.volatility,
     )
     challenger = red_champion if x_won else white_champion
