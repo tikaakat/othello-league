@@ -367,7 +367,10 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
         titleholders["青龍"] = {"id": a_challenger.id, "name": a_challenger.display_name}
         titleholder_params["青龍"] = effective_params(a_challenger)
         print(f"  ★ 青龍 初代襲名: {a_challenger.display_name}")
-        results.append({"title": "青龍", "season": season, "event": "初代襲名", "new_holder": a_challenger.display_name})
+        results.append({
+            "title": "青龍", "season": season, "event": "初代襲名",
+            "new_holder": a_challenger.display_name, "holder_id": a_challenger.id,
+        })
         new_seiryuu = a_challenger
         old_seiryuu = None
     else:
@@ -487,7 +490,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
             print(f"  ★ 朱雀 初代襲名: {challenger.display_name}")
             results.append({
                 "title": "朱雀", "season": season, "event": "初代襲名",
-                "new_holder": challenger.display_name,
+                "new_holder": challenger.display_name, "holder_id": challenger.id,
             })
         else:
             defending_holder = titleholders["朱雀"]
@@ -582,7 +585,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
         print(f"  ★ 白虎 初代襲名: {challenger.display_name}")
         results.append({
             "title": "白虎", "season": season, "event": "初代襲名",
-            "new_holder": challenger.display_name, "bracket": bracket_log,
+            "new_holder": challenger.display_name, "holder_id": challenger.id, "bracket": bracket_log,
         })
     else:
         defending_holder = titleholders["白虎"]
@@ -644,7 +647,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
         print(f"  ★ 玄武 初代襲名: {challenger.display_name}")
         results.append({
             "title": "玄武", "season": season, "event": "初代襲名",
-            "new_holder": challenger.display_name, "bracket": bracket_log,
+            "new_holder": challenger.display_name, "holder_id": challenger.id, "bracket": bracket_log,
         })
     else:
         defending_holder = titleholders["玄武"]
