@@ -28,8 +28,11 @@ def promote_and_relegate(rosters, season, name_registry=None, titleholders=None,
     1シーズン終了後の昇降格、定員超過/不足の調整、新弟子の生成を行う。
     pending_charactersが与えられた場合、キャラクリエイト機能でリクエストされた個体を
     通常の新弟子生成より優先してDリーグに新規参入させる（要素は {"name":, "type":} の形）。
-    suzaku_league_idsが与えられた場合、朱雀紅白リーグに在籍中の個体は年齢による強制引退
-    （60歳）の対象から除外する（他の引退・降格条件はタイトル保持者と異なり免除しない）。
+    suzaku_league_idsが与えられた場合、朱雀紅白リーグに在籍中の個体は、タイトル保持者と
+    同様に強制引退（年齢・Dリーグ連続負け越し・Dリーグ定員超過カット）の対象から除外する。
+    予選を勝ち抜いて来季から紅白リーグに加入する個体も、その加入前の季にこれらの条件で
+    引退させてしまうと来季の紅白リーグに欠員が生じるため、同様に保護する
+    （C〜Aリーグの定員超過による「降格」は引退ではなく在籍リーグが変わるだけなので対象外）。
     戻り値: (更新後のrosters dict, 新弟子リスト, 更新後のname_registry, 引退者リスト)
     """
     if name_registry is None:
@@ -42,22 +45,24 @@ def promote_and_relegate(rosters, season, name_registry=None, titleholders=None,
 
     # --- 60歳以上、かつ無冠（どのタイトルも持っていない）の個体は強制引退させる。
     #     タイトルを1つでも持っていれば、全て失冠するまで猶予が続く。
-    #     朱雀紅白リーグ在籍者も、在籍中は同様に年齢引退を免除する ---
+    #     朱雀紅白リーグ在籍者（来季から加入予定の予選通過者も含む）も、在籍中は
+    #     年齢引退に加えて、Dリーグ連続負け越し・Dリーグ定員超過カットも免除する
+    #     （でないと紅白リーグ加入前に引退させてしまい、来季の紅白リーグに欠員が生じるため） ---
     titleholder_ids = set()
     if titleholders:
         for info in titleholders.values():
             if info and info.get("id"):
                 titleholder_ids.add(info["id"])
 
-    age_exempt_ids = set(titleholder_ids)
+    protected_ids = set(titleholder_ids)
     if suzaku_league_ids:
-        age_exempt_ids.update(suzaku_league_ids)
+        protected_ids.update(suzaku_league_ids)
 
     age_retired = []
     def _filter_aged_out(members):
         keep, retired = [], []
         for ind in members:
-            if ind.age >= RETIREMENT_AGE and ind.id not in age_exempt_ids:
+            if ind.age >= RETIREMENT_AGE and ind.id not in protected_ids:
                 ind.retired = True
                 retired.append(ind)
             else:
@@ -118,7 +123,7 @@ def promote_and_relegate(rosters, season, name_registry=None, titleholders=None,
     C, c_relegate_overflow = _relegate_overflow(C, LEAGUE_CAPACITY["C"])
 
     # --- Dリーグ：2シーズン連続で負け越したら、実力・在籍年数に関わらず即引退
-    #     （ただしタイトル保持者は、age_retiredと同様に猶予対象）。
+    #     （ただしタイトル保持者・朱雀紅白リーグ在籍者は、age_retiredと同様に猶予対象）。
     #     この判定は「今季も引き続きDに在籍していた個体（d_remain）」のみを対象にする。
     #     今季Cから降格してきた個体（c_relegate_to_d・c_relegate_overflow）は、
     #     まだDでの対局実績が無い（直前の成績はC所属時のもの）ため対象外とし、
@@ -130,7 +135,7 @@ def promote_and_relegate(rosters, season, name_registry=None, titleholders=None,
             ind.consecutive_losing_seasons += 1
         else:
             ind.consecutive_losing_seasons = 0
-        if ind.consecutive_losing_seasons >= D_CONSECUTIVE_LOSING_LIMIT and ind.id not in titleholder_ids:
+        if ind.consecutive_losing_seasons >= D_CONSECUTIVE_LOSING_LIMIT and ind.id not in protected_ids:
             ind.retired = True
             d_up_or_out_retired.append(ind)
         else:
@@ -198,16 +203,18 @@ def promote_and_relegate(rosters, season, name_registry=None, titleholders=None,
         D.extend(new_disciples)
     new_disciples = created_characters + new_disciples
 
-    # Dリーグの定員超過調整（Elo下位をカットして引退扱い。タイトル保持者・今季作成された
-    # キャラクリ個体はカット対象から除外。Dより下のリーグはないため、ここだけは引退させるしかない）
+    # Dリーグの定員超過調整（Elo下位をカットして引退扱い。タイトル保持者・朱雀紅白リーグ
+    # 在籍者・今季作成されたキャラクリ個体はカット対象から除外。
+    # Dより下のリーグはないため、ここだけは引退させるしかない）
     created_character_ids = {ind.id for ind in created_characters}
+    d_cut_exempt_ids = protected_ids | created_character_ids
 
     def _cut_overflow(members, capacity):
         if len(members) <= capacity:
             return members, []
-        protected = [ind for ind in members if ind.id in titleholder_ids or ind.id in created_character_ids]
+        protected = [ind for ind in members if ind.id in d_cut_exempt_ids]
         cuttable = sorted(
-            (ind for ind in members if ind.id not in titleholder_ids and ind.id not in created_character_ids),
+            (ind for ind in members if ind.id not in d_cut_exempt_ids),
             key=lambda ind: ind.elo, reverse=True,
         )
         shortage = len(members) - capacity
