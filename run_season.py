@@ -195,6 +195,15 @@ def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_b
                               for ind in ranked}
 
     # --- タイトル戦 ---
+    # 朱雀紅白リーグの「今季開始時点」の在籍者を、_run_title_matchesが来季分に
+    # 上書きする前に控えておく（下の年齢引退免除の判定に使うため。_run_title_matches内で
+    # 今季中に陥落が決まった個体は、来季分のstate["suzaku_league"]には既に含まれなくなって
+    # いるが、今季については紅白リーグの一員として戦っていたので、今季の年齢引退免除は
+    # 引き続き適用すべき。免除対象を「今季開始時点の在籍者」と「来季も残る在籍者」の
+    # 和集合にすることで、陥落と年齢引退が同じ季に重なった個体も今季だけは保護される）
+    suzaku_league_ids_before = set(state.get("suzaku_league", {}).get("red", [])) | \
+        set(state.get("suzaku_league", {}).get("white", []))
+
     all_members = ranked_A + ranked_B + ranked_C + ranked_D
     title_results, title_extra_match_log, suzaku_group_snapshot = _run_title_matches(
         ranked_A, ranked_competing_A, champion_ind, ranked_B, ranked_C, ranked_D, all_members, depth, state, season,
@@ -206,8 +215,9 @@ def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_b
     # --- 昇降格・弟子補充・引退 ---
     rosters["A"], rosters["B"], rosters["C"], rosters["D"] = ranked_A, ranked_B, ranked_C, ranked_D
     registry = NameRegistry.from_dict(state.get("name_registry", {}))
-    suzaku_league_ids = set(state.get("suzaku_league", {}).get("red", [])) | \
+    suzaku_league_ids_after = set(state.get("suzaku_league", {}).get("red", [])) | \
         set(state.get("suzaku_league", {}).get("white", []))
+    suzaku_league_ids = suzaku_league_ids_before | suzaku_league_ids_after
     rosters, new_disciples, registry, retired = promote_and_relegate(
         rosters, season, registry, titleholders=titleholders, pending_characters=pending_characters,
         suzaku_league_ids=suzaku_league_ids,
