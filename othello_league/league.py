@@ -146,28 +146,41 @@ def promote_and_relegate(rosters, season, name_registry=None, titleholders=None,
         ind.consecutive_losing_seasons = 0
     D = d_keep + new_d_arrivals
 
-    # --- 年齢引退等でA・B・Cに定員割れが生じた場合、下位リーグのElo上位から繰り上げて埋める。
-    #     ただし、今季ちょうど1つ下のリーグから昇格してきたばかりの個体（exclude_ids）は
-    #     対象から除外する。タイトル奪取による大幅なElo上昇は昇降格判定より先に反映されるため、
-    #     除外しないと「今季C→B昇格 かつ タイトル獲得でEloが急騰」のような個体が、
-    #     同じ季のうちにB→Aへもバックフィルされ、CからAへ一気に飛び級してしまう ---
-    def _backfill(upper, lower, capacity, exclude_ids=frozenset()):
+    # --- 年齢引退等でA・B・Cに定員割れが生じた場合、下位リーグから繰り上げて埋める。
+    #     今季そのリーグに在籍して実際に対局した個体（remain_ids）の中から、今季の順位が
+    #     高い順（＝remain_idsの並び順。b_remain/c_remain/d_keepは元々ランク順のため）に
+    #     優先して繰り上げる。今季ちょうど1つ下のリーグから昇格/降格してきたばかりの個体は、
+    #     今季そのリーグでの対局実績が無いため対象外とし、それでも枠が埋まらない場合に限り
+    #     Elo上位から補う（滅多に起きない保険的な扱い）。
+    #     exclude_idsは、今季ちょうど1つ下のリーグから昇格してきたばかりの個体を保険的な
+    #     Elo補充からも除外する。除外しないと「今季C→B昇格 かつ タイトル獲得でEloが急騰」の
+    #     ような個体が、同じ季のうちにB→Aへもバックフィルされ、CからAへ一気に飛び級してしまう ---
+    def _backfill(upper, lower, capacity, remain_ids, exclude_ids=frozenset()):
         shortage = capacity - len(upper)
         if shortage <= 0 or not lower:
             return upper, lower
-        eligible = [ind for ind in lower if ind.id not in exclude_ids]
-        lower_sorted = sorted(eligible, key=lambda ind: ind.elo, reverse=True)
-        take = lower_sorted[:shortage]
+        remain_pool = [ind for ind in lower if ind.id in remain_ids and ind.id not in exclude_ids]
+        take = remain_pool[:shortage]
+        still_short = shortage - len(take)
+        if still_short > 0:
+            taken_ids = {ind.id for ind in take}
+            rest_pool = [ind for ind in lower if ind.id not in remain_ids and ind.id not in exclude_ids
+                         and ind.id not in taken_ids]
+            rest_sorted = sorted(rest_pool, key=lambda ind: ind.elo, reverse=True)
+            take = take + rest_sorted[:still_short]
         take_ids = {ind.id for ind in take}
         lower_remaining = [ind for ind in lower if ind.id not in take_ids]
         return upper + take, lower_remaining
 
     c_promote_to_b_ids = {ind.id for ind in c_promote_to_b}
     d_promote_to_c_ids = {ind.id for ind in d_promote_to_c}
+    b_remain_ids = {ind.id for ind in b_remain}
+    c_remain_ids = {ind.id for ind in c_remain}
+    d_keep_ids = {ind.id for ind in d_keep}
 
-    A, B = _backfill(A, B, LEAGUE_CAPACITY["A"], exclude_ids=c_promote_to_b_ids)
-    B, C = _backfill(B, C, LEAGUE_CAPACITY["B"], exclude_ids=d_promote_to_c_ids)
-    C, D = _backfill(C, D, LEAGUE_CAPACITY["C"])
+    A, B = _backfill(A, B, LEAGUE_CAPACITY["A"], remain_ids=b_remain_ids, exclude_ids=c_promote_to_b_ids)
+    B, C = _backfill(B, C, LEAGUE_CAPACITY["B"], remain_ids=c_remain_ids, exclude_ids=d_promote_to_c_ids)
+    C, D = _backfill(C, D, LEAGUE_CAPACITY["C"], remain_ids=d_keep_ids)
 
     # リーグ所属情報・在籍年数の更新
     all_retired = age_retired + d_up_or_out_retired
