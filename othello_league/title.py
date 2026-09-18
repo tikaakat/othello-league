@@ -11,15 +11,14 @@ from .round_robin import run_round_robin
 # それぞれの予選トーナメント）。「TITLE」は在位者への挑戦（本戦）に使う深さ。
 # 予選・本戦で探索時間の差を大きくしすぎない方針のため、タイトルごとの格に応じて設定する
 # （青龍＝名人格が最も深く、朱雀・白虎・玄武の順に浅くする）
-# --- テストのため一時的に全て1に変更中。本来値：SEIRYUU=4/5, SUZAKU=3/5, BYAKKO=3/4, GENBU=2/3 ---
-SEIRYUU_LEAGUE_DEPTH = 1
-SEIRYUU_TITLE_DEPTH = 1
-SUZAKU_LEAGUE_DEPTH = 1
-SUZAKU_TITLE_DEPTH = 1
-BYAKKO_LEAGUE_DEPTH = 1
-BYAKKO_TITLE_DEPTH = 1
-GENBU_LEAGUE_DEPTH = 1
-GENBU_TITLE_DEPTH = 1
+SEIRYUU_LEAGUE_DEPTH = 4
+SEIRYUU_TITLE_DEPTH = 5
+SUZAKU_LEAGUE_DEPTH = 3
+SUZAKU_TITLE_DEPTH = 5
+BYAKKO_LEAGUE_DEPTH = 3
+BYAKKO_TITLE_DEPTH = 4
+GENBU_LEAGUE_DEPTH = 2
+GENBU_TITLE_DEPTH = 3
 
 
 def _play_one_game(params_black, params_white, depth, noise_black=1.0, noise_white=1.0):
