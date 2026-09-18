@@ -20,7 +20,9 @@ on:
         required: false
         default: "false"
   schedule:
-    - cron: "0 20 * * *"
+    # 18:00 JST(=09:00 UTC)に開始し、1季あたり実測約30分程度なので19時の表示目安に間に合う。
+    # 新人リーグ（6:00 JST開始）が先に終わっている前提で、その勝者ファイルを取り込む
+    - cron: "0 9 * * *"
 
 jobs:
   run-season:
@@ -46,7 +48,6 @@ jobs:
           XSERVER_SSH_KEY: ${{ secrets.XSERVER_SSH_KEY }}
           IMPORT_URL: "https://lab.spia-net.com/othello-league/import_from_colab.php?key=${{ secrets.IMPORT_SECRET_KEY }}"
           PULL_IMPORT_URL: "https://lab.spia-net.com/othello-league/import_from_github.php?key=${{ secrets.IMPORT_SECRET_KEY }}"
-          PENDING_CHAR_URL: "https://lab.spia-net.com/othello-league/export_pending_characters.php?key=${{ secrets.IMPORT_SECRET_KEY }}"
           RESET_DB_URL: "https://lab.spia-net.com/othello-league/reset_database.php?key=${{ secrets.IMPORT_SECRET_KEY }}"
           MIGRATIONS_URL: "https://lab.spia-net.com/othello-league/run_migrations.php?key=${{ secrets.IMPORT_SECRET_KEY }}"
         run: |
@@ -116,10 +117,10 @@ jobs:
           TOTAL="${{ github.event.inputs.seasons || '1' }}"
           SWISS_ROUNDS="${{ github.event.inputs.swiss_rounds || '4' }}"
 
-          echo "=== キャラクリエイト：保留中の作成リクエストを取得 ==="
-          retry_cmd curl -sS -f --connect-timeout 8 --max-time 20 -o /tmp/pending_char_response.json "$PENDING_CHAR_URL" \
-            && jq '.characters // []' /tmp/pending_char_response.json > data/pending_characters.json \
-            || { echo "::warning::キャラクリエイトのリクエスト取得に失敗しました。今回は適用をスキップします"; echo '[]' > data/pending_characters.json; }
+          # キャラクリエイトの投稿は、朝の新人リーグ（newcomer_league.yml）が先に処理し、
+          # 勝者をdata/newcomer_winners.jsonとしてこのリポジトリにpush済みのはず。
+          # run_season.py側がそれを自動的に読み込む（無ければ何もせず通常進行する）ので、
+          # ここでは特に何も取得しない
 
           for i in $(seq 1 "$TOTAL"); do
             echo "=== Running season batch $i / $TOTAL ==="

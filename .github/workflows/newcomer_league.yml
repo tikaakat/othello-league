@@ -1,0 +1,72 @@
+name: Run Newcomer League (新人リーグ)
+
+concurrency:
+  group: othello-league
+  cancel-in-progress: false
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    # 6:00 JST(=21:00 UTC 前日)に開始。本戦（evolve.yml, 9:00 UTC=18:00 JST）より
+    # 十分前に完了し、勝者データ（data/newcomer_winners.json）をリポジトリにpushしておく
+    - cron: "0 21 * * *"
+
+jobs:
+  run-newcomer-league:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run newcomer league
+        timeout-minutes: 60
+        env:
+          PENDING_CHAR_URL: "https://lab.spia-net.com/othello-league/export_pending_characters.php?key=${{ secrets.IMPORT_SECRET_KEY }}"
+        run: |
+          git config user.name "othello-league-bot"
+          git config user.email "actions@users.noreply.github.com"
+
+          retry_cmd() {
+            local max_attempts=2
+            local delay=5
+            local attempt=1
+            until "$@"; do
+              if [ "$attempt" -ge "$max_attempts" ]; then
+                return 1
+              fi
+              echo "::warning::コマンド失敗（試行 $attempt/$max_attempts）。${delay}秒後にリトライします: $*"
+              sleep "$delay"
+              attempt=$((attempt + 1))
+            done
+          }
+
+          echo "=== キャラクリエイト：当日分の作成リクエストを取得 ==="
+          retry_cmd curl -sS -f --connect-timeout 8 --max-time 20 -o /tmp/pending_char_response.json "$PENDING_CHAR_URL" \
+            && jq '.characters // []' /tmp/pending_char_response.json > data/newcomer_submissions.json \
+            || { echo "::warning::キャラクリエイトのリクエスト取得に失敗しました。0件として扱います"; echo '[]' > data/newcomer_submissions.json; }
+
+          echo "=== 新人リーグを実行 ==="
+          python -u run_newcomer_league.py \
+            --data-dir data \
+            --submissions-path data/newcomer_submissions.json
+
+          echo "=== data/ の中身 ==="
+          ls -la data/newcomer_league/ 2>&1 || echo "(newcomer_league/ ディレクトリが存在しません)"
+
+          git add data/newcomer_winners.json data/newcomer_league
+          if ! git diff --staged --quiet; then
+            git commit -m "Newcomer league results [skip ci]"
+            retry_cmd git pull --rebase origin main \
+              || echo "::warning::git pull --rebaseに失敗しました。そのままpushを試みます"
+            retry_cmd git push \
+              || { echo "::error::git pushに失敗しました。本戦（evolve.yml）が今夜、新人リーグの勝者を取り込めない可能性があります"; exit 1; }
+          else
+            echo "変更なし（コミット不要）"
+          fi
