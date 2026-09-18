@@ -200,12 +200,19 @@ def promote_and_relegate(rosters, season, name_registry=None, titleholders=None,
             ind.total_seasons += 1
 
     # Dリーグの補充：まずキャラクリエイトのリクエストを優先的に参入させ、
-    # 残り枠のみ通常の新弟子生成で埋める
+    # 残り枠のみ通常の新弟子生成で埋める。
+    # キャラクリエイト個体も通常の新弟子と同様、必ず既存個体の中から師匠が自動選出される
+    # （本人が選ぶわけではない。新規開祖にはならないが、分岐で新しい一門の開祖になることはある）
     d_departures = LEAGUE_CAPACITY["D"] - len(D)
     created_characters = []
     if pending_characters:
+        creation_pool = [ind for ind in (A + B + C + D) if not ind.retired]
+        eligible_creation_masters = [ind for ind in creation_pool if ind.age >= MASTER_MIN_AGE] or creation_pool
         created_characters = [
-            _build_character_creation_individual(req, season, i)
+            _build_character_creation_individual(
+                req, season, i,
+                master=_pick_master(eligible_creation_masters, titleholder_ids, allow_new_founder=False),
+            )
             for i, req in enumerate(pending_characters)
         ]
         D.extend(created_characters)
@@ -270,6 +277,19 @@ def _master_weight(ind, titleholder_ids):
     return 1.0 + elo_bonus + title_bonus
 
 
+def _pick_master(eligible_masters, titleholder_ids, allow_new_founder=True):
+    """師匠を自動選出する（Elo・タイトル保持で重み付けした抽選）。
+    allow_new_founder=Trueの場合、CLAN_NEW_FOUNDER_CHANCEの確率で師匠を持たない
+    新規開祖になる（通常の新弟子生成と同じ）。Falseの場合は必ず誰かの弟子になる
+    （候補が1人もいない極端なケースのみ例外的にNoneを返す）"""
+    if not eligible_masters:
+        return None
+    if allow_new_founder and random.random() < CLAN_NEW_FOUNDER_CHANCE:
+        return None
+    weights = [_master_weight(ind, titleholder_ids) for ind in eligible_masters]
+    return random.choices(eligible_masters, weights=weights, k=1)[0]
+
+
 # キャラクリエイト機能：サイトから指定されたタイプ傾向に応じて、該当パラメータの
 # 抽選レンジを引き上げる（強制はせず、あくまで緩やかな傾向づけにとどめる）。
 # タイプ傾向の代わりに、サイト側で直接8パラメータを割り振った場合（params）はそちらを優先する
@@ -283,6 +303,9 @@ CHARACTER_TYPE_BOOST_KEYS = {
 CHARACTER_PARAM_MIN = 0.1
 CHARACTER_PARAM_MAX = 10.0
 CHARACTER_PARAM_BUDGET = 40.0  # 8パラメータ合計の上限（サイト側の割り振りUIと一致させる）
+
+# キャラクリエイト個体は、通常の新弟子（3%）よりも少しだけ覚醒しやすくする
+CHARACTER_CREATION_AWAKENING_CHANCE = 0.05
 
 
 def _character_creation_params(type_tendency):
@@ -309,18 +332,45 @@ def _character_creation_params_from_custom(custom_params):
     return {k: round(v, 3) for k, v in values.items()}
 
 
-def _build_character_creation_individual(request, season, index):
-    """キャラクリエイトのリクエスト（{"name":, "type":, "params":}）から新規開祖として1体生成する。
-    paramsが指定されていればそれを優先し、無ければtypeに応じたランダム生成にフォールバックする"""
+def _build_character_creation_individual(request, season, index, master=None):
+    """キャラクリエイトのリクエスト（{"name":, "type":, "params":, "awakened_param":}）から
+    1体生成する。paramsが指定されていればそれを優先し、無ければtypeに応じたランダム
+    生成にフォールバックする。
+
+    この関数は新人リーグ参入時（新人リーグの対局に使う仮の個体を作る時）と、本戦での
+    実際のDリーグ参入時（新人リーグの勝者を正式な個体にする時）の2回呼ばれ得る。
+    params・awakened_paramは初回（新人リーグ参入時）にのみ決定し、requestに
+    "awakened_param"キーが無い場合だけ抽選する。2回目の呼び出し時はrequest側に
+    その時決定した値がそのまま入っているため再抽選せず、新人リーグで戦った個体と
+    実際にDリーグへ参入する個体が食い違わないようにする。
+
+    masterが指定された場合、通常の新弟子生成と同様にその個体の弟子として参入する
+    （parent_a_id）。paramsは師匠から継承せず、あくまで本人の指定/抽選値を使う
+    （キャラクリエイトの趣旨は本人の狙った性能で参戦することのため）。分岐
+    （CLAN_BRANCH_CHANCEの確率で自分が新しい一門の開祖になる）は通常の新弟子と同じ"""
     ind_id = f"CC{season}-{index:03d}"
     custom_params = request.get("params")
     params = (_character_creation_params_from_custom(custom_params) if isinstance(custom_params, dict) else None) \
         or _character_creation_params(request.get("type", "balanced"))
+
+    if "awakened_param" in request:
+        awakened_key = request["awakened_param"]
+    else:
+        params, awakened_key = maybe_awaken(params, individual_id=ind_id, chance=CHARACTER_CREATION_AWAKENING_CHANCE)
+
+    master_id = master.id if master is not None else None
+    if master is not None:
+        clan_root_id = ind_id if random.random() < CLAN_BRANCH_CHANCE else master.clan_root_id
+    else:
+        clan_root_id = ind_id
+
     ind = LeagueIndividual(
         ind_id, "D", params=params, generation=0,
-        parent_a_id=None, parent_b_id=None,
-        display_name=request.get("name") or ind_id, clan_root_id=ind_id,
+        parent_a_id=master_id, parent_b_id=None,
+        display_name=request.get("name") or ind_id, clan_root_id=clan_root_id,
+        initial_age=random.randint(*AWAKENED_INITIAL_AGE_RANGE) if awakened_key else None,
     )
+    ind.awakened_param = awakened_key
     ind.volatility = round(max(0.1, min(3.0, random.uniform(0.3, 2.0))), 2)
     return ind
 
@@ -342,13 +392,7 @@ def generate_disciples(count, season, pool, name_registry, titleholder_ids=froze
         ind_id = f"D{season}-{i:03d}"
         display_name = name_registry.generate()
 
-        if not eligible_masters:
-            master = None  # 現役個体が誰もいない極端なケース：師匠なしで生成するしかない
-        elif random.random() < CLAN_NEW_FOUNDER_CHANCE:
-            master = None  # 新規開祖：あえて師匠を持たない
-        else:
-            weights = [_master_weight(ind, titleholder_ids) for ind in eligible_masters]
-            master = random.choices(eligible_masters, weights=weights, k=1)[0]
+        master = _pick_master(eligible_masters, titleholder_ids, allow_new_founder=True)
 
         if master:
             params, gen = mutate_params(master)
