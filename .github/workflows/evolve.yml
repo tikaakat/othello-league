@@ -163,7 +163,7 @@ jobs:
               PUSH_OK=1
 
               retry_cmd ssh -i /tmp/deploy_key -p "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=8 \
-                "$XSERVER_USER@$XSERVER_HOST" "mkdir -p ${XSERVER_TARGET_DIR}matches ${XSERVER_TARGET_DIR}standings" \
+                "$XSERVER_USER@$XSERVER_HOST" "mkdir -p ${XSERVER_TARGET_DIR}matches ${XSERVER_TARGET_DIR}standings ${XSERVER_TARGET_DIR}newcomer_league" \
                 || { echo "::warning::フォルダ作成に失敗しました（バッチ $i）"; PUSH_OK=0; }
 
               retry_cmd scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=8 \
@@ -180,6 +180,16 @@ jobs:
                 data/standings/. \
                 "$XSERVER_USER@$XSERVER_HOST:${XSERVER_TARGET_DIR}standings/" \
                 || { echo "::warning::standings転送に失敗しました（バッチ $i）"; PUSH_OK=0; }
+
+              # 新人リーグの結果（朝のnewcomer_league.yml実行分）。まだ一度も
+              # 新人リーグが実行されていない場合はdata/newcomer_league/が空の可能性があるため、
+              # 中身が無くても失敗扱いにしない
+              if [ -n "$(ls -A data/newcomer_league/ 2>/dev/null)" ]; then
+                retry_cmd scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=8 -r \
+                  data/newcomer_league/. \
+                  "$XSERVER_USER@$XSERVER_HOST:${XSERVER_TARGET_DIR}newcomer_league/" \
+                  || { echo "::warning::newcomer_league転送に失敗しました（バッチ $i）"; PUSH_OK=0; }
+              fi
 
               if [ "$PUSH_OK" -eq 1 ]; then
                 echo "--- プッシュ型インポートを実行中（バッチ $i）---"
@@ -200,7 +210,7 @@ jobs:
           echo "=== 最終同期チェック ==="
           FINAL_OK=1
           retry_cmd ssh -i /tmp/deploy_key -p "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=8 \
-            "$XSERVER_USER@$XSERVER_HOST" "mkdir -p ${XSERVER_TARGET_DIR}matches ${XSERVER_TARGET_DIR}standings" \
+            "$XSERVER_USER@$XSERVER_HOST" "mkdir -p ${XSERVER_TARGET_DIR}matches ${XSERVER_TARGET_DIR}standings ${XSERVER_TARGET_DIR}newcomer_league" \
             || FINAL_OK=0
           retry_cmd scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=8 \
             data/rosters.json data/season_state.json \
@@ -212,6 +222,11 @@ jobs:
           retry_cmd scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=8 -r \
             data/standings/. "$XSERVER_USER@$XSERVER_HOST:${XSERVER_TARGET_DIR}standings/" \
             || FINAL_OK=0
+          if [ -n "$(ls -A data/newcomer_league/ 2>/dev/null)" ]; then
+            retry_cmd scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=8 -r \
+              data/newcomer_league/. "$XSERVER_USER@$XSERVER_HOST:${XSERVER_TARGET_DIR}newcomer_league/" \
+              || FINAL_OK=0
+          fi
           if [ "$FINAL_OK" -eq 1 ]; then
             retry_cmd curl -sS -f --connect-timeout 8 --max-time 20 "$IMPORT_URL" || FINAL_OK=0
           fi
