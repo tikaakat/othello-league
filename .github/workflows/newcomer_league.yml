@@ -7,9 +7,13 @@ concurrency:
 on:
   workflow_dispatch: {}
   schedule:
-    # 6:00 JST(=21:00 UTC 前日)に開始。本戦（evolve.yml, 9:00 UTC=18:00 JST）より
-    # 十分前に完了し、勝者データ（data/newcomer_winners.json）をリポジトリにpushしておく
+    # 本戦（evolve.yml）が1日2回（朝7:00・夜18:00 JST）になったのに合わせて、
+    # 新人リーグもそれぞれの1時間前に1回ずつ実行し、勝者データ
+    # （data/newcomer_winners.json）を都度リポジトリにpushしておく。
+    #   6:00 JST(=21:00 UTC 前日) → 朝7:00の本戦向け
+    #   17:00 JST(=08:00 UTC)     → 夜18:00の本戦向け
     - cron: "0 21 * * *"
+    - cron: "0 8 * * *"
 
 jobs:
   run-newcomer-league:
