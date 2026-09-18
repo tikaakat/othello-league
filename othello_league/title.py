@@ -5,6 +5,21 @@ from . import engine as E
 from .buffs import effective_params
 from .round_robin import run_round_robin
 
+# 各タイトル戦の探索深さ設定。
+# 「LEAGUE」は日々大量にこなす対局に使う深さ（青龍はAリーグ総当たり自体が実質の予選なので
+# Aリーグ全体、朱雀は紅白総当たり＋挑戦者決定戦＋陥落者補充の入れ替え予選、白虎・玄武は
+# それぞれの予選トーナメント）。「TITLE」は在位者への挑戦（本戦）に使う深さ。
+# 予選・本戦で探索時間の差を大きくしすぎない方針のため、タイトルごとの格に応じて設定する
+# （青龍＝名人格が最も深く、朱雀・白虎・玄武の順に浅くする）
+SEIRYUU_LEAGUE_DEPTH = 4
+SEIRYUU_TITLE_DEPTH = 5
+SUZAKU_LEAGUE_DEPTH = 3
+SUZAKU_TITLE_DEPTH = 5
+BYAKKO_LEAGUE_DEPTH = 3
+BYAKKO_TITLE_DEPTH = 4
+GENBU_LEAGUE_DEPTH = 2
+GENBU_TITLE_DEPTH = 3
+
 
 def _play_one_game(params_black, params_white, depth, noise_black=1.0, noise_white=1.0):
     """1局対局し、(勝敗 'black'/'white'/'draw', 黒石数, 白石数, 着手履歴) を返す。打ち直しは行わない"""
@@ -92,7 +107,7 @@ def run_best_of_n_match(params_a, params_b, wins_needed, depth, noise_a=1.0, noi
 def run_seiryuu_challenge(a_champion, titleholder_params, depth=1, titleholder_volatility=1.0):
     challenger_params = effective_params(a_champion)
     won, a_wins, b_wins, games = run_best_of_n_match(
-        challenger_params, titleholder_params, wins_needed=4, depth=2,
+        challenger_params, titleholder_params, wins_needed=4, depth=depth,
         noise_a=a_champion.volatility, noise_b=titleholder_volatility,
     )
     return {
@@ -285,7 +300,7 @@ def assign_suzaku_groups(returning, new_qualifiers, size_per_group=5):
 def run_suzaku_challenge(challenger, titleholder_params, depth=1, titleholder_volatility=1.0):
     challenger_params = effective_params(challenger)
     won, c_wins, t_wins, games = run_best_of_n_match(
-        challenger_params, titleholder_params, wins_needed=3, depth=2,
+        challenger_params, titleholder_params, wins_needed=3, depth=depth,
         noise_a=challenger.volatility, noise_b=titleholder_volatility,
     )
     return {

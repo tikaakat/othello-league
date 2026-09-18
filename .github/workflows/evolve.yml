@@ -11,10 +11,6 @@ on:
         description: "何シーズン分進めるか"
         required: false
         default: "1"
-      depth:
-        description: "探索深さ（現在は常に1固定。手動で変えたい場合のみ上書き可）"
-        required: false
-        default: "1"
       swiss_rounds:
         description: "B/C/Dリーグのスイスラウンド数"
         required: false
@@ -118,7 +114,6 @@ jobs:
           fi
 
           TOTAL="${{ github.event.inputs.seasons || '1' }}"
-          DEPTH="${{ github.event.inputs.depth || '1' }}"
           SWISS_ROUNDS="${{ github.event.inputs.swiss_rounds || '4' }}"
 
           echo "=== キャラクリエイト：保留中の作成リクエストを取得 ==="
@@ -133,7 +128,6 @@ jobs:
             python -u run_season.py \
               --data-dir data \
               --seasons 1 \
-              --depth "$DEPTH" \
               --swiss-rounds "$SWISS_ROUNDS"
             PY_EXIT=$?
             set -e

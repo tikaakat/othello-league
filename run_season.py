@@ -14,6 +14,10 @@ from othello_league.title import (
     determine_suzaku_qualifiers, assign_suzaku_groups, run_suzaku_challenge,
     determine_byakko_challenger, run_byakko_challenge,
     determine_genbu_challenger, run_genbu_challenge,
+    SEIRYUU_LEAGUE_DEPTH, SEIRYUU_TITLE_DEPTH,
+    SUZAKU_LEAGUE_DEPTH, SUZAKU_TITLE_DEPTH,
+    BYAKKO_LEAGUE_DEPTH, BYAKKO_TITLE_DEPTH,
+    GENBU_LEAGUE_DEPTH, GENBU_TITLE_DEPTH,
 )
 from othello_league.names import NameRegistry
 from othello_league.elo import update_elo
@@ -206,7 +210,7 @@ def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_b
 
     all_members = ranked_A + ranked_B + ranked_C + ranked_D
     title_results, title_extra_match_log, suzaku_group_snapshot = _run_title_matches(
-        ranked_A, ranked_competing_A, champion_ind, ranked_B, ranked_C, ranked_D, all_members, depth, state, season,
+        ranked_A, ranked_competing_A, champion_ind, ranked_B, ranked_C, ranked_D, all_members, state, season,
     )
     title_match_log = _title_results_to_match_log(title_results, season)
     match_log += title_match_log
@@ -337,7 +341,7 @@ def _title_results_to_match_log(title_results, season):
     return entries
 
 
-def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ranked_C, ranked_D, all_members, depth, state, season):
+def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ranked_C, ranked_D, all_members, state, season):
     results = []
     extra_match_log = []  # タイトル戦のうち、title_history（保持者の記録）には載せない付随対局（朱雀の紅白リーグ戦等）
     suzaku_group_snapshot = []  # 朱雀紅白リーグの順位・残留/陥落を、サイト側が独自に再計算せず正確に表示できるよう記録する
@@ -388,7 +392,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
         old_seiryuu = None
     else:
         result = run_seiryuu_challenge(
-            a_challenger, titleholder_params["青龍"], depth=1,
+            a_challenger, titleholder_params["青龍"], depth=SEIRYUU_TITLE_DEPTH,
             titleholder_volatility=champion_ind.volatility if champion_ind is not None else 1.0,
         )
         print(f"  青龍戦: {a_challenger.display_name} {result['challenger_wins']}-{result['titleholder_wins']}"
@@ -444,7 +448,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
 
     if red_others and white_others:
         red_ranked, white_ranked, red_record, white_record, group_match_log = run_suzaku_group_stage(
-            red_others, white_others, depth=1,
+            red_others, white_others, depth=SUZAKU_LEAGUE_DEPTH,
         )
         extra_match_log += group_match_log
 
@@ -484,7 +488,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
                 })
 
         red_champion, white_champion = red_ranked[0], white_ranked[0]
-        challenger, decision_info = run_suzaku_challenger_decision(red_champion, white_champion, depth=1)
+        challenger, decision_info = run_suzaku_challenger_decision(red_champion, white_champion, depth=SUZAKU_LEAGUE_DEPTH)
         print(f"  朱雀・挑戦者決定戦: {red_champion.display_name}（紅組1位） {decision_info['red_wins']}"
               f"-{decision_info['white_wins']} {white_champion.display_name}（白組1位） → 挑戦者は{challenger.display_name}")
         extra_match_log += _best_of_n_to_match_log(
@@ -509,7 +513,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
             defending_holder = titleholders["朱雀"]
             defending_ind_for_volatility = all_members_by_id.get(defending_holder["id"])
             result = run_suzaku_challenge(
-                challenger, titleholder_params["朱雀"], depth=1,
+                challenger, titleholder_params["朱雀"], depth=SUZAKU_TITLE_DEPTH,
                 titleholder_volatility=defending_ind_for_volatility.volatility if defending_ind_for_volatility else 1.0,
             )
             print(f"  朱雀戦: {challenger.display_name} {result['challenger_wins']}-{result['titleholder_wins']}"
@@ -548,7 +552,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
             suzaku_exclude_ids.add(suzaku_holder_id)
         suzaku_exclude_ids.add(new_holder_id)
         qualifiers, qualifier_bracket_log = determine_suzaku_qualifiers(
-            all_members, exclude_ids=suzaku_exclude_ids, depth=1, num_blocks=num_new_needed,
+            all_members, exclude_ids=suzaku_exclude_ids, depth=SUZAKU_LEAGUE_DEPTH, num_blocks=num_new_needed,
             titleholder_ids=suzaku_seed_titleholder_ids, a_league_order=suzaku_seed_a_order,
         )
         extra_match_log += _bracket_log_to_match_log(qualifier_bracket_log, "朱雀予選")
@@ -576,7 +580,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
     # 白虎：Elo上位16名（前年白虎在位者は防衛専念枠として除外）による正式シードトーナメント
     # ============================================================
     byakko_holder_id = (titleholders.get("白虎") or {}).get("id")
-    challenger, bracket_log = determine_byakko_challenger(all_members, exclude_id=byakko_holder_id, depth=1, top_n=16)
+    challenger, bracket_log = determine_byakko_challenger(all_members, exclude_id=byakko_holder_id, depth=BYAKKO_LEAGUE_DEPTH, top_n=16)
 
     for matchup in bracket_log:
         ind_a, ind_b = all_members_by_id.get(matchup["a"]), all_members_by_id.get(matchup["b"])
@@ -604,7 +608,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
         defending_holder = titleholders["白虎"]
         defending_ind_for_volatility = all_members_by_id.get(defending_holder["id"])
         result = run_byakko_challenge(
-            challenger, titleholder_params["白虎"], depth=1,
+            challenger, titleholder_params["白虎"], depth=BYAKKO_TITLE_DEPTH,
             titleholder_volatility=defending_ind_for_volatility.volatility if defending_ind_for_volatility else 1.0,
         )
         print(f"  白虎戦: {challenger.display_name} {result['challenger_wins']}-{result['titleholder_wins']}"
@@ -636,7 +640,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
     genbu_seed_titleholder_ids = {info["id"] for info in titleholders.values() if info and info.get("id")}
     genbu_seed_a_order = [ind.id for ind in ranked_A]
     challenger, bracket_log = determine_genbu_challenger(
-        all_members, exclude_id=genbu_holder_id, depth=1, bracket_size=64,
+        all_members, exclude_id=genbu_holder_id, depth=GENBU_LEAGUE_DEPTH, bracket_size=64,
         titleholder_ids=genbu_seed_titleholder_ids, a_league_order=genbu_seed_a_order,
     )
 
@@ -666,7 +670,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
         defending_holder = titleholders["玄武"]
         defending_ind_for_volatility = all_members_by_id.get(defending_holder["id"])
         result = run_genbu_challenge(
-            challenger, titleholder_params["玄武"], depth=1,
+            challenger, titleholder_params["玄武"], depth=GENBU_TITLE_DEPTH,
             titleholder_volatility=defending_ind_for_volatility.volatility if defending_ind_for_volatility else 1.0,
         )
         print(f"  玄武戦: {challenger.display_name} {result['challenger_wins']}-{result['titleholder_wins']}"
@@ -704,7 +708,10 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-dir", default="data")
     parser.add_argument("--seasons", type=int, default=1)
-    parser.add_argument("--depth", type=int, default=1)
+    # A〜Dリーグの探索深さ。青龍戦の挑戦権はAリーグ総当たりの結果で決まり、
+    # B〜Dリーグも昇格を通じて最終的にAリーグ・青龍戦に繋がるため、
+    # 青龍関連の深さ（SEIRYUU_LEAGUE_DEPTH）をデフォルトにする
+    parser.add_argument("--depth", type=int, default=SEIRYUU_LEAGUE_DEPTH)
     parser.add_argument("--swiss-rounds", type=int, default=4)
     args = parser.parse_args()
     print(f"[DEBUG] パース済み引数: data_dir={args.data_dir}, seasons={args.seasons}, depth={args.depth}, swiss_rounds={args.swiss_rounds}", flush=True)
