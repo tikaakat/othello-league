@@ -216,7 +216,17 @@ jobs:
           fi
           if [ "$FINAL_OK" -eq 0 ]; then
             retry_cmd curl -sS -f --connect-timeout 8 --max-time 20 "$PULL_IMPORT_URL" \
+              && FINAL_OK=1 \
               || echo "::warning::最終同期にも失敗しました。xserver側の状態を手動で確認してください（GitHub上のデータ自体は正常に保存されています）"
           fi
 
           rm -f /tmp/deploy_key
+
+          # 最終同期（プッシュ型・プル型とも）が最後まで失敗した場合のみ、ジョブそのものを
+          # 失敗扱いにする（GitHub Actionsの失敗通知メールで気付けるようにするため。
+          # シーズン計算・GitHubへのpushは既に成功しており、データはGitHub上に残っているので、
+          # 失敗させてもデータロスにはならない。後でプル型を手動実行すれば復旧できる）
+          if [ "$FINAL_OK" -eq 0 ]; then
+            echo "::error::サイトへの最終同期（プッシュ型・プル型とも）に失敗しました。GitHub上のデータは正常に保存されていますが、サイトへの反映には手動対応（プル型インポートの実行）が必要です。"
+            exit 1
+          fi
