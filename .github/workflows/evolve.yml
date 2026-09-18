@@ -156,6 +156,12 @@ jobs:
             fi
 
             git add data/rosters.json data/season_state.json data/matches data/standings
+            # run_season.py側はnewcomer_winners.json（新人リーグの勝者ファイル）を
+            # 読み込み後にローカルで削除するが、ここでcommit対象に含めておかないと
+            # 削除がpushされず、次回のバッチ（fresh checkout）でまだ残っている古い
+            # ファイルを再度読み込んで同じ新人を二重に昇格させてしまう。
+            # ファイルが元々存在しない場合はgit addが失敗するので無視する
+            git add data/newcomer_winners.json 2>/dev/null || true
             if ! git diff --staged --quiet; then
               git commit -m "Season batch $i/$TOTAL [skip ci]"
               retry_cmd git pull --rebase origin main \
