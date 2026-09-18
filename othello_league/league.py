@@ -64,6 +64,10 @@ def promote_and_relegate(rosters, season, name_registry=None, titleholders=None,
         for ind in members:
             if ind.age >= RETIREMENT_AGE and ind.id not in protected_ids:
                 ind.retired = True
+                # 引退する個体も今季は実際に対局しているので、在籍シーズン数に数える
+                # （数えないと、対局実績があるのに引退季の1つ手前までしか通算しておらず、
+                #  在籍期間の表示が実際より1季ずれてしまう）
+                ind.total_seasons += 1
                 retired.append(ind)
             else:
                 keep.append(ind)
@@ -137,6 +141,7 @@ def promote_and_relegate(rosters, season, name_registry=None, titleholders=None,
             ind.consecutive_losing_seasons = 0
         if ind.consecutive_losing_seasons >= D_CONSECUTIVE_LOSING_LIMIT and ind.id not in protected_ids:
             ind.retired = True
+            ind.total_seasons += 1  # age_retiredと同様、引退する今季分も在籍シーズン数に数える
             d_up_or_out_retired.append(ind)
         else:
             d_keep.append(ind)
