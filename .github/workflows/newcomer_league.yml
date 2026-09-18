@@ -9,7 +9,9 @@ on:
   schedule:
     # 本戦（evolve.yml）が1日2回（朝7:00・夜18:00 JST）になったのに合わせて、
     # 新人リーグもそれぞれの1時間前に1回ずつ実行し、勝者データ
-    # （data/newcomer_winners.json）を都度リポジトリにpushしておく。
+    # （data/newcomer_winners.json）を都度リポジトリにpushする。
+    # サイト側（新人リーグの結果タブ）へも、この実行の中でプル型インポートを
+    # 呼んですぐ反映させるので、本戦の実行を待つ必要はない。
     #   6:00 JST(=21:00 UTC 前日) → 朝7:00の本戦向け
     #   17:00 JST(=08:00 UTC)     → 夜18:00の本戦向け
     - cron: "0 21 * * *"
@@ -33,6 +35,7 @@ jobs:
         timeout-minutes: 60
         env:
           PENDING_CHAR_URL: "https://lab.spia-net.com/othello-league/export_pending_characters.php?key=${{ secrets.IMPORT_SECRET_KEY }}"
+          PULL_IMPORT_URL: "https://lab.spia-net.com/othello-league/import_from_github.php?key=${{ secrets.IMPORT_SECRET_KEY }}"
         run: |
           git config user.name "othello-league-bot"
           git config user.email "actions@users.noreply.github.com"
@@ -71,6 +74,16 @@ jobs:
               || echo "::warning::git pull --rebaseに失敗しました。そのままpushを試みます"
             retry_cmd git push \
               || { echo "::error::git pushに失敗しました。本戦（evolve.yml）が今夜、新人リーグの勝者を取り込めない可能性があります"; exit 1; }
+
+            # サイト側（新人リーグの結果タブ等）は、これまでevolve.yml実行時の
+            # xserverプッシュ型インポートに頼っていたため、evolve.yml側で使っている
+            # プル型インポート（GitHubから直接取得）をここでも呼び、本戦の実行を待たずに
+            # 新人リーグ結果をサイトへすぐ反映させる。失敗してもジョブは失敗扱いにしない
+            # （GitHub上のデータは既にpush済みなので、次のevolve.yml実行時などに
+            #  改めて取り込まれる）
+            echo "=== サイトへ新人リーグ結果を反映（プル型インポート） ==="
+            retry_cmd curl -sS -f --connect-timeout 8 --max-time 20 "$PULL_IMPORT_URL" \
+              || echo "::warning::サイトへのプル型インポートに失敗しました。本戦の次回実行時などに改めて反映されます"
           else
             echo "変更なし（コミット不要）"
           fi
