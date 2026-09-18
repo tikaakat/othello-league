@@ -18,7 +18,7 @@ from othello_league.swiss import run_swiss_league
 from othello_league.names import NameRegistry
 from othello_league.io_utils import load_season_state, save_season_state
 
-NEWCOMER_LEAGUE_DEPTH = 3
+NEWCOMER_LEAGUE_DEPTH = 1  # テストのため一時的に1に変更中（本来値：3）
 NEWCOMER_LEAGUE_ROUNDS = 15
 NEWCOMER_TARGET_POOL = 30
 NEWCOMER_SUBMISSION_CAP = 40
