@@ -38,9 +38,9 @@ AWAKENING_CHANCE = 0.03  # 3%（旧1%は80季程度回しても1体しか出ず�
 AWAKENING_MULTIPLIER_RANGE = (1.8, 3.0)
 
 
-def maybe_awaken(params, individual_id=None):
-    """paramsのコピーに対し、1%の確率で1パラメータを大きく突破させる。(新パラメータ, 突破したキー名 or None) を返す"""
-    if random.random() >= AWAKENING_CHANCE:
+def maybe_awaken(params, individual_id=None, chance=AWAKENING_CHANCE):
+    """paramsのコピーに対し、chanceの確率で1パラメータを大きく突破させる。(新パラメータ, 突破したキー名 or None) を返す"""
+    if random.random() >= chance:
         return dict(params), None
 
     awakened = dict(params)

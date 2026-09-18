@@ -55,7 +55,11 @@ def run_newcomer_league(submissions, slots_needed, registry, depth=NEWCOMER_LEAG
         ind = _build_character_creation_individual(entry, season="NL", index=i)
         ind.league = "新人"
         candidates.append(ind)
-        entries_by_id[ind.id] = entry
+        # 新人リーグの対局で実際に使われたparams・覚醒判定結果を勝者データに引き継ぐ。
+        # こうしないと、本戦で実際にDリーグへ参入する際に別の乱数でparams・覚醒が
+        # 再抽選されてしまい、新人リーグを勝ち上がった個体と実際に参入する個体が
+        # 食い違ってしまう（タイプのみ指定・自動生成の場合は特にparamsが未指定のため）
+        entries_by_id[ind.id] = {**entry, "params": dict(ind.params), "awakened_param": ind.awakened_param}
 
     if len(candidates) < 2:
         return [], [], []
