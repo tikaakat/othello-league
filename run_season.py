@@ -263,7 +263,7 @@ def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_b
         if ind.elo > ind.peak_elo:
             ind.peak_elo = ind.elo
 
-    return rosters, match_log, title_results, retired, standings_snapshot
+    return rosters, match_log, title_results, retired, standings_snapshot, new_disciples
 
 
 def _result_from_winner_tag(tag):
@@ -726,12 +726,21 @@ def main():
         rosters = bootstrap_rosters(registry)
         state["name_registry"] = registry.to_dict()
 
-    # キャラクリエイト機能：サイト側から取得済みの「作成リクエスト」があれば、このプロセスが
-    # 処理する最初のシーズンにのみ適用する（複数シーズンをまとめて回す場合、2季目以降で
-    # 重複適用しないよう、読み込んだ時点でファイルは削除する）
+    # キャラクリエイト機能：このプロセスが処理する最初のシーズンにのみ適用する
+    # （複数シーズンをまとめて回す場合、2季目以降で重複適用しないよう、読み込んだ時点で
+    # ファイルは削除する）。新人リーグ（AM実行）の勝者ファイルがあればそちらを優先し、
+    # 無ければ旧来の直接投稿ファイルにフォールバックする（新人リーグの導入前後で
+    # 投稿フローが途切れないようにするため）
+    newcomer_winners_path = os.path.join(args.data_dir, "newcomer_winners.json")
     pending_characters_path = os.path.join(args.data_dir, "pending_characters.json")
     pending_characters = None
-    if os.path.exists(pending_characters_path):
+    if os.path.exists(newcomer_winners_path):
+        with open(newcomer_winners_path, "r", encoding="utf-8") as f:
+            pending_characters = json.load(f) or None
+        os.remove(newcomer_winners_path)
+        if pending_characters:
+            print(f"[DEBUG] 新人リーグ勝者{len(pending_characters)}件を今季のDリーグに適用します", flush=True)
+    elif os.path.exists(pending_characters_path):
         with open(pending_characters_path, "r", encoding="utf-8") as f:
             pending_characters = json.load(f) or None
         os.remove(pending_characters_path)
@@ -750,7 +759,7 @@ def main():
                     prev_rows = json.load(f)
                 prev_standings_by_id = {row["individual_id"]: row for row in prev_rows}
 
-        rosters, match_log, title_results, retired, standings_snapshot = run_one_season(
+        rosters, match_log, title_results, retired, standings_snapshot, new_disciples = run_one_season(
             rosters, season, args.depth, args.swiss_rounds, state, prev_standings_by_id,
             pending_characters=(pending_characters if i == 0 else None),
         )
@@ -759,6 +768,9 @@ def main():
         state["retired_archive"] += [ind.to_dict() for ind in retired]
         state.setdefault("title_history", [])
         state["title_history"] += title_results
+        # 新人リーグ（次回AM実行）で何名を昇格させるかの目安として、今季実際にDリーグへ
+        # 新規参入した人数（キャラクリ・自動生成の合計）を記録しておく
+        state["pending_newcomer_slots"] = len(new_disciples)
 
         save_rosters(args.data_dir, rosters)
         save_match_log(args.data_dir, season, match_log)
