@@ -444,7 +444,11 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
             bootstrap_pool, depth=SUZAKU_LEAGUE_DEPTH, num_blocks=10,
             titleholder_ids=suzaku_seed_titleholder_ids, a_league_order=suzaku_seed_a_order,
         )
-        extra_match_log += _bracket_log_to_match_log(bootstrap_bracket_log, "朱雀予選")
+        # 通常の入れ替え戦（"朱雀予選"）と同じ季に発生しうるうえ、参加プールが一部重複する
+        # （初代決定戦の落選者がそのまま同じ季の入れ替え戦にも出場する）ため、同じリーグ名で
+        # 記録すると、サイト側のブロック復元（対局した個体同士を連結して自動判定する方式）が
+        # 誤って2つの別トーナメントを1つに混ぜてしまう。別リーグ名で区別して記録する
+        extra_match_log += _bracket_log_to_match_log(bootstrap_bracket_log, "朱雀紅白決定戦")
         for matchup in bootstrap_bracket_log:
             ind_a, ind_b = all_members_by_id.get(matchup["a"]), all_members_by_id.get(matchup["b"])
             if ind_a and ind_b:
