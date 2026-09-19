@@ -252,7 +252,7 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
 
 
 def recruit_d_league(rosters, season, name_registry=None, pending_characters=None, titleholders=None,
-                      suzaku_league_ids=None):
+                      suzaku_league_ids=None, auto_fill_vacancy=True):
     """
     Dリーグの欠員（relegate_and_retire()が確定させたもの。rosters["D"]が定員割れの
     状態で渡ってくる）を、次シーズンの対局が始まる前に補充する。
@@ -263,6 +263,11 @@ def recruit_d_league(rosters, season, name_registry=None, pending_characters=Non
     pending_charactersの人数が実際の欠員数を上回る場合（新人リーグの募集人数の推定と
     実際の欠員がズレた場合の保険）は、既存メンバーのElo下位をカットして枠を確保する
     （新人リーグ勝者自身・タイトル保持者・朱雀紅白リーグ在籍者はカット対象から除外）。
+
+    auto_fill_vacancy=Falseの場合、pending_charactersで埋まらない残り枠は
+    自動生成の新弟子で埋めず、Dリーグを定員割れのまま残す（ブートストラップ第1季用。
+    少人数スタートのつもりが対局前に定員まで自動で埋められてしまい、その後すぐ
+    「新人受け入れ最低保証」による強制カットの対象になってしまうのを防ぐため）。
     戻り値: (更新後のrosters dict, 新規参入者リスト, 更新後のname_registry, 引退者リスト)
     """
     if name_registry is None:
@@ -299,7 +304,7 @@ def recruit_d_league(rosters, season, name_registry=None, pending_characters=Non
 
     new_disciples = []
     remaining_slots = d_departures - len(created_characters)
-    if remaining_slots > 0:
+    if auto_fill_vacancy and remaining_slots > 0:
         candidates = A + B + C + D
         new_disciples = generate_disciples(
             count=remaining_slots, season=season, pool=candidates, name_registry=name_registry,

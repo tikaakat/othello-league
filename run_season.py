@@ -796,6 +796,11 @@ def main():
             pending_characters=(pending_characters if i == 0 else None),
             titleholders=state.get("titleholders"),
             suzaku_league_ids=suzaku_league_ids,
+            # 第1季（ブートストラップ直後）のみ、自動生成の新弟子での定員までの穴埋めを止める。
+            # 通常はここで即座に定員まで埋めてしまい、少人数スタートの意図が無効になった上、
+            # その季の対局後に「新人受け入れ最低保証」により埋めたばかりの個体が
+            # 強制的に引退させられてしまっていたため
+            auto_fill_vacancy=(season != 1),
         )
         state["name_registry"] = registry.to_dict()
         if new_disciples:
