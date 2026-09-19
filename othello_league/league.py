@@ -16,6 +16,12 @@ RETIREMENT_AGE = 60
 D_CONSECUTIVE_LOSING_LIMIT = 2
 C_TO_D_RELEGATE = 3  # C→D降格人数（B→Cと同数）
 
+# Dリーグの新人受け入れに関する最低保証設定。
+# 自然な引退（年齢・連続負け越し）だけに頼ると欠員が長期間0のままになりがちなため、
+# 定員に近い人数が在籍している場合でも毎季一定数の新人受け入れ枠を確保する
+D_MIN_NEWCOMER_SLOTS = 2          # 最低保証する新人受け入れ枠数
+D_NEWCOMER_GUARANTEE_FLOOR = 16   # 在籍者数がこれを下回る場合、不足分をさらに上乗せする
+
 PARAM_KEYS = [
     "corner_weight", "danger_zone_weight", "mobility_weight", "edge_stability_weight",
     "frontier_weight", "disc_weight", "parity_weight", "center_weight",
@@ -223,7 +229,20 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
             ind.retired = True
         return protected + keep_cuttable, over
 
-    D, d_over_retired = _cut_d_overflow(D, LEAGUE_CAPACITY["D"])
+    # Dリーグ最低保証枠：年齢・連続負け越しによる引退は稀にしか起きないため、
+    # 自然な欠員だけに頼ると新人リーグの募集人数が0の季が何季も続いてしまう。
+    # 在籍者数がD_NEWCOMER_GUARANTEE_FLOOR以上の場合は毎季必ずD_MIN_NEWCOMER_SLOTS名分の
+    # 昇格枠を確保する（自然な欠員がこれに満たなければ、既存メンバーのElo下位を
+    # 追加で強制引退させて枠を作る）。在籍者数がフロアを下回っている場合は、
+    # フロアまでの不足分をさらに上乗せする（この場合は定員（20名）に対してまだ余裕が
+    # あるため、通常は追加の強制引退なしに自然な欠員だけで賄える）
+    guaranteed_slots = D_MIN_NEWCOMER_SLOTS + max(0, D_NEWCOMER_GUARANTEE_FLOOR - len(D))
+    natural_vacancy = LEAGUE_CAPACITY["D"] - len(D)
+    target_capacity = LEAGUE_CAPACITY["D"]
+    if guaranteed_slots > natural_vacancy:
+        target_capacity = len(D) - (guaranteed_slots - natural_vacancy)
+
+    D, d_over_retired = _cut_d_overflow(D, target_capacity)
     all_retired.extend(d_over_retired)
 
     vacancy = LEAGUE_CAPACITY["D"] - len(D)
