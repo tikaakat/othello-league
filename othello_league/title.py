@@ -150,28 +150,6 @@ def _play_until_decided(params_x, params_y, depth, noise_x=1.0, noise_y=1.0, max
 # 入れ替えの4名を決定する。残留6名（紅白各3名）と新規4名は、来季また紅白各3名+2名に
 # ランダムに組み直される。
 # ============================================================
-def bootstrap_suzaku_league(all_members, titleholder_ids=frozenset(), a_league_order=(), size_per_group=5):
-    """
-    紅白リーグがまだ存在しない最初の季に、初期メンバー10名を選出して紅白に振り分ける。
-    優先度はタイトル保持者＞Aリーグ順位＞Elo（玄武戦のシード優先度と同じ考え方）。
-    戻り値: (red_ids, white_ids)
-    """
-    a_rank_by_id = {iid: rank for rank, iid in enumerate(a_league_order)}
-    not_in_a = len(a_league_order)
-
-    def seed_priority(ind):
-        is_title = ind.id in titleholder_ids
-        a_rank = a_rank_by_id.get(ind.id, not_in_a)
-        return (0 if is_title else 1, a_rank, -ind.elo)
-
-    ranked = sorted(all_members, key=seed_priority)
-    chosen = ranked[:size_per_group * 2]
-    random.shuffle(chosen)
-    red = chosen[:size_per_group]
-    white = chosen[size_per_group:size_per_group * 2]
-    return [ind.id for ind in red], [ind.id for ind in white]
-
-
 def run_suzaku_group_stage(red_members, white_members, depth=1):
     """
     紅組・白組それぞれで総当たりを行う。
