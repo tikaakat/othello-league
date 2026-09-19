@@ -103,9 +103,10 @@ jobs:
           if [ "$RESET" = "true" ]; then
             echo "=== 一括リセット: 既存データを削除してシーズン1からやり直します ==="
 
-            rm -rf data/rosters.json data/season_state.json data/matches data/standings
-            mkdir -p data/matches data/standings
-            touch data/matches/.gitkeep data/standings/.gitkeep
+            rm -rf data/rosters.json data/season_state.json data/matches data/standings \
+              data/newcomer_league data/newcomer_winners.json data/newcomer_submissions.json
+            mkdir -p data/matches data/standings data/newcomer_league
+            touch data/matches/.gitkeep data/standings/.gitkeep data/newcomer_league/.gitkeep
 
             git add -A data
             if ! git diff --staged --quiet; then
@@ -117,9 +118,13 @@ jobs:
             fi
 
             echo "--- Xserver側のデータも削除中 ---"
+            # newcomer_leagueもここで削除しないと、xserver側に残った古いfor_season_*.jsonが
+            # 次回のプッシュ型インポート（import_from_colab.php、ディレクトリ内を全件スキャンする
+            # 仕様のためスキップ判定が無い）で毎回再取り込みされ、MySQL側をリセットしても
+            # 古い新人リーグ結果が復活してしまう
             retry_cmd ssh -i /tmp/deploy_key -p "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
               "$XSERVER_USER@$XSERVER_HOST" \
-              "rm -rf ${XSERVER_TARGET_DIR}matches ${XSERVER_TARGET_DIR}standings ${XSERVER_TARGET_DIR}rosters.json ${XSERVER_TARGET_DIR}season_state.json && mkdir -p ${XSERVER_TARGET_DIR}matches ${XSERVER_TARGET_DIR}standings" \
+              "rm -rf ${XSERVER_TARGET_DIR}matches ${XSERVER_TARGET_DIR}standings ${XSERVER_TARGET_DIR}rosters.json ${XSERVER_TARGET_DIR}season_state.json ${XSERVER_TARGET_DIR}newcomer_league && mkdir -p ${XSERVER_TARGET_DIR}matches ${XSERVER_TARGET_DIR}standings ${XSERVER_TARGET_DIR}newcomer_league" \
               || echo "::warning::Xserver側のリセットに失敗しました。手動で確認してください"
 
             echo "--- MySQL側の全テーブルもクリア中 ---"
