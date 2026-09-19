@@ -4,7 +4,9 @@ import os
 import random
 
 from othello_league.individual import LeagueIndividual
-from othello_league.league import relegate_and_retire, recruit_d_league, LEAGUE_CAPACITY, RETIREMENT_AGE
+from othello_league.league import (
+    relegate_and_retire, recruit_d_league, LEAGUE_CAPACITY, RETIREMENT_AGE, D_NEWCOMER_GUARANTEE_FLOOR,
+)
 from othello_league.buffs import effective_params, roll_age_multipliers
 from othello_league.round_robin import run_round_robin
 from othello_league.swiss import run_swiss_league
@@ -72,8 +74,11 @@ def bootstrap_rosters(registry):
         for ind in rosters[league]:
             ind.volatility = _random_volatility()
 
+    # Dリーグは定員（LEAGUE_CAPACITY["D"]）より少なめの人数でスタートし、新人リーグ経由で
+    # 徐々に定員まで育てる（D_NEWCOMER_GUARANTEE_FLOORは新人受け入れの最低保証ロジックと
+    # 同じ基準人数を流用している）
     d_members = []
-    for i in range(LEAGUE_CAPACITY["D"]):
+    for i in range(D_NEWCOMER_GUARANTEE_FLOOR):
         ind = LeagueIndividual(
             f"D0-{i:03d}", "D",
             params=_random_params_with_cap(INITIAL_SUM_CAP["D"]),
