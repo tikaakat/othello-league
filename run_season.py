@@ -332,13 +332,19 @@ def _title_results_to_match_log(title_results, season):
                 else:
                     x_won = (g["result"] == "black") == g["x_was_black"]
                     result_for_log = "win" if x_won else "loss"
-                entries.append({
+                entry = {
                     "league": f"{title}予選",
                     "individual_a_id": x_id,
                     "individual_b_id": y_id,
                     "result": result_for_log,
                     "games": [g],
-                })
+                }
+                # 玄武戦のみ、ブロック分け表示のためstage（"block"/"final"）とblockを付与する
+                if "stage" in matchup:
+                    entry["stage"] = matchup["stage"]
+                if "block" in matchup:
+                    entry["block"] = matchup["block"]
+                entries.append(entry)
 
     return entries
 
