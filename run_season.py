@@ -4,7 +4,7 @@ import os
 import random
 
 from othello_league.individual import LeagueIndividual
-from othello_league.league import promote_and_relegate, LEAGUE_CAPACITY, RETIREMENT_AGE
+from othello_league.league import relegate_and_retire, recruit_d_league, LEAGUE_CAPACITY, RETIREMENT_AGE
 from othello_league.buffs import effective_params, roll_age_multipliers
 from othello_league.round_robin import run_round_robin
 from othello_league.swiss import run_swiss_league
@@ -105,7 +105,7 @@ def _build_seed_order(members, league_name, prev_standings_by_id):
     return stayed_sorted + others_sorted
 
 
-def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_by_id=None, pending_characters=None):
+def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_by_id=None):
     prev_standings_by_id = prev_standings_by_id or {}
     match_log = []
 
@@ -216,17 +216,14 @@ def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_b
     match_log += title_match_log
     match_log += title_extra_match_log
 
-    # --- 昇降格・弟子補充・引退 ---
+    # --- 昇降格・引退（Dリーグの新規補充は次シーズン開始前にrecruit_d_league()で行う）---
     rosters["A"], rosters["B"], rosters["C"], rosters["D"] = ranked_A, ranked_B, ranked_C, ranked_D
-    registry = NameRegistry.from_dict(state.get("name_registry", {}))
     suzaku_league_ids_after = set(state.get("suzaku_league", {}).get("red", [])) | \
         set(state.get("suzaku_league", {}).get("white", []))
     suzaku_league_ids = suzaku_league_ids_before | suzaku_league_ids_after
-    rosters, new_disciples, registry, retired = promote_and_relegate(
-        rosters, season, registry, titleholders=titleholders, pending_characters=pending_characters,
-        suzaku_league_ids=suzaku_league_ids,
+    rosters, retired, vacancy = relegate_and_retire(
+        rosters, season, titleholders=titleholders, suzaku_league_ids=suzaku_league_ids,
     )
-    state["name_registry"] = registry.to_dict()
 
     # --- 昇降格・新規・引退マークを確定する ---
     retired_ids = {ind.id for ind in retired}
@@ -252,7 +249,7 @@ def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_b
     standings_snapshot += suzaku_group_snapshot
 
     print(f"  引退: {len(retired)}名（{', '.join(i.display_name for i in retired)}）" if retired else "  引退: なし")
-    print(f"  新弟子: {len(new_disciples)}名")
+    print(f"  Dリーグ欠員（来季開始前に補充）: {vacancy}名")
 
     # 歴代最高Eloを更新する
     for league_list in rosters.values():
@@ -263,7 +260,7 @@ def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_b
         if ind.elo > ind.peak_elo:
             ind.peak_elo = ind.elo
 
-    return rosters, match_log, title_results, retired, standings_snapshot, new_disciples
+    return rosters, match_log, title_results, retired, standings_snapshot, vacancy
 
 
 def _result_from_winner_tag(tag):
@@ -751,6 +748,27 @@ def main():
     for i in range(args.seasons):
         season = state["current_season"] + 1
 
+        # 前季末に確定した欠員（state["pending_newcomer_slots"]）を、今季の対局が
+        # 始まる前に補充する。新人リーグはこの欠員数をそのまま募集人数として使っているため、
+        # ここで対局前に補充することで「新人リーグが対象とした季」＝「実際に出走する季」に
+        # 揃う（以前は対局後に補充していたため、実際の出走は1季後にずれていた）
+        registry = NameRegistry.from_dict(state.get("name_registry", {}))
+        suzaku_league_ids = set(state.get("suzaku_league", {}).get("red", [])) | \
+            set(state.get("suzaku_league", {}).get("white", []))
+        rosters, new_disciples, registry, recruit_retired = recruit_d_league(
+            rosters, season, registry,
+            pending_characters=(pending_characters if i == 0 else None),
+            titleholders=state.get("titleholders"),
+            suzaku_league_ids=suzaku_league_ids,
+        )
+        state["name_registry"] = registry.to_dict()
+        if new_disciples:
+            print(f"[DEBUG] 第{season}季開始前にDリーグへ{len(new_disciples)}名補充しました", flush=True)
+        if recruit_retired:
+            state.setdefault("retired_archive", [])
+            state["retired_archive"] += [ind.to_dict() for ind in recruit_retired]
+            print(f"[DEBUG] Dリーグ補充時の定員超過調整で{len(recruit_retired)}名引退しました", flush=True)
+
         prev_standings_by_id = {}
         if season > 1:
             prev_path = os.path.join(args.data_dir, "standings", f"season_{season - 1}.json")
@@ -759,18 +777,17 @@ def main():
                     prev_rows = json.load(f)
                 prev_standings_by_id = {row["individual_id"]: row for row in prev_rows}
 
-        rosters, match_log, title_results, retired, standings_snapshot, new_disciples = run_one_season(
+        rosters, match_log, title_results, retired, standings_snapshot, vacancy = run_one_season(
             rosters, season, args.depth, args.swiss_rounds, state, prev_standings_by_id,
-            pending_characters=(pending_characters if i == 0 else None),
         )
         state["current_season"] = season
         state.setdefault("retired_archive", [])
         state["retired_archive"] += [ind.to_dict() for ind in retired]
         state.setdefault("title_history", [])
         state["title_history"] += title_results
-        # 新人リーグ（次回AM実行）で何名を昇格させるかの目安として、今季実際にDリーグへ
-        # 新規参入した人数（キャラクリ・自動生成の合計）を記録しておく
-        state["pending_newcomer_slots"] = len(new_disciples)
+        # 新人リーグ（次回AM/PM実行）で何名を昇格させるかの目安として、今季確定した
+        # Dリーグの欠員数を記録しておく（次シーズン開始前にrecruit_d_league()で補充される）
+        state["pending_newcomer_slots"] = vacancy
 
         save_rosters(args.data_dir, rosters)
         save_match_log(args.data_dir, season, match_log)

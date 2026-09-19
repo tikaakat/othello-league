@@ -22,22 +22,27 @@ PARAM_KEYS = [
 ]
 
 
-def promote_and_relegate(rosters, season, name_registry=None, titleholders=None, pending_characters=None,
-                          suzaku_league_ids=None):
+def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=None):
     """
-    1シーズン終了後の昇降格、定員超過/不足の調整、新弟子の生成を行う。
-    pending_charactersが与えられた場合、キャラクリエイト機能でリクエストされた個体を
-    通常の新弟子生成より優先してDリーグに新規参入させる（要素は {"name":, "type":} の形）。
+    1シーズンの対局終了後の昇降格・強制引退の判定のみを行う（Dリーグの新規補充は
+    recruit_d_league()が別関数として、次シーズンの対局が始まる前に行う）。
+
+    以前はこの関数の中でDリーグの新規補充（新人リーグの勝者・自動生成の新弟子）まで
+    一括で行っており、その季の対局後に新弟子が参入する形だった。そのため新人リーグの
+    募集人数は「1つ前の季で確定した欠員数」という1サイクル遅れの推定値を使わざるを
+    得ず、実際に出走するのは新人リーグが対象とした季の1つ後になっていた。
+    補充処理を次シーズン開始前（対局前）に切り出すことで、新人リーグは「直前の季で
+    ちょうど確定した欠員数」を正確な人数として使え、その勝者は新人リーグが対象とした
+    季からそのまま出走できるようになる。
+
     suzaku_league_idsが与えられた場合、朱雀紅白リーグに在籍中の個体は、タイトル保持者と
     同様に強制引退（年齢・Dリーグ連続負け越し・Dリーグ定員超過カット）の対象から除外する。
     予選を勝ち抜いて来季から紅白リーグに加入する個体も、その加入前の季にこれらの条件で
     引退させてしまうと来季の紅白リーグに欠員が生じるため、同様に保護する
     （C〜Aリーグの定員超過による「降格」は引退ではなく在籍リーグが変わるだけなので対象外）。
-    戻り値: (更新後のrosters dict, 新弟子リスト, 更新後のname_registry, 引退者リスト)
+    戻り値: (更新後のrosters dict（Dリーグは欠員分だけ定員割れのことがある）,
+             引退者リスト, Dリーグの欠員数)
     """
-    if name_registry is None:
-        name_registry = NameRegistry()
-
     A = list(rosters["A"])
     B = list(rosters["B"])
     C = list(rosters["C"])
@@ -199,10 +204,66 @@ def promote_and_relegate(rosters, season, name_registry=None, titleholders=None,
                 ind.seasons_in_league += 1
             ind.total_seasons += 1
 
-    # Dリーグの補充：まずキャラクリエイトのリクエストを優先的に参入させ、
-    # 残り枠のみ通常の新弟子生成で埋める。
-    # キャラクリエイト個体も通常の新弟子と同様、必ず既存個体の中から師匠が自動選出される
-    # （本人が選ぶわけではない。新規開祖にはならないが、分岐で新しい一門の開祖になることはある）
+    # Dリーグが定員を超えている場合（D_TO_C_PROMOTEとC_TO_D_RELEGATEの数が想定通りで
+    # あれば通常は起きないが、初期ロスターが定員通りでない場合などへの保険）は、
+    # 新規補充を待たずにここでElo下位をカットする（この時点では新規参入者がまだ
+    # いないため、保護対象はタイトル保持者・朱雀紅白リーグ在籍者のみでよい）
+    def _cut_d_overflow(members, capacity):
+        if len(members) <= capacity:
+            return members, []
+        protected = [ind for ind in members if ind.id in protected_ids]
+        cuttable = sorted(
+            (ind for ind in members if ind.id not in protected_ids),
+            key=lambda ind: ind.elo, reverse=True,
+        )
+        shortage = len(members) - capacity
+        keep_cuttable = cuttable[:max(0, len(cuttable) - shortage)]
+        over = cuttable[max(0, len(cuttable) - shortage):]
+        for ind in over:
+            ind.retired = True
+        return protected + keep_cuttable, over
+
+    D, d_over_retired = _cut_d_overflow(D, LEAGUE_CAPACITY["D"])
+    all_retired.extend(d_over_retired)
+
+    vacancy = LEAGUE_CAPACITY["D"] - len(D)
+
+    new_rosters = {"A": A, "B": B, "C": C, "D": D}
+    return new_rosters, all_retired, vacancy
+
+
+def recruit_d_league(rosters, season, name_registry=None, pending_characters=None, titleholders=None,
+                      suzaku_league_ids=None):
+    """
+    Dリーグの欠員（relegate_and_retire()が確定させたもの。rosters["D"]が定員割れの
+    状態で渡ってくる）を、次シーズンの対局が始まる前に補充する。
+    まずキャラクリエイト・新人リーグ経由のリクエスト（pending_characters）を優先的に
+    参入させ、残り枠のみ通常の新弟子生成で埋める。
+    キャラクリエイト個体も通常の新弟子と同様、必ず既存個体の中から師匠が自動選出される
+    （本人が選ぶわけではない。新規開祖にはならないが、分岐で新しい一門の開祖になることはある）。
+    pending_charactersの人数が実際の欠員数を上回る場合（新人リーグの募集人数の推定と
+    実際の欠員がズレた場合の保険）は、既存メンバーのElo下位をカットして枠を確保する
+    （新人リーグ勝者自身・タイトル保持者・朱雀紅白リーグ在籍者はカット対象から除外）。
+    戻り値: (更新後のrosters dict, 新規参入者リスト, 更新後のname_registry, 引退者リスト)
+    """
+    if name_registry is None:
+        name_registry = NameRegistry()
+
+    A = list(rosters["A"])
+    B = list(rosters["B"])
+    C = list(rosters["C"])
+    D = list(rosters["D"])
+
+    titleholder_ids = set()
+    if titleholders:
+        for info in titleholders.values():
+            if info and info.get("id"):
+                titleholder_ids.add(info["id"])
+
+    protected_ids = set(titleholder_ids)
+    if suzaku_league_ids:
+        protected_ids.update(suzaku_league_ids)
+
     d_departures = LEAGUE_CAPACITY["D"] - len(D)
     created_characters = []
     if pending_characters:
@@ -229,7 +290,7 @@ def promote_and_relegate(rosters, season, name_registry=None, titleholders=None,
     new_disciples = created_characters + new_disciples
 
     # Dリーグの定員超過調整（Elo下位をカットして引退扱い。タイトル保持者・朱雀紅白リーグ
-    # 在籍者・今季作成されたキャラクリ個体はカット対象から除外。
+    # 在籍者・今季参入したキャラクリ個体はカット対象から除外。
     # Dより下のリーグはないため、ここだけは引退させるしかない）
     created_character_ids = {ind.id for ind in created_characters}
     d_cut_exempt_ids = protected_ids | created_character_ids
@@ -251,10 +312,8 @@ def promote_and_relegate(rosters, season, name_registry=None, titleholders=None,
 
     D, d_over_retired = _cut_overflow(D, LEAGUE_CAPACITY["D"])
 
-    all_retired.extend(d_over_retired)
-
     new_rosters = {"A": A, "B": B, "C": C, "D": D}
-    return new_rosters, new_disciples, name_registry, all_retired
+    return new_rosters, new_disciples, name_registry, d_over_retired
 
 
 MASTER_MIN_AGE = 30  # 師匠になれる最低年齢（師匠より年下の弟子が生まれないようにするため）
