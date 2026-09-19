@@ -370,7 +370,7 @@ def run_byakko_challenge(challenger, titleholder_params, depth=1, titleholder_vo
 # 玄武戦：完全ランダム抽選トーナメント（ブラケットサイズ64、Elo上位者は1回戦バイ）。
 # 超早指し戦
 # ============================================================
-def determine_genbu_challenger(all_members, exclude_id=None, depth=1, bracket_size=64,
+def determine_genbu_challenger(all_members, exclude_id=None, depth=1, bracket_size=64, num_blocks=8,
                                 titleholder_ids=frozenset(), a_league_order=()):
     """
     全所属個体が参加する、ほぼ完全ランダムの抽選トーナメント。
@@ -380,6 +380,14 @@ def determine_genbu_challenger(all_members, exclude_id=None, depth=1, bracket_si
     ③どちらにも該当しない個体はElo順（最後のタイブレークとしてのみ使用）。
     バイに入らない残り全員は、完全ランダムに1回戦を組む。
     前年玄武在位者（exclude_id）は防衛専念枠のため、この母集団からは除外する。
+
+    表示のため、bracket_size枠全体をnum_blocks個のブロック（既定8ブロック、各8名）に
+    分割し、各ブロック内の抽選トーナメントで1名ずつ勝ち上がらせたのち、その
+    num_blocks名で改めて「挑戦者決定トーナメント」を行い最終的な挑戦者を1名決める。
+    ブロック分けは生成済みブラケット（bracket_size枠）を等分した連続区間で行う。
+    トーナメント表は各段階で必ず再帰的に閉じた部分木になる性質上、ブロック内の対戦は
+    そのブロックの参加者だけで完結する。bracket_logの各要素にはstage（"block"または
+    "final"）を、block段階ではさらにそのブロック番号（0始まり）を付与する。
     """
     pool = [ind for ind in all_members if ind.id != exclude_id]
     n = len(pool)
@@ -411,7 +419,7 @@ def determine_genbu_challenger(all_members, exclude_id=None, depth=1, bracket_si
 
     bracket_log = []
 
-    def single_game(ind_x, ind_y):
+    def single_game(ind_x, ind_y, stage, block=None):
         if ind_x is None:
             return ind_y
         if ind_y is None:
@@ -421,16 +429,26 @@ def determine_genbu_challenger(all_members, exclude_id=None, depth=1, bracket_si
             noise_x=ind_x.volatility, noise_y=ind_y.volatility,
         )
         winner_ind = ind_x if x_won else ind_y
-        bracket_log.append({
-            "a": ind_x.id, "b": ind_y.id, "winner": winner_ind.id, "games": games,
-        })
+        entry = {"a": ind_x.id, "b": ind_y.id, "winner": winner_ind.id, "games": games, "stage": stage}
+        if block is not None:
+            entry["block"] = block
+        bracket_log.append(entry)
         return winner_ind
 
     round_members = bracketed
     while len(round_members) > 1:
+        num_pairs = len(round_members) // 2
+        # ブロックの勝者がnum_blocks名に絞られるまでは各ブロック内の対戦（block段階）、
+        # それ以降はその勝者同士の挑戦者決定トーナメント（final段階）
+        is_block_stage = len(round_members) > num_blocks
+        pairs_per_block = max(1, num_pairs // num_blocks) if is_block_stage else None
         next_round = []
         for i in range(0, len(round_members), 2):
-            winner = single_game(round_members[i], round_members[i + 1])
+            pair_i = i // 2
+            if is_block_stage:
+                winner = single_game(round_members[i], round_members[i + 1], "block", pair_i // pairs_per_block)
+            else:
+                winner = single_game(round_members[i], round_members[i + 1], "final")
             next_round.append(winner)
         round_members = next_round
 
