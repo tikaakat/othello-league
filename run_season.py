@@ -12,7 +12,7 @@ from othello_league.round_robin import run_round_robin
 from othello_league.swiss import run_swiss_league
 from othello_league.title import (
     run_seiryuu_challenge,
-    bootstrap_suzaku_league, run_suzaku_group_stage, run_suzaku_challenger_decision,
+    run_suzaku_group_stage, run_suzaku_challenger_decision,
     determine_suzaku_qualifiers, assign_suzaku_groups, run_suzaku_challenge,
     determine_byakko_challenger, run_byakko_challenge,
     determine_genbu_challenger, run_genbu_challenge,
@@ -431,11 +431,32 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
     suzaku_state = state.setdefault("suzaku_league", {"red": [], "white": []})
 
     if not suzaku_state.get("red") and not suzaku_state.get("white"):
+        # 初代メンバー10名は、既存個体をElo等で直接シードするのではなく、通常の入れ替え戦
+        # （determine_suzaku_qualifiers）と同じ10ブロックのシード付きトーナメントで決める
         bootstrap_pool = [ind for ind in all_members if ind.id != suzaku_holder_id]
-        red_ids, white_ids = bootstrap_suzaku_league(
-            bootstrap_pool, titleholder_ids=suzaku_seed_titleholder_ids, a_league_order=suzaku_seed_a_order,
+        bootstrap_qualifiers, bootstrap_bracket_log = determine_suzaku_qualifiers(
+            bootstrap_pool, depth=SUZAKU_LEAGUE_DEPTH, num_blocks=10,
+            titleholder_ids=suzaku_seed_titleholder_ids, a_league_order=suzaku_seed_a_order,
         )
-        suzaku_state["red"], suzaku_state["white"] = red_ids, white_ids
+        extra_match_log += _bracket_log_to_match_log(bootstrap_bracket_log, "朱雀予選")
+        for matchup in bootstrap_bracket_log:
+            ind_a, ind_b = all_members_by_id.get(matchup["a"]), all_members_by_id.get(matchup["b"])
+            if ind_a and ind_b:
+                for g in matchup.get("games", []):
+                    if g["result"] == "draw":
+                        outcome_a = "draw"
+                    else:
+                        x_won = (g["result"] == "black") == g["x_was_black"]
+                        outcome_a = "win" if x_won else "loss"
+                    ind_a.elo, ind_b.elo = update_elo(
+                        ind_a.elo, ind_b.elo, outcome_a,
+                        total_seasons_a=ind_a.total_seasons, total_seasons_b=ind_b.total_seasons,
+                    )
+        chosen = list(bootstrap_qualifiers)
+        random.shuffle(chosen)
+        suzaku_state["red"], suzaku_state["white"] = (
+            [ind.id for ind in chosen[:5]], [ind.id for ind in chosen[5:10]],
+        )
 
     def _prep_suzaku_group(ids):
         # 在位者は防衛専念枠のため、紅白リーグに在籍していても今季の総当たりには参加させず、
