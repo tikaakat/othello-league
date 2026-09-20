@@ -73,10 +73,39 @@ jobs:
           git add data/newcomer_winners.json data/newcomer_league
           if ! git diff --staged --quiet; then
             git commit -m "Newcomer league results [skip ci]"
-            retry_cmd git pull --rebase origin main \
-              || echo "::warning::git pull --rebaseに失敗しました。そのままpushを試みます"
-            retry_cmd git push \
-              || { echo "::error::git pushに失敗しました。本戦（evolve.yml）が今夜、新人リーグの勝者を取り込めない可能性があります"; exit 1; }
+
+            # pushが失敗する主因は、この実行中に本戦（evolve.yml）側がdata/newcomer_winners.jsonを
+            # 消費・削除するコミットを先にpushしているケース。単純な「git pull --rebase」だと
+            # 「削除 vs 変更」の競合が自動解決できずrebaseごと失敗し、せっかく計算した新人リーグの
+            # 結果がpushされずに失われてしまっていた。
+            # rebaseで競合解決を試みる代わりに、失敗するたびに最新のoriginへ
+            # 「git reset --mixed」でHEAD・indexだけを付け替え（作業ツリーのファイル内容は
+            # 変更しない）、今回生成した結果を改めてadd・commitして載せ直す方式にする。
+            # これなら「相手が何を変更・削除していたか」を気にせず、常に自分の最新の結果を
+            # 最新のoriginの上に積み直すだけで済み、この種の競合が原理的に起こらない
+            PUSHED=0
+            for attempt in 1 2 3 4; do
+              if git push; then
+                PUSHED=1
+                break
+              fi
+              echo "::warning::git push 失敗（試行 ${attempt}/4）。最新のmainを取り込んで結果を積み直します"
+              retry_cmd git fetch origin main || break
+              git reset --mixed origin/main
+              git add data/newcomer_winners.json data/newcomer_league
+              if git diff --staged --quiet; then
+                echo "最新のmainに既に同じ内容が反映されていました（他の実行と重複した可能性）"
+                PUSHED=1
+                break
+              fi
+              git commit -m "Newcomer league results [skip ci]"
+              sleep $((attempt * 3))
+            done
+
+            if [ "$PUSHED" != "1" ]; then
+              echo "::error::git pushに複数回失敗しました。本戦（evolve.yml）が今夜、新人リーグの勝者を取り込めない可能性があります"
+              exit 1
+            fi
 
             # サイト側（新人リーグの結果タブ等）は、これまでevolve.yml実行時の
             # xserverプッシュ型インポートに頼っていたため、evolve.yml側で使っている
