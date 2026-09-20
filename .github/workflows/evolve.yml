@@ -170,10 +170,36 @@ jobs:
             git add data/newcomer_winners.json 2>/dev/null || true
             if ! git diff --staged --quiet; then
               git commit -m "Season batch $i/$TOTAL [skip ci]"
-              retry_cmd git pull --rebase origin main \
-                || echo "::warning::git pull --rebaseに失敗しました（バッチ $i）。そのままpushを試みます"
-              retry_cmd git push \
-                || echo "::warning::git pushに失敗しました（バッチ $i、GitHub側の一時エラーの可能性）。コミットはローカルに残り、次のバッチでまとめて再pushを試みます"
+
+              # pushが失敗する主因は、新人リーグ（newcomer_league.yml）側がこの実行の直後に
+              # data/newcomer_winners.jsonを新しく書き込んでpushしているケース。単純な
+              # 「git pull --rebase」だと「削除（この季で消費済み） vs 変更（次回分の新しい結果）」の
+              # 競合が自動解決できずrebaseごと失敗することがあったため、失敗するたびに
+              # 「git reset --mixed」で最新originの上へ今回のコミット内容を積み直す方式にする
+              # （rebaseの競合解決に頼らないので、この種の競合が原理的に起こらない）
+              PUSHED=0
+              for attempt in 1 2 3 4; do
+                if git push; then
+                  PUSHED=1
+                  break
+                fi
+                echo "::warning::git push 失敗（試行 ${attempt}/4、バッチ $i）。最新のmainを取り込んで積み直します"
+                retry_cmd git fetch origin main || break
+                git reset --mixed origin/main
+                git add data/rosters.json data/season_state.json data/matches data/standings
+                git add data/newcomer_winners.json 2>/dev/null || true
+                if git diff --staged --quiet; then
+                  echo "最新のmainに既に同じ内容が反映されていました（他の実行と重複した可能性）"
+                  PUSHED=1
+                  break
+                fi
+                git commit -m "Season batch $i/$TOTAL [skip ci]"
+                sleep $((attempt * 3))
+              done
+
+              if [ "$PUSHED" != "1" ]; then
+                echo "::warning::git pushに複数回失敗しました（バッチ $i）。コミットはローカルに残り、次のバッチでまとめて再pushを試みます"
+              fi
             fi
 
             if [ "$XSERVER_LIKELY_DOWN" -eq 1 ]; then
