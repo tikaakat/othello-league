@@ -253,6 +253,25 @@ def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_b
     # _run_title_matchesで既に確定した正しい値のまま追加する
     standings_snapshot += suzaku_group_snapshot
 
+    # standings_snapshotの各行のeloは、A〜Dリーグの総当たり・スイス方式が終わった直後
+    # （_run_title_matchesを呼ぶ前）の値で記録されていた。しかしタイトル戦（青龍挑戦・
+    # 朱雀紅白リーグ戦や紅白決定戦・白虎予選トーナメント・玄武抽選トーナメント等）は
+    # 全てこの後に行われ、参加者のeloを変動させる。そのため「シーズン終了時Elo」として
+    # 表示される値が、実際にはタイトル戦前の中間値のままになっており、同じ個体の
+    # プロフィールページ・リーグタブの現在Eloと食い違って見える不具合になっていた。
+    # ここで全行のeloを、今季の全対局（タイトル戦を含む）が終わった時点の最終値に
+    # 揃え直す
+    final_elo_by_id = {}
+    for league_list in rosters.values():
+        for ind in league_list:
+            final_elo_by_id[ind.id] = ind.elo
+    for ind in retired:
+        final_elo_by_id[ind.id] = ind.elo
+    for row in standings_snapshot:
+        iid = row["individual_id"]
+        if iid in final_elo_by_id:
+            row["elo"] = round(final_elo_by_id[iid], 1)
+
     print(f"  引退: {len(retired)}名（{', '.join(i.display_name for i in retired)}）" if retired else "  引退: なし")
     print(f"  Dリーグ欠員（来季開始前に補充）: {vacancy}名")
 
