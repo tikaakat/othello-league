@@ -91,6 +91,23 @@ def main():
                          help="当日投稿分のJSONファイル（未指定/存在しない場合は0件として扱う）")
     args = parser.parse_args()
 
+    state = load_season_state(args.data_dir)
+    target_season = state.get("current_season", 0) + 1
+    result_path = os.path.join(args.data_dir, "newcomer_league", f"for_season_{target_season}.json")
+
+    # 本戦（run_season.py）は新人リーグの実行後に1回だけ走る想定で、
+    # target_seasonはcurrent_seasonから計算するだけの値。そのため、想定より前に
+    # （手動実行や、本戦側のスケジュール遅延・失敗でcurrent_seasonが進まないまま）
+    # このスクリプトが同じ季に対して二重に実行されると、前回の結果ファイルを
+    # 全く別の対局内容で気付かずに上書きしてしまう（勝者・順位表・対局ログが
+    # ブラウザ表示と実際にDリーグへ参入する個体で食い違う原因になる）。
+    # 既に同じ季の結果ファイルが存在する場合は、安全のため再実行をスキップする。
+    if os.path.exists(result_path):
+        print(f"::warning::第{target_season}季分の新人リーグ結果は既に存在します（{result_path}）。"
+              f"本戦がまだこの季を消化していない可能性が高いため、二重実行とみなして"
+              f"今回の実行はスキップします（結果の上書きを防止）", flush=True)
+        return
+
     submissions = []
     if args.submissions_path and os.path.exists(args.submissions_path):
         with open(args.submissions_path, "r", encoding="utf-8") as f:
@@ -98,7 +115,6 @@ def main():
     submissions = submissions[:NEWCOMER_SUBMISSION_CAP]
     print(f"[DEBUG] 当日投稿分: {len(submissions)}件", flush=True)
 
-    state = load_season_state(args.data_dir)
     slots_needed = state.get("pending_newcomer_slots", 0)
     print(f"[DEBUG] 今夜のDリーグ新規参入枠: {slots_needed}名", flush=True)
 
@@ -110,9 +126,7 @@ def main():
         json.dump(winner_entries, f, ensure_ascii=False, indent=2)
     print(f"[DEBUG] 新人リーグ勝者: {len(winner_entries)}名を{winners_path}に保存しました", flush=True)
 
-    target_season = state.get("current_season", 0) + 1
     os.makedirs(os.path.join(args.data_dir, "newcomer_league"), exist_ok=True)
-    result_path = os.path.join(args.data_dir, "newcomer_league", f"for_season_{target_season}.json")
     with open(result_path, "w", encoding="utf-8") as f:
         json.dump({
             "for_season": target_season, "slots_needed": slots_needed,
