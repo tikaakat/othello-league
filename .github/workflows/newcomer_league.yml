@@ -94,6 +94,14 @@ jobs:
               echo "::warning::git push 失敗（試行 ${attempt}/4）。最新のmainを取り込んで結果を積み直します"
               retry_cmd git fetch origin main || break
               git reset --mixed origin/main
+
+              # push失敗＝本戦（evolve.yml）側のコミットが先に取り込まれていた可能性が高い。
+              # このスクリプトの対局計算中に本戦のバッチがcurrent_seasonを進めてしまうと、
+              # 実行開始時点で決めたtarget_season（＝ファイル名）が最新状態とずれたままに
+              # なる。ここで最新のcurrent_seasonを元に対象季を再計算し、ズレていれば
+              # ファイル名・内容を修正する（既に正しい季の結果があれば二重実行として破棄）
+              python -u run_newcomer_league.py --data-dir data --relabel-check
+
               git add data/newcomer_winners.json data/newcomer_league
               if git diff --staged --quiet; then
                 echo "最新のmainに既に同じ内容が反映されていました（他の実行と重複した可能性）"
