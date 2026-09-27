@@ -275,14 +275,8 @@ def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_b
     print(f"  引退: {len(retired)}名（{', '.join(i.display_name for i in retired)}）" if retired else "  引退: なし")
     print(f"  Dリーグ欠員（来季開始前に補充）: {vacancy}名")
 
-    # 歴代最高Eloを更新する
-    for league_list in rosters.values():
-        for ind in league_list:
-            if ind.elo > ind.peak_elo:
-                ind.peak_elo = ind.elo
-    for ind in retired:
-        if ind.elo > ind.peak_elo:
-            ind.peak_elo = ind.elo
+    # 歴代最高Elo（peak_elo）は、対局のたびにLeagueIndividual.elo setterが自動追跡するため、
+    # ここでシーズン終了時の値を改めて比較する必要はない
 
     return rosters, match_log, title_results, retired, standings_snapshot, vacancy
 

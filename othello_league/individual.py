@@ -26,8 +26,8 @@ class LeagueIndividual:
         self.age_multipliers = {}              # 年齢バフ（パラメータ別倍率）。シーズン開始時に再抽選
         self.consecutive_losing_seasons = 0     # Dリーグの2連続負け越し引退判定用
 
+        self.peak_elo = 1500.0  # 歴代最高Elo（殿堂ページの表示用）。elo setterが自動更新する
         self.elo = 1500.0
-        self.peak_elo = 1500.0  # 歴代最高Elo（殿堂ページの表示用）
         self.volatility = 1.0  # ムラ気（隠しパラメータ）。評価ノイズの倍率。基準1.0、高いほど結果が大きく振れる
         self.seasons_in_league = 0        # 現在のリーグに在籍しているシーズン数
         self.total_seasons = 0            # 通算在籍シーズン数（引退判定用）
@@ -42,6 +42,21 @@ class LeagueIndividual:
     @property
     def age(self):
         return self.initial_age + self.total_seasons
+
+    @property
+    def elo(self):
+        return self._elo
+
+    @elo.setter
+    def elo(self, value):
+        # 歴代最高Elo（peak_elo）を、シーズン終了時の値だけでなく対局のたびに追跡する。
+        # 1シーズン中に総当たり/スイス方式・タイトル戦（予選ブラケット・挑戦者決定戦等）と
+        # 何度もeloが上下するため、シーズン終了時点の値だけを見ていると、シーズン中に
+        # 一時的に到達した最高値（対局ログ上で表示される値）を取り逃してしまう
+        # （殿堂・個体詳細ページの「最高Elo」が対局ログ上の値より低く見える不具合の原因だった）
+        self._elo = value
+        if value > self.peak_elo:
+            self.peak_elo = value
 
     def to_dict(self):
         return {
@@ -81,8 +96,10 @@ class LeagueIndividual:
         ind.initial_age = d.get("initial_age", random.randint(18, 24))  # 既存個体は移行時のみランダム付与
         ind.age_multipliers = d.get("age_multipliers", {})
         ind.consecutive_losing_seasons = d.get("consecutive_losing_seasons", 0)
+        # peak_elo→eloの順で設定する（eloのsetterがpeak_eloとの比較で自動更新するため、
+        # 先にpeak_eloを正しい保存値にしておかないと、ロード直後に誤って上書きされてしまう）
+        ind.peak_elo = d.get("peak_elo", d.get("elo", 1500.0))
         ind.elo = d.get("elo", 1500.0)
-        ind.peak_elo = d.get("peak_elo", ind.elo)
         ind.volatility = d.get("volatility", 1.0)
         ind.awakened_param = d.get("awakened_param")
         ind.black_count = d.get("black_count", 0)
