@@ -11,6 +11,7 @@ import argparse
 import json
 import os
 import random
+import re
 
 from othello_league.individual import LeagueIndividual
 from othello_league.league import _build_character_creation_individual
@@ -23,6 +24,10 @@ NEWCOMER_LEAGUE_ROUNDS = 15
 NEWCOMER_TARGET_POOL = 30
 NEWCOMER_SUBMISSION_CAP = 40
 CHARACTER_TYPES = ["balanced", "aggressive", "defensive", "corner"]
+
+# main()が計算したresult_pathを一時保存する場所（git管理外）。
+# push失敗時の自己修復後、relabel_if_stale()がこれを読んで対象季のズレを検出する。
+RESULT_MARKER_PATH = "/tmp/newcomer_result_marker.txt"
 
 
 def _fill_with_auto_generated(entries, target, registry):
@@ -84,12 +89,76 @@ def run_newcomer_league(submissions, slots_needed, registry, depth=NEWCOMER_LEAG
     return winner_entries, standings, match_log
 
 
+def relabel_if_stale(data_dir, marker_path=RESULT_MARKER_PATH):
+    """
+    git pushが「本戦(evolve.yml)側のコミットが先に取り込まれていた」ことを理由に失敗し、
+    git reset --mixedで最新originの上に積み直す自己修復が働いた場合を想定したチェック。
+
+    このスクリプトの対局計算（スイスリーグ、数分〜十数分かかる）が走っている間に、
+    ちょうど本戦のバッチが完了してcurrent_seasonが進んでしまうと、実行開始時点で
+    読んだcurrent_seasonを元に決めたtarget_season（＝ファイル名）は、コミット時点では
+    既に1つずれた値になっている。自己修復はファイルの中身・ファイル名を一切
+    再計算しないため、ズレたままの季番号で結果がコミットされてしまい、
+    「本戦側は次の季からその新人を迎えるのに、表示上は1つ前の季の結果として
+    保存される」という食い違いが起きる。
+
+    ここで自己修復後の最新season_state.jsonを元にtarget_seasonを再計算し、
+    ズレていればファイル名・内容（for_seasonフィールド）を正しい季番号へ修正する。
+    修正先の季番号が既に別の結果で埋まっている場合は、二重実行とみなし
+    今回の結果を破棄する（run_newcomer_league.py本体の重複防止ガードと同じ扱い）。
+    """
+    if not os.path.exists(marker_path):
+        return
+    with open(marker_path, "r", encoding="utf-8") as f:
+        old_path = f.read().strip()
+    if not old_path or not os.path.exists(old_path):
+        return
+
+    m = re.search(r"for_season_(\d+)\.json$", old_path)
+    if not m:
+        return
+    old_season = int(m.group(1))
+
+    state = load_season_state(data_dir)
+    correct_season = state.get("current_season", 0) + 1
+    if correct_season == old_season:
+        return
+
+    correct_path = os.path.join(data_dir, "newcomer_league", f"for_season_{correct_season}.json")
+    winners_path = os.path.join(data_dir, "newcomer_winners.json")
+
+    if os.path.exists(correct_path):
+        print(f"::warning::対象季が第{old_season}季から第{correct_season}季へずれていましたが、"
+              f"第{correct_season}季の結果は既に存在するため、二重実行とみなし今回の結果は破棄します",
+              flush=True)
+        os.remove(old_path)
+        if os.path.exists(winners_path):
+            os.remove(winners_path)
+        return
+
+    print(f"::warning::本戦の進行により対象季が第{old_season}季→第{correct_season}季へずれたため、"
+          f"結果ファイルを{correct_path}へリネームします", flush=True)
+    with open(old_path, "r", encoding="utf-8") as f:
+        payload = json.load(f)
+    payload["for_season"] = correct_season
+    os.remove(old_path)
+    with open(correct_path, "w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False, indent=2)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-dir", default="data")
     parser.add_argument("--submissions-path", default=None,
                          help="当日投稿分のJSONファイル（未指定/存在しない場合は0件として扱う）")
+    parser.add_argument("--relabel-check", action="store_true",
+                         help="push失敗からの自己修復（git reset --mixed）の直後に呼び出し、"
+                              "対象季のズレを検出・修正するモード。通常実行はしない")
     args = parser.parse_args()
+
+    if args.relabel_check:
+        relabel_if_stale(args.data_dir)
+        return
 
     state = load_season_state(args.data_dir)
     target_season = state.get("current_season", 0) + 1
@@ -133,6 +202,9 @@ def main():
             "submission_count": len(submissions), "standings": standings, "match_log": match_log,
         }, f, ensure_ascii=False, indent=2)
     print(f"[DEBUG] 新人リーグ結果を{result_path}に保存しました", flush=True)
+
+    with open(RESULT_MARKER_PATH, "w", encoding="utf-8") as f:
+        f.write(result_path)
 
 
 if __name__ == "__main__":
