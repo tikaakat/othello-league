@@ -48,6 +48,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
+          # refを明示しないと、actions/checkoutは「スケジュールイベントが発生した時点」の
+          # コミットを取得してしまう。同じ排他グループ（concurrency）を共有する新人リーグ側の
+          # 実行が長引いてこちらが順番待ちになった場合、実際にジョブが動き出す頃にはmainが
+          # 先へ進んでいても、チェックアウトされる内容は古いままになりうる。refを明示し、
+          # ジョブ実行時点の最新mainを必ず取得する
+          ref: main
           fetch-depth: 0
 
       - name: Set up Python

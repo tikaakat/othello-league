@@ -29,6 +29,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
+          # refを明示しないと、actions/checkoutは「スケジュールイベントが発生した時点」の
+          # コミットを取得してしまい、排他グループ（concurrency）での順番待ちが長引いた場合、
+          # 実際にジョブが動き出す頃にはmainが先へ進んでいても、チェックアウトされる内容は
+          # 古いままになる。本戦（evolve.yml）の実行に数十分〜1時間以上かかることが珍しくなく、
+          # 新人リーグ側がその待ち行列で長時間キューイングされることが頻発していたため、
+          # current_season等の状態を古いまま読み込み、対象季が実際より1つ古くなる不具合の
+          # 根本原因になっていた。refを明示し、ジョブ実行時点の最新mainを必ず取得する
+          ref: main
           fetch-depth: 0
 
       - name: Set up Python
