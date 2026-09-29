@@ -163,6 +163,81 @@ function max_consecutive_run(array $sortedSeasons) {
     return $best;
 }
 
+// 複数個体分の段位をまとめて算出する（1個体ずつ算出する場合と違い、通算勝数・経験リーグ・
+// タイトル実績のクエリをそれぞれ1回で済ませる）。$currentLeagueById（省略可）を渡すと、
+// standingsにまだ反映されていない「現在の所属リーグ」もフロアとして加味する。
+// 戻り値：id => 段位（1〜9）
+function calc_dan_bulk($pdo, array $ids, array $currentLeagueById = []) {
+    if (!$ids) return [];
+    $placeholders = implode(',', array_fill(0, count($ids), '?'));
+
+    $recStmt = $pdo->prepare(
+        "SELECT pid, SUM(CASE WHEN outcome = 'win' THEN 1 ELSE 0 END) AS win
+         FROM (
+            SELECT individual_a_id AS pid, result AS outcome
+            FROM matches WHERE individual_a_id IN ($placeholders)
+            UNION ALL
+            SELECT individual_b_id AS pid,
+                   CASE result WHEN 'win' THEN 'loss' WHEN 'loss' THEN 'win' ELSE 'draw' END AS outcome
+            FROM matches WHERE individual_b_id IN ($placeholders)
+         ) AS all_games
+         GROUP BY pid"
+    );
+    $recStmt->execute(array_merge($ids, $ids));
+    $winById = [];
+    foreach ($recStmt->fetchAll() as $r) { $winById[$r['pid']] = (int)$r['win']; }
+
+    $lrStmt = $pdo->prepare(
+        "SELECT DISTINCT individual_id, league FROM standings
+         WHERE individual_id IN ($placeholders) AND league IN ('A', 'B', 'C', 'D')"
+    );
+    $lrStmt->execute($ids);
+    $leaguesById = [];
+    foreach ($lrStmt->fetchAll() as $lr) { $leaguesById[$lr['individual_id']][] = $lr['league']; }
+    foreach ($currentLeagueById as $id => $league) {
+        if (in_array($league, ['A', 'B', 'C', 'D'], true)) $leaguesById[$id][] = $league;
+    }
+
+    $thStmt = $pdo->query(
+        "SELECT th.season, th.title, COALESCE(th.holder_id, i.id, ra.id) AS holder_id
+         FROM title_history th
+         LEFT JOIN individuals i ON i.display_name = th.holder_name
+         LEFT JOIN retired_archive ra ON ra.display_name = th.holder_name
+         ORDER BY th.title, th.season ASC"
+    );
+    $titleCountsByTitle = [];
+    $maxStreak = [];
+    $streakId = null; $streakTitle = null; $streakCount = 0;
+    foreach ($thStmt->fetchAll() as $row) {
+        $hid = $row['holder_id'];
+        if ($hid !== null) {
+            $titleCountsByTitle[$hid][$row['title']] = ($titleCountsByTitle[$hid][$row['title']] ?? 0) + 1;
+        }
+        if ($row['title'] !== $streakTitle || $hid !== $streakId) {
+            $streakTitle = $row['title']; $streakId = $hid; $streakCount = 1;
+        } else {
+            $streakCount++;
+        }
+        if ($hid !== null && (!isset($maxStreak[$hid][$row['title']]) || $streakCount > $maxStreak[$hid][$row['title']])) {
+            $maxStreak[$hid][$row['title']] = $streakCount;
+        }
+    }
+    $eternalIds = [];
+    foreach ($titleCountsByTitle as $hid => $byTitle) {
+        foreach ($byTitle as $title => $total) {
+            if (is_eternal_title($title, $total, $maxStreak[$hid][$title] ?? 0)) { $eternalIds[$hid] = true; break; }
+        }
+    }
+
+    $danById = [];
+    foreach ($ids as $id) {
+        $danById[$id] = calc_dan(
+            $winById[$id] ?? 0, $leaguesById[$id] ?? [], $titleCountsByTitle[$id] ?? [], !empty($eternalIds[$id])
+        );
+    }
+    return $danById;
+}
+
 // 年齢＝初期年齢＋通算シーズン数。initial_ageが未取込（過去データ移行前）の個体はnullを返す
 function compute_age($initial_age, $total_seasons) {
     if ($initial_age === null) return null;
@@ -341,6 +416,12 @@ switch ($action) {
             $individualsById[$row['id']] = $row;
         }
 
+        // 段位（リーグタブでは、タイトル非保持者の名前右に表示する）
+        $currentLeagueById = array_map(fn($r) => $r['league'], $individualsById);
+        $danById = calc_dan_bulk($pdo, array_keys($individualsById), $currentLeagueById);
+        foreach ($individualsById as $iid => &$ind) { $ind['dan'] = $danById[$iid] ?? 4; }
+        unset($ind);
+
         $byLeague = ["A" => [], "B" => [], "C" => [], "D" => []];
         $placed = [];
         $standRows = [];
@@ -488,10 +569,33 @@ switch ($action) {
                     $suzakuPrevIds = array_column($prevStmt->fetchAll(), 'individual_id');
                 }
                 $suzakuPrevIdSet = array_flip($suzakuPrevIds);
+
+                // 連続在籍季（来季開始時点で「◯季目」になるか）：防衛専念枠（no_roundrobin）で
+                // 在籍していた季も含め、suzaku_group_standingsに記録されている全季を対象に、
+                // 直近シーズンから遡って何季連続で在籍しているかを数える
+                $szHistStmt = $pdo->query(
+                    "SELECT season, individual_id FROM suzaku_group_standings
+                     WHERE league IN ('朱雀紅組', '朱雀白組') ORDER BY individual_id, season ASC"
+                );
+                $suzakuSeasonsById = [];
+                foreach ($szHistStmt->fetchAll() as $row) {
+                    $suzakuSeasonsById[$row['individual_id']][] = (int)$row['season'];
+                }
+
                 foreach ($suzakuMembers as &$m) {
                     $m['is_new'] = $latest_season > 0 && !isset($suzakuPrevIdSet[$m['individual_id']]);
+                    $seasonSet = array_flip($suzakuSeasonsById[$m['individual_id']] ?? []);
+                    $streak = 0;
+                    for ($s = $latest_season; isset($seasonSet[$s]); $s--) { $streak++; }
+                    $m['seasons_in_league'] = $streak + 1; // 来季で+1季目になる
                 }
                 unset($m);
+
+                // 新メンバーを一番下にする（紅組→白組という既存の並びは、新メンバー以外は維持する）
+                $suzakuMembers = array_merge(
+                    array_values(array_filter($suzakuMembers, fn($m) => !$m['is_new'])),
+                    array_values(array_filter($suzakuMembers, fn($m) => $m['is_new']))
+                );
             }
         } catch (\Throwable $e) {
             $suzakuMembers = [];
@@ -1103,18 +1207,35 @@ switch ($action) {
                 }
             }
 
-            // その季に実際にタイトルを保持していた人（今現在の保持者ではなく、"その季"時点の記録）
+            // その季に実際にタイトルを保持していた人（今現在の保持者ではなく、"その季"時点の記録）。
+            // event_type（初代襲名／奪取／防衛）もあわせて返し、結果タブで名前の左に表示できるようにする
             $seasonTitleStmt = $pdo->prepare(
-                "SELECT title, holder_id, holder_name FROM title_history WHERE season = :season"
+                "SELECT title, holder_id, holder_name, event_type FROM title_history WHERE season = :season"
             );
             $seasonTitleStmt->execute(['season' => $season]);
             $seasonTitleholders = ['by_id' => [], 'by_name' => []];
+            $seasonTitleEvents = ['by_id' => [], 'by_name' => []];
             foreach ($seasonTitleStmt->fetchAll() as $t) {
-                if ($t['holder_id']) $seasonTitleholders['by_id'][$t['holder_id']][] = $t['title'];
-                if ($t['holder_name']) $seasonTitleholders['by_name'][$t['holder_name']][] = $t['title'];
+                if ($t['holder_id']) {
+                    $seasonTitleholders['by_id'][$t['holder_id']][] = $t['title'];
+                    $seasonTitleEvents['by_id'][$t['holder_id']][$t['title']] = $t['event_type'];
+                }
+                if ($t['holder_name']) {
+                    $seasonTitleholders['by_name'][$t['holder_name']][] = $t['title'];
+                    $seasonTitleEvents['by_name'][$t['holder_name']][$t['title']] = $t['event_type'];
+                }
             }
 
-            json_out(['standings' => $rows, 'season' => $season, 'rikuou' => $rikuou_entry, 'titleholders' => $seasonTitleholders]);
+            // 段位（現時点の段位。タイトル非保持者の名前右に表示する）
+            $danIds = array_column($rows, 'individual_id');
+            if ($rikuou_entry) $danIds[] = $rikuou_entry['individual_id'];
+            $danById = calc_dan_bulk($pdo, array_values(array_unique($danIds)));
+
+            json_out([
+                'standings' => $rows, 'season' => $season, 'rikuou' => $rikuou_entry,
+                'titleholders' => $seasonTitleholders, 'title_events' => $seasonTitleEvents,
+                'dan' => $danById,
+            ]);
         } elseif (isset($_GET['individual_id'])) {
             $iid = $_GET['individual_id'];
             // シーズンごとの成績は、従来通りA〜Dリーグの所属・昇降格のみを表示する
@@ -1229,7 +1350,17 @@ switch ($action) {
                     $r['draw'] = (int)$combined['draw'];
                 }
             }
-            json_out(['history' => $rows]);
+            unset($r);
+
+            // 朱雀戦（紅白リーグ）通算在籍期数（連続でなくてよい）。防衛専念枠だった季も在籍に含める
+            $suzakuTotalStmt = $pdo->prepare(
+                "SELECT COUNT(*) FROM suzaku_group_standings
+                 WHERE individual_id = :id AND league IN ('朱雀紅組', '朱雀白組')"
+            );
+            $suzakuTotalStmt->execute(['id' => $iid]);
+            $suzakuSeasonsTotal = (int)$suzakuTotalStmt->fetchColumn();
+
+            json_out(['history' => $rows, 'suzaku_seasons_total' => $suzakuSeasonsTotal]);
         } else {
             $max = $pdo->query("SELECT MAX(season) AS m FROM standings")->fetch();
             json_out(['latest_season' => (int)($max['m'] ?? 0)]);

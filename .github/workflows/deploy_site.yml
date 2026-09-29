@@ -20,7 +20,16 @@ on:
     paths:
       - "site/index.html"
       - "site/api.php"
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      list_only:
+        description: "trueにすると、デプロイせずxserverのサイト直下のファイル一覧を表示するだけで終わる"
+        required: false
+        default: "false"
+      delete_files:
+        description: "カンマ区切りのファイル名（サイト直下のみ、サブディレクトリ不可）を指定すると、デプロイの代わりにそのファイルだけ削除する。list_onlyでの確認後にのみ使うこと"
+        required: false
+        default: ""
 
 jobs:
   deploy-site:
@@ -30,11 +39,12 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Lint api.php before deploying
+        if: ${{ github.event.inputs.list_only != 'true' && github.event.inputs.delete_files == '' }}
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq php-cli
           php -l site/api.php
 
-      - name: Deploy to xserver
+      - name: List / Delete / Deploy on xserver
         env:
           XSERVER_HOST: ${{ secrets.XSERVER_HOST }}
           XSERVER_USER: ${{ secrets.XSERVER_USER }}
@@ -43,6 +53,8 @@ jobs:
           # data/配下（XSERVER_TARGET_DIR）の1つ上、サイトのドキュメントルート
           # （spia-net.com/public_html/lab.spia-net.com/othello-league/）
           XSERVER_SITE_DIR: "spia-net.com/public_html/lab.spia-net.com/othello-league/"
+          LIST_ONLY: ${{ github.event.inputs.list_only }}
+          DELETE_FILES: ${{ github.event.inputs.delete_files }}
         run: |
           echo "$XSERVER_SSH_KEY" > /tmp/deploy_key
           chmod 600 /tmp/deploy_key
@@ -61,6 +73,32 @@ jobs:
               delay=$((delay * 2))
             done
           }
+
+          if [ "$LIST_ONLY" = "true" ]; then
+            echo "=== ${XSERVER_SITE_DIR} 直下のファイル一覧 ==="
+            retry_cmd ssh -i /tmp/deploy_key -p "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
+              "$XSERVER_USER@$XSERVER_HOST" "find '${XSERVER_SITE_DIR}' -maxdepth 1 -type f -printf '%f\t%s bytes\t%TY-%Tm-%Td\n' | sort"
+            rm -f /tmp/deploy_key
+            exit 0
+          fi
+
+          if [ -n "$DELETE_FILES" ]; then
+            echo "=== 指定ファイルを削除 ==="
+            IFS=',' read -ra FILES <<< "$DELETE_FILES"
+            for f in "${FILES[@]}"; do
+              # 前後の空白を除去。".."や"/"を含む・空のものはパストラバーサル対策としてスキップする
+              f="$(echo "$f" | xargs)"
+              if [[ -z "$f" || "$f" == *".."* || "$f" == *"/"* ]]; then
+                echo "::warning::不正なファイル名のためスキップ: '$f'"
+                continue
+              fi
+              echo "--- 削除: $f ---"
+              retry_cmd ssh -i /tmp/deploy_key -p "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
+                "$XSERVER_USER@$XSERVER_HOST" "rm -fv -- '${XSERVER_SITE_DIR}${f}'"
+            done
+            rm -f /tmp/deploy_key
+            exit 0
+          fi
 
           retry_cmd ssh -i /tmp/deploy_key -p "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
             "$XSERVER_USER@$XSERVER_HOST" "mkdir -p ${XSERVER_SITE_DIR}"
