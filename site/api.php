@@ -1174,7 +1174,7 @@ switch ($action) {
         $cnt = (int)$pdo->query("SELECT COUNT(*) FROM character_requests WHERE status = 'pending'")->fetchColumn();
         $cap = 40; // create_character.php の SUBMISSION_CAP と一致させること
         $pendingList = $pdo->query(
-            "SELECT display_name, type_tendency, created_at FROM character_requests
+            "SELECT display_name, type_tendency, submitter_name, created_at FROM character_requests
              WHERE status = 'pending' ORDER BY created_at ASC"
         )->fetchAll();
         json_out([

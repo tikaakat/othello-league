@@ -2472,25 +2472,31 @@ function renderCharacterEntryForm(statusData) {
       <output for="cc-param-${k}">5.0</output>
     </div>`).join('');
 
+  const fieldStyle = 'width:100%; background:var(--navy-800); color:var(--text-main); border:1px solid var(--navy-700); padding:8px 10px;';
+  const fieldLabelStyle = 'display:block; font-size:0.72rem; color:var(--text-dim); margin-bottom:4px;';
+
   return `<h3 style="font-size:0.8rem; color:var(--amber); border-bottom:1px solid var(--navy-700); padding-bottom:4px; margin-bottom:2px;">キャラクリエイト${infoIcon(flowTip)}</h3>
     <div style="font-size:0.7rem; color:var(--text-dim); margin-bottom:10px;">締め切りは1日2回（7:00／19:00 JST）。新人リーグで選抜されれば、次の本戦からすぐ出走します</div>
-    <div class="params-grid" style="margin-bottom:10px;">
-      <dt>名前</dt>
-      <dd><input type="text" id="cc-name" maxlength="20" ${closed ? 'disabled' : ''} style="width:100%; background:var(--navy-800); color:var(--text-main); border:1px solid var(--navy-700); padding:4px 6px;"></dd>
-      <dt>タイプ傾向${infoIcon(typeTip)}</dt>
-      <dd><select id="cc-type" ${closed ? 'disabled' : ''} style="width:100%; background:var(--navy-800); color:var(--text-main); border:1px solid var(--navy-700); padding:4px 6px;">${typeOptions}</select></dd>
+    <div style="margin-bottom:10px;">
+      <label style="${fieldLabelStyle}" for="cc-name">名前（20文字まで）</label>
+      <input type="text" id="cc-name" maxlength="20" ${closed ? 'disabled' : ''} style="${fieldStyle}">
     </div>
-    <label style="display:flex; align-items:center; gap:6px; margin:6px 0 10px; font-size:0.74rem; color:var(--text-dim); cursor:pointer;">
-      <input type="checkbox" id="cc-advanced-toggle" ${closed ? 'disabled' : ''}> 詳細設定（8パラメータを自分で割り振る）を使う
-    </label>
-    <div id="cc-advanced" class="hidden" style="margin-bottom:10px;">
+    <div style="margin-bottom:10px;">
+      <label style="${fieldLabelStyle}" for="cc-submitter">投稿者名（任意）</label>
+      <input type="text" id="cc-submitter" maxlength="20" ${closed ? 'disabled' : ''} style="${fieldStyle}">
+    </div>
+    <div style="margin-bottom:10px;">
+      <label style="${fieldLabelStyle}" for="cc-type">タイプ傾向${infoIcon(typeTip)}</label>
+      <select id="cc-type" ${closed ? 'disabled' : ''} style="${fieldStyle}">${typeOptions}</select>
+    </div>
+    <div id="cc-advanced" style="margin-bottom:10px;">
       <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.72rem; margin-bottom:6px; flex-wrap:wrap; gap:4px;">
         <span style="color:var(--text-dim);">合計 <span id="cc-total" style="color:var(--cyan); font-weight:700;">40.0</span> / ${CC_PARAM_BUDGET}
           <span style="color:var(--text-dim);">（超過分は比率を保ったまま自動縮小されます）</span></span>
         <span class="back-link" id="cc-randomize" style="margin-bottom:0;">ランダムに割り振る</span>
       </div>
       <div class="sliders">${paramRows}</div>
-      <div style="display:flex; justify-content:center; margin-top:10px; max-width:180px; margin-left:auto; margin-right:auto;" id="cc-radar">${renderRadarChart({})}</div>
+      <div style="display:flex; justify-content:center; margin-top:10px;" id="cc-radar">${renderRadarChart({})}</div>
     </div>
     <button id="cc-submit" ${closed ? 'disabled' : ''} style="font-family:'Orbitron',sans-serif; font-size:0.8rem; background:var(--navy-800); color:${closed ? 'var(--text-dim)' : 'var(--cyan)'}; border:1px solid ${closed ? 'var(--navy-700)' : 'var(--cyan-dim)'}; padding:8px 16px; cursor:${closed ? 'default' : 'pointer'}; width:100%;">${closed ? '本日は締め切りました' : 'エントリーする'}</button>
     <div id="cc-status" style="margin-top:8px; font-size:0.74rem; color:var(--text-dim);"></div>
@@ -2505,9 +2511,11 @@ function renderPendingMembersList(list) {
   } else {
     html += `<table><thead><tr><th>#</th><th>名前</th><th>タイプ</th></tr></thead><tbody>`;
     list.forEach((p, i) => {
+      const submitterNote = p.submitter_name
+        ? `<span style="font-size:0.68rem; color:var(--text-dim); margin-left:6px;">by ${escapeHtml(p.submitter_name)}</span>` : '';
       html += `<tr style="cursor:default;">
         <td class="rank-num">${i + 1}</td>
-        <td>${escapeHtml(p.display_name)}</td>
+        <td>${escapeHtml(p.display_name)}${submitterNote}</td>
         <td>${escapeHtml(CHARACTER_TYPE_LABELS[p.type_tendency] || p.type_tendency)}</td>
       </tr>`;
     });
@@ -2520,8 +2528,6 @@ function bindCharacterEntryForm() {
   const btn = document.getElementById('cc-submit');
   if (!btn || btn.disabled) return;
 
-  const advToggle = document.getElementById('cc-advanced-toggle');
-  const advancedEl = document.getElementById('cc-advanced');
   const totalEl = document.getElementById('cc-total');
   const paramInputs = Array.from(document.querySelectorAll('.cc-param'));
 
@@ -2541,12 +2547,6 @@ function bindCharacterEntryForm() {
   }
   paramInputs.forEach(inp => inp.addEventListener('input', updateTotal));
   updateTotal();
-
-  if (advToggle) {
-    advToggle.addEventListener('change', () => {
-      advancedEl.classList.toggle('hidden', !advToggle.checked);
-    });
-  }
 
   const randomizeBtn = document.getElementById('cc-randomize');
   if (randomizeBtn) {
@@ -2568,17 +2568,15 @@ function bindCharacterEntryForm() {
 
   btn.addEventListener('click', async () => {
     const nameEl = document.getElementById('cc-name');
+    const submitterEl = document.getElementById('cc-submitter');
     const typeEl = document.getElementById('cc-type');
     const statusEl = document.getElementById('cc-status');
     const name = nameEl.value.trim();
     if (!name) { statusEl.textContent = '名前を入力してください'; statusEl.style.color = 'var(--amber)'; return; }
 
-    const body = { name, type: typeEl.value };
-    if (advToggle && advToggle.checked) {
-      const params = {};
-      paramInputs.forEach(inp => { params[inp.dataset.key] = parseFloat(inp.value) || CC_PARAM_MIN; });
-      body.params = params;
-    }
+    const params = {};
+    paramInputs.forEach(inp => { params[inp.dataset.key] = parseFloat(inp.value) || CC_PARAM_MIN; });
+    const body = { name, type: typeEl.value, params, submitter_name: submitterEl.value.trim() };
 
     btn.disabled = true;
     statusEl.textContent = '送信中...';
