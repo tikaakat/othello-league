@@ -2490,7 +2490,7 @@ function renderCharacterEntryForm(statusData) {
         <span class="back-link" id="cc-randomize" style="margin-bottom:0;">ランダムに割り振る</span>
       </div>
       <div class="sliders">${paramRows}</div>
-      <div style="display:flex; justify-content:center; margin-top:10px; max-width:180px; margin-left:auto; margin-right:auto;" id="cc-radar">${renderRadarChart({}, CC_PARAM_MAX)}</div>
+      <div style="display:flex; justify-content:center; margin-top:10px; max-width:180px; margin-left:auto; margin-right:auto;" id="cc-radar">${renderRadarChart({})}</div>
     </div>
     <button id="cc-submit" ${closed ? 'disabled' : ''} style="font-family:'Orbitron',sans-serif; font-size:0.8rem; background:var(--navy-800); color:${closed ? 'var(--text-dim)' : 'var(--cyan)'}; border:1px solid ${closed ? 'var(--navy-700)' : 'var(--cyan-dim)'}; padding:8px 16px; cursor:${closed ? 'default' : 'pointer'}; width:100%;">${closed ? '本日は締め切りました' : 'エントリーする'}</button>
     <div id="cc-status" style="margin-top:8px; font-size:0.74rem; color:var(--text-dim);"></div>
@@ -2537,7 +2537,7 @@ function bindCharacterEntryForm() {
     const total = paramInputs.reduce((sum, inp) => sum + (parseFloat(inp.value) || 0), 0);
     totalEl.textContent = total.toFixed(1);
     totalEl.style.color = total > CC_PARAM_BUDGET ? '#ff9d4f' : 'var(--cyan)';
-    if (radarEl) radarEl.innerHTML = renderRadarChart(params, CC_PARAM_MAX);
+    if (radarEl) radarEl.innerHTML = renderRadarChart(params);
   }
   paramInputs.forEach(inp => inp.addEventListener('input', updateTotal));
   updateTotal();
