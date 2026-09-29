@@ -30,6 +30,10 @@ on:
         description: "カンマ区切りのファイル名（サイト直下のみ、サブディレクトリ不可）を指定すると、デプロイの代わりにそのファイルだけ削除する。list_onlyでの確認後にのみ使うこと"
         required: false
         default: ""
+      read_file:
+        description: "サイト直下の1ファイル名を指定すると、デプロイの代わりにその内容をログに出力する（db_config.php等、認証情報を含みうるファイルには使わないこと）"
+        required: false
+        default: ""
 
 jobs:
   deploy-site:
@@ -55,6 +59,7 @@ jobs:
           XSERVER_SITE_DIR: "spia-net.com/public_html/lab.spia-net.com/othello-league/"
           LIST_ONLY: ${{ github.event.inputs.list_only }}
           DELETE_FILES: ${{ github.event.inputs.delete_files }}
+          READ_FILE: ${{ github.event.inputs.read_file }}
         run: |
           echo "$XSERVER_SSH_KEY" > /tmp/deploy_key
           chmod 600 /tmp/deploy_key
@@ -78,6 +83,20 @@ jobs:
             echo "=== ${XSERVER_SITE_DIR} 直下のファイル一覧 ==="
             retry_cmd ssh -i /tmp/deploy_key -p "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
               "$XSERVER_USER@$XSERVER_HOST" "find '${XSERVER_SITE_DIR}' -maxdepth 1 -type f -printf '%f\t%s bytes\t%TY-%Tm-%Td\n' | sort"
+            rm -f /tmp/deploy_key
+            exit 0
+          fi
+
+          if [ -n "$READ_FILE" ]; then
+            f="$(echo "$READ_FILE" | xargs)"
+            if [[ -z "$f" || "$f" == *".."* || "$f" == *"/"* ]]; then
+              echo "::error::不正なファイル名: '$f'"
+              rm -f /tmp/deploy_key
+              exit 1
+            fi
+            echo "=== ${f} の内容 ==="
+            retry_cmd ssh -i /tmp/deploy_key -p "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
+              "$XSERVER_USER@$XSERVER_HOST" "cat -- '${XSERVER_SITE_DIR}${f}'"
             rm -f /tmp/deploy_key
             exit 0
           fi
