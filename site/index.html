@@ -11,6 +11,7 @@
     --navy-950: #060a14; --navy-900: #0a0f1e; --navy-800: #10182c; --navy-700: #182238;
     --cyan: #4ff0ff; --cyan-dim: #2a8f99; --amber: #ffb648; --amber-dim: #a8762f;
     --text-main: #dce6f0; --text-dim: #7488a0;
+    --up: #4ff0ff; --down: #ff9d4f;
   }
   * { box-sizing: border-box; }
   body {
@@ -36,10 +37,15 @@
   th { font-family: 'Orbitron', sans-serif; font-size: 0.65rem; color: var(--amber); text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--navy-700); }
   td { padding: 7px 8px; border-bottom: 1px solid rgba(24,34,56,0.6); cursor: pointer; }
   tr:hover td { background: rgba(79,240,255,0.06); }
+  tr.zone-up td:first-child { box-shadow: inset 3px 0 var(--up); }
+  tr.zone-down td:first-child { box-shadow: inset 3px 0 var(--down); }
   .rank-num { color: var(--text-dim); font-family: 'Orbitron', sans-serif; width: 2em; }
   .elo-val { color: var(--cyan); font-weight: 600; }
   .league-tag { display: inline-block; font-family: 'Orbitron', sans-serif; font-size: 0.62rem; font-weight: 700; color: var(--navy-950); background: var(--amber); padding: 1px 6px; border-radius: 2px; margin-right: 6px; }
   .league-tag.title-tag { background: linear-gradient(135deg, #ffd24f, #ff9d4f); }
+  .chip { display: inline-block; font-size: 0.64rem; border: 1px solid var(--navy-700); color: var(--text-dim); padding: 0 6px; border-radius: 8px; white-space: nowrap; }
+  .chip.gold { color: var(--amber); border-color: var(--amber-dim); }
+  .chip.cyan { color: var(--cyan); border-color: var(--cyan-dim); }
   .loading, .empty { text-align: center; color: var(--text-dim); padding: 30px 0; font-size: 0.85rem; }
   .league-block { margin-bottom: 20px; }
   .league-block h3 { font-size: 0.8rem; color: var(--amber); border-bottom: 1px solid var(--navy-700); padding-bottom: 4px; margin-bottom: 8px; }
@@ -812,7 +818,7 @@ async function loadIndividualDetail(id) {
       <div style="margin-bottom:6px;">${ind.retired ? '<span style="color:var(--text-dim); font-size:0.7rem;">（引退）</span>' : `${leagueTag(ind.league)}`}</div>
       <h3 style="margin:0; font-size:1.1rem;">${crownLabel(ind.id, ind.display_name)}${escapeHtml(ind.display_name || ind.id)}</h3>
       <div style="font-size:0.75rem; color:var(--text-dim); margin-top:2px;">通算${ind.total_seasons}シーズン${(ind.age !== null && ind.age !== undefined) ? `　${ind.age}歳` : ''}</div>
-      ${(ind.dan !== null && ind.dan !== undefined) ? `<div style="margin-top:4px; font-size:0.85rem; color:var(--cyan);">${ind.dan}段</div>` : ''}
+      ${(ind.dan !== null && ind.dan !== undefined) ? `<div style="margin-top:4px;"><span class="chip cyan" style="font-size:0.78rem; padding:2px 10px;">${ind.dan}段</span></div>` : ''}
       <div style="margin-top:6px;">Elo: <span class="elo-val" style="font-size:1.1rem;">${Math.round(ind.elo_rating)}</span>
         <span style="font-size:0.72rem; color:var(--amber); margin-left:8px;">最高 ${Math.round(ind.peak_elo ?? ind.elo_rating)}</span></div>
       <div style="margin-top:8px;">
@@ -1206,6 +1212,16 @@ function movementMarks(movement) {
   // movementは "new,promoted" のように複数タグがカンマ区切りで入っている場合がある。全て表示する
   if (!movement) return '';
   return movement.split(',').map(tag => MOVEMENT_MARKS[tag.trim()] || '').join('');
+}
+
+// 昇格・降格した行を、テーブル左端の色付きボーダーでも強調する（movement-markの文字だけだと
+// 目立ちにくいため）。昇格・降格が同時に発生することはないので、promoted優先で判定する
+function zoneClass(movement) {
+  if (!movement) return '';
+  const tags = movement.split(',').map(t => t.trim());
+  if (tags.includes('promoted')) return 'zone-up';
+  if (tags.includes('relegated')) return 'zone-down';
+  return '';
 }
 
 // 予選ブラケットの対局ログ（時系列の勝敗記録）から、挑戦者決定までの「勝ち上がりツリー」を復元する。
@@ -1745,7 +1761,7 @@ async function loadSeiryuuPanel(season) {
           // 青龍が別枠に分離されているAリーグでは、残りの参加者の順位を1位から振り直して表示する
           // （DB上のrankは青龍分の欠番があるままなので、そのまま出すと1位が2位に見えてしまう）
           const displayRank = (lg === 'A' && data.rikuou) ? (idx + 1) : (r.rank ?? '-');
-          html += `<tr data-id="${escapeHtml(r.individual_id)}">
+          html += `<tr class="${zoneClass(r.movement)}" data-id="${escapeHtml(r.individual_id)}">
             <td class="rank-num">${displayRank}</td>
             <td>${movementMarks(r.movement)}${seasonCrownLabel(r.individual_id, r.display_name)}${escapeHtml(r.display_name || r.individual_id)}</td>
             <td>${record}</td>
@@ -2142,14 +2158,14 @@ function renderHofView(el, view) {
         cols.map(c => `<th class="hof-sort-th" data-sort-key="${c.key}" style="cursor:pointer; white-space:nowrap;">${c.label}${arrow(c.key)}</th>`).join('')
       }</tr></thead>`;
       const cellFor = (p, key) => {
-        if (key === 'dan') return `${p.dan}段`;
+        if (key === 'dan') return `<span class="chip cyan">${p.dan}段</span>`;
         if (key === 'peak_elo') return `${Math.round(p.peak_elo)}`;
         if (key === 'elo') return `${Math.round(p.elo)}`;
         if (key === 'total') return `${p.total}局`;
         if (key === 'win') return `${p.win}勝`;
         if (key === 'loss') return `${p.loss}敗`;
         if (key === 'win_rate') return p.win_rate === null ? '-' : p.win_rate.toFixed(3);
-        if (key === 'title_count') return p.title_count > 0 ? `${p.title_count}期` : '-';
+        if (key === 'title_count') return p.title_count > 0 ? `<span class="chip gold">${p.title_count}期</span>` : '-';
         return '';
       };
       const rowFn = (p, rank) => {
@@ -2190,9 +2206,9 @@ function renderHofView(el, view) {
         const ageNote = (r.retired_age !== null && r.retired_age !== undefined) ? `<span style="color:var(--text-dim); font-size:0.68rem;">（引退時${r.retired_age}歳）</span>` : '';
         return `<tr data-id="${escapeHtml(r.id)}">
           <td>${eternalIcon(r.eternal_titles)}${escapeHtml(r.display_name)}${ageNote}</td>
-          <td>${r.dan}段</td>
+          <td><span class="chip cyan">${r.dan}段</span></td>
           <td style="font-size:0.72rem; color:var(--text-dim);">${r.debut_season}-${r.retired_season}</td>
-          <td>${r.title_count > 0 ? r.title_count + '期' : '-'}</td></tr>`;
+          <td>${r.title_count > 0 ? `<span class="chip gold">${r.title_count}期</span>` : '-'}</td></tr>`;
       };
       html = renderCollapsibleTable(headHtml, retired, rowFn, 20);
     }
