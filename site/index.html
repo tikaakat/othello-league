@@ -1,0 +1,2611 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CIRCUIT OTHELLO LEAGUE | lab.spia-net.com</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&family=Noto+Sans+JP:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy-950: #060a14; --navy-900: #0a0f1e; --navy-800: #10182c; --navy-700: #182238;
+    --cyan: #4ff0ff; --cyan-dim: #2a8f99; --amber: #ffb648; --amber-dim: #a8762f;
+    --text-main: #dce6f0; --text-dim: #7488a0;
+    --up: #4ff0ff; --down: #ff9d4f;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: radial-gradient(ellipse at top, var(--navy-800) 0%, var(--navy-950) 70%);
+    color: var(--text-main); font-family: 'Noto Sans JP', sans-serif; min-height: 100vh; padding: 16px;
+  }
+  h1, h2, h3 { font-family: 'Orbitron', sans-serif; }
+  .header { text-align: center; margin-bottom: 20px; }
+  .header h1 { font-size: 1.3rem; letter-spacing: 0.1em; color: var(--cyan); text-shadow: 0 0 12px rgba(79,240,255,0.4); margin: 0 0 4px; }
+  .header p { color: var(--text-dim); font-size: 0.78rem; margin: 0; }
+  .tabs { display: flex; gap: 8px; justify-content: center; margin-bottom: 18px; flex-wrap: wrap; }
+  .tab-btn {
+    font-family: 'Orbitron', sans-serif; font-size: 0.7rem; letter-spacing: 0.06em;
+    background: var(--navy-800); color: var(--text-dim); border: 1px solid var(--navy-700); padding: 8px 14px; cursor: pointer;
+  }
+  .tab-btn.active { color: var(--cyan); border-color: var(--cyan-dim); box-shadow: 0 0 10px rgba(79,240,255,0.15) inset; }
+  .panel { position: relative; background: rgba(16,24,44,0.6); border: 1px solid var(--navy-700); padding: 18px; margin: 0 auto 16px; max-width: 760px; }
+  .panel::before, .panel::after { content: ''; position: absolute; width: 14px; height: 14px; border: 2px solid var(--cyan); }
+  .panel::before { top: -1px; left: -1px; border-right: none; border-bottom: none; }
+  .panel::after { bottom: -1px; right: -1px; border-left: none; border-top: none; }
+  .hidden { display: none; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+  th { font-family: 'Orbitron', sans-serif; font-size: 0.65rem; color: var(--amber); text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--navy-700); }
+  td { padding: 7px 8px; border-bottom: 1px solid rgba(24,34,56,0.6); cursor: pointer; }
+  tr:hover td { background: rgba(79,240,255,0.06); }
+  tr.zone-up td:first-child { box-shadow: inset 3px 0 var(--up); }
+  tr.zone-down td:first-child { box-shadow: inset 3px 0 var(--down); }
+  .rank-num { color: var(--text-dim); font-family: 'Orbitron', sans-serif; width: 2em; }
+  .elo-val { color: var(--cyan); font-weight: 600; }
+  .league-tag { display: inline-block; font-family: 'Orbitron', sans-serif; font-size: 0.62rem; font-weight: 700; color: var(--navy-950); background: var(--amber); padding: 1px 6px; border-radius: 2px; margin-right: 6px; }
+  .league-tag.title-tag { background: linear-gradient(135deg, #ffd24f, #ff9d4f); }
+  .chip { display: inline-block; font-size: 0.64rem; border: 1px solid var(--navy-700); color: var(--text-dim); padding: 0 6px; border-radius: 8px; white-space: nowrap; }
+  .chip.gold { color: var(--amber); border-color: var(--amber-dim); }
+  .chip.cyan { color: var(--cyan); border-color: var(--cyan-dim); }
+  .loading, .empty { text-align: center; color: var(--text-dim); padding: 30px 0; font-size: 0.85rem; }
+  .league-block { margin-bottom: 20px; }
+  .league-block h3 { font-size: 0.8rem; color: var(--amber); border-bottom: 1px solid var(--navy-700); padding-bottom: 4px; margin-bottom: 8px; }
+  .back-link { display: inline-block; margin-bottom: 12px; color: var(--cyan-dim); font-size: 0.78rem; cursor: pointer; }
+  .params-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; font-size: 0.78rem; }
+  .params-grid dt { color: var(--text-dim); } .params-grid dd { margin: 0; }
+  .title-card { background: var(--navy-800); border: 1px solid var(--navy-700); padding: 12px; margin-bottom: 10px; }
+  .title-card h4 { margin: 0 0 6px; font-size: 0.85rem; color: var(--amber); font-family: 'Orbitron', sans-serif; }
+  footer { text-align: center; color: var(--text-dim); font-size: 0.7rem; margin-top: 24px; }
+  .othello-board { display: grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr); width: 100%; max-width: 300px; aspect-ratio: 1/1; border: 2px solid var(--cyan-dim); background: #0d3b26; margin: 0 auto; }
+  .osq { border: 1px solid rgba(79,240,255,0.15); display: flex; align-items: center; justify-content: center; }
+  .disc { width: 78%; height: 78%; border-radius: 50%; }
+  .disc-black { background: radial-gradient(circle at 35% 30%, #444, #060a14); }
+  .disc-white { background: radial-gradient(circle at 35% 30%, #fff, #c8d4de); }
+  .board-controls { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 12px; font-family: 'Orbitron', sans-serif; }
+  .board-controls button { background: var(--navy-800); border: 1px solid var(--navy-700); color: var(--cyan); font-size: 0.9rem; padding: 6px 12px; cursor: pointer; }
+  .movement-mark { display: inline-block; font-size: 0.9rem; margin-right: 4px; }
+  .season-nav { display: flex; justify-content: center; align-items: center; gap: 14px; margin-bottom: 14px; font-family: 'Orbitron', sans-serif; }
+  .season-nav button { background: var(--navy-800); border: 1px solid var(--navy-700); color: var(--cyan); font-size: 0.85rem; padding: 6px 12px; cursor: pointer; }
+  .season-nav button:disabled { color: var(--text-dim); cursor: default; }
+  .help-btn {
+    display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px;
+    border-radius: 50%; margin-left: 6px; background: var(--navy-800); color: var(--cyan-dim);
+    border: 1px solid var(--navy-700); font-size: 0.7rem; cursor: pointer; vertical-align: middle;
+  }
+  .subtabs { display: flex; gap: 6px; justify-content: center; margin: -10px auto 18px; flex-wrap: wrap; }
+  .subtabs.hidden { display: none; }
+  .subtab-btn {
+    font-family: 'Noto Sans JP', sans-serif; font-size: 0.72rem; background: transparent; color: var(--text-dim);
+    border: 1px solid var(--navy-700); border-radius: 12px; padding: 4px 12px; cursor: pointer;
+  }
+  .subtab-btn.active { color: var(--cyan); border-color: var(--cyan-dim); background: rgba(79,240,255,0.08); }
+  .info-icon {
+    display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px;
+    border-radius: 50%; margin-left: 3px; background: var(--navy-800); color: var(--cyan-dim);
+    border: 1px solid var(--navy-700); font-size: 0.62rem; cursor: pointer; vertical-align: middle;
+  }
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(6,10,20,0.75); display: flex;
+    align-items: center; justify-content: center; z-index: 1000; padding: 16px;
+  }
+  .modal-overlay.hidden { display: none; }
+  .modal-box {
+    background: var(--navy-900); border: 1px solid var(--cyan-dim); max-width: 480px; width: 100%;
+    max-height: 82vh; overflow-y: auto; padding: 20px; position: relative; box-shadow: 0 0 30px rgba(79,240,255,0.15);
+  }
+  .modal-close {
+    position: absolute; top: 8px; right: 10px; background: none; border: none;
+    color: var(--text-dim); font-size: 1.2rem; cursor: pointer; line-height: 1;
+  }
+  .fresh-banner {
+    position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%);
+    z-index: 900; display: flex; align-items: center; gap: 10px;
+    background: var(--navy-900); border: 1px solid var(--cyan-dim); color: var(--text-main);
+    font-size: 0.78rem; padding: 10px 14px; box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+    max-width: calc(100vw - 32px);
+  }
+  .fresh-banner.hidden { display: none; }
+  .fresh-banner button {
+    font-family: 'Orbitron', sans-serif; font-size: 0.72rem; background: var(--navy-800); color: var(--cyan);
+    border: 1px solid var(--cyan-dim); padding: 5px 12px; cursor: pointer; white-space: nowrap;
+  }
+  .fav-highlight { background: rgba(255,182,72,0.14) !important; }
+  .fav-toggle {
+    font-family: 'Orbitron', sans-serif; font-size: 0.75rem; background: var(--navy-800); color: var(--text-dim);
+    border: 1px solid var(--navy-700); padding: 4px 10px; cursor: pointer;
+  }
+  .fav-toggle.is-fav { color: var(--amber); border-color: var(--amber); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>CIRCUIT OTHELLO LEAGUE <button id="rules-help-btn" class="help-btn" title="ルールを見る">?</button></h1>
+  <p>師弟の一門が順位戦を勝ち上がり、青龍・朱雀・白虎・玄武の座を目指す</p>
+</div>
+
+<div class="tabs" id="primary-tabs">
+  <button class="tab-btn" data-group="newcomer_group">新人</button>
+  <button class="tab-btn active" data-group="leagues">リーグ</button>
+  <button class="tab-btn" data-group="results">結果</button>
+  <button class="tab-btn" data-group="titles">タイトル</button>
+  <button class="tab-btn" data-group="hof">殿堂</button>
+</div>
+<div class="subtabs hidden" id="subtabs"></div>
+
+<div class="panel" id="tab-leagues"><div id="leagues-content" class="loading">読み込み中...</div></div>
+<div class="panel hidden" id="tab-suzaku_league"><div id="suzaku_league-content" class="loading">読み込み中...</div></div>
+<div class="panel hidden" id="tab-clans"><div id="clans-content" class="loading">読み込み中...</div></div>
+<div class="panel hidden" id="tab-titles"><div id="titles-content" class="loading">読み込み中...</div></div>
+<div class="panel hidden" id="tab-individual"><div id="individual-content" class="empty">リーグ・一門タブから個体を選択してください</div></div>
+<div class="panel hidden" id="tab-matches"><div id="matches-content" class="loading">読み込み中...</div></div>
+<div class="panel hidden" id="tab-seiryuu"><div id="seiryuu-content" class="loading">読み込み中...</div></div>
+<div class="panel hidden" id="tab-suzaku"><div id="suzaku-content" class="loading">読み込み中...</div></div>
+<div class="panel hidden" id="tab-byakko"><div id="byakko-content" class="loading">読み込み中...</div></div>
+<div class="panel hidden" id="tab-genbu"><div id="genbu-content" class="loading">読み込み中...</div></div>
+<div class="panel hidden" id="tab-hof"><div id="hof-content" class="loading">読み込み中...</div></div>
+<div class="panel hidden" id="tab-awards"><div id="awards-content" class="loading">読み込み中...</div></div>
+<div class="panel hidden" id="tab-newcomer_create"><div id="newcomer_create-content" class="loading">読み込み中...</div></div>
+<div class="panel hidden" id="tab-newcomer"><div id="newcomer-content" class="loading">読み込み中...</div></div>
+<div class="panel hidden" id="tab-newcomer_history"><div id="newcomer_history-content" class="loading">読み込み中...</div></div>
+
+<div class="modal-overlay hidden" id="modal-overlay">
+  <div class="modal-box">
+    <button class="modal-close" id="modal-close">×</button>
+    <div id="modal-content"></div>
+  </div>
+</div>
+
+<div class="fresh-banner hidden" id="fresh-banner">
+  <span>新しい結果が反映されています</span>
+  <button id="fresh-reload">更新する</button>
+</div>
+
+<footer>CIRCUIT OTHELLO LEAGUE / lab.spia-net.com</footer>
+
+<script>
+const API_BASE = 'api.php';
+const D_LEAGUE_CAPACITY = 20; // othello_league/league.py の LEAGUE_CAPACITY["D"]と一致させること
+const tabPanels = {
+  leagues: document.getElementById('tab-leagues'), suzaku_league: document.getElementById('tab-suzaku_league'),
+  clans: document.getElementById('tab-clans'),
+  titles: document.getElementById('tab-titles'), individual: document.getElementById('tab-individual'),
+  matches: document.getElementById('tab-matches'),
+  seiryuu: document.getElementById('tab-seiryuu'),
+  suzaku: document.getElementById('tab-suzaku'),
+  byakko: document.getElementById('tab-byakko'),
+  genbu: document.getElementById('tab-genbu'),
+  hof: document.getElementById('tab-hof'),
+  awards: document.getElementById('tab-awards'),
+  newcomer_create: document.getElementById('tab-newcomer_create'),
+  newcomer: document.getElementById('tab-newcomer'),
+  newcomer_history: document.getElementById('tab-newcomer_history'),
+};
+
+// 上段の主要タブと、その配下にぶら下がるサブタブの対応関係。
+// タブが増えすぎて煩雑になったため、関連の深いものだけをグループ化して2階層にした
+// （表彰は「今季の結果」なので殿堂＝通算記録とは分け、順位とセットにする。対局＝棋譜閲覧も結果の一種として統合。
+//  一門はリーグ＝現行ロスター閲覧の一種としてリーグ配下に統合）
+// サブタブには2種類ある：
+//   subLabels方式＝タブごとに別URL（navigateTo）で切り替える（リーグ・結果・新人）
+//   subViews方式＝1つのタブの中で、パネル内部の状態だけを切り替える（タイトル・殿堂）。
+// 両方とも同じ上部の#subtabsバーに描画することで、表示位置を統一する
+// （以前はsubViews系だけパネル内部に独自描画しており、タブ直下のsubLabels系と縦位置が揃っていなかった）
+const TAB_GROUPS = {
+  leagues: {
+    label: 'リーグ', tabs: ['leagues', 'suzaku_league', 'clans'],
+    subLabels: { leagues: '青龍戦リーグ表', suzaku_league: '朱雀紅白リーグ', clans: '一門' },
+  },
+  results: {
+    label: '結果', tabs: ['seiryuu', 'suzaku', 'byakko', 'genbu', 'awards', 'matches'],
+    subLabels: { seiryuu: '青龍戦', suzaku: '朱雀戦', byakko: '白虎戦', genbu: '玄武戦', awards: '表彰', matches: '対局記録' },
+  },
+  titles: {
+    label: 'タイトル', tabs: ['titles'],
+    subViews: () => TITLES_VIEWS.map(v => ({ key: v, label: TITLES_VIEW_LABELS[v] })),
+    activeSubView: () => _titlesActiveView,
+    onSubView: (key) => { _titlesActiveView = key; renderTitlesPanel(); },
+  },
+  hof: {
+    label: '殿堂', tabs: ['hof'],
+    subViews: () => HOF_VIEWS.map(v => ({ key: v, label: HOF_VIEW_LABELS[v] })),
+    activeSubView: () => _hofActiveView,
+    onSubView: (key) => { _hofActiveView = key; renderHofPanel(); },
+  },
+  newcomer_group: {
+    label: '新人', tabs: ['newcomer_create', 'newcomer', 'newcomer_history'],
+    subLabels: { newcomer_create: 'キャラクリエイト', newcomer: '結果', newcomer_history: '歴代記録' },
+  },
+};
+// タブ一覧には出ないが、内容的にどのグループに属するか（ボタンのアクティブ表示用）
+const IMPLICIT_GROUP = { individual: 'leagues', game: 'results' };
+
+function findGroupForTab(name) {
+  for (const [key, g] of Object.entries(TAB_GROUPS)) {
+    if (g.tabs.includes(name)) return key;
+  }
+  return IMPLICIT_GROUP[name] || null;
+}
+
+function showTab(name) {
+  Object.keys(tabPanels).forEach(k => tabPanels[k].classList.toggle('hidden', k !== name));
+  const groupKey = findGroupForTab(name);
+  document.querySelectorAll('#primary-tabs .tab-btn').forEach(b => b.classList.toggle('active', b.dataset.group === groupKey));
+  renderSubtabs(groupKey, name);
+}
+
+function renderSubtabs(groupKey, activeTab) {
+  const wrap = document.getElementById('subtabs');
+  const group = TAB_GROUPS[groupKey];
+  if (!group) { wrap.classList.add('hidden'); wrap.innerHTML = ''; return; }
+
+  if (group.subViews) {
+    const views = group.subViews();
+    if (views.length <= 1) { wrap.classList.add('hidden'); wrap.innerHTML = ''; return; }
+    const active = group.activeSubView();
+    wrap.classList.remove('hidden');
+    wrap.innerHTML = views.map(v =>
+      `<button class="subtab-btn${v.key === active ? ' active' : ''}" data-key="${v.key}">${v.label}</button>`
+    ).join('');
+    wrap.querySelectorAll('.subtab-btn').forEach(b => b.addEventListener('click', () => group.onSubView(b.dataset.key)));
+    return;
+  }
+
+  if (!group.subLabels) { wrap.classList.add('hidden'); wrap.innerHTML = ''; return; }
+  wrap.classList.remove('hidden');
+  wrap.innerHTML = group.tabs.map(t =>
+    `<button class="subtab-btn${t === activeTab ? ' active' : ''}" data-subtab="${t}">${group.subLabels[t]}</button>`
+  ).join('');
+  wrap.querySelectorAll('.subtab-btn').forEach(b => b.addEventListener('click', () => navigateTo(b.dataset.subtab)));
+}
+
+document.querySelectorAll('#primary-tabs .tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => navigateTo(TAB_GROUPS[btn.dataset.group].tabs[0]));
+});
+
+// ---------------- モーダル（ルール・補足ポップ共通） ----------------
+function openModal(title, bodyHtml) {
+  document.getElementById('modal-content').innerHTML =
+    `<h3 style="margin:0 0 10px; color:var(--amber); font-size:0.9rem;">${escapeHtml(title)}</h3>${bodyHtml}`;
+  document.getElementById('modal-overlay').classList.remove('hidden');
+}
+function closeModal() {
+  document.getElementById('modal-overlay').classList.add('hidden');
+}
+document.getElementById('modal-close').addEventListener('click', closeModal);
+document.getElementById('modal-overlay').addEventListener('click', (e) => {
+  if (e.target.id === 'modal-overlay') closeModal();
+});
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
+document.getElementById('rules-help-btn').addEventListener('click', () => openModal('ルール', rulesHtml()));
+// タップで補足情報をポップ表示する注釈アイコン（キャラクリエイトのタイプ説明など）
+document.addEventListener('click', (e) => {
+  const icon = e.target.closest('.info-icon');
+  if (icon) openModal('補足', `<div style="font-size:0.8rem; line-height:1.7;">${escapeHtml(icon.dataset.tip)}</div>`);
+});
+function infoIcon(text) {
+  return `<span class="info-icon" data-tip="${escapeHtml(text)}">i</span>`;
+}
+
+// ---------------- 更新チェック（バックグラウンドで軽量ポーリング） ----------------
+// タブを開いたままだと、裏で本戦・新人リーグが進んでも画面が古いままになるため、
+// season_state（current_season・updated_at）だけを定期的に軽く確認し、変化があれば
+// バナーで知らせる。表示中の内容を勝手に書き換えると操作中の画面が崩れるため、
+// 更新は常にユーザーのクリック（ページ再読み込み）に委ねる
+let _lastSeasonStateKey = null;
+async function checkForUpdates() {
+  try {
+    const res = await fetch(`${API_BASE}?action=season_state`);
+    const data = await res.json();
+    const s = data.season_state || {};
+    const key = `${s.current_season}|${s.updated_at}`;
+    if (_lastSeasonStateKey === null) {
+      _lastSeasonStateKey = key;
+      return;
+    }
+    if (key !== _lastSeasonStateKey) {
+      document.getElementById('fresh-banner').classList.remove('hidden');
+    }
+  } catch (e) { /* ネットワーク不調時は静かに無視し、次回のポーリングに任せる */ }
+}
+document.getElementById('fresh-reload').addEventListener('click', () => location.reload());
+checkForUpdates();
+setInterval(checkForUpdates, 60000);
+
+// ---------------- お気に入り ----------------
+// 星をつけた個体のIDをブラウザのlocalStorageだけに保存する（サーバー・他の閲覧者とは共有しない、
+// あくまで自分の端末だけの目印）。一覧・個体ページなど[data-id]を持つ要素すべてに、
+// 該当個体なら強調表示(.fav-highlight)を付ける
+const FAVORITES_KEY = 'othello_league_favorites_v1';
+
+function getFavoriteIds() {
+  try {
+    const raw = localStorage.getItem(FAVORITES_KEY);
+    return raw ? new Set(JSON.parse(raw)) : new Set();
+  } catch (e) { return new Set(); }
+}
+function saveFavoriteIds(ids) {
+  try { localStorage.setItem(FAVORITES_KEY, JSON.stringify(Array.from(ids))); } catch (e) { /* 保存できなくても致命的ではない */ }
+}
+function isFavorite(id) {
+  return getFavoriteIds().has(id);
+}
+function toggleFavorite(id) {
+  const ids = getFavoriteIds();
+  if (ids.has(id)) ids.delete(id); else ids.add(id);
+  saveFavoriteIds(ids);
+  applyFavoriteHighlights();
+}
+
+function applyFavoriteHighlights() {
+  const ids = getFavoriteIds();
+  // MutationObserverが自分自身の書き込みで再発火する無限ループを防ぐため、
+  // 実際に値が変わる場合だけDOMに書き込む（同じ値への再代入でも新しいテキストノードが
+  // 生成され、それ自体がchildList変化としてMutationObserverに検知されてしまうため）
+  document.querySelectorAll('[data-id]').forEach(el => {
+    const want = ids.has(el.dataset.id);
+    if (el.classList.contains('fav-highlight') !== want) {
+      el.classList.toggle('fav-highlight', want);
+    }
+  });
+  const toggleBtn = document.getElementById('ind-fav-toggle');
+  if (toggleBtn && toggleBtn.dataset.id) {
+    const isFav = ids.has(toggleBtn.dataset.id);
+    if (toggleBtn.classList.contains('is-fav') !== isFav) {
+      toggleBtn.classList.toggle('is-fav', isFav);
+    }
+    const wantText = isFav ? '★ お気に入り登録済み' : '☆ お気に入りに追加';
+    if (toggleBtn.textContent !== wantText) toggleBtn.textContent = wantText;
+  }
+}
+
+// 個体ページの各種セクションが非同期に順次描画されるため、都度フル再スキャンすると
+// 短時間に何度も走ってしまう。80msデバウンスして1回にまとめる
+let _favHighlightTimer = null;
+function _scheduleFavoriteHighlights() {
+  if (_favHighlightTimer) clearTimeout(_favHighlightTimer);
+  _favHighlightTimer = setTimeout(() => { _favHighlightTimer = null; applyFavoriteHighlights(); }, 80);
+}
+new MutationObserver(() => _scheduleFavoriteHighlights())
+  .observe(document.body, { childList: true, subtree: true });
+applyFavoriteHighlights();
+
+const scrollPositions = {};
+
+function render(hash, isPopstate) {
+  const parts = (hash || '').replace(/^#/, '').split('/');
+  const base = parts[0] || 'leagues';
+  const param = parts[1];
+
+  if (base === 'individual' && param) {
+    showTab('individual');
+    showIndividual(param, false);
+  } else if (base === 'game' && param) {
+    showTab('matches');
+    loadGameBoard(param);
+  } else if (base === 'leagues') { showTab('leagues'); loadLeagues(); }
+  else if (base === 'suzaku_league') { showTab('suzaku_league'); loadSuzakuLeaguePanel(); }
+  else if (base === 'clans' && param) { showTab('clans'); loadClanDetail(param); }
+  else if (base === 'clans') { showTab('clans'); loadClans(); }
+  else if (base === 'titles') { showTab('titles'); loadTitles(); }
+  else if (base === 'matches') { showTab('matches'); loadMatches(); }
+  else if (base === 'seiryuu') { showTab('seiryuu'); loadSeiryuuPanel(param ? parseInt(param, 10) : null); }
+  else if (base === 'suzaku') { showTab('suzaku'); loadTitleOnlyPanel('suzaku', '朱雀', param ? parseInt(param, 10) : null); }
+  else if (base === 'byakko') { showTab('byakko'); loadTitleOnlyPanel('byakko', '白虎', param ? parseInt(param, 10) : null); }
+  else if (base === 'genbu') { showTab('genbu'); loadTitleOnlyPanel('genbu', '玄武', param ? parseInt(param, 10) : null); }
+  else if (base === 'hof') { showTab('hof'); loadHallOfFame(); }
+  else if (base === 'awards') { showTab('awards'); loadAwards(param ? parseInt(param, 10) : null); }
+  else if (base === 'newcomer_create') { showTab('newcomer_create'); loadNewcomerCreate(); }
+  else if (base === 'newcomer') { showTab('newcomer'); loadNewcomerLeague(param ? parseInt(param, 10) : null); }
+  else if (base === 'newcomer_history') { showTab('newcomer_history'); loadNewcomerHistory(); }
+  else { showTab('leagues'); loadLeagues(); }
+
+  if (isPopstate) {
+    // 戻る操作の場合、以前保存しておいたスクロール位置を、内容の描画完了後に復元する
+    const target = scrollPositions[hash] || 0;
+    const panel = tabPanels[base] || tabPanels.leagues;
+    let attempts = 0;
+    const tryRestore = () => {
+      attempts++;
+      window.scrollTo(0, target);
+      if (attempts < 6) setTimeout(tryRestore, 80);
+    };
+    tryRestore();
+  } else {
+    window.scrollTo(0, 0);
+  }
+}
+
+function navigateTo(hash) {
+  scrollPositions[location.hash.replace(/^#/, '')] = window.scrollY;
+  if (location.hash === '#' + hash) { render(hash); return; }
+  history.pushState({ hash }, '', '#' + hash);
+  render(hash);
+}
+
+window.addEventListener('popstate', () => render(location.hash, true));
+
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function ageCell(age) {
+  if (age === null || age === undefined) return '<span style="color:var(--text-dim);">-</span>';
+  return `${age}歳`;
+}
+
+const TITLE_NAMES = new Set([
+  '青龍', '朱雀', '白虎', '玄武', '青龍予選', '朱雀予選', '白虎予選', '玄武予選',
+  '朱雀紅組', '朱雀白組', '朱雀紅組-playoff', '朱雀白組-playoff', '朱雀挑戦者決定戦', '朱雀紅白決定戦',
+]);
+function leagueTag(league) {
+  const isTitle = TITLE_NAMES.has(league);
+  return `<span class="league-tag${isTitle ? ' title-tag' : ''}">${escapeHtml(league)}</span>`;
+}
+
+// ---------------- リーグ ----------------
+// 現在のタイトル保持者マップ（全ページで使い回す）
+let CURRENT_TITLEHOLDERS = { by_id: {}, by_name: {} };
+const TITLE_ORDER = ['青龍', '朱雀', '白虎', '玄武'];
+
+function crownLabel(id, name) {
+  // id基準でのみ判定する（同姓同名の別個体に誤ってタイトル表示が付くのを防ぐため、
+  // 名前でのフォールバック照合はしない。holder_idは常に記録されるため不要）
+  let titles = (id && CURRENT_TITLEHOLDERS.by_id[id]) || [];
+  titles = TITLE_ORDER.filter(t => titles.includes(t)); // 表示順を統一
+  if (titles.length === 0) return '';
+  let label;
+  if (titles.length === 1) label = titles[0];
+  else if (titles.length === 2) label = '二冠';
+  else if (titles.length === 3) label = '三冠';
+  else label = '四冠';
+  return `<span style="display:inline-block; font-family:'Orbitron',sans-serif; font-size:0.62rem; font-weight:700; color:var(--navy-950); background:linear-gradient(135deg,#ffd24f,#ff9d4f); padding:1px 6px; border-radius:2px; margin-right:6px;">${escapeHtml(label)}</span>`;
+}
+
+async function loadLeagues() {
+  const el = document.getElementById('leagues-content');
+  el.innerHTML = '<div class="loading">読み込み中...</div>';
+  try {
+    const res = await fetch(`${API_BASE}?action=leagues`);
+    const data = await res.json();
+    const leagues = data.leagues || {};
+    CURRENT_TITLEHOLDERS = data.titleholders || { by_id: {}, by_name: {} };
+
+    // Dリーグに欠員がある場合（本戦は終わったが、まだ新人リーグでの補充前）は、
+    // その欠員分を空欄行として表示する。新人リーグが既にその季の分を実行済みなら、
+    // 確定した勝者の名前を（まだ実個体としては存在しないため選択不可のまま）表示し、
+    // 未実行ならまだ結果待ちである旨を表示する
+    const dRows = leagues['D'] || [];
+    const dVacancy = Math.max(0, D_LEAGUE_CAPACITY - dRows.length);
+    let pendingNewcomers = [];
+    let newcomerResultsReady = false;
+    if (dVacancy > 0 && data.next_season) {
+      try {
+        const nlRes = await fetch(`${API_BASE}?action=newcomer_league&for_season=${data.next_season}`);
+        const nlData = await nlRes.json();
+        if (nlData.meta) {
+          newcomerResultsReady = true;
+          pendingNewcomers = (nlData.standings || []).filter(s => s.promoted);
+        }
+      } catch (e) { /* 取得に失敗しても空欄表示のまま続行する */ }
+    }
+
+    let html = '';
+    if (data.next_season) {
+      html += `<h3 style="font-size:0.8rem; color:var(--amber); margin-top:0;">第${data.next_season}季 青龍戦・順位戦</h3>`;
+    }
+    ['A', 'B', 'C', 'D'].forEach(lg => {
+      const rows = leagues[lg] || [];
+      const vacancy = (lg === 'D') ? dVacancy : 0;
+      const countLabel = vacancy > 0 ? `${rows.length}+${vacancy}名` : `${rows.length}名`;
+      html += `<div class="league-block"><h3>${lg}リーグ（${countLabel}${lg === 'A' && data.rikuou ? '+青龍' : ''}）</h3>`;
+
+      if (lg === 'A' && data.rikuou) {
+        const r = data.rikuou;
+        html += `<table style="margin-bottom:4px;"><tbody><tr data-id="${escapeHtml(r.id)}">
+          <td class="rank-num" style="width:3.5em;">${crownLabel(r.id, r.display_name)}</td>
+          <td>${escapeHtml(r.display_name || r.id)}</td>
+          <td>${ageCell(r.age)}</td>
+          <td class="elo-val">${Math.round(r.elo_rating)}</td></tr></tbody></table>`;
+      }
+
+      html += `<table><thead><tr><th>#</th><th>名前</th><th>年齢</th><th>Elo</th></tr></thead><tbody>`;
+      rows.forEach((r, i) => {
+        const rankDisplay = r.is_new ? '<span style="color:var(--text-dim); font-size:0.68rem;">新</span>' : (i+1);
+        html += `<tr data-id="${escapeHtml(r.id)}"><td class="rank-num">${rankDisplay}</td>
+          <td>${crownLabel(r.id, r.display_name)}${escapeHtml(r.display_name || r.id)}</td>
+          <td>${ageCell(r.age)}</td>
+          <td class="elo-val">${Math.round(r.elo_rating)}</td></tr>`;
+      });
+      for (let i = 0; i < vacancy; i++) {
+        const nc = pendingNewcomers[i];
+        if (nc) {
+          html += `<tr style="opacity:0.75;"><td class="rank-num"><span style="color:var(--text-dim); font-size:0.68rem;">新</span></td>
+            <td>${escapeHtml(nc.display_name || nc.individual_id)}<span style="font-size:0.62rem; color:var(--cyan); margin-left:4px;">（新人リーグ選抜）</span></td>
+            <td>-</td><td class="elo-val">-</td></tr>`;
+        } else {
+          const label = newcomerResultsReady ? '自動生成予定' : '新人リーグ結果待ち';
+          html += `<tr style="opacity:0.5;"><td class="rank-num">-</td>
+            <td style="color:var(--text-dim);">${label}</td><td>-</td><td>-</td></tr>`;
+        }
+      }
+      html += '</tbody></table></div>';
+    });
+
+    el.innerHTML = html;
+    el.querySelectorAll('tr[data-id]').forEach(tr => tr.addEventListener('click', () => navigateTo('individual/' + tr.dataset.id)));
+  } catch (e) {
+    el.innerHTML = `<div class="empty">読み込み失敗: ${escapeHtml(String(e))}</div>`;
+  }
+}
+
+// リーグタブのサブタブ「朱雀紅白リーグ」：来季の正確な組み合わせはランダムに組み直されるため
+// 表示できないが、直近シーズンの確定成績（朱雀戦タブと同じデータ）を参考として表示する
+async function loadSuzakuLeaguePanel() {
+  const el = document.getElementById('suzaku_league-content');
+  el.innerHTML = '<div class="loading">読み込み中...</div>';
+  try {
+    const res = await fetch(`${API_BASE}?action=leagues`);
+    const data = await res.json();
+    const suzakuMembers = data.suzaku_members || [];
+
+    let html = '';
+    if (suzakuMembers.length === 0) {
+      html = '<div class="empty">まだ記録がありません</div>';
+    } else {
+      // 前季の勝敗成績ではなく、前季末の陥落・入れ替え戦の結果を反映した
+      // 今季（来季開始時点）のメンバーを1本の縦並びで一覧表示する（勝敗は出さず、現在のEloのみ）。
+      // 紅白の組分け自体は対局に使うだけの情報なので、名前の横に小さくタグを添える程度に留める
+      html = `<div class="league-block"><h3>朱雀戦（紅白リーグ）<span style="font-size:0.68rem; color:var(--text-dim);">（第${data.next_season}季メンバー）</span></h3>
+        <table><thead><tr><th>名前</th><th>組</th><th>Elo</th></tr></thead><tbody>`;
+      suzakuMembers.forEach(r => {
+        const newMark = r.is_new ? '<span style="color:var(--text-dim); font-size:0.68rem;">新</span> ' : '';
+        const groupTag = r.group === 'red'
+          ? '<span style="color:#ff7a7a;">紅</span>' : '<span style="color:var(--cyan);">白</span>';
+        html += `<tr data-id="${escapeHtml(r.individual_id)}">
+          <td>${newMark}${escapeHtml(r.display_name || r.individual_id)}</td>
+          <td>${groupTag}</td>
+          <td class="elo-val">${Math.round(r.elo)}</td></tr>`;
+      });
+      html += '</tbody></table></div>';
+    }
+
+    el.innerHTML = html;
+    el.querySelectorAll('tr[data-id]').forEach(tr => tr.addEventListener('click', () => navigateTo('individual/' + tr.dataset.id)));
+  } catch (e) {
+    el.innerHTML = `<div class="empty">読み込み失敗: ${escapeHtml(String(e))}</div>`;
+  }
+}
+
+// ---------------- 一門 ----------------
+
+async function loadClans() {
+  const el = document.getElementById('clans-content');
+  el.innerHTML = '<div class="loading">読み込み中...</div>';
+  try {
+    const res = await fetch(`${API_BASE}?action=clans`);
+    const data = await res.json();
+    const rows = data.clans || [];
+
+    let html = '';
+
+    if (rows.length === 0) {
+      html += '<div class="empty">まだ一門がありません</div>';
+      el.innerHTML = html;
+      return;
+    }
+
+    const headHtml = '<thead><tr><th>#</th><th>開祖</th><th>人数</th><th>最高Elo</th></tr></thead>';
+    const rowHtml = (c, rank) => `<tr data-clan="${escapeHtml(c.clan_root_id)}"><td class="rank-num">${rank}</td>
+        <td>${escapeHtml(c.founder_name)}${c.founder_retired ? '<span style="color:var(--text-dim); font-size:0.68rem;">（引退）</span>' : ''}</td>
+        <td>${c.active_count}名<span style="color:var(--text-dim); font-size:0.68rem;">（総${c.member_count}名）</span></td>
+        <td class="elo-val">${Math.round(c.best_peak_elo)}</td></tr>`;
+
+    // 現役が1人もいない（＝消滅した）一門は、通常の一覧から分けて末尾に折りたたむ
+    const active = rows.filter(c => c.active_count > 0);
+    const extinct = rows.filter(c => c.active_count === 0);
+
+    html += '<h3 style="font-size:0.8rem; color:var(--amber); margin-top:0;">一門一覧（歴代最高Elo順）</h3>';
+    html += `<table>${headHtml}<tbody>`;
+    active.forEach((c, i) => { html += rowHtml(c, i + 1); });
+    html += '</tbody></table>';
+
+    if (extinct.length > 0) {
+      const uid = 'cq' + (_collapsibleSeq++);
+      html += `<div class="collapsible-toggle" data-target="${uid}" style="margin:10px 0 4px; cursor:pointer; color:var(--text-dim); font-size:0.74rem; display:flex; align-items:center; gap:6px;">
+        <span class="collapsible-arrow">▶</span><span data-show-text="消滅した一門を表示（${extinct.length}件）">消滅した一門を表示（${extinct.length}件）</span>
+      </div>`;
+      html += `<div id="${uid}" class="hidden"><table>${headHtml}<tbody>`;
+      extinct.forEach((c, i) => { html += rowHtml(c, i + 1); });
+      html += '</tbody></table></div>';
+    }
+
+    el.innerHTML = html;
+    el.querySelectorAll('tr[data-clan]').forEach(tr => tr.addEventListener('click', () => navigateTo('clans/' + tr.dataset.clan)));
+  } catch (e) {
+    el.innerHTML = `<div class="empty">読み込み失敗: ${escapeHtml(String(e))}</div>`;
+  }
+}
+
+// 一門の系譜ツリーを、師匠→弟子の階層でインデント表示する（個体ページの系譜と同じ考え方）。
+// branchesByUnderは「このノードの下で他の一門へ分岐した弟子」の一覧（id => [branch, ...]）
+function renderClanTree(node, childrenByParent, branchesByUnder, depth) {
+  const kids = childrenByParent[node.id] || [];
+  const branches = branchesByUnder[node.id] || [];
+  const statusBadge = node.retired
+    ? '<span style="color:var(--text-dim); font-size:0.68rem;">（引退）</span>'
+    : leagueTag(node.league);
+  const eloLabel = node.retired
+    ? `最高Elo ${Math.round(node.peak_elo)}`
+    : `Elo ${Math.round(node.elo_rating)}<span style="color:var(--text-dim); font-size:0.68rem;"> / 最高${Math.round(node.peak_elo)}</span>`;
+  let html = `<div class="lineage-link" data-id="${escapeHtml(node.id)}" style="padding:3px 0 3px ${depth * 16}px; font-size:0.8rem; cursor:pointer; ${depth > 0 ? 'border-left:1px solid var(--navy-700); margin-left:-1px;' : ''}">
+    ${statusBadge}<span style="color:var(--text-main);">${escapeHtml(node.display_name || node.id)}</span>
+    <span style="color:var(--text-dim); font-size:0.72rem; margin-left:6px;">${eloLabel}</span>
+  </div>`;
+  branches.forEach(b => {
+    html += `<div class="lineage-link" data-clan="${escapeHtml(b.branch_clan_root_id)}" style="padding:2px 0 2px ${(depth + 1) * 16}px; font-size:0.74rem; cursor:pointer; color:var(--amber-dim); border-left:1px solid var(--navy-700); margin-left:-1px;">
+      L→ ${escapeHtml(b.branch_name)}${b.branch_retired ? '（引退）' : ''}の一門へ分岐
+    </div>`;
+  });
+  kids.forEach(k => { html += renderClanTree(k, childrenByParent, branchesByUnder, depth + 1); });
+  return html;
+}
+
+async function loadClanDetail(clanId) {
+  const el = document.getElementById('clans-content');
+  el.innerHTML = '<div class="loading">読み込み中...</div>';
+  try {
+    const res = await fetch(`${API_BASE}?action=clan&id=${encodeURIComponent(clanId)}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || '取得に失敗しました');
+    const members = data.members || [];
+    const membersById = {};
+    members.forEach(m => { membersById[m.id] = m; });
+    const childrenByParent = {};
+    members.forEach(m => {
+      if (m.parent_a_id && membersById[m.parent_a_id]) {
+        (childrenByParent[m.parent_a_id] = childrenByParent[m.parent_a_id] || []).push(m);
+      }
+    });
+    const root = membersById[clanId] || members.find(m => !m.parent_a_id || !membersById[m.parent_a_id]);
+
+    const branchesByUnder = {};
+    (data.branches_out || []).forEach(b => {
+      (branchesByUnder[b.under_id] = branchesByUnder[b.under_id] || []).push(b);
+    });
+
+    let html = `<div class="back-link" id="clans-back">← 一門一覧に戻る</div>`;
+    html += `<h3 style="font-size:0.8rem; color:var(--amber); margin-top:0;">${escapeHtml(root ? (root.display_name || root.id) : clanId)}の一門</h3>`;
+    const bf = data.branched_from;
+    if (bf) {
+      html += `<div style="font-size:0.74rem; color:var(--text-dim); margin-bottom:8px;">
+        <span class="lineage-link" data-clan="${escapeHtml(bf.origin_clan_root_id)}" style="color:var(--cyan-dim); cursor:pointer;">${escapeHtml(bf.master_name)}${bf.master_retired ? '（引退）' : ''}の一門から独立 →</span>
+      </div>`;
+    }
+    html += `<div style="font-size:0.76rem; color:var(--text-dim); margin-bottom:10px;">総勢${members.length}名（現役${members.filter(m => !m.retired).length}名）</div>`;
+    html += '<div>' + (root ? renderClanTree(root, childrenByParent, branchesByUnder, 0) : '') + '</div>';
+    el.innerHTML = html;
+    document.getElementById('clans-back').addEventListener('click', () => navigateTo('clans'));
+    el.querySelectorAll('.lineage-link[data-id]').forEach(d => d.addEventListener('click', () => navigateTo('individual/' + d.dataset.id)));
+    el.querySelectorAll('.lineage-link[data-clan]').forEach(d => d.addEventListener('click', () => navigateTo('clans/' + d.dataset.clan)));
+  } catch (e) {
+    el.innerHTML = `<div class="empty">読み込み失敗: ${escapeHtml(String(e))}</div>`;
+  }
+}
+
+// ---------------- タイトル ----------------
+// タイトルタブ内の副タブ（現在の保持者／歴代◯◯）。URLハッシュは変えず、パネル内だけで切り替える
+const TITLES_VIEWS = ['current', ...TITLE_ORDER];
+const TITLES_VIEW_LABELS = { current: '現在の保持者', ...Object.fromEntries(TITLE_ORDER.map(t => [t, '歴代' + t])) };
+let _titlesActiveView = 'current';
+let _titlesCurrentData = null;
+
+async function loadTitles() {
+  const el = document.getElementById('titles-content');
+  el.innerHTML = '<div class="loading">読み込み中...</div>';
+  try {
+    const res = await fetch(`${API_BASE}?action=titles`);
+    _titlesCurrentData = await res.json();
+    renderTitlesPanel();
+  } catch (e) {
+    el.innerHTML = `<div class="empty">読み込み失敗: ${escapeHtml(String(e))}</div>`;
+  }
+}
+
+function renderTitlesPanel() {
+  // 副タブ自体は上部の共通#subtabsバー（renderSubtabs）に描画する。ここではパネルの中身だけを描く
+  renderSubtabs('titles', 'titles');
+  const el = document.getElementById('titles-content');
+  if (_titlesActiveView === 'current') {
+    renderCurrentHoldersView(el, _titlesCurrentData);
+  } else {
+    loadTitleHistoryDetail(_titlesActiveView, el);
+  }
+}
+
+function renderCurrentHoldersView(el, data) {
+  const currentList = (data && data.current) || [];
+
+  // 四冠：青龍・朱雀・白虎・玄武を同一人物が同時に保持しているかを判定する
+  const holderCounts = {};
+  currentList.forEach(t => { holderCounts[t.holder_name] = (holderCounts[t.holder_name] || 0) + 1; });
+  const grandSlamHolder = Object.keys(holderCounts).find(name => holderCounts[name] >= 4);
+
+  let html = '';
+  if (grandSlamHolder) {
+    html += `<div style="text-align:center; margin-bottom:14px; padding:10px; border:1px solid var(--amber); background:linear-gradient(135deg, rgba(255,210,79,0.12), rgba(255,157,79,0.12));">
+      <span style="font-family:'Orbitron',sans-serif; font-size:0.85rem; font-weight:800; background:linear-gradient(135deg,#ffd24f,#ff9d4f); -webkit-background-clip:text; background-clip:text; color:transparent;">★★★★ 四冠 ★★★★</span>
+      <div style="font-size:0.82rem; margin-top:4px;">${escapeHtml(grandSlamHolder)}</div>
+    </div>`;
+  }
+  if (currentList.length === 0) {
+    html += '<div class="empty">まだ記録がありません</div>';
+  }
+  currentList.forEach(t => {
+    const eternalBadge = t.eternal ? `<span style="display:inline-block; background:rgba(255,182,72,0.15); border:1px solid var(--amber); color:var(--amber); font-size:0.68rem; padding:2px 8px; border-radius:2px; margin-left:8px;">★永世${escapeHtml(t.title)}</span>` : '';
+    html += `<div class="title-card"><h4>${escapeHtml(t.title)}</h4><div>
+      <span class="title-name-link" data-id="${escapeHtml(t.holder_id || '')}" style="cursor:pointer;">${escapeHtml(t.holder_name)}</span>
+      （第${t.season}シーズン〜）${eternalBadge}</div></div>`;
+  });
+
+  el.innerHTML = html;
+  el.querySelectorAll('.title-name-link').forEach(span => {
+    if (!span.dataset.id) return;
+    span.addEventListener('click', () => navigateTo('individual/' + span.dataset.id));
+  });
+}
+
+async function loadTitleHistoryDetail(title, container) {
+  container.innerHTML = '<div class="loading" style="padding:10px 0;">読み込み中...</div>';
+  try {
+    const res = await fetch(`${API_BASE}?action=title_history_detail&title=${encodeURIComponent(title)}`);
+    const data = await res.json();
+    const rows = (data.history || []).slice().reverse();
+    if (rows.length === 0) {
+      container.innerHTML = '<div style="color:var(--text-dim); font-size:0.76rem;">記録がありません</div>';
+      return;
+    }
+    let html = '<table><thead><tr><th>季</th><th>結果</th><th>保持者</th><th>相手</th><th>スコア</th></tr></thead><tbody>';
+    rows.forEach(r => {
+      const eventLabel = r.event_type === '初代襲名' ? '初代襲名' : r.event_type;
+      const score = (r.opponent_name !== null) ? `${r.holder_wins}-${r.opponent_wins}` : '-';
+      html += `<tr>
+        <td style="cursor:default;">第${r.season}季</td>
+        <td style="cursor:default;">${escapeHtml(eventLabel)}</td>
+        <td data-id="${escapeHtml(r.holder_id || '')}">${escapeHtml(r.holder_name || '-')}</td>
+        <td data-id="${escapeHtml(r.opponent_id || '')}">${escapeHtml(r.opponent_name || '-')}</td>
+        <td style="cursor:default;">${escapeHtml(score)}</td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+    container.innerHTML = html;
+    container.dataset.loaded = '1';
+    container.querySelectorAll('td[data-id]').forEach(td => {
+      if (!td.dataset.id) return;
+      td.addEventListener('click', () => navigateTo('individual/' + td.dataset.id));
+    });
+  } catch (e) {
+    container.innerHTML = `<div class="empty">読み込み失敗: ${escapeHtml(String(e))}</div>`;
+  }
+}
+
+// ---------------- 個体情報 ----------------
+function showIndividual(id, pushHistory = true) {
+  if (pushHistory) { navigateTo('individual/' + id); return; }
+  loadIndividualDetail(id);
+}
+
+async function ensureTitleholdersLoaded() {
+  if (Object.keys(CURRENT_TITLEHOLDERS.by_id).length > 0) return;
+  try {
+    const res = await fetch(`${API_BASE}?action=leagues`);
+    const data = await res.json();
+    CURRENT_TITLEHOLDERS = data.titleholders || { by_id: {}, by_name: {} };
+  } catch (e) { /* 失敗しても致命的ではないので握りつぶす */ }
+}
+
+async function loadIndividualDetail(id) {
+  const el = document.getElementById('individual-content');
+  el.innerHTML = '<div class="loading">読み込み中...</div>';
+  try {
+    await ensureTitleholdersLoaded();
+    const res = await fetch(`${API_BASE}?action=individual&id=${encodeURIComponent(id)}`);
+    const data = await res.json();
+    if (data.error) { el.innerHTML = `<div class="empty">${escapeHtml(data.error)}</div>`; return; }
+    const ind = data.individual, p = ind.params || {};
+
+    let html = `<div class="back-link" id="ind-back">← 一覧に戻る</div>`;
+    html += `<div style="text-align:center; margin-bottom:14px;">
+      <div style="margin-bottom:6px;">${ind.retired ? '<span style="color:var(--text-dim); font-size:0.7rem;">（引退）</span>' : `${leagueTag(ind.league)}`}</div>
+      <h3 style="margin:0; font-size:1.1rem;">${crownLabel(ind.id, ind.display_name)}${escapeHtml(ind.display_name || ind.id)}</h3>
+      <div style="font-size:0.75rem; color:var(--text-dim); margin-top:2px;">通算${ind.total_seasons}シーズン${(ind.age !== null && ind.age !== undefined) ? `　${ind.age}歳` : ''}</div>
+      ${(ind.dan !== null && ind.dan !== undefined) ? `<div style="margin-top:4px;"><span class="chip cyan" style="font-size:0.78rem; padding:2px 10px;">${ind.dan}段</span></div>` : ''}
+      <div style="margin-top:6px;">Elo: <span class="elo-val" style="font-size:1.1rem;">${Math.round(ind.elo_rating)}</span>
+        <span style="font-size:0.72rem; color:var(--amber); margin-left:8px;">最高 ${Math.round(ind.peak_elo ?? ind.elo_rating)}</span></div>
+      <div style="margin-top:8px;">
+        <button id="ind-fav-toggle" class="fav-toggle" data-id="${escapeHtml(ind.id)}">☆ お気に入りに追加</button>
+      </div>
+      ${ind.clan_established ? `<div style="margin-top:6px;"><span class="back-link" id="ind-clan-link" style="margin-bottom:0;">一門を見る →</span></div>` : ''}
+      ${ind.awakened_param ? `<div style="margin-top:8px; display:inline-block; background:rgba(255,182,72,0.15); border:1px solid var(--amber); color:var(--amber); font-size:0.72rem; padding:3px 10px; border-radius:2px;">★ 覚醒：「${escapeHtml(paramLabel(ind.awakened_param))}」突破</div>` : ''}
+    </div>`;
+
+    html += `<div style="display:flex; justify-content:center; margin-bottom:16px;">${renderRadarChart(p)}</div>`;
+
+    html += `<h4 style="font-size:0.78rem; color:var(--amber); border-bottom:1px solid var(--navy-700); padding-bottom:4px;">系譜</h4>`;
+    html += renderLineage(data.ancestors, data.children);
+
+    html += `<h4 style="font-size:0.78rem; color:var(--amber); border-bottom:1px solid var(--navy-700); padding-bottom:4px;">通算成績</h4>`;
+    html += `<div id="ind-record" style="font-size:0.8rem; margin-bottom:16px;">読み込み中...</div>`;
+
+    html += `<h4 style="font-size:0.78rem; color:var(--amber); border-bottom:1px solid var(--navy-700); padding-bottom:4px;">対戦相手別・同一カード成績</h4>`;
+    html += `<div id="ind-opponents" style="font-size:0.78rem; margin-bottom:16px;"></div>`;
+
+    html += `<h4 style="font-size:0.78rem; color:var(--amber); border-bottom:1px solid var(--navy-700); padding-bottom:4px;">タイトル獲得歴</h4>`;
+    html += `<div id="ind-titles" style="font-size:0.8rem; margin-bottom:16px;">読み込み中...</div>`;
+
+    html += `<h4 style="font-size:0.78rem; color:var(--amber); border-bottom:1px solid var(--navy-700); padding-bottom:4px;">タイトル挑戦記録</h4>`;
+    html += `<div id="ind-challenges" style="font-size:0.8rem; margin-bottom:16px;">読み込み中...</div>`;
+
+    html += `<h4 style="font-size:0.78rem; color:var(--amber); border-bottom:1px solid var(--navy-700); padding-bottom:4px;">Elo推移</h4>`;
+    html += `<div id="ind-elo-chart" style="margin-bottom:16px;"></div>`;
+
+    html += `<h4 style="font-size:0.78rem; color:var(--amber); border-bottom:1px solid var(--navy-700); padding-bottom:4px;">今季の表彰</h4>`;
+    html += `<div id="ind-awards" style="font-size:0.8rem; margin-bottom:16px;">読み込み中...</div>`;
+
+    html += `<h4 style="font-size:0.78rem; color:var(--amber); border-bottom:1px solid var(--navy-700); padding-bottom:4px;">シーズンごとの成績</h4>`;
+    html += `<div id="ind-standings-summary" style="font-size:0.76rem; color:var(--text-dim); margin-bottom:6px;"></div>`;
+    html += `<div id="ind-standings" style="font-size:0.78rem; margin-bottom:16px;">読み込み中...</div>`;
+
+    html += `<h4 style="font-size:0.78rem; color:var(--amber); border-bottom:1px solid var(--navy-700); padding-bottom:4px;">最近の対局</h4>`;
+    html += `<div id="ind-matches" style="font-size:0.78rem;"></div>`;
+
+    el.innerHTML = html;
+    document.getElementById('ind-back').addEventListener('click', () => navigateTo('leagues'));
+    document.getElementById('ind-fav-toggle').addEventListener('click', () => toggleFavorite(ind.id));
+    applyFavoriteHighlights();
+    const clanLink = document.getElementById('ind-clan-link');
+    if (clanLink) clanLink.addEventListener('click', () => navigateTo('clans/' + ind.clan_root_id));
+    el.querySelectorAll('.lineage-link').forEach(span => span.addEventListener('click', () => navigateTo('individual/' + span.dataset.id)));
+
+    renderRecord(data.record);
+    renderOpponentRecords(data.opponent_records);
+    renderTitleRecord(data.title_ranges, data.title_total_seasons);
+    renderChallengeRecord(data.challenge_ranges, data.challenge_total_seasons);
+    renderRecentMatches(data.matches, ind.id);
+    loadIndividualStandingsHistory(id);
+    loadIndividualAwards(id);
+  } catch (e) {
+    el.innerHTML = `<div class="empty">読み込み失敗: ${escapeHtml(String(e))}</div>`;
+  }
+}
+
+function paramLabel(key) {
+  return {
+    corner_weight: '角', danger_zone_weight: '危険マス回避', mobility_weight: '機動力',
+    edge_stability_weight: '辺の安定', frontier_weight: '開放度', disc_weight: '石数',
+    parity_weight: 'パリティ', center_weight: '中央支配',
+  }[key] || key;
+}
+
+// ---------------- 八角形レーダーチャート ----------------
+function renderRadarChart(params) {
+  const keys = ['corner_weight','danger_zone_weight','mobility_weight','edge_stability_weight','frontier_weight','disc_weight','parity_weight','center_weight'];
+  const labels = keys.map(paramLabel);
+  const values = keys.map(k => params[k] || 0);
+  const maxScale = 20; // 覚醒等で伸びた値も収まるよう余裕を持たせる
+  const size = 220, center = size / 2, radius = 85;
+  const n = keys.length;
+
+  function pointFor(i, value) {
+    const angle = (Math.PI * 2 * i / n) - Math.PI / 2;
+    const r = Math.min(1, value / maxScale) * radius;
+    return [center + r * Math.cos(angle), center + r * Math.sin(angle)];
+  }
+
+  let gridLines = '';
+  [0.25, 0.5, 0.75, 1.0].forEach(frac => {
+    const pts = keys.map((_, i) => pointFor(i, frac * maxScale).join(',')).join(' ');
+    gridLines += `<polygon points="${pts}" fill="none" stroke="#182238" stroke-width="1"/>`;
+  });
+  keys.forEach((_, i) => {
+    const [x, y] = pointFor(i, maxScale);
+    gridLines += `<line x1="${center}" y1="${center}" x2="${x}" y2="${y}" stroke="#182238" stroke-width="1"/>`;
+  });
+
+  const dataPts = keys.map((_, i) => pointFor(i, values[i]).join(',')).join(' ');
+  const dataPolygon = `<polygon points="${dataPts}" fill="rgba(79,240,255,0.25)" stroke="#4ff0ff" stroke-width="2"/>`;
+
+  let labelsHtml = '';
+  keys.forEach((k, i) => {
+    const [x, y] = pointFor(i, maxScale * 1.22);
+    labelsHtml += `<text x="${x}" y="${y}" text-anchor="middle" fill="#dce6f0" font-size="10" font-family="'Noto Sans JP',sans-serif">${labels[i]}</text>`;
+  });
+
+  return `<svg viewBox="0 0 ${size} ${size}" style="width:100%; max-width:280px;">
+    ${gridLines}${dataPolygon}${labelsHtml}
+  </svg>`;
+}
+
+function renderLineage(ancestors, children) {
+  ancestors = ancestors || [];
+  const ancestorItem = (a) =>
+    `<div style="padding:3px 0;"><span class="lineage-link" data-id="${escapeHtml(a.id)}" style="color:var(--text-main); cursor:pointer;">${escapeHtml(a.display_name || a.id)}</span>${a.retired ? '<span style="color:var(--text-dim); font-size:0.68rem;">（引退）</span>' : ''}
+      <span style="color:var(--text-dim); font-size:0.72rem; margin-left:6px;">Elo ${Math.round(a.elo_rating)}${a.retired ? '（引退時）' : ''}</span></div>`;
+
+  let parentHtml;
+  if (ancestors.length === 0) {
+    parentHtml = '<div style="padding:4px 0; color:var(--text-dim);">師匠：なし（開祖 または 無流派の新規参入）</div>';
+  } else {
+    const master = ancestors[0];
+    const rest = ancestors.slice(1);
+    const masterLine = `<div style="padding:4px 0;">師匠：${ancestorItem(master).replace('padding:3px 0;', '')}</div>`;
+    if (rest.length === 0) {
+      parentHtml = masterLine;
+    } else {
+      const uid = 'lineage' + (_collapsibleSeq++);
+      parentHtml = masterLine + `
+        <div class="collapsible-toggle" data-target="${uid}" style="margin:4px 0; cursor:pointer; color:var(--text-dim); font-size:0.74rem; display:flex; align-items:center; gap:6px;">
+          <span class="collapsible-arrow">▶</span><span data-show-text="さらに遡る（${rest.length}代前まで）">さらに遡る（${rest.length}代前まで）</span>
+        </div>
+        <div id="${uid}" class="hidden" style="padding-left:10px; border-left:1px solid var(--navy-700);">${rest.map(ancestorItem).join('')}</div>`;
+    }
+  }
+
+  let childrenHtml;
+  if (!children || children.length === 0) {
+    childrenHtml = '<div style="padding:4px 0; color:var(--text-dim);">弟子：まだいません</div>';
+  } else {
+    const items = children.map(c =>
+      `<span class="lineage-link" data-id="${escapeHtml(c.id)}" style="display:inline-block; color:var(--text-main); cursor:pointer; margin:2px 10px 2px 0;">${escapeHtml(c.display_name || c.id)}${c.retired ? '<span style="color:var(--text-dim); font-size:0.68rem;">（引退）</span>' : ''}<span style="color:var(--text-dim); font-size:0.72rem; margin-left:4px;">最高Elo ${Math.round(c.peak_elo)}</span></span>`
+    ).join('');
+    childrenHtml = `<div style="padding:4px 0;">弟子（${children.length}名）：<div style="margin-top:4px;">${items}</div></div>`;
+  }
+
+  return `<div style="font-size:0.8rem; margin-bottom:16px;">${parentHtml}${childrenHtml}</div>`;
+}
+
+function renderEloChart(rows) {
+  const container = document.getElementById('ind-elo-chart');
+  if (!container) return;
+  const points = rows.filter(r => r.elo !== null && r.elo !== undefined);
+  if (points.length < 2) {
+    container.innerHTML = '<div style="color:var(--text-dim); font-size:0.76rem;">グラフ化するにはデータが足りません</div>';
+    return;
+  }
+  const W = 320, H = 120, padL = 34, padR = 10, padT = 10, padB = 20;
+  const elos = points.map(p => p.elo);
+  const minElo = Math.min(...elos), maxElo = Math.max(...elos);
+  const range = Math.max(maxElo - minElo, 10);
+  const yFor = v => padT + (H - padT - padB) * (1 - (v - minElo) / range);
+  const xFor = i => padL + (W - padL - padR) * (points.length === 1 ? 0 : i / (points.length - 1));
+
+  const pathD = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${xFor(i).toFixed(1)} ${yFor(p.elo).toFixed(1)}`).join(' ');
+  const dots = points.map((p, i) =>
+    `<circle cx="${xFor(i).toFixed(1)}" cy="${yFor(p.elo).toFixed(1)}" r="2.5" fill="var(--cyan)"><title>第${p.season}季：${p.elo}</title></circle>`
+  ).join('');
+  const gridLines = [minElo, (minElo + maxElo) / 2, maxElo].map(v =>
+    `<line x1="${padL}" y1="${yFor(v).toFixed(1)}" x2="${W - padR}" y2="${yFor(v).toFixed(1)}" stroke="var(--navy-700)" stroke-width="1" />
+     <text x="${padL - 6}" y="${(yFor(v) + 3).toFixed(1)}" text-anchor="end" font-size="9" fill="var(--text-dim)">${Math.round(v)}</text>`
+  ).join('');
+  const xLabels = points.map((p, i) => {
+    if (points.length > 8 && i % Math.ceil(points.length / 6) !== 0 && i !== points.length - 1) return '';
+    return `<text x="${xFor(i).toFixed(1)}" y="${H - 4}" text-anchor="middle" font-size="9" fill="var(--text-dim)">${p.season}</text>`;
+  }).join('');
+
+  container.innerHTML = `<svg viewBox="0 0 ${W} ${H}" style="width:100%; height:auto; display:block;">
+    ${gridLines}
+    <path d="${pathD}" fill="none" stroke="var(--cyan)" stroke-width="1.8" />
+    ${dots}
+    ${xLabels}
+  </svg>`;
+}
+
+function renderRecord(record) {
+  const el = document.getElementById('ind-record');
+  if (!el) return;
+  if (!record || record.total === 0) { el.innerHTML = '<div style="color:var(--text-dim);">対局記録なし</div>'; return; }
+  el.innerHTML = `<div class="params-grid">
+    <dt>総対局数</dt><dd>${record.total}</dd>
+    <dt>勝・敗・分</dt><dd><span class="result-win" style="color:var(--cyan);">${record.win}</span> / <span style="color:#ff7a7a;">${record.loss}</span> / <span style="color:var(--text-dim);">${record.draw}</span></dd>
+    <dt>勝率</dt><dd class="elo-val">${(record.win + record.loss) > 0 ? Math.round(record.win / (record.win + record.loss) * 100) : 0}%</dd>
+  </div>`;
+}
+
+function renderOpponentRecords(opponentRecords) {
+  const el = document.getElementById('ind-opponents');
+  if (!el) return;
+  if (!opponentRecords || opponentRecords.length === 0) { el.innerHTML = '<div style="color:var(--text-dim);">対局記録なし</div>'; return; }
+
+  const TOP_N = 5;
+  const topRows = opponentRecords.slice(0, TOP_N);
+  const restRows = opponentRecords.slice(TOP_N);
+
+  function rowHtml(o) {
+    const total = o.win + o.loss + o.draw;
+    return `<tr data-id="${escapeHtml(o.pid)}">
+      <td>${escapeHtml(o.opponent_name || o.pid)}</td>
+      <td style="color:var(--cyan);">${o.win}</td>
+      <td style="color:#ff7a7a;">${o.loss}</td>
+      <td style="color:var(--text-dim);">${o.draw}</td>
+      <td>${total}</td>
+    </tr>`;
+  }
+
+  let html = '<table><thead><tr><th>対戦相手</th><th>勝</th><th>敗</th><th>分</th><th>対局数</th></tr></thead><tbody>';
+  topRows.forEach(o => { html += rowHtml(o); });
+  html += '</tbody></table>';
+
+  if (restRows.length > 0) {
+    html += `<div class="opponents-toggle" style="margin-top:8px; cursor:pointer; color:var(--text-dim); font-size:0.74rem; display:flex; align-items:center; gap:6px;">
+      <span class="opponents-arrow">▶</span><span>他${restRows.length}件を表示</span>
+    </div>`;
+    html += '<div class="opponents-rest hidden"><table><tbody>';
+    restRows.forEach(o => { html += rowHtml(o); });
+    html += '</tbody></table></div>';
+  }
+
+  el.innerHTML = html;
+  el.querySelectorAll('tr[data-id]').forEach(tr => tr.addEventListener('click', () => navigateTo('individual/' + tr.dataset.id)));
+
+  const toggle = el.querySelector('.opponents-toggle');
+  if (toggle) {
+    toggle.addEventListener('click', () => {
+      const rest = el.querySelector('.opponents-rest');
+      const arrow = toggle.querySelector('.opponents-arrow');
+      const label = toggle.querySelector('span:last-child');
+      const isHidden = rest.classList.toggle('hidden');
+      arrow.textContent = isHidden ? '▶' : '▼';
+      label.textContent = isHidden ? `他${restRows.length}件を表示` : '閉じる';
+    });
+  }
+}
+
+async function loadIndividualStandingsHistory(id) {
+  const el = document.getElementById('ind-standings');
+  if (!el) return;
+  try {
+    const res = await fetch(`${API_BASE}?action=standings&individual_id=${encodeURIComponent(id)}`);
+    const data = await res.json();
+    const rows = data.history || [];
+    if (rows.length === 0) { el.innerHTML = '<div style="color:var(--text-dim);">記録なし</div>'; return; }
+    renderEloChart(rows);
+
+    // Aリーグの通算在籍シーズン数（防衛専念枠でAリーグに数えられているシーズンも含む）
+    const summaryEl = document.getElementById('ind-standings-summary');
+    if (summaryEl) {
+      const aCount = rows.filter(r => r.league === 'A').length;
+      summaryEl.textContent = aCount > 0 ? `Aリーグ通算在籍：${aCount}季` : '';
+    }
+
+    const rowHtml = r => {
+      const record = (r.win || r.loss || r.draw) ? `${r.win}勝${r.loss}敗${r.draw ? r.draw + '分' : ''}` : '-';
+      const titleTags = (r.title_events || []).map(te => `${te.title}(${te.event_type})`);
+      const labels = (r.defense_fail_titles || []).map(t => `${t}(防衛失敗)`);
+      labels.push(...titleTags); // 保持記録も、防衛失敗と排他にせず合算する
+      // 順位戦の順位（青龍の防衛専念枠などでrankが無いシーズンはタイトル表示のみ）と、
+      // タイトル獲得・防衛失敗のラベルは排他にせず両方表示する
+      // 青龍などの防衛専念枠（no_roundrobin）だったシーズンは、そもそもAリーグの総当たりに参戦していないため
+      // 順位番号を表示しない（DB上のrankは便宜上の値であり、実際の総当たり順位ではない）
+      const rankPart = (!r.no_roundrobin && r.rank) ? `${r.rank}位` : '';
+      const titlePart = labels.length > 0 ? labels.join('・') : '';
+      const rankDisplay = [rankPart, titlePart].filter(Boolean).join('・');
+      return `<div style="display:flex; justify-content:space-between; padding:3px 0;">
+        <span>${movementMarks(r.movement)}第${r.season}季 ${leagueTag(r.league)}${rankDisplay}</span>
+        <span>${record}</span>
+      </div>`;
+    };
+    const newestFirst = rows.slice().reverse(); // 新しい季を上に
+    const TOP_N = 5;
+    const topRows = newestFirst.slice(0, TOP_N);
+    const restRows = newestFirst.slice(TOP_N);
+    let standingsHtml = topRows.map(rowHtml).join('');
+    if (restRows.length > 0) {
+      standingsHtml += `<div class="collapsible-toggle" data-target="ind-standings-rest" style="margin-top:6px; cursor:pointer; color:var(--text-dim); font-size:0.74rem; display:flex; align-items:center; gap:6px;">
+        <span class="collapsible-arrow">▶</span><span data-show-text="他${restRows.length}季を表示">他${restRows.length}季を表示</span>
+      </div>`;
+      standingsHtml += `<div id="ind-standings-rest" class="hidden">${restRows.map(rowHtml).join('')}</div>`;
+    }
+    el.innerHTML = standingsHtml;
+  } catch (e) {
+    el.innerHTML = '<div style="color:var(--text-dim);">読み込み失敗</div>';
+  }
+}
+
+async function loadIndividualAwards(id) {
+  const el = document.getElementById('ind-awards');
+  if (!el) return;
+  el.innerHTML = '読み込み中...';
+  try {
+    const res = await fetch(`${API_BASE}?action=season_awards`);
+    const data = await res.json();
+    if (!data.season) { el.innerHTML = '<div style="color:var(--text-dim);">記録なし</div>'; return; }
+    const categories = [
+      { key: 'games', label: '対局数ランキング', fmt: p => `${p.games}対局`, keyFn: p => p.games },
+      { key: 'wins', label: '勝数ランキング', fmt: p => `${p.win}勝`, keyFn: p => p.win },
+      { key: 'win_rate', label: '勝率ランキング', fmt: p => `${p.win_rate.toFixed(3)}（${p.win}勝${p.loss}敗）`, keyFn: p => p.win_rate },
+      { key: 'streak', label: '連勝ランキング', fmt: p => `${p.best_streak}連勝`, keyFn: p => p.best_streak },
+      { key: 'elo_end', label: 'シーズン終了時Eloランキング', fmt: p => `${Math.round(p.elo)}`, keyFn: p => p.elo },
+    ];
+    let html = `<div style="font-size:0.68rem; color:var(--text-dim); margin-bottom:6px;">第${data.season}季（最新季）時点</div><table><tbody>`;
+    categories.forEach(cat => {
+      const list = data[cat.key] || [];
+      const idx = list.findIndex(p => p.id === id);
+      const cell = idx === -1
+        ? '<span style="color:var(--text-dim);">対象外</span>'
+        : `<span class="elo-val">${competitionRanks(list, cat.keyFn)[idx]}位</span>（${cat.fmt(list[idx])}）`;
+      html += `<tr><td style="color:var(--text-dim);">${cat.label}</td><td style="text-align:right;">${cell}</td></tr>`;
+    });
+    html += '</tbody></table>';
+    el.innerHTML = html;
+  } catch (e) {
+    el.innerHTML = '<div style="color:var(--text-dim);">読み込み失敗</div>';
+  }
+}
+
+function renderTitleRecord(titleRanges, totalSeasons) {
+  const el = document.getElementById('ind-titles');
+  if (!el) return;
+  if (!titleRanges || titleRanges.length === 0) { el.innerHTML = '<div style="color:var(--text-dim);">タイトル獲得歴なし</div>'; return; }
+  let html = titleRanges.map(t =>
+    `<div style="padding:4px 0;">${escapeHtml(t.title)}：${t.total}期（${escapeHtml(t.ranges)}）</div>`
+  ).join('');
+  html += `<div style="padding:6px 0 0; color:var(--amber); font-size:0.78rem;">獲得合計：${totalSeasons}期</div>`;
+  el.innerHTML = html;
+}
+
+function renderChallengeRecord(challengeRanges, totalSeasons) {
+  const el = document.getElementById('ind-challenges');
+  if (!el) return;
+  if (!challengeRanges || challengeRanges.length === 0) {
+    el.innerHTML = '<div style="color:var(--text-dim);">挑戦記録なし</div>';
+    return;
+  }
+  let html = challengeRanges.map(c =>
+    `<div style="padding:4px 0;">${escapeHtml(c.title)}：${c.total}回（${escapeHtml(c.ranges)}）</div>`
+  ).join('');
+  html += `<div style="padding:6px 0 0; color:var(--amber); font-size:0.78rem;">登場回数合計：${totalSeasons}回</div>`;
+  el.innerHTML = html;
+}
+
+function matchResultLabel(m) {
+  // 「a側視点の勝敗」を推測で反転させる方式はID不一致等で誤表示のリスクがあるため使わない。
+  // 常に「実際の勝者の名前」をそのまま表示する（IDの比較に一切依存しない、誤りようがない方式）。
+  if (m.result === 'draw') return '引き分け';
+  const winnerName = m.result === 'win' ? m.individual_a_name : (m.individual_b_name || 'タイトルホルダー');
+  return `${escapeHtml(winnerName)}の勝ち`;
+}
+
+function renderRecentMatches(matches, myId) {
+  const el = document.getElementById('ind-matches');
+  if (!el) return;
+  if (!matches || matches.length === 0) { el.innerHTML = '<div style="color:var(--text-dim);">対局記録なし</div>'; return; }
+  const rowHtml = m => {
+    const opp = m.individual_a_id === myId ? (m.individual_b_name || 'タイトルホルダー') : m.individual_a_name;
+    return `<div class="kifu-row" data-match-id="${m.id}" style="padding:6px 0; border-bottom:1px solid rgba(24,34,56,0.6); cursor:pointer; display:flex; justify-content:space-between;">
+      <span>${leagueTag(m.league)}第${m.season}季 vs ${escapeHtml(opp)}</span>
+      <span>${matchResultLabel(m)}</span>
+    </div>`;
+  };
+  const TOP_N = 5;
+  const top = matches.slice(0, TOP_N);
+  const rest = matches.slice(TOP_N, 30);
+  let html = top.map(rowHtml).join('');
+  if (rest.length > 0) {
+    html += `<div class="collapsible-toggle" data-target="ind-matches-rest" style="margin-top:6px; cursor:pointer; color:var(--text-dim); font-size:0.74rem; display:flex; align-items:center; gap:6px;">
+      <span class="collapsible-arrow">▶</span><span data-show-text="他${rest.length}局を表示">他${rest.length}局を表示</span>
+    </div>`;
+    html += `<div id="ind-matches-rest" class="hidden">${rest.map(rowHtml).join('')}</div>`;
+  }
+  el.innerHTML = html;
+  el.querySelectorAll('.kifu-row').forEach(row => row.addEventListener('click', () => navigateTo('game/' + row.dataset.matchId)));
+}
+
+// ---------------- 順位（シーズンごとのリーグ成績） ----------------
+const MOVEMENT_MARKS = {
+  promoted: '<span class="movement-mark" style="color:var(--cyan); font-size:0.7rem;" title="昇級">昇↑</span>',
+  relegated: '<span class="movement-mark" style="color:#ff9d4f; font-size:0.7rem;" title="降級">降↓</span>',
+  retired: '<span class="movement-mark" style="color:var(--text-dim); font-size:0.7rem;" title="引退">退</span>',
+  new: '<span class="movement-mark" style="color:#4fff9e; font-size:0.7rem;" title="新規参入">新</span>',
+  stay: '',
+};
+
+function movementMarks(movement) {
+  // movementは "new,promoted" のように複数タグがカンマ区切りで入っている場合がある。全て表示する
+  if (!movement) return '';
+  return movement.split(',').map(tag => MOVEMENT_MARKS[tag.trim()] || '').join('');
+}
+
+// 昇格・降格した行を、テーブル左端の色付きボーダーでも強調する（movement-markの文字だけだと
+// 目立ちにくいため）。昇格・降格が同時に発生することはないので、promoted優先で判定する
+function zoneClass(movement) {
+  if (!movement) return '';
+  const tags = movement.split(',').map(t => t.trim());
+  if (tags.includes('promoted')) return 'zone-up';
+  if (tags.includes('relegated')) return 'zone-down';
+  return '';
+}
+
+// 予選ブラケットの対局ログ（時系列の勝敗記録）から、挑戦者決定までの「勝ち上がりツリー」を復元する。
+// 1組の対戦カードは引き分けなら同じ相手と再戦する仕様のため、同じ2人の対局記録が複数行
+// （引き分け1回以上＋最後の決着局）残ることがある。決着（win/loss）した最後の1局だけが
+// 実際の勝ち上がりを表すので、引き分けの行はここで除外してから木を組み立てる
+// （引き分けを勝敗どちらかとして数えると、同じ対戦カードが重複して見えてしまうため）。
+// バイ（不戦勝）は対局として記録されないため正確な山形配置は分からないが、
+// 「誰が誰に勝って勝ち上がったか」は完全に復元できる。
+// 独立した複数ブロックのトーナメント対局ログ（朱雀予選の4ブロック等）を、対局した個体同士を
+// 同じ集合にまとめるUnion-Findで自動的にブロックごとに分割する（対局ログにブロック番号は無いが、
+// ブロックをまたいで対局することは無いため、連結成分＝ブロックとして正しく復元できる）
+function groupMatchesByConnectivity(matches) {
+  const parent = new Map();
+  function find(x) {
+    if (!parent.has(x)) parent.set(x, x);
+    let root = x;
+    while (parent.get(root) !== root) root = parent.get(root);
+    while (parent.get(x) !== root) { const next = parent.get(x); parent.set(x, root); x = next; }
+    return root;
+  }
+  function union(a, b) {
+    const ra = find(a), rb = find(b);
+    if (ra !== rb) parent.set(ra, rb);
+  }
+  matches.forEach(m => union(m.individual_a_id, m.individual_b_id));
+  const groups = new Map();
+  matches.forEach(m => {
+    const root = find(m.individual_a_id);
+    if (!groups.has(root)) groups.set(root, []);
+    groups.get(root).push(m);
+  });
+  return Array.from(groups.values());
+}
+
+function buildBracketTree(bracketRaw) {
+  const bracket = bracketRaw.filter(m => m.result !== 'draw');
+  if (bracket.length === 0) {
+    // 極めて稀なケース（全局引き分けで決着扱いになった等）への保険。空の木は作らない
+    const last = bracketRaw[bracketRaw.length - 1] || {};
+    return { leaf: true, name: last.individual_a_name || '?', id: last.individual_a_id };
+  }
+  function winnerOf(m) {
+    return m.result === 'win'
+      ? { id: m.individual_a_id, name: m.individual_a_name }
+      : { id: m.individual_b_id, name: m.individual_b_name };
+  }
+  function findPriorMatch(playerId, beforeIndex) {
+    for (let i = beforeIndex - 1; i >= 0; i--) {
+      if (winnerOf(bracket[i]).id === playerId) return i;
+    }
+    return -1;
+  }
+  function buildNode(matchIndex) {
+    const m = bracket[matchIndex];
+    const w = winnerOf(m);
+    const aPrior = findPriorMatch(m.individual_a_id, matchIndex);
+    const bPrior = findPriorMatch(m.individual_b_id, matchIndex);
+    return {
+      matchId: m.id, winnerName: w.name, winnerId: w.id,
+      left: aPrior >= 0 ? buildNode(aPrior) : { leaf: true, name: m.individual_a_name, id: m.individual_a_id },
+      right: bPrior >= 0 ? buildNode(bPrior) : { leaf: true, name: m.individual_b_name, id: m.individual_b_id },
+    };
+  }
+  return buildNode(bracket.length - 1);
+}
+
+function renderBracketTree(node, depth, isRoot) {
+  if (node.leaf) {
+    return `<div style="padding:3px 0 3px ${depth * 16}px; font-size:0.73rem; color:var(--text-dim); border-left:1px solid var(--navy-700); margin-left:${(depth - 1) * 0}px;">・${escapeHtml(node.name)}</div>`;
+  }
+  const crown = isRoot ? '🏆 ' : '';
+  let html = `<div class="bracket-node" data-match-id="${node.matchId}" style="padding:3px 0 3px ${depth * 16}px; font-size:0.78rem; font-weight:700; color:var(--cyan); cursor:pointer;">${crown}${escapeHtml(node.winnerName)}</div>`;
+  html += renderBracketTree(node.left, depth + 1, false);
+  html += renderBracketTree(node.right, depth + 1, false);
+  return html;
+}
+
+// 文字列の実際の描画幅をCanvasで計測する。等幅換算の概算では、太字（勝者名）や絵文字（🏆）で
+// 実幅とのズレが大きく、切り詰めが甘くなって名前が列からはみ出し見切れる原因になっていたため、
+// 実際に使うフォント・太さに合わせて正確に測る
+let _bracketMeasureCtx = null;
+function bracketTextWidth(str, fontSize, bold) {
+  if (!_bracketMeasureCtx) {
+    _bracketMeasureCtx = document.createElement('canvas').getContext('2d');
+  }
+  _bracketMeasureCtx.font = `${bold ? '700 ' : ''}${fontSize}px 'Noto Sans JP', sans-serif`;
+  return _bracketMeasureCtx.measureText(String(str)).width;
+}
+
+// 長い表示名は列幅に収まるよう省略する（隣の枠と重なって読めなくなるのを防ぐ）
+function fitBracketName(name, maxWidthPx, fontSize, bold) {
+  const str = String(name || '');
+  if (bracketTextWidth(str, fontSize, bold) <= maxWidthPx) return str;
+  let lo = 0, hi = str.length;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    if (bracketTextWidth(str.slice(0, mid) + '…', fontSize, bold) <= maxWidthPx) lo = mid; else hi = mid - 1;
+  }
+  if (lo <= 0) return str.length > 0 ? str[0] + '…' : '';
+  return str.slice(0, lo) + '…';
+}
+
+// 名前の右に「(タグ)」形式で補足情報（朱雀の予選枠・白虎の参加時Elo・玄武の当時のリーグ等）を付ける。
+// タグ自体は省略せず必ず表示し、収まらない分は名前側を切り詰める
+function fitBracketNameWithTag(name, tag, maxWidthPx, fontSize, bold) {
+  if (!tag) return fitBracketName(name, maxWidthPx, fontSize, bold);
+  const suffix = `(${tag})`;
+  const nameMaxW = Math.max(fontSize * 2, maxWidthPx - bracketTextWidth(suffix, fontSize, bold));
+  return fitBracketName(name, nameMaxW, fontSize, bold) + suffix;
+}
+
+// リーグごとのアイコン色（トーナメント表示で名前の左に添えるバッジに使う）
+const LEAGUE_BADGE_COLOR = { A: '#ffb648', B: '#4ff0ff', C: '#7ee787', D: '#8fa3bf' };
+// タイトル保持者の場合は、リーグアイコンの代わりにタイトルの頭文字を色付きで表示する
+const TITLE_BADGE_COLOR = { '青龍': '#4f9eff', '朱雀': '#ff5a5a', '白虎': '#f2f2f2', '玄武': '#b388ff' };
+const LEAGUE_BADGE_W = 15; // バッジ込みで名前欄から差し引く幅
+
+// info（{league, title}）を受け取り、タイトル保持者ならタイトルバッジ、そうでなければ
+// リーグバッジを描画する（両者は名前欄での見た目・幅が同じなので呼び分けを一本化する）
+function leagueBadgeSVG(cx, cy, info) {
+  info = info || {};
+  if (info.title && TITLE_BADGE_COLOR[info.title]) {
+    const color = TITLE_BADGE_COLOR[info.title];
+    const label = info.title.charAt(0);
+    return `<circle cx="${cx}" cy="${cy}" r="6.5" fill="none" stroke="${color}" stroke-width="1.2"/>
+      <text x="${cx}" y="${cy + 2.8}" font-size="7.5" font-weight="700" text-anchor="middle" fill="${color}">${escapeHtml(label)}</text>`;
+  }
+  const league = info.league;
+  if (!league || !LEAGUE_BADGE_COLOR[league]) return '';
+  const color = LEAGUE_BADGE_COLOR[league];
+  return `<circle cx="${cx}" cy="${cy}" r="6.5" fill="none" stroke="${color}" stroke-width="1.2"/>
+    <text x="${cx}" y="${cy + 2.8}" font-size="7.5" font-weight="700" text-anchor="middle" fill="${color}">${escapeHtml(league)}</text>`;
+}
+
+// 勝ち上がりツリーを、実際に線でつないだブラケット風SVGとして描画する。
+// 勝者側の線は太く色付きで強調し、パネル幅に収まるよう縮小表示してスクロールをできるだけ避ける。
+// 名前の左にはリーグアイコン（参加時点の所属リーグ）、右には(Elo)を全タイトル共通で表示する。
+// showCrown=falseの場合、ルート（このツリーの最終勝者）に王冠・金色の装飾を付けない
+// （玄武戦のブロック予選のように、その木の勝者が真の優勝者ではなく次の段階に進むだけの場合に使う）
+function renderBracketSVG(root, participantInfo, showCrown = true) {
+  participantInfo = participantInfo || {};
+  const ROW_H = 26, COL_W = 116, PAD_L = 6, PAD_T = 10, STUB = 66, NODE_W = COL_W - 14;
+  const LINE_COLOR = '#3d5170';    // 敗者側・構造線（従来のnavy-700より明るく視認性を上げる）
+  const WIN_COLOR = 'var(--cyan)'; // 勝者側の線
+  const LINE_W = 1.3, WIN_LINE_W = 2.6;
+  let leafCount = 0;
+
+  function layout(node) {
+    if (node.leaf) {
+      node._round = 0;
+      node._y = leafCount * ROW_H + ROW_H / 2 + PAD_T;
+      leafCount++;
+      return;
+    }
+    layout(node.left);
+    layout(node.right);
+    node._round = Math.max(node.left._round, node.right._round) + 1;
+    node._y = (node.left._y + node.right._y) / 2;
+  }
+  layout(root);
+
+  const maxRound = root._round;
+  const colX = (round) => PAD_L + round * COL_W;
+  const width = colX(maxRound) + NODE_W + 10;
+  const height = leafCount * ROW_H + PAD_T * 2;
+
+  // 縞模様の背景を1行おきに敷いて、横に長いブラケットでも行を目で追いやすくする
+  let stripes = '';
+  for (let i = 0; i < leafCount; i++) {
+    if (i % 2 === 1) {
+      stripes += `<rect x="0" y="${i * ROW_H + PAD_T}" width="${width}" height="${ROW_H}" fill="rgba(255,255,255,0.025)"/>`;
+    }
+  }
+
+  let lines = '';
+  let labels = '';
+
+  function nodeId(n) { return n.leaf ? n.id : n.winnerId; }
+
+  function walk(node, isRoot) {
+    if (node.leaf) {
+      const info = participantInfo[node.id] || {};
+      const tag = info.elo !== undefined ? String(info.elo) : '';
+      const badgeW = (info.league || info.title) ? LEAGUE_BADGE_W : 0;
+      const textX = colX(0) + badgeW;
+      const label = fitBracketNameWithTag(node.name, tag, NODE_W - 6 - badgeW, 10.5, false);
+      labels += `<g class="bracket-node" data-id="${escapeHtml(node.id ?? '')}" style="cursor:pointer;">
+        <rect x="${colX(0)}" y="${node._y - 11}" width="${NODE_W}" height="22" fill="transparent"/>
+        ${leagueBadgeSVG(colX(0) + 7, node._y, info)}
+        <text x="${textX}" y="${node._y + 4}" font-size="10.5" fill="var(--text-main)" opacity="0.72">${escapeHtml(label)}<title>${escapeHtml(node.name)}</title></text>
+      </g>`;
+      return;
+    }
+    walk(node.left, false);
+    walk(node.right, false);
+
+    const leftIsWinner = nodeId(node.left) === node.winnerId;
+    const vx = colX(node._round) - (COL_W - STUB) / 2;
+    const stubLeft = colX(node.left._round) + STUB;
+    const stubRight = colX(node.right._round) + STUB;
+
+    const leftColor = leftIsWinner ? WIN_COLOR : LINE_COLOR;
+    const rightColor = leftIsWinner ? LINE_COLOR : WIN_COLOR;
+    const leftW = leftIsWinner ? WIN_LINE_W : LINE_W;
+    const rightW = leftIsWinner ? LINE_W : WIN_LINE_W;
+    const topColor = leftIsWinner ? WIN_COLOR : LINE_COLOR;
+    const bottomColor = leftIsWinner ? LINE_COLOR : WIN_COLOR;
+    const topW = leftIsWinner ? WIN_LINE_W : LINE_W;
+    const bottomW = leftIsWinner ? LINE_W : WIN_LINE_W;
+
+    lines += `<line x1="${stubLeft}" y1="${node.left._y}" x2="${vx}" y2="${node.left._y}" stroke="${leftColor}" stroke-width="${leftW}" stroke-linecap="round"/>`;
+    lines += `<line x1="${stubRight}" y1="${node.right._y}" x2="${vx}" y2="${node.right._y}" stroke="${rightColor}" stroke-width="${rightW}" stroke-linecap="round"/>`;
+    lines += `<line x1="${vx}" y1="${node.left._y}" x2="${vx}" y2="${node._y}" stroke="${topColor}" stroke-width="${topW}" stroke-linecap="round"/>`;
+    lines += `<line x1="${vx}" y1="${node._y}" x2="${vx}" y2="${node.right._y}" stroke="${bottomColor}" stroke-width="${bottomW}" stroke-linecap="round"/>`;
+    lines += `<line x1="${vx}" y1="${node._y}" x2="${colX(node._round)}" y2="${node._y}" stroke="${WIN_COLOR}" stroke-width="${WIN_LINE_W}" stroke-linecap="round"/>`;
+
+    const isChampion = isRoot && showCrown;
+    const textColor = isChampion ? 'var(--amber)' : 'var(--cyan)';
+    const crown = isChampion ? '🏆 ' : '';
+    const winInfo = participantInfo[node.winnerId] || {};
+    const winTag = winInfo.elo !== undefined ? String(winInfo.elo) : '';
+    const winBadgeW = (winInfo.league || winInfo.title) ? LEAGUE_BADGE_W : 0;
+    // 王冠絵文字の実幅もCanvasで測って正確に差し引く（固定値の見込みでは実際の描画幅との
+    // ズレで優勝者名がはみ出し見切れていたため）
+    const crownW = crown ? bracketTextWidth(crown, 11, true) : 0;
+    const winReserve = 6 + winBadgeW + crownW;
+    const label = fitBracketNameWithTag(node.winnerName, winTag, NODE_W - winReserve, 11, true);
+    const winBadgeCx = colX(node._round) + 13;
+    const winTextX = colX(node._round) + 6 + winBadgeW;
+    labels += `<g class="bracket-node" data-id="${escapeHtml(node.winnerId ?? '')}" style="cursor:pointer;">
+      <rect x="${colX(node._round)}" y="${node._y - 11}" width="${NODE_W}" height="22" rx="3"
+        fill="rgba(79,240,255,0.08)" stroke="${isChampion ? 'var(--amber)' : WIN_COLOR}" stroke-width="1.2"/>
+      ${leagueBadgeSVG(winBadgeCx, node._y, winInfo)}
+      <text x="${winTextX}" y="${node._y + 4}" font-size="11" font-weight="700" fill="${textColor}">${crown}${escapeHtml(label)}<title>${escapeHtml(node.winnerName)}</title></text>
+    </g>`;
+  }
+  walk(root, true);
+
+  // パネル幅に収まる範囲は原寸表示、収まりきらない場合のみ縮小してスクロールを避ける
+  return `<div style="overflow-x:auto;"><svg viewBox="0 0 ${width} ${height}" style="width:100%; max-width:${width}px; height:auto; display:block;">${stripes}${lines}${labels}</svg></div>`;
+}
+
+// タイトル戦本戦（挑戦者 vs 在位者）の結果が防衛・奪取のどちらだったかを示すラベル。
+// 挑戦者が勝ち越していれば奪取、在位者が勝ち越していれば防衛
+function defendCaptureLabel(challengerWins, holderWins) {
+  if (challengerWins > holderWins) {
+    return '<span style="color:#ff5a5a; font-weight:700;">⚔ 奪取</span>';
+  }
+  if (holderWins > challengerWins) {
+    return '<span style="color:var(--cyan); font-weight:700;">🛡 防衛</span>';
+  }
+  return '';
+}
+
+// 番勝負を、両者の名前を行に並べた勝敗表（将棋の順位戦成績表のような形式）として組み立てる
+// 共通ヘルパー。gamesの各要素のresultはA（1人目）視点（win=Aの勝ち）とする
+function seriesTable(games, nameA, nameB) {
+  if (!games || games.length === 0) return '';
+  function markFor(result, isA) {
+    if (result === 'draw') return { symbol: '△', color: 'var(--text-dim)' };
+    const aWon = result === 'win';
+    const won = isA ? aWon : !aWon;
+    return won ? { symbol: '〇', color: 'var(--cyan)' } : { symbol: '✕', color: '#ff7a7a' };
+  }
+  function scoreLabel(isA) {
+    let w = 0, l = 0;
+    games.forEach(g => {
+      const m = markFor(g.result, isA);
+      if (m.symbol === '〇') w++; else if (m.symbol === '✕') l++;
+    });
+    return `${w}勝${l}敗`;
+  }
+  function rowHtml(name, isA) {
+    const cells = games.map(g => {
+      const m = markFor(g.result, isA);
+      return `<td style="text-align:center; color:${m.color}; font-weight:700; padding:2px 6px;">${m.symbol}</td>`;
+    }).join('');
+    return `<tr><td style="white-space:nowrap; padding-right:10px; font-size:0.78rem;">${escapeHtml(name || '?')}</td>${cells}<td style="padding-left:10px; color:var(--text-dim); font-size:0.72rem; white-space:nowrap;">${scoreLabel(isA)}</td></tr>`;
+  }
+  const headerCells = games.map((g, i) => `<th style="text-align:center; font-weight:400; color:var(--text-dim); font-size:0.62rem; padding:2px 6px;">第${i + 1}局</th>`).join('');
+  return `<div style="overflow-x:auto;"><table style="width:auto; margin:0 auto;">
+    <thead><tr><th></th>${headerCells}<th></th></tr></thead>
+    <tbody>${rowHtml(nameA, true)}${rowHtml(nameB, false)}</tbody>
+  </table></div>`;
+}
+
+// 朱雀戦・白虎戦・玄武戦タブ（それぞれ独立したタブなので、タイトルごとに季送りナビだけ持たせる）
+async function loadTitleOnlyPanel(titleKey, titleLabel, season) {
+  const el = document.getElementById(`${titleKey}-content`);
+  el.innerHTML = '<div class="loading">読み込み中...</div>';
+  try {
+    if (!season) {
+      const res0 = await fetch(`${API_BASE}?action=standings`);
+      const data0 = await res0.json();
+      season = data0.latest_season || 1;
+    }
+    document.getElementById(`tab-${titleKey}`).dataset.season = season;
+
+    el.innerHTML = `<div class="season-nav">
+      <button id="${titleKey}-season-prev" ${season <= 1 ? 'disabled' : ''}>◀ 前季</button>
+      <span style="color:var(--amber); font-size:0.85rem;">第${season}季</span>
+      <button id="${titleKey}-season-next">次季 ▶</button>
+    </div><div id="${titleKey}-bracket-view"></div>`;
+
+    document.getElementById(`${titleKey}-season-prev`).addEventListener('click', () => navigateTo(`${titleKey}/` + (season - 1)));
+    document.getElementById(`${titleKey}-season-next`).addEventListener('click', () => navigateTo(`${titleKey}/` + (season + 1)));
+
+    await loadOneBracket(season, titleLabel, `${titleKey}-bracket-view`);
+  } catch (e) {
+    el.innerHTML = `<div class="empty">読み込み失敗: ${escapeHtml(String(e))}</div>`;
+  }
+}
+
+async function loadOneBracket(season, title, containerId = 'bracket-view') {
+  const viewEl = document.getElementById(containerId);
+  if (!viewEl) return; // 季を切り替えて別のwrapに差し替わった後の遅延応答は無視する
+  viewEl.innerHTML = '<div class="loading">読み込み中...</div>';
+  let html = '';
+  try {
+    const res = await fetch(`${API_BASE}?action=title_bracket&season=${season}&title=${encodeURIComponent(title)}`);
+    const data = await res.json();
+
+    if (title === '朱雀' && data.format === 'suzaku_v2') {
+      const redStandings = data.red_standings || [], whiteStandings = data.white_standings || [];
+      const decisionM = data.decision_matches || [], qualifierM = data.qualifier_bracket || [];
+      const finalM = data.final_games || [];
+      const bootstrapM = data.bootstrap_bracket || [];
+
+      // 紅組・白組を別々の<table>にすると、片方の名前だけ折り返した際に行の高さがズレて
+      // 隣同士の順位が噛み合わなくなるため、1つの<table>の中に両組を並べて行の高さを共有させる。
+      // 残留/陥落はサイト側で対局結果から再計算せず、Python側が確定させたmovementをそのまま使う
+      // （同率順位の並びまで対局ログだけから正確に再現することはできないため）
+      const combinedStandingsTable = (redRows, whiteRows) => {
+        if (redRows.length === 0 && whiteRows.length === 0) return '';
+        const n = Math.max(redRows.length, whiteRows.length);
+        const cell = (rows, idx) => {
+          const r = rows[idx];
+          if (!r) return '<td></td><td></td><td></td>';
+          const mark = r.movement === 'relegated' ? movementMarks('relegated') : '';
+          const record = `${r.win}勝${r.loss}敗${r.draw ? r.draw + '分' : ''}`;
+          return `<td class="rank-num">${r.rank}</td>
+            <td data-id="${escapeHtml(r.individual_id)}">${mark}${escapeHtml(r.display_name || r.individual_id)}</td>
+            <td>${record}</td>`;
+        };
+        let t = `<div style="overflow-x:auto; margin-bottom:10px;">
+          <table style="width:100%;"><thead><tr>
+            <th>#</th><th style="color:#ff7a7a;">紅組</th><th>成績</th>
+            <th>#</th><th style="color:var(--cyan);">白組</th><th>成績</th>
+          </tr></thead><tbody>`;
+        for (let i = 0; i < n; i++) {
+          t += `<tr>${cell(redRows, i)}${cell(whiteRows, i)}</tr>`;
+        }
+        t += '</tbody></table></div>';
+        return t;
+      };
+
+      if (redStandings.length === 0 && whiteStandings.length === 0 && qualifierM.length === 0 && finalM.length === 0 && bootstrapM.length === 0) {
+        html = '<div style="color:var(--text-dim); font-size:0.78rem;">この季のトーナメント記録はありません</div>';
+      } else {
+        html = `<div class="title-card">
+          <h4>${escapeHtml(title)}戦（紅白リーグ）</h4>`;
+
+        if (bootstrapM.length > 0) {
+          // 紅白リーグがまだ無い第1季のみ発生する、初代メンバー10名を決める10ブロックの
+          // 抽選トーナメント（通常季の入れ替え戦と同じ仕組み）
+          const bBlocks = groupMatchesByConnectivity(bootstrapM);
+          html += `<details style="margin-bottom:10px;">
+            <summary style="cursor:pointer; font-size:0.72rem; color:var(--text-dim);">初代紅白メンバー決定トーナメント（第1季）を表示</summary>
+            <div style="display:flex; flex-wrap:wrap; gap:18px; margin-top:8px;">`;
+          bBlocks.forEach((blockMatches, i) => {
+            const tree = buildBracketTree(blockMatches);
+            html += `<div style="min-width:180px;">
+              <div style="font-size:0.66rem; color:var(--text-dim); margin-bottom:4px;">ブロック${i + 1}</div>
+              ${renderBracketSVG(tree, data.bootstrap_participant_info)}
+            </div>`;
+          });
+          html += '</div></details>';
+        }
+
+        html += combinedStandingsTable(redStandings, whiteStandings);
+
+        if (decisionM.length > 0) {
+          html += `<div style="padding:10px 0; border-top:1px solid rgba(24,34,56,0.6);">
+            <div style="font-size:0.7rem; color:var(--amber); margin-bottom:6px; text-align:center;">挑戦者決定戦（紅組1位 vs 白組1位）</div>
+            ${seriesTable(decisionM, data.decision_red_name, data.decision_white_name)}
+          </div>`;
+        }
+
+        if (finalM.length > 0) {
+          html += `<div style="padding:10px 0; border-top:1px solid rgba(24,34,56,0.6);">
+            <div style="font-size:0.7rem; color:var(--amber); margin-bottom:6px; text-align:center;">
+              朱雀戦本戦　${defendCaptureLabel(data.challenger_wins, data.holder_wins)}
+            </div>
+            ${seriesTable(finalM, data.challenger_name, data.holder_name)}
+          </div>`;
+        }
+
+        if (qualifierM.length > 0) {
+          // 入れ替え戦は4ブロック独立トーナメントだが、対局ログにはブロック番号が付いていないため、
+          // 「対局した個体同士は同じブロック」という連結関係（Union-Find）から自動的にブロックを復元する
+          const blocks = groupMatchesByConnectivity(qualifierM);
+          html += `<details style="margin-top:8px;">
+            <summary style="cursor:pointer; font-size:0.72rem; color:var(--text-dim);">予選（入れ替えトーナメント）結果を表示</summary>
+            <div style="display:flex; flex-wrap:wrap; gap:18px; margin-top:8px;">`;
+          blocks.forEach((blockMatches, i) => {
+            const tree = buildBracketTree(blockMatches);
+            html += `<div style="min-width:180px;">
+              <div style="font-size:0.66rem; color:var(--text-dim); margin-bottom:4px;">ブロック${i + 1}</div>
+              ${renderBracketSVG(tree, data.qualifier_participant_info)}
+            </div>`;
+          });
+          html += '</div></details>';
+        }
+
+        html += '</div>';
+      }
+    } else {
+      const bracket = data.bracket || [];
+      const finalGames = data.final_games || [];
+      const genbuBlocks = data.genbu_blocks || null;
+      const genbuFinal = data.genbu_final || null;
+
+      if (bracket.length === 0 && finalGames.length === 0) {
+        html = '<div style="color:var(--text-dim); font-size:0.78rem;">この季のトーナメント記録はありません</div>';
+      } else {
+        html = `<div class="title-card">
+          <h4>${escapeHtml(title)}戦</h4>`;
+        if (title === '玄武' && genbuBlocks && genbuBlocks.length > 0) {
+          // 玄武戦：抽選トーナメント全体を8ブロックの予選（各8名→1名）に分けて表示し、
+          // その8名（各ブロック優勝者）による挑戦者決定トーナメントを別立てで示す
+          html += `<div style="font-size:0.7rem; color:var(--amber); margin-bottom:6px;">予選（8ブロック）</div>
+            <div style="display:flex; flex-wrap:wrap; gap:18px; margin-bottom:10px;">`;
+          genbuBlocks.forEach((blockMatches, i) => {
+            const tree = buildBracketTree(blockMatches);
+            html += `<div style="min-width:180px;">
+              <div style="font-size:0.66rem; color:var(--text-dim); margin-bottom:4px;">ブロック${i + 1}</div>
+              ${renderBracketSVG(tree, data.participant_info, false)}
+            </div>`;
+          });
+          html += '</div>';
+          if (genbuFinal && genbuFinal.length > 0) {
+            const finalTree = buildBracketTree(genbuFinal);
+            html += `<div style="font-size:0.7rem; color:var(--amber); margin:10px 0 6px;">挑戦者決定トーナメント（各ブロック優勝者8名）</div>
+              <div style="margin-bottom:8px;">${renderBracketSVG(finalTree, data.participant_info)}</div>`;
+          }
+          html += `<div style="font-size:0.66rem; color:var(--text-dim); margin-bottom:4px;">
+            太い色付き線＝勝ち上がりの流れ（不戦勝の枠位置までは復元していません）／名前の左のアイコン＝参加時点の所属リーグ（その季タイトル保持者は代わりにタイトルの色バッジ）、右の()＝参加時点のElo
+          </div>`;
+        } else if (bracket.length > 0) {
+          const tree = buildBracketTree(bracket);
+          html += `<div style="margin-bottom:8px;">${renderBracketSVG(tree, data.participant_info)}</div>
+            <div style="font-size:0.66rem; color:var(--text-dim); margin-bottom:4px;">
+              太い色付き線＝勝ち上がりの流れ（不戦勝の枠位置までは復元していません）／名前の左のアイコン＝参加時点の所属リーグ（その季タイトル保持者は代わりにタイトルの色バッジ）、右の()＝参加時点のElo
+            </div>`;
+        }
+        if (finalGames.length > 0) {
+          html += `<div style="padding:10px 0; border-top:1px solid rgba(24,34,56,0.6);">
+            <div style="font-size:0.7rem; color:var(--amber); margin-bottom:6px; text-align:center;">
+              ${escapeHtml(title)}戦本戦　${defendCaptureLabel(data.challenger_wins, data.holder_wins)}
+            </div>
+            ${seriesTable(finalGames, data.challenger_name, data.holder_name)}
+          </div>`;
+        }
+        html += '</div>';
+      }
+    }
+  } catch (e) {
+    html = `<div class="empty">読み込み失敗: ${escapeHtml(String(e))}</div>`;
+  }
+
+  viewEl.innerHTML = html;
+  // ブラケット内の名前・朱雀の紅白リーグ順位表の行をタップ/クリックしたら、対局ログではなく個体情報へ遷移する
+  viewEl.querySelectorAll('.bracket-node, tr[data-id], td[data-id]').forEach(el => {
+    if (!el.dataset.id) return;
+    el.addEventListener('click', () => navigateTo('individual/' + el.dataset.id));
+  });
+}
+
+async function loadSeiryuuPanel(season) {
+  const el = document.getElementById('seiryuu-content');
+  el.innerHTML = '<div class="loading">読み込み中...</div>';
+  try {
+    if (!season) {
+      const res0 = await fetch(`${API_BASE}?action=standings`);
+      const data0 = await res0.json();
+      season = data0.latest_season || 1;
+    }
+    const res = await fetch(`${API_BASE}?action=standings&season=${season}`);
+    const data = await res.json();
+    const rows = data.standings || [];
+    const seasonTitleholders = data.titleholders || { by_id: {}, by_name: {} };
+    document.getElementById('tab-seiryuu').dataset.season = season;
+
+    // 「その季」時点で実際に保持していたタイトルだけを表示する（現在のタイトルとは別物）。
+    // id基準でのみ判定する（同姓同名の別個体への誤表示を防ぐため、名前でのフォールバックはしない）
+    function seasonCrownLabel(id, name) {
+      let titles = (id && seasonTitleholders.by_id[id]) || [];
+      titles = TITLE_ORDER.filter(t => titles.includes(t));
+      if (titles.length === 0) return '';
+      const label = titles.length === 1 ? titles[0] : (titles.length === 2 ? '二冠' : (titles.length === 3 ? '三冠' : '四冠'));
+      return `<span style="display:inline-block; font-family:'Orbitron',sans-serif; font-size:0.62rem; font-weight:700; color:var(--navy-950); background:linear-gradient(135deg,#ffd24f,#ff9d4f); padding:1px 6px; border-radius:2px; margin-right:6px;">${escapeHtml(label)}</span>`;
+    }
+
+    let html = `<div class="season-nav">
+      <button id="season-prev" ${season <= 1 ? 'disabled' : ''}>◀ 前季</button>
+      <span style="color:var(--amber); font-size:0.85rem;">第${season}季</span>
+      <button id="season-next">次季 ▶</button>
+    </div>
+    <h3 style="font-size:0.8rem; color:var(--amber); margin-top:0;">青龍戦リーグ表（A〜D）</h3>`;
+
+    if (rows.length === 0) {
+      html += '<div class="empty">このシーズンの記録がありません</div>';
+      el.innerHTML = html;
+    } else {
+      const byLeague = { A: [], B: [], C: [], D: [] };
+      rows.forEach(r => { if (byLeague[r.league]) byLeague[r.league].push(r); });
+
+      ['A', 'B', 'C', 'D'].forEach(lg => {
+        const list = byLeague[lg];
+        if (list.length === 0 && !(lg === 'A' && data.rikuou)) return;
+        html += `<div class="league-block"><h3>${lg}リーグ</h3>`;
+
+        if (lg === 'A' && data.rikuou) {
+          const r = data.rikuou;
+          const record = (r.win || r.loss || r.draw) ? `${r.win}勝${r.loss}敗${r.draw ? r.draw + '分' : ''}` : '-';
+          html += `<table style="margin-bottom:4px;"><tbody><tr data-id="${escapeHtml(r.individual_id)}">
+            <td class="rank-num" style="width:3.5em;">${seasonCrownLabel(r.individual_id, r.display_name)}</td>
+            <td>${escapeHtml(r.display_name || r.individual_id)}</td>
+            <td>${record}</td>
+          </tr></tbody></table>`;
+        }
+
+        html += `<table><thead><tr><th>#</th><th>名前</th><th>成績</th></tr></thead><tbody>`;
+        list.forEach((r, idx) => {
+          const record = (r.win || r.loss || r.draw) ? `${r.win}勝${r.loss}敗${r.draw ? r.draw + '分' : ''}` : '-';
+          // 青龍が別枠に分離されているAリーグでは、残りの参加者の順位を1位から振り直して表示する
+          // （DB上のrankは青龍分の欠番があるままなので、そのまま出すと1位が2位に見えてしまう）
+          const displayRank = (lg === 'A' && data.rikuou) ? (idx + 1) : (r.rank ?? '-');
+          html += `<tr class="${zoneClass(r.movement)}" data-id="${escapeHtml(r.individual_id)}">
+            <td class="rank-num">${displayRank}</td>
+            <td>${movementMarks(r.movement)}${seasonCrownLabel(r.individual_id, r.display_name)}${escapeHtml(r.display_name || r.individual_id)}</td>
+            <td>${record}</td>
+          </tr>`;
+        });
+        html += '</tbody></table></div>';
+      });
+      el.innerHTML = html;
+      el.querySelectorAll('tr[data-id]').forEach(tr => tr.addEventListener('click', () => navigateTo('individual/' + tr.dataset.id)));
+    }
+
+    document.getElementById('season-prev').addEventListener('click', () => navigateTo('seiryuu/' + (season - 1)));
+    document.getElementById('season-next').addEventListener('click', () => navigateTo('seiryuu/' + (season + 1)));
+
+    const bracketWrap = document.createElement('div');
+    bracketWrap.innerHTML = '<div id="seiryuu-bracket-view" style="margin-top:16px;"></div>';
+    el.appendChild(bracketWrap);
+    await loadOneBracket(season, '青龍', 'seiryuu-bracket-view');
+  } catch (e) {
+    el.innerHTML = `<div class="empty">読み込み失敗: ${escapeHtml(String(e))}</div>`;
+  }
+}
+
+// ---------------- 対局一覧 ----------------
+let _matchesSearchQuery = '';
+
+async function loadMatches(q) {
+  if (q === undefined) q = _matchesSearchQuery;
+  _matchesSearchQuery = q;
+  const el = document.getElementById('matches-content');
+  const searchBoxHtml = `<div style="margin-bottom:10px;">
+    <input type="text" id="matches-search" placeholder="対局者名で検索..." value="${escapeHtml(q)}"
+      style="width:100%; background:var(--navy-800); color:var(--text-main); border:1px solid var(--navy-700); padding:6px 8px;">
+  </div>`;
+  el.innerHTML = searchBoxHtml + '<div class="loading">読み込み中...</div>';
+  bindMatchesSearch();
+  try {
+    const url = `${API_BASE}?action=recent_matches&limit=50${q ? '&q=' + encodeURIComponent(q) : ''}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    const matches = data.matches || [];
+    if (matches.length === 0) {
+      el.innerHTML = searchBoxHtml + `<div class="empty">${q ? '該当する対局が見つかりません' : 'まだ対局記録がありません'}</div>`;
+      bindMatchesSearch();
+      return;
+    }
+    const rowHtml = m => `<div class="kifu-row" data-match-id="${m.id}" style="padding:6px 0; border-bottom:1px solid rgba(24,34,56,0.6); cursor:pointer; display:flex; justify-content:space-between;">
+      <span>${leagueTag(m.league)}第${m.season}季 ${escapeHtml(m.individual_a_name)} vs ${escapeHtml(m.individual_b_name || 'タイトルホルダー')}</span>
+      <span>${matchResultLabel(m)}</span>
+    </div>`;
+    el.innerHTML = searchBoxHtml + matches.map(rowHtml).join('');
+    bindMatchesSearch();
+    el.querySelectorAll('.kifu-row').forEach(row => row.addEventListener('click', () => navigateTo('game/' + row.dataset.matchId)));
+  } catch (e) {
+    el.innerHTML = searchBoxHtml + `<div class="empty">読み込み失敗: ${escapeHtml(String(e))}</div>`;
+    bindMatchesSearch();
+  }
+}
+
+function bindMatchesSearch() {
+  const searchEl = document.getElementById('matches-search');
+  if (!searchEl) return;
+  let debTimer = null;
+  searchEl.addEventListener('input', () => {
+    clearTimeout(debTimer);
+    debTimer = setTimeout(() => loadMatches(searchEl.value.trim()), 300);
+  });
+  // 再描画後もカーソル位置ごと入力状態を保つ（末尾にフォーカスを戻す）
+  searchEl.focus();
+  const len = searchEl.value.length;
+  searchEl.setSelectionRange(len, len);
+}
+
+// ---------------- 棋譜再生 ----------------
+const BLACK = 1, WHITE = 2, EMPTY = 0;
+const DIRECTIONS = [-9, -8, -7, -1, 1, 7, 8, 9];
+
+function makeInitialBoard() {
+  const board = new Array(64).fill(EMPTY);
+  board[27] = WHITE; board[28] = BLACK; board[35] = BLACK; board[36] = WHITE;
+  return board;
+}
+function sameRowStep(pos, dir) {
+  const row = Math.floor(pos / 8), col = pos % 8;
+  const newPos = pos + dir;
+  if (newPos < 0 || newPos >= 64) return null;
+  const newRow = Math.floor(newPos / 8), newCol = newPos % 8;
+  if (Math.abs(newRow - row) > 1 || Math.abs(newCol - col) > 1) return null;
+  return newPos;
+}
+function applyOthelloMove(board, pos, color) {
+  board[pos] = color;
+  const opp = color === BLACK ? WHITE : BLACK;
+  for (const dir of DIRECTIONS) {
+    const flips = [];
+    let cur = sameRowStep(pos, dir);
+    while (cur !== null && board[cur] === opp) { flips.push(cur); cur = sameRowStep(cur, dir); }
+    if (cur !== null && board[cur] === color) flips.forEach(f => { board[f] = color; });
+  }
+}
+
+let gameState = null;
+
+async function loadGameBoard(matchId) {
+  const el = document.getElementById('matches-content');
+  el.innerHTML = '<div class="loading">読み込み中...</div>';
+  try {
+    const res = await fetch(`${API_BASE}?action=game&id=${encodeURIComponent(matchId)}`);
+    const data = await res.json();
+    if (data.error) { el.innerHTML = `<div class="empty">${escapeHtml(data.error)}</div>`; return; }
+    const match = data.match;
+    const games = match.games || [];
+    gameState = { match, games, gameIdx: 0, moveIdx: 0 };
+    renderGamePanel();
+  } catch (e) {
+    el.innerHTML = `<div class="empty">読み込み失敗: ${escapeHtml(String(e))}</div>`;
+  }
+}
+
+function renderGamePanel() {
+  const el = document.getElementById('matches-content');
+  const { match, games, gameIdx } = gameState;
+  if (games.length === 0) { el.innerHTML = '<div class="empty">この対局の棋譜データはありません</div>'; return; }
+
+  el.innerHTML = `
+    <div class="back-link" id="game-back">← 対局一覧に戻る</div>
+    <div style="font-size:0.8rem; color:var(--text-dim); margin-bottom:8px; text-align:center;">
+      第${match.season}季 ${escapeHtml(match.league)}　${escapeHtml(match.individual_a_name || match.individual_a_id)} vs ${escapeHtml(match.individual_b_name || match.individual_b_id || 'タイトルホルダー')}
+      ${games.length > 1 ? `　（${gameIdx + 1}/${games.length}局目）` : ''}
+    </div>
+    <div class="othello-board" id="othello-board"></div>
+    <div style="text-align:center; font-size:0.78rem; color:var(--text-dim); margin-top:8px;" id="move-label"></div>
+    <div class="board-controls">
+      <button id="btn-first">|&lt;</button>
+      <button id="btn-prev">&lt;</button>
+      <span id="move-counter" style="font-size:0.78rem; color:var(--text-dim); min-width:5em; text-align:center;"></span>
+      <button id="btn-next">&gt;</button>
+      <button id="btn-last">&gt;|</button>
+      <button id="btn-autoplay">▶ 自動再生</button>
+    </div>
+    <div style="text-align:center; font-size:0.68rem; color:var(--text-dim); margin-top:6px;">盤面タップ：右半分＝進む／左半分＝戻る</div>
+    ${games.length > 1 ? `<div style="text-align:center; margin-top:10px;"><button id="btn-prev-game" ${gameIdx===0?'disabled':''}>◀ 前の局</button> <button id="btn-next-game" ${gameIdx===games.length-1?'disabled':''}>次の局 ▶</button></div>` : ''}
+  `;
+  document.getElementById('game-back').addEventListener('click', () => { stopAutoplay(); navigateTo('matches'); });
+  document.getElementById('btn-first').addEventListener('click', () => { stopAutoplay(); setMoveIdx(0); });
+  document.getElementById('btn-prev').addEventListener('click', () => { stopAutoplay(); setMoveIdx(gameState.moveIdx - 1); });
+  document.getElementById('btn-next').addEventListener('click', () => { stopAutoplay(); setMoveIdx(gameState.moveIdx + 1); });
+  document.getElementById('btn-last').addEventListener('click', () => { stopAutoplay(); setMoveIdx(gameState.games[gameState.gameIdx].moves.length); });
+  document.getElementById('btn-autoplay').addEventListener('click', toggleAutoplay);
+  const boardEl = document.getElementById('othello-board');
+  for (let i = 0; i < 64; i++) {
+    const sq = document.createElement('div'); sq.className = 'osq'; sq.dataset.pos = i;
+    boardEl.appendChild(sq);
+  }
+  boardEl.addEventListener('click', (e) => {
+    stopAutoplay();
+    const rect = boardEl.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    if (clickX > rect.width / 2) setMoveIdx(gameState.moveIdx + 1);
+    else setMoveIdx(gameState.moveIdx - 1);
+  });
+  if (games.length > 1) {
+    const pg = document.getElementById('btn-prev-game'), ng = document.getElementById('btn-next-game');
+    if (pg) pg.addEventListener('click', () => { gameState.gameIdx--; gameState.moveIdx = 0; renderGamePanel(); });
+    if (ng) ng.addEventListener('click', () => { gameState.gameIdx++; gameState.moveIdx = 0; renderGamePanel(); });
+  }
+  setMoveIdx(0);
+}
+
+function setMoveIdx(idx) {
+  const game = gameState.games[gameState.gameIdx];
+  const moves = game.moves || [];
+  idx = Math.max(0, Math.min(moves.length, idx));
+  gameState.moveIdx = idx;
+
+  const board = makeInitialBoard();
+  for (let i = 0; i < idx; i++) applyOthelloMove(board, moves[i].pos, moves[i].color);
+
+  document.querySelectorAll('#othello-board .osq').forEach(sq => {
+    const val = board[parseInt(sq.dataset.pos, 10)];
+    sq.innerHTML = val === BLACK ? '<div class="disc disc-black"></div>' : val === WHITE ? '<div class="disc disc-white"></div>' : '';
+  });
+  const black = board.filter(c => c === BLACK).length, white = board.filter(c => c === WHITE).length;
+  document.getElementById('move-counter').textContent = `${idx} / ${moves.length}手`;
+  document.getElementById('move-label').textContent = `黒${black} - 白${white}`;
+}
+
+let autoplayTimer = null;
+function stopAutoplay() {
+  if (autoplayTimer) {
+    clearInterval(autoplayTimer);
+    autoplayTimer = null;
+    const btn = document.getElementById('btn-autoplay');
+    if (btn) btn.textContent = '▶ 自動再生';
+  }
+}
+function toggleAutoplay() {
+  const btn = document.getElementById('btn-autoplay');
+  if (autoplayTimer) { stopAutoplay(); return; }
+  const moves = gameState.games[gameState.gameIdx].moves || [];
+  if (gameState.moveIdx >= moves.length) setMoveIdx(0);
+  btn.textContent = '⏸ 停止';
+  autoplayTimer = setInterval(() => {
+    const moves = gameState.games[gameState.gameIdx].moves || [];
+    if (gameState.moveIdx >= moves.length) { stopAutoplay(); return; }
+    setMoveIdx(gameState.moveIdx + 1);
+  }, 700);
+}
+
+// ---------------- ルール説明 ----------------
+// ---------------- 殿堂（通算成績・引退個体） ----------------
+// ---------------- 表彰 ----------------
+async function loadAwards(season) {
+  const el = document.getElementById('awards-content');
+  el.innerHTML = '<div class="loading">読み込み中...</div>';
+  try {
+    const url = season ? `${API_BASE}?action=season_awards&season=${season}` : `${API_BASE}?action=season_awards`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if (!data.season) { el.innerHTML = '<div class="empty">まだデータがありません</div>'; return; }
+
+    let html = `<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+      <button id="awards-prev" style="background:var(--navy-800); color:var(--cyan); border:1px solid var(--navy-700); padding:4px 10px; cursor:pointer;">◀ 前季</button>
+      <h3 style="font-size:0.85rem; color:var(--amber); margin:0;">第${data.season}季の表彰</h3>
+      <button id="awards-next" style="background:var(--navy-800); color:var(--cyan); border:1px solid var(--navy-700); padding:4px 10px; cursor:pointer;">次季 ▶</button>
+    </div>`;
+
+    const sections = [
+      { key: 'games', title: '対局数ランキング', fmt: p => `${p.games}対局`, keyFn: p => p.games },
+      { key: 'wins', title: '勝数ランキング', fmt: p => `${p.win}勝`, keyFn: p => p.win },
+      { key: 'win_rate', title: `勝率ランキング（${data.min_games_for_rate}対局以上）`, fmt: p => `${p.win_rate.toFixed(3)}（${p.win}勝${p.loss}敗）`, keyFn: p => p.win_rate },
+      { key: 'streak', title: '連勝ランキング', fmt: p => `${p.best_streak}連勝`, keyFn: p => p.best_streak },
+      { key: 'elo_end', title: 'シーズン終了時Eloランキング', fmt: p => `${Math.round(p.elo)}`, keyFn: p => p.elo },
+    ];
+    sections.forEach(sec => {
+      const list = data[sec.key] || [];
+      html += `<h4 style="font-size:0.78rem; color:var(--cyan); margin:16px 0 6px;">${sec.title}</h4>`;
+      if (list.length === 0) {
+        html += '<div style="color:var(--text-dim); font-size:0.76rem;">該当者なし</div>';
+      } else {
+        const headHtml = '<thead><tr><th>#</th><th>名前</th><th>成績</th></tr></thead>';
+        const rowFn = (p, rank) => `<tr data-id="${escapeHtml(p.id)}">
+            <td class="rank-num">${rank}</td>
+            <td>${escapeHtml(p.name)}</td>
+            <td>${sec.fmt(p)}</td>
+          </tr>`;
+        html += renderCollapsibleTable(headHtml, list, rowFn, 3, sec.keyFn);
+      }
+    });
+
+    el.innerHTML = html;
+    el.querySelectorAll('tr[data-id]').forEach(tr => tr.addEventListener('click', () => navigateTo('individual/' + tr.dataset.id)));
+    document.getElementById('awards-prev').addEventListener('click', () => navigateTo('awards/' + (data.season - 1)));
+    document.getElementById('awards-next').addEventListener('click', () => navigateTo('awards/' + (data.season + 1)));
+  } catch (e) {
+    el.innerHTML = `<div class="empty">読み込み失敗: ${escapeHtml(String(e))}</div>`;
+  }
+}
+
+function eternalIcon(titles) {
+  if (!titles || titles.length === 0) return '';
+  const chips = titles.map(t =>
+    `<span style="display:inline-block; font-size:0.6rem; color:var(--navy-950); background:var(--amber); border-radius:2px; padding:0 3px; margin-right:2px; font-weight:700;" title="永世${escapeHtml(t)}">${escapeHtml(t.charAt(0))}</span>`
+  ).join('');
+  return chips + ' ';
+}
+
+function eloTwoLine(current, peak) {
+  return `<div class="elo-val" style="line-height:1.25;">${Math.round(current)}</div><div style="font-size:0.62rem; color:var(--amber); line-height:1.25;">最高${Math.round(peak)}</div>`;
+}
+// 殿堂タブ（最高Eloランキング）用：ランキングの基準である最高Eloを主表示にする
+function eloTwoLinePeakFirst(current, peak) {
+  return `<div class="elo-val" style="line-height:1.25;">${Math.round(peak)}</div><div style="font-size:0.62rem; color:var(--text-dim); line-height:1.25;">現在${Math.round(current)}</div>`;
+}
+
+// 同率順位（1位、1位、3位…のように、同じ値なら同じ順位にし、次の順位を人数分飛ばす）を算出する。
+// rowsは既に比較キーの降順にソートされている前提（同値は連続して並ぶ）。
+function competitionRanks(rows, keyFn) {
+  const ranks = [];
+  let rank = 0, prevKey;
+  rows.forEach((r, i) => {
+    const key = keyFn(r);
+    if (i === 0 || key !== prevKey) rank = i + 1;
+    prevKey = key;
+    ranks.push(rank);
+  });
+  return ranks;
+}
+
+let _collapsibleSeq = 0;
+function renderCollapsibleTable(headHtml, rows, rowFn, topN, keyFn) {
+  // 上位topN件は常時表示、残りは折りたたみにする共通ヘルパー（表彰・殿堂タブで使用）。
+  // keyFnを渡すと、rowFn(row, rank) の第2引数に同率順位（1,1,3方式）が渡される。
+  // 渡さない場合は従来通りの連番（1,2,3…）になる。
+  // 列数の多い表（殿堂の総合ランキング等）がパネル幅からはみ出さないよう、
+  // 各<table>はoverflow-x:autoのラッパーで囲み、収まらない分は横スクロールにする
+  const uid = 'cq' + (_collapsibleSeq++);
+  const ranks = keyFn ? competitionRanks(rows, keyFn) : rows.map((_, i) => i + 1);
+  const top = rows.slice(0, topN);
+  const rest = rows.slice(topN);
+  let html = `<div style="overflow-x:auto;"><table>${headHtml}<tbody>`;
+  top.forEach((r, i) => { html += rowFn(r, ranks[i]); });
+  html += '</tbody></table></div>';
+  if (rest.length > 0) {
+    html += `<div class="collapsible-toggle" data-target="${uid}" style="margin:6px 0 4px; cursor:pointer; color:var(--text-dim); font-size:0.74rem; display:flex; align-items:center; gap:6px;">
+      <span class="collapsible-arrow">▶</span><span data-show-text="他${rest.length}件を表示">他${rest.length}件を表示</span>
+    </div>`;
+    html += `<div id="${uid}" class="hidden"><div style="overflow-x:auto;"><table>${headHtml}<tbody>`;
+    rest.forEach((r, i) => { html += rowFn(r, ranks[topN + i]); });
+    html += '</tbody></table></div></div>';
+  }
+  return html;
+}
+// 折りたたみトグルの開閉は委譲で一括処理（動的に増える要素にも対応できる）
+document.addEventListener('click', (e) => {
+  const toggle = e.target.closest('.collapsible-toggle');
+  if (!toggle) return;
+  const body = document.getElementById(toggle.dataset.target);
+  if (!body) return;
+  const arrow = toggle.querySelector('.collapsible-arrow');
+  const label = toggle.querySelector('span:last-child');
+  const isHidden = body.classList.toggle('hidden');
+  arrow.textContent = isHidden ? '▶' : '▼';
+  label.textContent = isHidden ? label.dataset.showText : '閉じる';
+});
+
+// 殿堂タブ内の副タブ。1回のAPI取得結果をキャッシュし、切り替え時は再取得せず表示だけ差し替える。
+// 従来はElo・タイトル数・対局数・勝利数・負け数・勝率が別々のサブタブ（＝別々の上位N件）だったが、
+// 同じ人物でも指標ごとに対象集合が揃わず不便なため、1つの並び替え可能な表（ranking）に統合した
+const HOF_VIEWS = ['ranking', 'matchup', 'retired', 'awakened'];
+const HOF_VIEW_LABELS = {
+  ranking: '総合ランキング', matchup: '同一カード対戦', retired: '引退者一覧', awakened: '覚醒個体一覧',
+};
+let _hofActiveView = 'ranking';
+let _hofData = null;
+// 総合ランキング表の並び替え状態（列ヘッダクリックで変更）。dirは-1が降順、1が昇順
+let _hofRankingSort = { key: 'peak_elo', dir: -1 };
+
+async function loadHallOfFame() {
+  const el = document.getElementById('hof-content');
+  el.innerHTML = '<div class="loading">読み込み中...</div>';
+  try {
+    const [hofRes, retiredRes, awakenedRes] = await Promise.all([
+      fetch(`${API_BASE}?action=hall_of_fame`),
+      fetch(`${API_BASE}?action=retired_archive&limit=50`),
+      fetch(`${API_BASE}?action=awakened_list`),
+    ]);
+    _hofData = {
+      hof: await hofRes.json(),
+      retired: await retiredRes.json(),
+      awakened: await awakenedRes.json(),
+    };
+    renderHofPanel();
+  } catch (e) {
+    el.innerHTML = `<div class="empty">読み込み失敗: ${escapeHtml(String(e))}</div>`;
+  }
+}
+
+function renderHofPanel() {
+  // 副タブ自体は上部の共通#subtabsバー（renderSubtabs）に描画する。ここではパネルの中身だけを描く
+  renderSubtabs('hof', 'hof');
+  renderHofView(document.getElementById('hof-content'), _hofActiveView);
+}
+
+function renderHofView(el, view) {
+  const hofData = _hofData.hof, retiredData = _hofData.retired, awakenedData = _hofData.awakened;
+  let html = '';
+
+  if (view === 'ranking') {
+    // Elo・対局数・勝敗・勝率・タイトル数を1つの表にまとめ、列ヘッダクリックで並び替える
+    // （以前は指標ごとに別サブタブ＝別々の上位N件で、同じ人物でも指標間の対象集合が揃わなかった）
+    const ranking = hofData.ranking || [];
+    if (ranking.length === 0) {
+      html = '<div class="empty">まだ記録がありません</div>';
+    } else {
+      const cols = [
+        { key: 'dan', label: '段位' },
+        { key: 'peak_elo', label: '最高Elo' },
+        { key: 'elo', label: '現在Elo' },
+        { key: 'total', label: '対局数' },
+        { key: 'win', label: '勝数' },
+        { key: 'loss', label: '敗数' },
+        { key: 'win_rate', label: '勝率' },
+        { key: 'title_count', label: 'タイトル' },
+      ];
+      const sort = _hofRankingSort;
+      const sorted = ranking.slice().sort((a, b) => {
+        const av = (a[sort.key] === null || a[sort.key] === undefined) ? -Infinity : a[sort.key];
+        const bv = (b[sort.key] === null || b[sort.key] === undefined) ? -Infinity : b[sort.key];
+        return (av - bv) * sort.dir;
+      });
+      const arrow = (key) => key === sort.key ? (sort.dir === -1 ? ' ▼' : ' ▲') : '';
+      const headHtml = `<thead><tr><th>#</th><th>名前</th>${
+        cols.map(c => `<th class="hof-sort-th" data-sort-key="${c.key}" style="cursor:pointer; white-space:nowrap;">${c.label}${arrow(c.key)}</th>`).join('')
+      }</tr></thead>`;
+      const cellFor = (p, key) => {
+        if (key === 'dan') return `<span class="chip cyan">${p.dan}段</span>`;
+        if (key === 'peak_elo') return `${Math.round(p.peak_elo)}`;
+        if (key === 'elo') return `${Math.round(p.elo)}`;
+        if (key === 'total') return `${p.total}局`;
+        if (key === 'win') return `${p.win}勝`;
+        if (key === 'loss') return `${p.loss}敗`;
+        if (key === 'win_rate') return p.win_rate === null ? '-' : p.win_rate.toFixed(3);
+        if (key === 'title_count') return p.title_count > 0 ? `<span class="chip gold">${p.title_count}期</span>` : '-';
+        return '';
+      };
+      const rowFn = (p, rank) => {
+        const ageNote = (p.age !== null && p.age !== undefined) ? `<span style="color:var(--text-dim); font-size:0.68rem;">（${p.age}歳）</span>` : '';
+        return `<tr data-id="${escapeHtml(p.id)}"><td class="rank-num">${rank}</td>
+          <td>${eternalIcon(p.eternal_titles)}${escapeHtml(p.display_name)}${ageNote}${p.retired ? '<span style="color:var(--text-dim); font-size:0.68rem;">（引退）</span>' : ''}</td>
+          ${cols.map(c => `<td${c.key === sort.key ? ' style="color:var(--amber);"' : ''}>${cellFor(p, c.key)}</td>`).join('')}</tr>`;
+      };
+      html = `<div style="font-size:0.68rem; color:var(--text-dim); margin-bottom:6px;">列見出しをクリックすると並び替え（勝率は${hofData.min_games_for_rate}対局以上が対象）</div>`;
+      html += renderCollapsibleTable(headHtml, sorted, rowFn, 15);
+    }
+  } else if (view === 'matchup') {
+    const byMatchup = hofData.by_matchup || [];
+    if (byMatchup.length === 0) {
+      html = '<div class="empty">まだ記録がありません</div>';
+    } else {
+      // 勝数が多い方を左側に配置済み（api.php側で並べ替え済み）
+      const headHtml = '<thead><tr><th>#</th><th>対戦カード</th><th>成績</th><th>対戦数</th></tr></thead>';
+      const rowFn = (m, rank) => {
+        const drawNote = m.draw > 0 ? `（引分${m.draw}）` : '';
+        return `<tr><td class="rank-num">${rank}</td>
+          <td>${escapeHtml(m.display_name_a)}${m.retired_a ? '<span style="color:var(--text-dim); font-size:0.68rem;">（引退）</span>' : ''}
+            <span style="color:var(--text-dim);">vs</span>
+            ${escapeHtml(m.display_name_b)}${m.retired_b ? '<span style="color:var(--text-dim); font-size:0.68rem;">（引退）</span>' : ''}</td>
+          <td style="font-size:0.76rem; white-space:nowrap;">${m.win_a}勝${m.win_b}敗${drawNote}</td>
+          <td>${m.count}回</td></tr>`;
+      };
+      html = renderCollapsibleTable(headHtml, byMatchup, rowFn, 15, m => m.count);
+    }
+  } else if (view === 'retired') {
+    // 引退者一覧はタイトル獲得数順（APIが既にソート済み）。elo・成績は表示せず、できるだけコンパクトにする
+    const retired = retiredData.retired || [];
+    if (retired.length === 0) {
+      html = '<div class="empty">まだ引退者はいません</div>';
+    } else {
+      const headHtml = '<thead><tr><th>名前</th><th>段位</th><th>在籍</th><th>タイトル</th></tr></thead>';
+      const rowFn = r => {
+        const ageNote = (r.retired_age !== null && r.retired_age !== undefined) ? `<span style="color:var(--text-dim); font-size:0.68rem;">（引退時${r.retired_age}歳）</span>` : '';
+        return `<tr data-id="${escapeHtml(r.id)}">
+          <td>${eternalIcon(r.eternal_titles)}${escapeHtml(r.display_name)}${ageNote}</td>
+          <td><span class="chip cyan">${r.dan}段</span></td>
+          <td style="font-size:0.72rem; color:var(--text-dim);">${r.debut_season}-${r.retired_season}</td>
+          <td>${r.title_count > 0 ? `<span class="chip gold">${r.title_count}期</span>` : '-'}</td></tr>`;
+      };
+      html = renderCollapsibleTable(headHtml, retired, rowFn, 20);
+    }
+  } else if (view === 'awakened') {
+    const awakened = awakenedData.awakened || [];
+    if (awakened.length === 0) {
+      html = '<div class="empty">まだ覚醒した個体はいません</div>';
+    } else {
+      const headHtml = '<thead><tr><th>名前</th><th>Elo</th><th>覚醒パラメータ</th></tr></thead>';
+      const rowFn = a => `<tr data-id="${escapeHtml(a.id)}">
+          <td>${leagueTag(a.league)}${escapeHtml(a.display_name)}</td>
+          <td class="elo-val">${Math.round(a.elo_rating)}</td>
+          <td style="color:var(--amber);">★ ${escapeHtml(paramLabel(a.awakened_param))}</td>
+        </tr>`;
+      html = renderCollapsibleTable(headHtml, awakened, rowFn, 15);
+    }
+  }
+
+  el.innerHTML = html;
+  el.querySelectorAll('tr[data-id]').forEach(tr => tr.addEventListener('click', () => navigateTo('individual/' + tr.dataset.id)));
+  el.querySelectorAll('th.hof-sort-th').forEach(th => th.addEventListener('click', () => {
+    const key = th.dataset.sortKey;
+    if (_hofRankingSort.key === key) {
+      _hofRankingSort.dir *= -1;
+    } else {
+      _hofRankingSort = { key, dir: -1 };
+    }
+    renderHofView(el, 'ranking');
+  }));
+}
+
+function rulesHtml() {
+  return `
+    <h3 style="font-size:0.85rem; color:var(--cyan); margin-top:0;">リーグ制度</h3>
+    <div style="font-size:0.8rem; line-height:1.7; margin-bottom:16px;">
+      A（8名・総当たり）／B（12名）・C（16名）・D（20名）（スイス方式）の4部制。<br>
+      A⇄B：下位2名⇄上位2名を毎季入れ替え。B⇄C：下位3名⇄上位3名を毎季入れ替え。<br>
+      C⇄D：下位3名⇄上位3名を毎季入れ替え。<br>
+      引き分けは先後を入れ替えて再戦、決着がつくまで繰り返す（実質上限あり。決着した最後の1局だけが結果になる）。<br>
+      表示上の並び順は「直近シーズンの順位を継承」：残留者はその順位のまま、昇格者は昇格先の最下位、降格者は降格先の最上位から始まる。
+    </div>
+
+    <h3 style="font-size:0.85rem; color:var(--cyan);">一門と弟子</h3>
+    <div style="font-size:0.8rem; line-height:1.7; margin-bottom:16px;">
+      新弟子は師弟制：Dリーグの空き枠数ぶん、現役個体から選ばれた「師匠」1人ごとに、
+      そのパラメータを変異（±15%程度）させた弟子が1人入門する（2個体の交配ではない）。
+      師匠になれるのは30歳以上の個体のみ。<br>
+      師匠選びはランダムだが、Elo・タイトル保持で重み付けされており、実力のある個体ほど
+      弟子を持ちやすい（強い一門ほど自然と勢力を伸ばしやすい）。<br>
+      一門は、最も遡った開祖を根とする師弟の系譜のまとまり。通常は弟子も師匠と同じ一門に属するが、
+      稀（8%）に弟子自身が新しい一門の開祖として分岐することがあり、そこから新たな一門が生まれる。
+      さらに稀（3%）に、師匠を持たず完全にランダムな能力の新規開祖が参入することもある
+      （既存の血統に対抗できるよう、通常の新弟子よりやや高めの能力値で生成される）。<br>
+      稀（3%）に、新弟子の誰かが「覚醒」し、1パラメータが通常の変異幅を超えて大きく伸びることがある。
+      覚醒した個体は「神童」の扱いとして、通常（18〜24歳）より若い14〜16歳で参入する。<br>
+      新人タブの「キャラクリエイト」から、名前とタイプ傾向を指定して新規開祖を1体リクエストできる
+      （1回あたり最大40名まで）。本戦・新人リーグとも<b>1日2回、本戦→新人リーグの順</b>で
+      実行しており、締め切りと反映は以下の通り。<br>
+      ・<b>7:00(JST)までのエントリー</b> → 7:00の新人リーグで選抜（朝6:00の本戦で確定した欠員を募集） →
+      <b>夜18:00の本戦から</b>Dリーグ入り・実際に対局を始める<br>
+      ・<b>7:00〜19:00(JST)のエントリー</b> → 19:00の新人リーグで選抜（夜18:00の本戦で確定した欠員を募集） →
+      <b>翌朝6:00の本戦から</b>Dリーグ入り・実際に対局を始める<br>
+      （新人リーグは、直前の本戦で確定したばかりのDリーグの欠員数をそのまま募集人数として使い、
+      次の本戦でその欠員へそのまま入って対局するため、選抜と初対局の間にズレはない）
+    </div>
+
+    <h3 style="font-size:0.85rem; color:var(--cyan);">引退</h3>
+    <div style="font-size:0.8rem; line-height:1.7; margin-bottom:16px;">
+      年齢（初期年齢＋通算シーズン数）が60歳に達すると、リーグを問わず強制引退する。<br>
+      Dリーグは「2シーズン連続で負け越すと、実力・在籍年数に関わらず即引退」というup-or-out制。<br>
+      C・Dリーグで定員を超えた場合、Eloが低い順に引退となる。<br>
+      いずれの引退条件も、タイトルを1つでも保持している間は猶予され、全て失冠するまで引退しない。
+    </div>
+
+    <h3 style="font-size:0.85rem; color:var(--cyan);">タイトル戦</h3>
+    <div style="font-size:0.8rem; line-height:1.7; margin-bottom:16px;">
+      <b>青龍</b>（名人モデル）：Aリーグ総当たり優勝者が挑戦。7局制4本先取。<br>
+      　青龍在位者はAリーグの総当たり（順位戦）を免除される防衛専念枠で、翌季もAリーグ1位として扱われる。<br><br>
+      <b>朱雀</b>（王位モデル）：紅組・白組（各5名）の永続サブリーグ制。<br>
+      　毎季、紅組・白組それぞれで総当たりを行い、両組1位同士の挑戦者決定戦（5局制3本先取）で朱雀への挑戦者を決める。
+      　その挑戦者が朱雀在位者（5局制3本先取）に挑む。<br>
+      　両組の下位2名（計4名）はリーグから陥落し、リーグ外の全所属個体（A〜D全リーグ、王位＝朱雀リーグ在籍者を除く）による
+      　4ブロックの入れ替えトーナメント（タイトル保持者＞Aリーグ順位＞Eloの順でシード）で補充する。<br>
+      　残留メンバーは紅白の組分けを毎季ランダムに組み直す（通常、各組は残留3名＋新規2名の計5名になる）。<br>
+      　紅白リーグがまだ無い第1季のみ、上記と同じ仕組みの10ブロックの抽選トーナメントで初代メンバー10名を選出し、紅白5名ずつに振り分ける。<br><br>
+      <b>白虎</b>（王将モデル）：Elo上位16名による正式シード付きトーナメント。5局制3本先取。<br>
+      　前年白虎在位者は防衛専念枠として母集団から除外され、防衛のみに専念する。<br>
+      　シードは標準的なトーナメント配置（1位×16位のように、上位ほど互いに離れた山に入る）。<br><br>
+      <b>玄武</b>：ほぼ全所属個体が参加する抽選トーナメント（超早指し戦）。5局制3本先取。<br>
+      　ブラケットサイズは64。Elo上位者から「64－参加人数」分だけ1回戦不戦勝（2回戦から登場）となり、各山に均等配置される。<br>
+      　残りの参加者は完全ランダムに1回戦を組む。前年玄武在位者は防衛専念枠として母集団から除外される。<br>
+      　表示上は64枠を8ブロック（各8名）に分け、各ブロックの優勝者8名がさらに挑戦者決定トーナメントを行って最終的な挑戦者を1名決める（対局・抽選の仕組み自体は従来通りで、見せ方を分けているだけ）。<br><br>
+      各タイトルとも、初代不在の場合は挑戦者がそのまま無条件で襲名する。在位者が予選のどのスロットに入っても、
+      自己対戦にならないよう自動的に不戦勝扱いになる。朱雀在位者は紅白リーグの総当たりを免除される防衛専念枠で、
+      挑戦者決定戦で敗れた側の元1位は通常通り残留扱いとなる。<br><br>
+      なお、探索深さは順位戦・タイトル戦を問わず、運用上すべて1に統一している。
+    </div>
+
+    <h3 style="font-size:0.85rem; color:var(--cyan);">永世称号</h3>
+    <div style="font-size:0.8rem; line-height:1.7;">
+      タイトルごとに基準が異なる。<br>
+      ・永世青龍：通算5期保持（連続していなくてもよい）<br>
+      ・永世朱雀：連続5期保持、または通算10期保持<br>
+      ・永世白虎：連続5期保持<br>
+      ・永世玄武：通算10期保持（連続していなくてもよい）<br>
+      一度獲得すると、その後タイトルを失っても称号は残る。
+    </div>
+
+    <h3 style="font-size:0.85rem; color:var(--cyan);">段位</h3>
+    <div style="font-size:0.8rem; line-height:1.7;">
+      新規のデータは持たず、既存の対局結果・リーグ経験・タイトル実績から算出する表示専用の指標。
+      新人は4段からスタートし、以下のうち最も高いものが最終的な段位になる（一度上がった段位は下がらない）。<br>
+      ・通算勝数（タイトル戦を含む全対局）：30勝で5段、以降70／120／190／290勝で6～9段<br>
+      ・経験リーグ：Cリーグ経験で5段、Bリーグ経験で6段、Aリーグ経験で7段<br>
+      ・タイトル実績：青龍通算1期、または他タイトル（朱雀・白虎・玄武）通算2期以上で8段。
+      いずれかの永世称号を獲得すると9段<br>
+      引退者も引退時点の段位をそのまま表示する。
+    </div>
+  `;
+}
+
+// ---------------- 新人リーグ ----------------
+const CHARACTER_TYPE_LABELS = {
+  balanced: 'バランス型', aggressive: '攻撃型', defensive: '守備型', corner: '隅重視型',
+};
+// Python側（othello_league/league.py）のPARAM_KEYS・CHARACTER_PARAM_MIN/MAX/BUDGETと一致させること
+const CC_PARAM_KEYS = [
+  'corner_weight', 'danger_zone_weight', 'mobility_weight', 'edge_stability_weight',
+  'frontier_weight', 'disc_weight', 'parity_weight', 'center_weight',
+];
+const CC_PARAM_MIN = 0.1, CC_PARAM_MAX = 10, CC_PARAM_BUDGET = 40;
+// タイプ傾向ごとの目安の割り振り（「ランダムに割り振る」の初期値・傾向づけに使う簡易版）
+const CC_TYPE_BOOST_KEYS = {
+  balanced: [], aggressive: ['mobility_weight', 'frontier_weight'],
+  defensive: ['edge_stability_weight', 'danger_zone_weight'], corner: ['corner_weight', 'center_weight'],
+};
+
+async function loadNewcomerLeague(forSeason) {
+  const el = document.getElementById('newcomer-content');
+  el.innerHTML = '<div class="loading">読み込み中...</div>';
+  try {
+    const url = forSeason ? `${API_BASE}?action=newcomer_league&for_season=${forSeason}` : `${API_BASE}?action=newcomer_league`;
+    const resData = await fetch(url).then(r => r.json());
+
+    if (!resData.for_season || !resData.meta) {
+      el.innerHTML = '<div class="empty">まだ新人リーグの結果がありません（1日2回、7:00・19:00 JSTに実施）</div>';
+      return;
+    }
+
+    const seasons = resData.available_seasons || [];
+    const idx = seasons.indexOf(resData.for_season);
+    const prevSeason = idx >= 0 && idx + 1 < seasons.length ? seasons[idx + 1] : null;
+    const nextSeason = idx > 0 ? seasons[idx - 1] : null;
+
+    let html = `<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+      <button id="newcomer-prev" ${prevSeason ? '' : 'disabled'} style="background:var(--navy-800); color:var(--cyan); border:1px solid var(--navy-700); padding:4px 10px; cursor:pointer;">◀ 前回</button>
+      <div style="font-size:0.8rem; color:var(--text-dim);">第${resData.for_season}季 新人リーグ（応募${resData.meta.submission_count}名 / 昇格枠${resData.meta.slots_needed}名・昇格者は第${resData.for_season}季からDリーグ出走）</div>
+      <button id="newcomer-next" ${nextSeason ? '' : 'disabled'} style="background:var(--navy-800); color:var(--cyan); border:1px solid var(--navy-700); padding:4px 10px; cursor:pointer;">次回 ▶</button>
+    </div>`;
+
+    if (resData.standings.length === 0) {
+      html += '<div class="empty">出走者データがありません</div>';
+    } else {
+      html += `<table><thead><tr><th>#</th><th>名前</th><th>成績</th><th></th></tr></thead><tbody>`;
+      resData.standings.forEach(s => {
+        const tags = [];
+        if (s.promoted) tags.push('<span style="display:inline-block; font-size:0.62rem; color:var(--navy-950); background:var(--cyan); border-radius:2px; padding:1px 5px; margin-right:4px; font-weight:700;">昇格</span>');
+        if (s.auto_generated) tags.push('<span style="display:inline-block; font-size:0.62rem; color:var(--text-dim); border:1px solid var(--navy-700); border-radius:2px; padding:1px 5px;">自動生成</span>');
+        // 新人リーグ在籍中の個体は仮IDのため、本戦で実際にDリーグへ昇格し実IDが確認できた
+        // 場合（real_individual_id）のみクリック可能にする。落選者・未昇格の間はリンクしない
+        const idAttr = s.real_individual_id ? ` data-id="${escapeHtml(s.real_individual_id)}"` : '';
+        const rowStyle = s.promoted ? 'background:rgba(79,240,255,0.06);' : '';
+        html += `<tr${idAttr} style="${rowStyle}${s.real_individual_id ? '' : ' cursor:default;'}">
+          <td class="rank-num">${s.rank ?? '-'}</td>
+          <td>${escapeHtml(s.display_name || s.individual_id)}</td>
+          <td>${s.win}勝${s.loss}敗${s.draw}分</td>
+          <td>${tags.join('')}</td>
+        </tr>`;
+      });
+      html += '</tbody></table>';
+    }
+
+    el.innerHTML = html;
+    el.querySelectorAll('tr[data-id]').forEach(tr => tr.addEventListener('click', () => navigateTo('individual/' + tr.dataset.id)));
+    if (prevSeason) document.getElementById('newcomer-prev').addEventListener('click', () => navigateTo('newcomer/' + prevSeason));
+    if (nextSeason) document.getElementById('newcomer-next').addEventListener('click', () => navigateTo('newcomer/' + nextSeason));
+  } catch (e) {
+    el.innerHTML = `<div class="empty">読み込み失敗: ${escapeHtml(String(e))}</div>`;
+  }
+}
+
+async function loadNewcomerCreate() {
+  const el = document.getElementById('newcomer_create-content');
+  el.innerHTML = '<div class="loading">読み込み中...</div>';
+  try {
+    const statusData = await fetch(`${API_BASE}?action=character_creation_status`).then(r => r.json());
+    let html = renderCharacterEntryForm(statusData);
+    html += `<div id="cc-pending-list">${renderPendingMembersList(statusData.pending_list || [])}</div>`;
+    el.innerHTML = html;
+    bindCharacterEntryForm();
+  } catch (e) {
+    el.innerHTML = `<div class="empty">読み込み失敗: ${escapeHtml(String(e))}</div>`;
+  }
+}
+
+// エントリー成功後、フォームの状態表示は変えずに「本日のエントリー数」と「待機メンバー一覧」だけを
+// 再取得して差し替える（画面全体を再読込すると、せっかく出した成功メッセージが消えてしまうため）
+async function refreshCharacterCreationLists() {
+  try {
+    const statusData = await fetch(`${API_BASE}?action=character_creation_status`).then(r => r.json());
+    const quotaEl = document.getElementById('cc-quota-line');
+    if (quotaEl) quotaEl.textContent = `本日のエントリー: ${statusData.pending_count}/${statusData.cap}名`;
+    const listEl = document.getElementById('cc-pending-list');
+    if (listEl) listEl.innerHTML = renderPendingMembersList(statusData.pending_list || []);
+  } catch (e) { /* 一覧の更新に失敗しても致命的ではないので握りつぶす */ }
+}
+
+function renderCharacterEntryForm(statusData) {
+  const closed = statusData && statusData.closed;
+  const quotaLine = statusData
+    ? (closed
+        ? `本日の募集は締め切りました（${statusData.pending_count}/${statusData.cap}名）。また次回よろしくお願いします。`
+        : `本日のエントリー: ${statusData.pending_count}/${statusData.cap}名`)
+    : '募集状況の取得に失敗しました';
+
+  const typeOptions = Object.entries(CHARACTER_TYPE_LABELS)
+    .map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
+
+  const flowTip = '締め切りは1日2回：7:00(JST)までのエントリーは7:00の新人リーグで選抜され夜18:00の本戦から出走。7:00〜19:00のエントリーは19:00の新人リーグで選抜され翌朝6:00の本戦から出走。（本戦・新人リーグとも1日2回、本戦→新人リーグの順で朝6:00/7:00と夜18:00/19:00に実行）';
+  const typeTip = 'バランス型：全パラメータを均等に配分。攻撃型：着手可能数（機動力）を重視。守備型：確定石（辺の安定度）を重視。隅重視型：角の確保と危険マスの回避を重視。';
+
+  const paramRows = CC_PARAM_KEYS.map(k => `<label style="font-size:0.72rem; color:var(--text-dim); display:flex; justify-content:space-between; align-items:center; gap:6px;">
+      ${paramLabel(k)}
+      <input type="number" class="cc-param" data-key="${k}" min="${CC_PARAM_MIN}" max="${CC_PARAM_MAX}" step="0.1" value="5" ${closed ? 'disabled' : ''}
+        style="width:64px; background:var(--navy-800); color:var(--text-main); border:1px solid var(--navy-700); padding:2px 4px;">
+    </label>`).join('');
+
+  return `<h3 style="font-size:0.8rem; color:var(--amber); border-bottom:1px solid var(--navy-700); padding-bottom:4px; margin-bottom:2px;">キャラクリエイト${infoIcon(flowTip)}</h3>
+    <div style="font-size:0.7rem; color:var(--text-dim); margin-bottom:10px;">締め切りは1日2回（7:00／19:00 JST）。新人リーグで選抜されれば、次の本戦からすぐ出走します</div>
+    <div class="params-grid" style="margin-bottom:10px;">
+      <dt>名前</dt>
+      <dd><input type="text" id="cc-name" maxlength="20" ${closed ? 'disabled' : ''} style="width:100%; background:var(--navy-800); color:var(--text-main); border:1px solid var(--navy-700); padding:4px 6px;"></dd>
+      <dt>タイプ傾向${infoIcon(typeTip)}</dt>
+      <dd><select id="cc-type" ${closed ? 'disabled' : ''} style="width:100%; background:var(--navy-800); color:var(--text-main); border:1px solid var(--navy-700); padding:4px 6px;">${typeOptions}</select></dd>
+    </div>
+    <label style="display:flex; align-items:center; gap:6px; margin:6px 0 10px; font-size:0.74rem; color:var(--text-dim); cursor:pointer;">
+      <input type="checkbox" id="cc-advanced-toggle" ${closed ? 'disabled' : ''}> 詳細設定（8パラメータを自分で割り振る）を使う
+    </label>
+    <div id="cc-advanced" class="hidden" style="margin-bottom:10px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.72rem; margin-bottom:6px; flex-wrap:wrap; gap:4px;">
+        <span style="color:var(--text-dim);">合計 <span id="cc-total" style="color:var(--cyan); font-weight:700;">40.0</span> / ${CC_PARAM_BUDGET}
+          <span style="color:var(--text-dim);">（超過分は比率を保ったまま自動縮小されます）</span></span>
+        <span class="back-link" id="cc-randomize" style="margin-bottom:0;">ランダムに割り振る</span>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px 14px;">${paramRows}</div>
+    </div>
+    <button id="cc-submit" ${closed ? 'disabled' : ''} style="font-family:'Orbitron',sans-serif; font-size:0.8rem; background:var(--navy-800); color:${closed ? 'var(--text-dim)' : 'var(--cyan)'}; border:1px solid ${closed ? 'var(--navy-700)' : 'var(--cyan-dim)'}; padding:8px 16px; cursor:${closed ? 'default' : 'pointer'}; width:100%;">${closed ? '本日は締め切りました' : 'エントリーする'}</button>
+    <div id="cc-status" style="margin-top:8px; font-size:0.74rem; color:var(--text-dim);"></div>
+    <div id="cc-quota-line" style="margin-top:4px; font-size:0.72rem; color:${closed ? 'var(--amber)' : 'var(--text-dim)'};">${escapeHtml(quotaLine)}</div>
+    <div style="margin:18px 0; border-bottom:1px solid var(--navy-700);"></div>`;
+}
+
+function renderPendingMembersList(list) {
+  let html = `<h3 style="font-size:0.8rem; color:var(--amber); border-bottom:1px solid var(--navy-700); padding-bottom:4px; margin-bottom:8px;">待機メンバー（${list.length}名）</h3>`;
+  if (list.length === 0) {
+    html += '<div class="empty">現在、待機中のエントリーはありません</div>';
+  } else {
+    html += `<table><thead><tr><th>#</th><th>名前</th><th>タイプ</th></tr></thead><tbody>`;
+    list.forEach((p, i) => {
+      html += `<tr style="cursor:default;">
+        <td class="rank-num">${i + 1}</td>
+        <td>${escapeHtml(p.display_name)}</td>
+        <td>${escapeHtml(CHARACTER_TYPE_LABELS[p.type_tendency] || p.type_tendency)}</td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+  }
+  return html;
+}
+
+function bindCharacterEntryForm() {
+  const btn = document.getElementById('cc-submit');
+  if (!btn || btn.disabled) return;
+
+  const advToggle = document.getElementById('cc-advanced-toggle');
+  const advancedEl = document.getElementById('cc-advanced');
+  const totalEl = document.getElementById('cc-total');
+  const paramInputs = Array.from(document.querySelectorAll('.cc-param'));
+
+  function updateTotal() {
+    const total = paramInputs.reduce((sum, inp) => sum + (parseFloat(inp.value) || 0), 0);
+    totalEl.textContent = total.toFixed(1);
+    totalEl.style.color = total > CC_PARAM_BUDGET ? '#ff9d4f' : 'var(--cyan)';
+  }
+  paramInputs.forEach(inp => inp.addEventListener('input', updateTotal));
+  updateTotal();
+
+  if (advToggle) {
+    advToggle.addEventListener('change', () => {
+      advancedEl.classList.toggle('hidden', !advToggle.checked);
+    });
+  }
+
+  const randomizeBtn = document.getElementById('cc-randomize');
+  if (randomizeBtn) {
+    randomizeBtn.addEventListener('click', () => {
+      const typeEl = document.getElementById('cc-type');
+      const boosted = new Set(CC_TYPE_BOOST_KEYS[typeEl.value] || []);
+      const raw = {};
+      let total = 0;
+      paramInputs.forEach(inp => {
+        const v = boosted.has(inp.dataset.key) ? (2.5 + Math.random() * 5.5) : (0.5 + Math.random() * 4.5);
+        raw[inp.dataset.key] = v;
+        total += v;
+      });
+      const scale = total > 0 ? CC_PARAM_BUDGET / total : 1;
+      paramInputs.forEach(inp => { inp.value = (raw[inp.dataset.key] * scale).toFixed(1); });
+      updateTotal();
+    });
+  }
+
+  btn.addEventListener('click', async () => {
+    const nameEl = document.getElementById('cc-name');
+    const typeEl = document.getElementById('cc-type');
+    const statusEl = document.getElementById('cc-status');
+    const name = nameEl.value.trim();
+    if (!name) { statusEl.textContent = '名前を入力してください'; statusEl.style.color = 'var(--amber)'; return; }
+
+    const body = { name, type: typeEl.value };
+    if (advToggle && advToggle.checked) {
+      const params = {};
+      paramInputs.forEach(inp => { params[inp.dataset.key] = parseFloat(inp.value) || CC_PARAM_MIN; });
+      body.params = params;
+    }
+
+    btn.disabled = true;
+    statusEl.textContent = '送信中...';
+    statusEl.style.color = 'var(--text-dim)';
+    try {
+      const res = await fetch('create_character.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (data.success) {
+        statusEl.textContent = data.message;
+        statusEl.style.color = 'var(--cyan)';
+        nameEl.value = '';
+        refreshCharacterCreationLists();
+      } else {
+        statusEl.textContent = data.error || '送信に失敗しました';
+        statusEl.style.color = 'var(--amber)';
+        btn.disabled = !!data.closed;
+        if (data.closed) btn.textContent = '本日は締め切りました';
+      }
+    } catch (e) {
+      statusEl.textContent = '送信に失敗しました: ' + String(e);
+      statusEl.style.color = 'var(--amber)';
+    } finally {
+      if (!btn.textContent.includes('締め切りました')) btn.disabled = false;
+    }
+  });
+}
+
+async function loadNewcomerHistory() {
+  const el = document.getElementById('newcomer_history-content');
+  el.innerHTML = '<div class="loading">読み込み中...</div>';
+  try {
+    const data = await fetch(`${API_BASE}?action=newcomer_league_history`).then(r => r.json());
+    const rows = data.history || [];
+    if (rows.length === 0) {
+      el.innerHTML = '<div class="empty">まだ新人リーグ経由での新規参入記録がありません</div>';
+      return;
+    }
+    let html = `<h3 style="font-size:0.8rem; color:var(--amber); border-bottom:1px solid var(--navy-700); padding-bottom:4px; margin-bottom:8px;">新人リーグ経由 新規参入者（歴代）</h3>`;
+    html += `<table><thead><tr><th>季</th><th>名前</th><th>成績</th><th></th></tr></thead><tbody>`;
+    rows.forEach(r => {
+      const tag = r.auto_generated ? '<span style="display:inline-block; font-size:0.62rem; color:var(--text-dim); border:1px solid var(--navy-700); border-radius:2px; padding:1px 5px;">自動生成</span>' : '';
+      // real_individual_idが確認できた場合のみクリック可能にする（詳細はloadNewcomerLeague参照）
+      const idAttr = r.real_individual_id ? ` data-id="${escapeHtml(r.real_individual_id)}"` : '';
+      html += `<tr${idAttr}${r.real_individual_id ? '' : ' style="cursor:default;"'}>
+        <td class="rank-num" style="cursor:default;">第${r.for_season}季</td>
+        <td>${escapeHtml(r.display_name || r.individual_id)}</td>
+        <td>${r.win}勝${r.loss}敗${r.draw}分</td>
+        <td>${tag}</td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+    el.innerHTML = html;
+    el.querySelectorAll('tr[data-id]').forEach(tr => tr.addEventListener('click', () => navigateTo('individual/' + tr.dataset.id)));
+  } catch (e) {
+    el.innerHTML = `<div class="empty">読み込み失敗: ${escapeHtml(String(e))}</div>`;
+  }
+}
+
+render(location.hash);
+</script>
+</body>
+</html>

@@ -1,0 +1,72 @@
+name: Deploy Site (index.html / api.php)
+
+# site/配下（index.html・api.php）はxserver上の本番サイトの実体そのもの。従来は
+# 手動でxserverへアップロードしていたが、このリポジトリで変更履歴を追えるようにするため
+# site/配下にコミットし、mainへのpush（＝これらのファイルの変更を含むマージ）をきっかけに
+# 自動でxserverへ反映する。
+#
+# 本戦・新人リーグ（evolve.yml / newcomer_league.yml）とは別の排他グループを使う：
+# あちら側はdata/配下（matches・standings等）だけを扱い、こちらはsite/配下
+# （index.html・api.php）だけを扱うので、同時に走っても書き込み先が重ならず競合しない。
+# 短時間に連続でpushされた場合は、最新のpushだけを反映すれば十分なので
+# cancel-in-progress: trueにしている
+concurrency:
+  group: deploy-othello-site
+  cancel-in-progress: true
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "site/index.html"
+      - "site/api.php"
+  workflow_dispatch: {}
+
+jobs:
+  deploy-site:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Lint api.php before deploying
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq php-cli
+          php -l site/api.php
+
+      - name: Deploy to xserver
+        env:
+          XSERVER_HOST: ${{ secrets.XSERVER_HOST }}
+          XSERVER_USER: ${{ secrets.XSERVER_USER }}
+          XSERVER_PORT: ${{ secrets.XSERVER_SSH_PORT }}
+          XSERVER_SSH_KEY: ${{ secrets.XSERVER_SSH_KEY }}
+          # data/配下（XSERVER_TARGET_DIR）の1つ上、サイトのドキュメントルート
+          # （spia-net.com/public_html/lab.spia-net.com/othello-league/）
+          XSERVER_SITE_DIR: "spia-net.com/public_html/lab.spia-net.com/othello-league/"
+        run: |
+          echo "$XSERVER_SSH_KEY" > /tmp/deploy_key
+          chmod 600 /tmp/deploy_key
+
+          retry_cmd() {
+            local max_attempts=4
+            local delay=5
+            local attempt=1
+            until "$@"; do
+              if [ "$attempt" -ge "$max_attempts" ]; then
+                return 1
+              fi
+              echo "::warning::コマンド失敗（試行 $attempt/$max_attempts）。${delay}秒後にリトライします: $*"
+              sleep "$delay"
+              attempt=$((attempt + 1))
+              delay=$((delay * 2))
+            done
+          }
+
+          retry_cmd ssh -i /tmp/deploy_key -p "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
+            "$XSERVER_USER@$XSERVER_HOST" "mkdir -p ${XSERVER_SITE_DIR}"
+
+          retry_cmd scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
+            site/index.html site/api.php \
+            "$XSERVER_USER@$XSERVER_HOST:${XSERVER_SITE_DIR}"
+
+          rm -f /tmp/deploy_key
