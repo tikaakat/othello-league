@@ -461,6 +461,12 @@ function crownLabel(id, name) {
   return `<span style="display:inline-block; font-family:'Orbitron',sans-serif; font-size:0.62rem; font-weight:700; color:var(--navy-950); background:linear-gradient(135deg,#ffd24f,#ff9d4f); padding:1px 6px; border-radius:2px; margin-right:6px;">${escapeHtml(label)}</span>`;
 }
 
+// 段位の表示ラベル（将棋・囲碁の段位表記に合わせ、算用数字ではなく漢数字にする）
+const DAN_KANJI = { 1: '一', 2: '二', 3: '三', 4: '四', 5: '五', 6: '六', 7: '七', 8: '八', 9: '九' };
+function danLabel(dan) {
+  return `${DAN_KANJI[dan] ?? dan}段`;
+}
+
 // リーグ・結果タブ用：名前の右側に付けるバッジ。タイトル保持者はタイトル名（複数なら二冠等）、
 // 非保持者は段位を橙のチップで表示する
 function titleOrDanBadge(titles, dan) {
@@ -470,7 +476,7 @@ function titleOrDanBadge(titles, dan) {
     return `<span style="display:inline-block; font-family:'Orbitron',sans-serif; font-size:0.62rem; font-weight:700; color:var(--navy-950); background:linear-gradient(135deg,#ffd24f,#ff9d4f); padding:1px 6px; border-radius:2px; margin-left:6px;">${escapeHtml(label)}</span>`;
   }
   if (dan !== null && dan !== undefined) {
-    return `<span class="chip gold" style="margin-left:6px;">${dan}段</span>`;
+    return `<span class="chip gold" style="margin-left:6px;">${danLabel(dan)}</span>`;
   }
   return '';
 }
@@ -833,7 +839,7 @@ async function loadIndividualDetail(id) {
       <div style="margin-bottom:6px;">${ind.retired ? '<span style="color:var(--text-dim); font-size:0.7rem;">（引退）</span>' : `${leagueTag(ind.league)}`}</div>
       <h3 style="margin:0; font-size:1.1rem;">${crownLabel(ind.id, ind.display_name)}${escapeHtml(ind.display_name || ind.id)}</h3>
       <div style="font-size:0.75rem; color:var(--text-dim); margin-top:2px;">通算${ind.total_seasons}シーズン${(ind.age !== null && ind.age !== undefined) ? `　${ind.age}歳` : ''}</div>
-      ${(ind.dan !== null && ind.dan !== undefined) ? `<div style="margin-top:4px;"><span class="chip cyan" style="font-size:0.78rem; padding:2px 10px;">${ind.dan}段</span></div>` : ''}
+      ${(ind.dan !== null && ind.dan !== undefined) ? `<div style="margin-top:4px;"><span class="chip cyan" style="font-size:0.78rem; padding:2px 10px;">${danLabel(ind.dan)}</span></div>` : ''}
       <div style="margin-top:6px;">Elo: <span class="elo-val" style="font-size:1.1rem;">${Math.round(ind.elo_rating)}</span>
         <span style="font-size:0.72rem; color:var(--amber); margin-left:8px;">最高 ${Math.round(ind.peak_elo ?? ind.elo_rating)}</span></div>
       <div style="margin-top:8px;">
@@ -2172,7 +2178,7 @@ function renderHofView(el, view) {
         cols.map(c => `<th class="hof-sort-th" data-sort-key="${c.key}" style="cursor:pointer; white-space:nowrap;">${c.label}${arrow(c.key)}</th>`).join('')
       }</tr></thead>`;
       const cellFor = (p, key) => {
-        if (key === 'dan') return `<span class="chip cyan">${p.dan}段</span>`;
+        if (key === 'dan') return `<span class="chip cyan">${danLabel(p.dan)}</span>`;
         if (key === 'peak_elo') return `${Math.round(p.peak_elo)}`;
         if (key === 'elo') return `${Math.round(p.elo)}`;
         if (key === 'total') return `${p.total}局`;
@@ -2220,7 +2226,7 @@ function renderHofView(el, view) {
         const ageNote = (r.retired_age !== null && r.retired_age !== undefined) ? `<span style="color:var(--text-dim); font-size:0.68rem;">（引退時${r.retired_age}歳）</span>` : '';
         return `<tr data-id="${escapeHtml(r.id)}">
           <td>${eternalIcon(r.eternal_titles)}${escapeHtml(r.display_name)}${ageNote}</td>
-          <td><span class="chip cyan">${r.dan}段</span></td>
+          <td><span class="chip cyan">${danLabel(r.dan)}</span></td>
           <td style="font-size:0.72rem; color:var(--text-dim);">${r.debut_season}-${r.retired_season}</td>
           <td>${r.title_count > 0 ? `<span class="chip gold">${r.title_count}期</span>` : '-'}</td></tr>`;
       };
