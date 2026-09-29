@@ -475,16 +475,6 @@ function titleOrDanBadge(titles, dan) {
   return '';
 }
 
-// 結果タブ用：タイトル保持者の名前左に「奪取」「防衛」を表示する（初代襲名は無表示）
-function acquisitionLabel(titles, titleEventsById) {
-  titles = TITLE_ORDER.filter(t => (titles || []).includes(t));
-  if (titles.length === 0 || !titleEventsById) return '';
-  const ev = titleEventsById[titles[0]];
-  if (ev === '奪取') return '<span style="color:var(--up); font-size:0.68rem; margin-right:4px;">奪取</span>';
-  if (ev === '防衛') return '<span style="color:var(--text-dim); font-size:0.68rem; margin-right:4px;">防衛</span>';
-  return '';
-}
-
 async function loadLeagues() {
   const el = document.getElementById('leagues-content');
   el.innerHTML = '<div class="loading">読み込み中...</div>';
@@ -1742,10 +1732,9 @@ async function loadSeiryuuPanel(season) {
     const res = await fetch(`${API_BASE}?action=standings&season=${season}`);
     const data = await res.json();
     const rows = data.standings || [];
-    // 「その季」時点で実際に保持していたタイトル・その季の獲得経緯（初代襲名/奪取/防衛）。
-    // 段位は現時点のもの（段位はシーズンをまたいで振り返る指標ではなく、現在の到達点を示す指標のため）
+    // 「その季」時点で実際に保持していたタイトル。段位は現時点のもの
+    // （段位はシーズンをまたいで振り返る指標ではなく、現在の到達点を示す指標のため）
     const seasonTitleholders = data.titleholders || { by_id: {}, by_name: {} };
-    const seasonTitleEvents = data.title_events || { by_id: {}, by_name: {} };
     const seasonDan = data.dan || {};
     document.getElementById('tab-seiryuu').dataset.season = season;
 
@@ -1772,10 +1761,9 @@ async function loadSeiryuuPanel(season) {
           const r = data.rikuou;
           const record = (r.win || r.loss || r.draw) ? `${r.win}勝${r.loss}敗${r.draw ? r.draw + '分' : ''}` : '-';
           const rTitles = (r.individual_id && seasonTitleholders.by_id[r.individual_id]) || [];
-          const rEvents = (r.individual_id && seasonTitleEvents.by_id[r.individual_id]) || {};
           html += `<table style="margin-bottom:4px;"><tbody><tr data-id="${escapeHtml(r.individual_id)}">
             <td class="rank-num" style="width:3.5em;"></td>
-            <td>${acquisitionLabel(rTitles, rEvents)}${escapeHtml(r.display_name || r.individual_id)}${titleOrDanBadge(rTitles, seasonDan[r.individual_id])}</td>
+            <td>${escapeHtml(r.display_name || r.individual_id)}${titleOrDanBadge(rTitles, seasonDan[r.individual_id])}</td>
             <td>${record}</td>
           </tr></tbody></table>`;
         }
@@ -1787,10 +1775,9 @@ async function loadSeiryuuPanel(season) {
           // （DB上のrankは青龍分の欠番があるままなので、そのまま出すと1位が2位に見えてしまう）
           const displayRank = (lg === 'A' && data.rikuou) ? (idx + 1) : (r.rank ?? '-');
           const rTitles = (r.individual_id && seasonTitleholders.by_id[r.individual_id]) || [];
-          const rEvents = (r.individual_id && seasonTitleEvents.by_id[r.individual_id]) || {};
           html += `<tr class="${zoneClass(r.movement)}" data-id="${escapeHtml(r.individual_id)}">
             <td class="rank-num">${displayRank}</td>
-            <td>${movementMarks(r.movement)}${acquisitionLabel(rTitles, rEvents)}${escapeHtml(r.display_name || r.individual_id)}${titleOrDanBadge(rTitles, seasonDan[r.individual_id])}</td>
+            <td>${movementMarks(r.movement)}${escapeHtml(r.display_name || r.individual_id)}${titleOrDanBadge(rTitles, seasonDan[r.individual_id])}</td>
             <td>${record}</td>
           </tr>`;
         });
