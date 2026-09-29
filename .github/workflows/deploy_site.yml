@@ -20,6 +20,7 @@ on:
     paths:
       - "site/index.html"
       - "site/api.php"
+      - "site/create_character.php"
   workflow_dispatch:
     inputs:
       list_only:
@@ -34,6 +35,14 @@ on:
         description: "サイト直下の1ファイル名を指定すると、デプロイの代わりにその内容をログに出力する（db_config.php等、認証情報を含みうるファイルには使わないこと）"
         required: false
         default: ""
+      run_migration:
+        description: "デプロイの代わりに、あらかじめ用意した固定のDBマイグレーションを1つ実行する（任意のSQLは実行できない）"
+        required: false
+        type: choice
+        options:
+          - ""
+          - "add_submitter_name_column"
+        default: ""
 
 jobs:
   deploy-site:
@@ -42,11 +51,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Lint api.php before deploying
-        if: ${{ github.event.inputs.list_only != 'true' && github.event.inputs.delete_files == '' }}
+      - name: Lint PHP before deploying
+        if: ${{ github.event.inputs.list_only != 'true' && github.event.inputs.delete_files == '' && github.event.inputs.read_file == '' && github.event.inputs.run_migration == '' }}
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq php-cli
           php -l site/api.php
+          php -l site/create_character.php
 
       - name: List / Delete / Deploy on xserver
         env:
@@ -60,6 +70,7 @@ jobs:
           LIST_ONLY: ${{ github.event.inputs.list_only }}
           DELETE_FILES: ${{ github.event.inputs.delete_files }}
           READ_FILE: ${{ github.event.inputs.read_file }}
+          RUN_MIGRATION: ${{ github.event.inputs.run_migration }}
         run: |
           echo "$XSERVER_SSH_KEY" > /tmp/deploy_key
           chmod 600 /tmp/deploy_key
@@ -101,6 +112,41 @@ jobs:
             exit 0
           fi
 
+          if [ -n "$RUN_MIGRATION" ]; then
+            echo "=== マイグレーション実行: ${RUN_MIGRATION} ==="
+            case "$RUN_MIGRATION" in
+              add_submitter_name_column)
+                # character_requestsに投稿者名（任意・表示専用）の列を追加する。
+                # 既に存在する場合（エラー1060）は成功扱いにして再実行できるようにする。
+                # db_config.phpの認証情報はサーバー上で完結させ、GitHub Actionsのログには一切出さない
+                SQL='ALTER TABLE character_requests ADD COLUMN submitter_name VARCHAR(20) NULL AFTER display_name;'
+                ;;
+              *)
+                echo "::error::未知のマイグレーション: ${RUN_MIGRATION}"
+                rm -f /tmp/deploy_key
+                exit 1
+                ;;
+            esac
+            retry_cmd ssh -i /tmp/deploy_key -p "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
+              "$XSERVER_USER@$XSERVER_HOST" \
+              "php -r '
+                require \"${XSERVER_SITE_DIR}db_config.php\";
+                \$pdo = league_db_connect();
+                try {
+                  \$pdo->exec(\"${SQL}\");
+                  echo \"OK: 適用しました\n\";
+                } catch (\PDOException \$e) {
+                  if (\$e->getCode() === \"42S21\" || str_contains(\$e->getMessage(), \"Duplicate column\")) {
+                    echo \"OK: 既に適用済みでした\n\";
+                  } else {
+                    throw \$e;
+                  }
+                }
+              '"
+            rm -f /tmp/deploy_key
+            exit 0
+          fi
+
           if [ -n "$DELETE_FILES" ]; then
             echo "=== 指定ファイルを削除 ==="
             IFS=',' read -ra FILES <<< "$DELETE_FILES"
@@ -123,7 +169,7 @@ jobs:
             "$XSERVER_USER@$XSERVER_HOST" "mkdir -p ${XSERVER_SITE_DIR}"
 
           retry_cmd scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
-            site/index.html site/api.php \
+            site/index.html site/api.php site/create_character.php \
             "$XSERVER_USER@$XSERVER_HOST:${XSERVER_SITE_DIR}"
 
           rm -f /tmp/deploy_key

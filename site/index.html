@@ -2511,9 +2511,11 @@ function renderPendingMembersList(list) {
   } else {
     html += `<table><thead><tr><th>#</th><th>名前</th><th>タイプ</th></tr></thead><tbody>`;
     list.forEach((p, i) => {
+      const submitterNote = p.submitter_name
+        ? `<span style="font-size:0.68rem; color:var(--text-dim); margin-left:6px;">by ${escapeHtml(p.submitter_name)}</span>` : '';
       html += `<tr style="cursor:default;">
         <td class="rank-num">${i + 1}</td>
-        <td>${escapeHtml(p.display_name)}</td>
+        <td>${escapeHtml(p.display_name)}${submitterNote}</td>
         <td>${escapeHtml(CHARACTER_TYPE_LABELS[p.type_tendency] || p.type_tendency)}</td>
       </tr>`;
     });
