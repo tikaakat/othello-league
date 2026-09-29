@@ -114,6 +114,10 @@
     border: 1px solid var(--navy-700); padding: 4px 10px; cursor: pointer;
   }
   .fav-toggle.is-fav { color: var(--amber); border-color: var(--amber); }
+  .sliders { display: grid; gap: 6px; }
+  .slider { display: grid; grid-template-columns: 6.5em 1fr 2.5em; align-items: center; gap: 8px; font-size: 0.78rem; color: var(--text-dim); }
+  .slider input[type="range"] { width: 100%; accent-color: var(--cyan); }
+  .slider output { text-align: right; font-variant-numeric: tabular-nums; color: var(--cyan); }
 </style>
 </head>
 <body>
@@ -908,11 +912,13 @@ function paramLabel(key) {
 }
 
 // ---------------- 八角形レーダーチャート ----------------
-function renderRadarChart(params) {
+function renderRadarChart(params, maxScale = 20) {
   const keys = ['corner_weight','danger_zone_weight','mobility_weight','edge_stability_weight','frontier_weight','disc_weight','parity_weight','center_weight'];
   const labels = keys.map(paramLabel);
   const values = keys.map(k => params[k] || 0);
-  const maxScale = 20; // 覚醒等で伸びた値も収まるよう余裕を持たせる
+  // maxScaleの既定値20は、覚醒等で伸びた値（個体詳細ページ用）も収まるよう余裕を持たせたもの。
+  // キャラクリエイトのプレビューでは値の範囲が0.1〜10までしかないため、呼び出し側でより小さい
+  // maxScaleを渡し、八角形がきちんと大きく表示されるようにする
   const size = 220, center = size / 2, radius = 85;
   const n = keys.length;
 
@@ -2460,11 +2466,11 @@ function renderCharacterEntryForm(statusData) {
   const flowTip = '締め切りは1日2回：7:00(JST)までのエントリーは7:00の新人リーグで選抜され夜18:00の本戦から出走。7:00〜19:00のエントリーは19:00の新人リーグで選抜され翌朝6:00の本戦から出走。（本戦・新人リーグとも1日2回、本戦→新人リーグの順で朝6:00/7:00と夜18:00/19:00に実行）';
   const typeTip = 'バランス型：全パラメータを均等に配分。攻撃型：着手可能数（機動力）を重視。守備型：確定石（辺の安定度）を重視。隅重視型：角の確保と危険マスの回避を重視。';
 
-  const paramRows = CC_PARAM_KEYS.map(k => `<label style="font-size:0.72rem; color:var(--text-dim); display:flex; justify-content:space-between; align-items:center; gap:6px;">
-      ${paramLabel(k)}
-      <input type="number" class="cc-param" data-key="${k}" min="${CC_PARAM_MIN}" max="${CC_PARAM_MAX}" step="0.1" value="5" ${closed ? 'disabled' : ''}
-        style="width:64px; background:var(--navy-800); color:var(--text-main); border:1px solid var(--navy-700); padding:2px 4px;">
-    </label>`).join('');
+  const paramRows = CC_PARAM_KEYS.map(k => `<div class="slider">
+      <label for="cc-param-${k}">${paramLabel(k)}</label>
+      <input type="range" id="cc-param-${k}" class="cc-param" data-key="${k}" min="${CC_PARAM_MIN}" max="${CC_PARAM_MAX}" step="0.1" value="5" ${closed ? 'disabled' : ''}>
+      <output for="cc-param-${k}">5.0</output>
+    </div>`).join('');
 
   return `<h3 style="font-size:0.8rem; color:var(--amber); border-bottom:1px solid var(--navy-700); padding-bottom:4px; margin-bottom:2px;">キャラクリエイト${infoIcon(flowTip)}</h3>
     <div style="font-size:0.7rem; color:var(--text-dim); margin-bottom:10px;">締め切りは1日2回（7:00／19:00 JST）。新人リーグで選抜されれば、次の本戦からすぐ出走します</div>
@@ -2483,7 +2489,8 @@ function renderCharacterEntryForm(statusData) {
           <span style="color:var(--text-dim);">（超過分は比率を保ったまま自動縮小されます）</span></span>
         <span class="back-link" id="cc-randomize" style="margin-bottom:0;">ランダムに割り振る</span>
       </div>
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px 14px;">${paramRows}</div>
+      <div class="sliders">${paramRows}</div>
+      <div style="display:flex; justify-content:center; margin-top:10px;" id="cc-radar">${renderRadarChart({}, CC_PARAM_MAX)}</div>
     </div>
     <button id="cc-submit" ${closed ? 'disabled' : ''} style="font-family:'Orbitron',sans-serif; font-size:0.8rem; background:var(--navy-800); color:${closed ? 'var(--text-dim)' : 'var(--cyan)'}; border:1px solid ${closed ? 'var(--navy-700)' : 'var(--cyan-dim)'}; padding:8px 16px; cursor:${closed ? 'default' : 'pointer'}; width:100%;">${closed ? '本日は締め切りました' : 'エントリーする'}</button>
     <div id="cc-status" style="margin-top:8px; font-size:0.74rem; color:var(--text-dim);"></div>
@@ -2518,10 +2525,19 @@ function bindCharacterEntryForm() {
   const totalEl = document.getElementById('cc-total');
   const paramInputs = Array.from(document.querySelectorAll('.cc-param'));
 
+  const radarEl = document.getElementById('cc-radar');
   function updateTotal() {
+    const params = {};
+    paramInputs.forEach(inp => {
+      const v = parseFloat(inp.value) || 0;
+      params[inp.dataset.key] = v;
+      const out = inp.parentElement.querySelector('output');
+      if (out) out.textContent = v.toFixed(1);
+    });
     const total = paramInputs.reduce((sum, inp) => sum + (parseFloat(inp.value) || 0), 0);
     totalEl.textContent = total.toFixed(1);
     totalEl.style.color = total > CC_PARAM_BUDGET ? '#ff9d4f' : 'var(--cyan)';
+    if (radarEl) radarEl.innerHTML = renderRadarChart(params, CC_PARAM_MAX);
   }
   paramInputs.forEach(inp => inp.addEventListener('input', updateTotal));
   updateTotal();
