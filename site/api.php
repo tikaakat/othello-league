@@ -1207,23 +1207,15 @@ switch ($action) {
                 }
             }
 
-            // その季に実際にタイトルを保持していた人（今現在の保持者ではなく、"その季"時点の記録）。
-            // event_type（初代襲名／奪取／防衛）もあわせて返し、結果タブで名前の左に表示できるようにする
+            // その季に実際にタイトルを保持していた人（今現在の保持者ではなく、"その季"時点の記録）
             $seasonTitleStmt = $pdo->prepare(
-                "SELECT title, holder_id, holder_name, event_type FROM title_history WHERE season = :season"
+                "SELECT title, holder_id, holder_name FROM title_history WHERE season = :season"
             );
             $seasonTitleStmt->execute(['season' => $season]);
             $seasonTitleholders = ['by_id' => [], 'by_name' => []];
-            $seasonTitleEvents = ['by_id' => [], 'by_name' => []];
             foreach ($seasonTitleStmt->fetchAll() as $t) {
-                if ($t['holder_id']) {
-                    $seasonTitleholders['by_id'][$t['holder_id']][] = $t['title'];
-                    $seasonTitleEvents['by_id'][$t['holder_id']][$t['title']] = $t['event_type'];
-                }
-                if ($t['holder_name']) {
-                    $seasonTitleholders['by_name'][$t['holder_name']][] = $t['title'];
-                    $seasonTitleEvents['by_name'][$t['holder_name']][$t['title']] = $t['event_type'];
-                }
+                if ($t['holder_id']) $seasonTitleholders['by_id'][$t['holder_id']][] = $t['title'];
+                if ($t['holder_name']) $seasonTitleholders['by_name'][$t['holder_name']][] = $t['title'];
             }
 
             // 段位（現時点の段位。タイトル非保持者の名前右に表示する）
@@ -1233,8 +1225,7 @@ switch ($action) {
 
             json_out([
                 'standings' => $rows, 'season' => $season, 'rikuou' => $rikuou_entry,
-                'titleholders' => $seasonTitleholders, 'title_events' => $seasonTitleEvents,
-                'dan' => $danById,
+                'titleholders' => $seasonTitleholders, 'dan' => $danById,
             ]);
         } elseif (isset($_GET['individual_id'])) {
             $iid = $_GET['individual_id'];
