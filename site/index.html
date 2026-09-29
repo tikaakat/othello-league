@@ -632,7 +632,7 @@ function renderClanTree(node, childrenByParent, branchesByUnder, depth) {
     ? `最高Elo ${Math.round(node.peak_elo)}`
     : `Elo ${Math.round(node.elo_rating)}<span style="color:var(--text-dim); font-size:0.68rem;"> / 最高${Math.round(node.peak_elo)}</span>`;
   let html = `<div class="lineage-link" data-id="${escapeHtml(node.id)}" style="padding:3px 0 3px ${depth * 16}px; font-size:0.8rem; cursor:pointer; ${depth > 0 ? 'border-left:1px solid var(--navy-700); margin-left:-1px;' : ''}">
-    ${statusBadge}<span style="color:var(--cyan);">${escapeHtml(node.display_name || node.id)}</span>
+    ${statusBadge}<span style="color:var(--text-main);">${escapeHtml(node.display_name || node.id)}</span>
     <span style="color:var(--text-dim); font-size:0.72rem; margin-left:6px;">${eloLabel}</span>
   </div>`;
   branches.forEach(b => {
@@ -922,7 +922,7 @@ function renderRadarChart(params) {
 function renderLineage(ancestors, children) {
   ancestors = ancestors || [];
   const ancestorItem = (a) =>
-    `<div style="padding:3px 0;"><span class="lineage-link" data-id="${escapeHtml(a.id)}" style="color:var(--cyan); cursor:pointer;">${escapeHtml(a.display_name || a.id)}</span>${a.retired ? '<span style="color:var(--text-dim); font-size:0.68rem;">（引退）</span>' : ''}
+    `<div style="padding:3px 0;"><span class="lineage-link" data-id="${escapeHtml(a.id)}" style="color:var(--text-main); cursor:pointer;">${escapeHtml(a.display_name || a.id)}</span>${a.retired ? '<span style="color:var(--text-dim); font-size:0.68rem;">（引退）</span>' : ''}
       <span style="color:var(--text-dim); font-size:0.72rem; margin-left:6px;">Elo ${Math.round(a.elo_rating)}${a.retired ? '（引退時）' : ''}</span></div>`;
 
   let parentHtml;
@@ -949,7 +949,7 @@ function renderLineage(ancestors, children) {
     childrenHtml = '<div style="padding:4px 0; color:var(--text-dim);">弟子：まだいません</div>';
   } else {
     const items = children.map(c =>
-      `<span class="lineage-link" data-id="${escapeHtml(c.id)}" style="display:inline-block; color:var(--cyan); cursor:pointer; margin:2px 10px 2px 0;">${escapeHtml(c.display_name || c.id)}${c.retired ? '<span style="color:var(--text-dim); font-size:0.68rem;">（引退）</span>' : ''}<span style="color:var(--text-dim); font-size:0.72rem; margin-left:4px;">最高Elo ${Math.round(c.peak_elo)}</span></span>`
+      `<span class="lineage-link" data-id="${escapeHtml(c.id)}" style="display:inline-block; color:var(--text-main); cursor:pointer; margin:2px 10px 2px 0;">${escapeHtml(c.display_name || c.id)}${c.retired ? '<span style="color:var(--text-dim); font-size:0.68rem;">（引退）</span>' : ''}<span style="color:var(--text-dim); font-size:0.72rem; margin-left:4px;">最高Elo ${Math.round(c.peak_elo)}</span></span>`
     ).join('');
     childrenHtml = `<div style="padding:4px 0;">弟子（${children.length}名）：<div style="margin-top:4px;">${items}</div></div>`;
   }
