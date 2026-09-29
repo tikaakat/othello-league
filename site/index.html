@@ -193,7 +193,7 @@ const tabPanels = {
 const TAB_GROUPS = {
   leagues: {
     label: 'リーグ', tabs: ['leagues', 'suzaku_league', 'clans'],
-    subLabels: { leagues: '青龍戦リーグ表', suzaku_league: '朱雀紅白リーグ', clans: '一門' },
+    subLabels: { leagues: '青龍戦リーグ表', suzaku_league: '朱雀戦紅白リーグ表', clans: '一門' },
   },
   results: {
     label: '結果', tabs: ['seiryuu', 'suzaku', 'byakko', 'genbu', 'awards', 'matches'],
@@ -461,6 +461,30 @@ function crownLabel(id, name) {
   return `<span style="display:inline-block; font-family:'Orbitron',sans-serif; font-size:0.62rem; font-weight:700; color:var(--navy-950); background:linear-gradient(135deg,#ffd24f,#ff9d4f); padding:1px 6px; border-radius:2px; margin-right:6px;">${escapeHtml(label)}</span>`;
 }
 
+// リーグ・結果タブ用：名前の右側に付けるバッジ。タイトル保持者はタイトル名（複数なら二冠等）、
+// 非保持者は段位を橙のチップで表示する
+function titleOrDanBadge(titles, dan) {
+  titles = TITLE_ORDER.filter(t => (titles || []).includes(t));
+  if (titles.length > 0) {
+    const label = titles.length === 1 ? titles[0] : (titles.length === 2 ? '二冠' : (titles.length === 3 ? '三冠' : '四冠'));
+    return `<span style="display:inline-block; font-family:'Orbitron',sans-serif; font-size:0.62rem; font-weight:700; color:var(--navy-950); background:linear-gradient(135deg,#ffd24f,#ff9d4f); padding:1px 6px; border-radius:2px; margin-left:6px;">${escapeHtml(label)}</span>`;
+  }
+  if (dan !== null && dan !== undefined) {
+    return `<span class="chip gold" style="margin-left:6px;">${dan}段</span>`;
+  }
+  return '';
+}
+
+// 結果タブ用：タイトル保持者の名前左に「奪取」「防衛」を表示する（初代襲名は無表示）
+function acquisitionLabel(titles, titleEventsById) {
+  titles = TITLE_ORDER.filter(t => (titles || []).includes(t));
+  if (titles.length === 0 || !titleEventsById) return '';
+  const ev = titleEventsById[titles[0]];
+  if (ev === '奪取') return '<span style="color:var(--up); font-size:0.68rem; margin-right:4px;">奪取</span>';
+  if (ev === '防衛') return '<span style="color:var(--text-dim); font-size:0.68rem; margin-right:4px;">防衛</span>';
+  return '';
+}
+
 async function loadLeagues() {
   const el = document.getElementById('leagues-content');
   el.innerHTML = '<div class="loading">読み込み中...</div>';
@@ -501,9 +525,10 @@ async function loadLeagues() {
 
       if (lg === 'A' && data.rikuou) {
         const r = data.rikuou;
+        const rTitles = (r.id && CURRENT_TITLEHOLDERS.by_id[r.id]) || [];
         html += `<table style="margin-bottom:4px;"><tbody><tr data-id="${escapeHtml(r.id)}">
-          <td class="rank-num" style="width:3.5em;">${crownLabel(r.id, r.display_name)}</td>
-          <td>${escapeHtml(r.display_name || r.id)}</td>
+          <td class="rank-num" style="width:3.5em;"></td>
+          <td>${escapeHtml(r.display_name || r.id)}${titleOrDanBadge(rTitles, r.dan)}</td>
           <td>${ageCell(r.age)}</td>
           <td class="elo-val">${Math.round(r.elo_rating)}</td></tr></tbody></table>`;
       }
@@ -511,8 +536,9 @@ async function loadLeagues() {
       html += `<table><thead><tr><th>#</th><th>名前</th><th>年齢</th><th>Elo</th></tr></thead><tbody>`;
       rows.forEach((r, i) => {
         const rankDisplay = r.is_new ? '<span style="color:var(--text-dim); font-size:0.68rem;">新</span>' : (i+1);
+        const rTitles = (r.id && CURRENT_TITLEHOLDERS.by_id[r.id]) || [];
         html += `<tr data-id="${escapeHtml(r.id)}"><td class="rank-num">${rankDisplay}</td>
-          <td>${crownLabel(r.id, r.display_name)}${escapeHtml(r.display_name || r.id)}</td>
+          <td>${escapeHtml(r.display_name || r.id)}${titleOrDanBadge(rTitles, r.dan)}</td>
           <td>${ageCell(r.age)}</td>
           <td class="elo-val">${Math.round(r.elo_rating)}</td></tr>`;
       });
@@ -554,16 +580,15 @@ async function loadSuzakuLeaguePanel() {
     } else {
       // 前季の勝敗成績ではなく、前季末の陥落・入れ替え戦の結果を反映した
       // 今季（来季開始時点）のメンバーを1本の縦並びで一覧表示する（勝敗は出さず、現在のEloのみ）。
-      // 紅白の組分け自体は対局に使うだけの情報なので、名前の横に小さくタグを添える程度に留める
+      // 紅白の組分けは来季開始直前にランダムに組み直されるため表示せず、代わりに
+      // 連続在籍季数を表示する（APIが既に新メンバーを最後に並べ替え済み）
       html = `<div class="league-block"><h3>朱雀戦（紅白リーグ）<span style="font-size:0.68rem; color:var(--text-dim);">（第${data.next_season}季メンバー）</span></h3>
-        <table><thead><tr><th>名前</th><th>組</th><th>Elo</th></tr></thead><tbody>`;
+        <table><thead><tr><th>名前</th><th>在籍</th><th>Elo</th></tr></thead><tbody>`;
       suzakuMembers.forEach(r => {
         const newMark = r.is_new ? '<span style="color:var(--text-dim); font-size:0.68rem;">新</span> ' : '';
-        const groupTag = r.group === 'red'
-          ? '<span style="color:#ff7a7a;">紅</span>' : '<span style="color:var(--cyan);">白</span>';
         html += `<tr data-id="${escapeHtml(r.individual_id)}">
           <td>${newMark}${escapeHtml(r.display_name || r.individual_id)}</td>
-          <td>${groupTag}</td>
+          <td style="font-size:0.72rem; color:var(--text-dim);">${r.seasons_in_league}季目</td>
           <td class="elo-val">${Math.round(r.elo)}</td></tr>`;
       });
       html += '</tbody></table></div>';
@@ -1069,11 +1094,15 @@ async function loadIndividualStandingsHistory(id) {
     if (rows.length === 0) { el.innerHTML = '<div style="color:var(--text-dim);">記録なし</div>'; return; }
     renderEloChart(rows);
 
-    // Aリーグの通算在籍シーズン数（防衛専念枠でAリーグに数えられているシーズンも含む）
+    // Aリーグ・朱雀戦（紅白リーグ）の通算在籍シーズン数
+    // （Aリーグは防衛専念枠で数えられているシーズンも含む。朱雀戦は連続でなくてよい）
     const summaryEl = document.getElementById('ind-standings-summary');
     if (summaryEl) {
       const aCount = rows.filter(r => r.league === 'A').length;
-      summaryEl.textContent = aCount > 0 ? `Aリーグ通算在籍：${aCount}季` : '';
+      const lines = [];
+      if (aCount > 0) lines.push(`Aリーグ通算在籍：${aCount}季`);
+      if (data.suzaku_seasons_total > 0) lines.push(`朱雀戦（紅白リーグ）通算在籍：${data.suzaku_seasons_total}季`);
+      summaryEl.innerHTML = lines.join('<br>');
     }
 
     const rowHtml = r => {
@@ -1713,18 +1742,12 @@ async function loadSeiryuuPanel(season) {
     const res = await fetch(`${API_BASE}?action=standings&season=${season}`);
     const data = await res.json();
     const rows = data.standings || [];
+    // 「その季」時点で実際に保持していたタイトル・その季の獲得経緯（初代襲名/奪取/防衛）。
+    // 段位は現時点のもの（段位はシーズンをまたいで振り返る指標ではなく、現在の到達点を示す指標のため）
     const seasonTitleholders = data.titleholders || { by_id: {}, by_name: {} };
+    const seasonTitleEvents = data.title_events || { by_id: {}, by_name: {} };
+    const seasonDan = data.dan || {};
     document.getElementById('tab-seiryuu').dataset.season = season;
-
-    // 「その季」時点で実際に保持していたタイトルだけを表示する（現在のタイトルとは別物）。
-    // id基準でのみ判定する（同姓同名の別個体への誤表示を防ぐため、名前でのフォールバックはしない）
-    function seasonCrownLabel(id, name) {
-      let titles = (id && seasonTitleholders.by_id[id]) || [];
-      titles = TITLE_ORDER.filter(t => titles.includes(t));
-      if (titles.length === 0) return '';
-      const label = titles.length === 1 ? titles[0] : (titles.length === 2 ? '二冠' : (titles.length === 3 ? '三冠' : '四冠'));
-      return `<span style="display:inline-block; font-family:'Orbitron',sans-serif; font-size:0.62rem; font-weight:700; color:var(--navy-950); background:linear-gradient(135deg,#ffd24f,#ff9d4f); padding:1px 6px; border-radius:2px; margin-right:6px;">${escapeHtml(label)}</span>`;
-    }
 
     let html = `<div class="season-nav">
       <button id="season-prev" ${season <= 1 ? 'disabled' : ''}>◀ 前季</button>
@@ -1748,9 +1771,11 @@ async function loadSeiryuuPanel(season) {
         if (lg === 'A' && data.rikuou) {
           const r = data.rikuou;
           const record = (r.win || r.loss || r.draw) ? `${r.win}勝${r.loss}敗${r.draw ? r.draw + '分' : ''}` : '-';
+          const rTitles = (r.individual_id && seasonTitleholders.by_id[r.individual_id]) || [];
+          const rEvents = (r.individual_id && seasonTitleEvents.by_id[r.individual_id]) || {};
           html += `<table style="margin-bottom:4px;"><tbody><tr data-id="${escapeHtml(r.individual_id)}">
-            <td class="rank-num" style="width:3.5em;">${seasonCrownLabel(r.individual_id, r.display_name)}</td>
-            <td>${escapeHtml(r.display_name || r.individual_id)}</td>
+            <td class="rank-num" style="width:3.5em;"></td>
+            <td>${acquisitionLabel(rTitles, rEvents)}${escapeHtml(r.display_name || r.individual_id)}${titleOrDanBadge(rTitles, seasonDan[r.individual_id])}</td>
             <td>${record}</td>
           </tr></tbody></table>`;
         }
@@ -1761,9 +1786,11 @@ async function loadSeiryuuPanel(season) {
           // 青龍が別枠に分離されているAリーグでは、残りの参加者の順位を1位から振り直して表示する
           // （DB上のrankは青龍分の欠番があるままなので、そのまま出すと1位が2位に見えてしまう）
           const displayRank = (lg === 'A' && data.rikuou) ? (idx + 1) : (r.rank ?? '-');
+          const rTitles = (r.individual_id && seasonTitleholders.by_id[r.individual_id]) || [];
+          const rEvents = (r.individual_id && seasonTitleEvents.by_id[r.individual_id]) || {};
           html += `<tr class="${zoneClass(r.movement)}" data-id="${escapeHtml(r.individual_id)}">
             <td class="rank-num">${displayRank}</td>
-            <td>${movementMarks(r.movement)}${seasonCrownLabel(r.individual_id, r.display_name)}${escapeHtml(r.display_name || r.individual_id)}</td>
+            <td>${movementMarks(r.movement)}${acquisitionLabel(rTitles, rEvents)}${escapeHtml(r.display_name || r.individual_id)}${titleOrDanBadge(rTitles, seasonDan[r.individual_id])}</td>
             <td>${record}</td>
           </tr>`;
         });
