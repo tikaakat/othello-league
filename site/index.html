@@ -474,7 +474,8 @@ function danLabel(dan) {
 // 個体詳細ページ用：段位履歴（api.phpが時系列で算出した昇段イベントの配列）を表示する
 function renderDanHistory(history) {
   if (!history || history.length === 0) return '<div style="color:var(--text-dim);">記録なし</div>';
-  return history.map(h =>
+  // 新しい（段位が高い）ものを上に表示する
+  return history.slice().reverse().map(h =>
     `<div style="padding:4px 0;">第${h.season}季：<span style="color:var(--cyan);">${danLabel(h.dan)}</span>
       <span style="color:var(--text-dim); margin-left:8px;">（${escapeHtml(h.reason)}）</span></div>`
   ).join('');
