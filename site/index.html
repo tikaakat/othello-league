@@ -471,6 +471,15 @@ function danLabel(dan) {
   return `${DAN_KANJI[dan] ?? dan}段`;
 }
 
+// 個体詳細ページ用：段位履歴（api.phpが時系列で算出した昇段イベントの配列）を表示する
+function renderDanHistory(history) {
+  if (!history || history.length === 0) return '<div style="color:var(--text-dim);">記録なし</div>';
+  return history.map(h =>
+    `<div style="padding:4px 0;">第${h.season}季：<span style="color:var(--cyan);">${danLabel(h.dan)}</span>
+      <span style="color:var(--text-dim); margin-left:8px;">（${escapeHtml(h.reason)}）</span></div>`
+  ).join('');
+}
+
 // リーグ・結果タブ用：名前の右側に付けるバッジ。タイトル保持者はタイトル名（複数なら二冠等）、
 // 非保持者は段位を橙のチップで表示する
 function titleOrDanBadge(titles, dan) {
@@ -860,6 +869,9 @@ async function loadIndividualDetail(id) {
 
     html += `<h4 style="font-size:0.78rem; color:var(--amber); border-bottom:1px solid var(--navy-700); padding-bottom:4px;">通算成績</h4>`;
     html += `<div id="ind-record" style="font-size:0.8rem; margin-bottom:16px;">読み込み中...</div>`;
+
+    html += `<h4 style="font-size:0.78rem; color:var(--amber); border-bottom:1px solid var(--navy-700); padding-bottom:4px;">段位履歴</h4>`;
+    html += `<div style="font-size:0.8rem; margin-bottom:16px;">${renderDanHistory(ind.dan_history)}</div>`;
 
     html += `<h4 style="font-size:0.78rem; color:var(--amber); border-bottom:1px solid var(--navy-700); padding-bottom:4px;">対戦相手別・同一カード成績</h4>`;
     html += `<div id="ind-opponents" style="font-size:0.78rem; margin-bottom:16px;"></div>`;
