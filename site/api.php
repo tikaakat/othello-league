@@ -895,6 +895,10 @@ switch ($action) {
         $titleRanges = [];
         $titleTotalsByTitle = [];
         $hasEternalTitle = false;
+        // 段位履歴用：タイトルごとの保持季一覧・青龍の初獲得季・他タイトルの(季,タイトル)一覧を集める
+        $seiryuFirstSeason = null;
+        $otherTitleEvents = []; // [[season, title], ...]（朱雀・白虎・玄武）
+        $danCandidates = []; // [['season'=>, 'dan'=>, 'reason'=>], ...]
         foreach (TITLE_NAMES_LIST as $title) {
             $holdStmt = $pdo->prepare(
                 "SELECT season, holder_id, holder_name FROM title_history
@@ -916,8 +920,39 @@ switch ($action) {
             if (is_eternal_title($title, count($mySeasons), max_consecutive_run($mySeasons))) {
                 $hasEternalTitle = true;
             }
+
+            if ($title === '青龍') {
+                $seiryuFirstSeason = min($mySeasons);
+            } else {
+                foreach ($mySeasons as $s) { $otherTitleEvents[] = [$s, $title]; }
+            }
+
+            // 永世称号：保持季を1季ずつ辿り、is_eternal_title()を初めて満たした季を求める
+            $consec = 0; $prevSeason = null;
+            foreach ($mySeasons as $idx => $s) {
+                $consec = ($prevSeason !== null && $s === $prevSeason + 1) ? $consec + 1 : 1;
+                $prevSeason = $s;
+                if (is_eternal_title($title, $idx + 1, $consec)) {
+                    $danCandidates[] = ['season' => $s, 'dan' => 9, 'reason' => "永世{$title}"];
+                    break;
+                }
+            }
         }
         $titleTotalSeasons = array_sum(array_column($titleRanges, 'total'));
+        if ($seiryuFirstSeason !== null) {
+            $danCandidates[] = ['season' => $seiryuFirstSeason, 'dan' => 8, 'reason' => '青龍位獲得'];
+        }
+        if (!empty($otherTitleEvents)) {
+            usort($otherTitleEvents, fn($a, $b) => $a[0] <=> $b[0]);
+            $cnt = 0;
+            foreach ($otherTitleEvents as [$s, $t]) {
+                $cnt++;
+                if ($cnt >= 2) {
+                    $danCandidates[] = ['season' => $s, 'dan' => 8, 'reason' => 'タイトル通算2期'];
+                    break;
+                }
+            }
+        }
 
         // 段位：通算勝数（$record、下で算出）・経験リーグ・タイトル実績から算出する
         $leagueReachedStmt = $pdo->prepare(
@@ -929,6 +964,63 @@ switch ($action) {
             $leaguesReached[] = $row['league']; // standingsに未反映の現シーズン分も念のため含める
         }
         $row['dan'] = calc_dan((int)$record['win'], $leaguesReached, $titleTotalsByTitle, $hasEternalTitle);
+
+        // 段位履歴：経験リーグ（初めて所属した季）を昇段候補に追加
+        $leagueSeasonStmt = $pdo->prepare(
+            "SELECT league, MIN(season) AS first_season FROM standings
+             WHERE individual_id = :id AND league IN ('A', 'B', 'C', 'D') GROUP BY league"
+        );
+        $leagueSeasonStmt->execute(['id' => $id]);
+        $leagueFirstSeason = [];
+        foreach ($leagueSeasonStmt->fetchAll() as $r) { $leagueFirstSeason[$r['league']] = (int)$r['first_season']; }
+        foreach (DAN_LEAGUE_FLOOR as $lg => $floorDan) {
+            if (isset($leagueFirstSeason[$lg])) {
+                $danCandidates[] = ['season' => $leagueFirstSeason[$lg], 'dan' => $floorDan, 'reason' => "{$lg}リーグ昇格"];
+            }
+        }
+
+        // 段位履歴：通算勝数が各閾値を初めて超えた季を昇段候補に追加
+        $matchSeasonStmt = $pdo->prepare(
+            "SELECT season, individual_a_id, result FROM matches
+             WHERE individual_a_id = :idA OR individual_b_id = :idB ORDER BY season ASC"
+        );
+        $matchSeasonStmt->execute(['idA' => $id, 'idB' => $id]);
+        $cumWinBySeason = []; // season => その季終了時点の累計勝数（季昇順のまま）
+        $cumWin = 0;
+        foreach ($matchSeasonStmt->fetchAll() as $m) {
+            $result = $m['result'];
+            if ($m['individual_a_id'] !== $id) {
+                $result = ['win' => 'loss', 'loss' => 'win', 'draw' => 'draw'][$result] ?? $result;
+            }
+            if ($result === 'win') $cumWin++;
+            $cumWinBySeason[(int)$m['season']] = $cumWin;
+        }
+        foreach (DAN_WIN_THRESHOLDS as $dan => $needWins) {
+            foreach ($cumWinBySeason as $s => $cum) {
+                if ($cum >= $needWins) {
+                    $danCandidates[] = ['season' => $s, 'dan' => $dan, 'reason' => "通算{$needWins}勝"];
+                    break;
+                }
+            }
+        }
+
+        // 段位履歴：デビュー季（4段スタート）を起点に加え、時系列で「それまでの最大値を更新した」
+        // 昇段だけを残す（calc_dan()がmax()で決めているのと同じ考え方を、時系列に展開したもの）
+        $debutStmt = $pdo->prepare("SELECT MIN(season) FROM standings WHERE individual_id = :id");
+        $debutStmt->execute(['id' => $id]);
+        $debutSeason = (int)($debutStmt->fetchColumn() ?: 1);
+        $danCandidates[] = ['season' => $debutSeason, 'dan' => 4, 'reason' => '新規参入'];
+
+        usort($danCandidates, fn($a, $b) => $a['season'] <=> $b['season'] ?: $a['dan'] <=> $b['dan']);
+        $danHistory = [];
+        $maxDanSoFar = 0;
+        foreach ($danCandidates as $c) {
+            if ($c['dan'] > $maxDanSoFar) {
+                $maxDanSoFar = $c['dan'];
+                $danHistory[] = $c;
+            }
+        }
+        $row['dan_history'] = $danHistory;
 
         // タイトル挑戦記録：本戦に「挑戦者」または「防衛側（前季保持者）」として登場したシーズンをまとめる
         // （防衛戦も"登場"に含まれるため、登場回数は獲得合計以上になる）
