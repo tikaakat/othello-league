@@ -965,7 +965,10 @@ switch ($action) {
         }
         $row['dan'] = calc_dan((int)$record['win'], $leaguesReached, $titleTotalsByTitle, $hasEternalTitle);
 
-        // 段位履歴：経験リーグ（初めて所属した季）を昇段候補に追加
+        // 段位履歴：経験リーグ（初めて所属した季）を昇段候補に追加。
+        // 今季昇格したばかりでstandingsにまだ反映されていないリーグは、$row['dan']側の
+        // フォールバック（下の$leaguesReachedと同じ考え方）に合わせ、直近の確定季の次の季として加える。
+        // これをしないと、履歴が「現在の段位」より低い段で止まって見える不具合になる
         $leagueSeasonStmt = $pdo->prepare(
             "SELECT league, MIN(season) AS first_season FROM standings
              WHERE individual_id = :id AND league IN ('A', 'B', 'C', 'D') GROUP BY league"
@@ -973,6 +976,10 @@ switch ($action) {
         $leagueSeasonStmt->execute(['id' => $id]);
         $leagueFirstSeason = [];
         foreach ($leagueSeasonStmt->fetchAll() as $r) { $leagueFirstSeason[$r['league']] = (int)$r['first_season']; }
+        if (in_array($row['league'], ['A', 'B', 'C', 'D'], true) && !isset($leagueFirstSeason[$row['league']])) {
+            $curSeasonStmt = $pdo->query("SELECT MAX(season) FROM standings");
+            $leagueFirstSeason[$row['league']] = (int)$curSeasonStmt->fetchColumn() + 1;
+        }
         foreach (DAN_LEAGUE_FLOOR as $lg => $floorDan) {
             if (isset($leagueFirstSeason[$lg])) {
                 $danCandidates[] = ['season' => $leagueFirstSeason[$lg], 'dan' => $floorDan, 'reason' => "{$lg}リーグ昇格"];
