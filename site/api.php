@@ -133,10 +133,9 @@ function is_eternal_title($title, $total, $consec) {
 //     必要勝数（5段へ+30 / 6段へ+40 / 7段へ+50 / 8段へ+70 / 9段へ+100）に達するたびに1段ずつ昇段
 //   リーグ経験：Cリーグ昇格で5段、Bリーグ昇格で6段、Aリーグ昇格で7段（あくまで下限＝フロア）
 //   タイトル挑戦：いずれかのタイトル戦（4大タイトルの決定戦）に挑戦者として登場で5段
-//   タイトル獲得：いずれかのタイトルを獲得するたび、その時点で6段未満なら6段、
-//     既に6段以上なら（＝六段昇段後の獲得）7段（同時に複数タイトルを獲得した場合、
-//     1つ目の獲得で6段になった直後の状態で2つ目以降を判定するため、同じ季内でも
-//     6→7と続けて上がりうる）
+//   タイトル獲得：いずれかのタイトルを初めて獲得すると（その時点で6段未満なら）6段
+//   タイトル挑戦（6段昇段後）：6段に達した後、いずれかのタイトル戦に挑戦者として
+//     登場するたび7段（獲得できたかどうかは問わない。将棋の「六段昇段後タイトル挑戦」を模す）
 //   タイトル：青龍通算1期以上、または他タイトル（朱雀・白虎・玄武）通算2期以上で8段。
 //     いずれかのタイトルで永世称号（is_eternal_title）を得ていれば9段
 //   上記のリーグ・タイトルによる昇段が勝数による昇段を追い越して先に起きた場合
@@ -153,12 +152,14 @@ const DAN_KANJI = [1 => '一', 2 => '二', 3 => '三', 4 => '四', 5 => '五', 6
 //   最低段位スタートに使う。$debutLeagueが'A'/'B'/'C'でなければ通常通り4段スタート）
 // $nonWinCandidates：勝数以外（リーグ昇格・タイトル挑戦・青龍/通算タイトル・永世称号）による
 //   昇段候補 [['season'=>int, 'dan'=>int, 'reason'=>string], ...]（順不同でよい。内部でsortする）
-// $titleWinEvents：タイトル獲得イベント（6段・7段の判定は獲得時点の段位に応じて変わるため、
-//   $nonWinCandidatesとは別に渡す） [['season'=>int, 'title'=>string], ...]（順不同でよい）
+// $titleWinEvents：タイトル獲得イベント（6段未満のときだけ6段への昇段候補になる）
+//   [['season'=>int, 'title'=>string], ...]（順不同でよい）
+// $challengeEvents：いずれかのタイトル戦に挑戦者として登場した季の一覧（全登場分。
+//   6段に達した後の登場が7段への昇段候補になる） [int, ...]（順不同・重複可）
 // $cumWinBySeason：season(int) => その季終了時点の通算勝数（キーの並び順は問わない）
 // 戻り値：['dan' => 現在の段位, 'history' => [['season'=>,'dan'=>,'reason'=>], ...]（発生順。
 //   飛び級で経由しなかった段位も、直後に「飛び級」注記付きで含まれる）]
-function simulate_dan_progression($debutSeason, $debutLeague, array $nonWinCandidates, array $titleWinEvents, array $cumWinBySeason) {
+function simulate_dan_progression($debutSeason, $debutLeague, array $nonWinCandidates, array $titleWinEvents, array $challengeEvents, array $cumWinBySeason) {
     usort($nonWinCandidates, fn($a, $b) => $a['season'] <=> $b['season'] ?: $a['dan'] <=> $b['dan']);
     $nonWinBySeasonList = [];
     foreach ($nonWinCandidates as $c) { $nonWinBySeasonList[$c['season']][] = $c; }
@@ -166,6 +167,10 @@ function simulate_dan_progression($debutSeason, $debutLeague, array $nonWinCandi
     usort($titleWinEvents, fn($a, $b) => $a['season'] <=> $b['season']);
     $titleWinBySeasonList = [];
     foreach ($titleWinEvents as $e) { $titleWinBySeasonList[$e['season']][] = $e; }
+
+    sort($challengeEvents);
+    $challengeBySeasonList = [];
+    foreach ($challengeEvents as $s) { $challengeBySeasonList[$s][] = $s; }
 
     $startDan = DAN_LEAGUE_FLOOR[$debutLeague] ?? 4;
     $dan = $startDan;
@@ -188,7 +193,8 @@ function simulate_dan_progression($debutSeason, $debutLeague, array $nonWinCandi
     };
 
     $seasons = array_unique(array_merge(
-        array_keys($cumWinBySeason), array_keys($nonWinBySeasonList), array_keys($titleWinBySeasonList)
+        array_keys($cumWinBySeason), array_keys($nonWinBySeasonList),
+        array_keys($titleWinBySeasonList), array_keys($challengeBySeasonList)
     ));
     sort($seasons);
 
@@ -202,18 +208,19 @@ function simulate_dan_progression($debutSeason, $debutLeague, array $nonWinCandi
         if (isset($nonWinBySeasonList[$s])) {
             foreach ($nonWinBySeasonList[$s] as $c) { $promote($c['dan'], $s, $c['reason']); }
         }
-        // 2) タイトル獲得：獲得した瞬間の段位に応じて6段（6段未満だった場合）or 7段
-        //   （6段以上に既に達していた場合＝六段昇段後の獲得）を判定する
+        // 2) タイトル獲得：まだ6段未満なら、初めての獲得で6段にする
         if (isset($titleWinBySeasonList[$s])) {
             foreach ($titleWinBySeasonList[$s] as $e) {
-                if ($dan >= 6) {
-                    $promote(7, $s, "六段昇段後タイトル獲得（{$e['title']}）");
-                } else {
+                if ($dan < 6) {
                     $promote(6, $s, "タイトル獲得（{$e['title']}）");
                 }
             }
         }
-        // 3) 勝数による昇段：現在の段になってからの増分勝数が必要数に達するたび、1段ずつ（複数段も）昇段
+        // 3) タイトル挑戦（6段昇段後）：既に6段以上に達していれば、挑戦者として登場するたび7段にする
+        if (isset($challengeBySeasonList[$s]) && $dan >= 6) {
+            $promote(7, $s, "六段昇段後タイトル挑戦");
+        }
+        // 4) 勝数による昇段：現在の段になってからの増分勝数が必要数に達するたび、1段ずつ（複数段も）昇段
         //   （勝数昇段は常に1段刻みで実際に経由するため、飛び級の注記は不要）
         $cum = $lastCumWin;
         while ($dan < 9) {
@@ -321,15 +328,15 @@ function calc_dan_bulk($pdo, array $ids, array $currentLeagueById = []) {
         $titleSeasonsByIndivTitle[$hid][$row['title']][] = (int)$row['season'];
     }
 
-    // タイトル挑戦：いずれかのタイトル戦に挑戦者（individual_a側）として初めて登場した季
+    // タイトル挑戦：いずれかのタイトル戦に挑戦者（individual_a側）として登場した季（全登場分）。
+    // 初登場は5段の下限、6段昇段後の登場は7段の候補として使う（simulate_dan_progression側で判定）
     $challengeStmt = $pdo->prepare(
-        "SELECT individual_a_id AS pid, MIN(season) AS first_season FROM matches
-         WHERE individual_a_id IN ($placeholders) AND league IN ('青龍', '朱雀', '白虎', '玄武')
-         GROUP BY individual_a_id"
+        "SELECT DISTINCT individual_a_id AS pid, season FROM matches
+         WHERE individual_a_id IN ($placeholders) AND league IN ('青龍', '朱雀', '白虎', '玄武')"
     );
     $challengeStmt->execute($ids);
-    $challengeFirstSeasonById = [];
-    foreach ($challengeStmt->fetchAll() as $r) { $challengeFirstSeasonById[$r['pid']] = (int)$r['first_season']; }
+    $challengeSeasonsById = [];
+    foreach ($challengeStmt->fetchAll() as $r) { $challengeSeasonsById[$r['pid']][] = (int)$r['season']; }
 
     $danById = [];
     foreach ($ids as $id) {
@@ -339,8 +346,9 @@ function calc_dan_bulk($pdo, array $ids, array $currentLeagueById = []) {
                 $nonWinCandidates[] = ['season' => $leagueFirstSeasonById[$id][$lg], 'dan' => $floor, 'reason' => "{$lg}リーグ昇格"];
             }
         }
-        if (isset($challengeFirstSeasonById[$id])) {
-            $nonWinCandidates[] = ['season' => $challengeFirstSeasonById[$id], 'dan' => 5, 'reason' => 'タイトル挑戦'];
+        $challengeSeasons = $challengeSeasonsById[$id] ?? [];
+        if ($challengeSeasons) {
+            $nonWinCandidates[] = ['season' => min($challengeSeasons), 'dan' => 5, 'reason' => 'タイトル挑戦'];
         }
         $byTitle = $titleSeasonsByIndivTitle[$id] ?? [];
         if (isset($byTitle['青龍'])) {
@@ -371,7 +379,7 @@ function calc_dan_bulk($pdo, array $ids, array $currentLeagueById = []) {
 
         $result = simulate_dan_progression(
             $debutSeasonById[$id] ?? 1, $debutLeagueById[$id] ?? null,
-            $nonWinCandidates, $titleWinEvents, $cumWinBySeasonById[$id] ?? []
+            $nonWinCandidates, $titleWinEvents, $challengeSeasons, $cumWinBySeasonById[$id] ?? []
         );
         $danById[$id] = $result['dan'];
     }
@@ -1114,15 +1122,16 @@ switch ($action) {
             }
         }
 
-        // 段位（$nonWinCandidates）用：いずれかのタイトル戦に挑戦者として初めて登場した季→5段
+        // 段位用：いずれかのタイトル戦に挑戦者として登場した季（全登場分）。
+        // 初登場は5段の下限（$nonWinCandidates）、6段昇段後の登場は7段の候補（$challengeEvents）として使う
         $challengeStmt = $pdo->prepare(
-            "SELECT MIN(season) AS first_season FROM matches
+            "SELECT DISTINCT season FROM matches
              WHERE individual_a_id = :id AND league IN ('青龍', '朱雀', '白虎', '玄武')"
         );
         $challengeStmt->execute(['id' => $id]);
-        $challengeFirstSeason = $challengeStmt->fetchColumn();
-        if ($challengeFirstSeason !== null && $challengeFirstSeason !== false) {
-            $nonWinCandidates[] = ['season' => (int)$challengeFirstSeason, 'dan' => 5, 'reason' => 'タイトル挑戦'];
+        $challengeEvents = array_map('intval', array_column($challengeStmt->fetchAll(), 'season'));
+        if ($challengeEvents) {
+            $nonWinCandidates[] = ['season' => min($challengeEvents), 'dan' => 5, 'reason' => 'タイトル挑戦'];
         }
 
         // 季ごとの累計勝数（勝数による昇段は、現在の段になってからの増分で判定する。下記参照）
@@ -1149,7 +1158,7 @@ switch ($action) {
         $debutSeason = $debutRow ? (int)$debutRow['season'] : 1;
         $debutLeague = $debutRow ? $debutRow['league'] : null;
 
-        $danResult = simulate_dan_progression($debutSeason, $debutLeague, $nonWinCandidates, $titleWinEvents, $cumWinBySeason);
+        $danResult = simulate_dan_progression($debutSeason, $debutLeague, $nonWinCandidates, $titleWinEvents, $challengeEvents, $cumWinBySeason);
         $row['dan'] = $danResult['dan'];
         $row['dan_history'] = $danResult['history'];
 
