@@ -25,8 +25,8 @@ function json_error($message, $status = 400) {
 }
 
 function format_season_ranges($seasons, $latest_season, $show_open_ended = true) {
-    // 昇順のシーズン番号配列から、連続区間をまとめた文字列を作る（例：「1-3シーズン、5シーズン〜」）
-    // 現在も継続中（オープンエンド）の区間は、まだ終わっていないので終了シーズンを書かず「開始シーズン〜」とだけ示す
+    // 昇順のシーズン番号配列から、連続区間をまとめた文字列を作る（例：「1-3季、5季〜」）
+    // 現在も継続中（オープンエンド）の区間は、まだ終わっていないので終了季を書かず「開始季〜」とだけ示す
     sort($seasons);
     $ranges = [];
     $start = $seasons[0];
@@ -36,11 +36,11 @@ function format_season_ranges($seasons, $latest_season, $show_open_ended = true)
         if ($current !== $prev + 1) {
             $isOpen = $show_open_ended && $prev === $latest_season;
             if ($isOpen) {
-                $ranges[] = "{$start}シーズン〜";
+                $ranges[] = "{$start}季〜";
             } elseif ($start === $prev) {
-                $ranges[] = "{$start}シーズン";
+                $ranges[] = "{$start}季";
             } else {
-                $ranges[] = "{$start}-{$prev}シーズン";
+                $ranges[] = "{$start}-{$prev}季";
             }
             $start = $current;
         }
