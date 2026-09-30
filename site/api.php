@@ -124,30 +124,70 @@ function is_eternal_title($title, $total, $consec) {
 
 // 段位（将棋の段位制度を模した表示専用のランキング指標）。新規のテーブル・状態は持たず、
 // 既存の対局結果（matches）・リーグ経験（standings）・タイトル実績（title_history）から
-// 都度算出する。基準（キリのいい数字での暫定運用）：
-//   勝数：新人は4段スタート。通算勝数（タイトル戦を含む全対局）に応じて9段まで昇段
-//     4→5段:30勝  5→6段:+40(累計70)  6→7段:+50(累計120)  7→8段:+70(累計190)  8→9段:+100(累計290)
-//   リーグ経験：Cリーグ経験で5段、Bリーグ経験で6段、Aリーグ経験で7段（勝数による段位の方が
-//     高ければそちらを優先。あくまで下限＝フロアとして働く）
+// 都度算出する。実際の将棋の昇段規定（「八段昇段後250勝」等）に合わせ、勝数は
+// 通算ではなく「現在の段になってから何勝したか」で判定する：
+//   起点：新人は4段スタート。ただし第1季創設メンバーは、その季点の所属リーグの
+//     最低段位（Cリーグ5段・Bリーグ6段・Aリーグ7段）からスタートする
+//     （新人リーグ経由の入団者と違い、Dリーグから積み上げる過程が無いため）
+//   勝数：現在の段になってからの勝数（タイトル戦を含む全対局）が、次の段への
+//     必要勝数（5段へ+30 / 6段へ+40 / 7段へ+50 / 8段へ+70 / 9段へ+100）に達するたびに1段ずつ昇段
+//   リーグ・タイトルによる昇段（下記）が勝数による昇段を追い越して先に起きた場合
+//     （＝飛び級）は、その時点で勝数カウントをリセットする（＝その段になってから改めて数え直す）
+//   リーグ経験：Cリーグ昇格で5段、Bリーグ昇格で6段、Aリーグ昇格で7段（あくまで下限＝
+//     フロアとして働き、勝数による段の方が高ければそちらが優先される）
 //   タイトル：青龍通算1期以上、または他タイトル（朱雀・白虎・玄武）通算2期以上で8段。
 //     いずれかのタイトルで永世称号（is_eternal_title）を得ていれば9段
-//   これらのうち最も高いものを最終的な段位とする（各基準は下限＝一度上がれば下がらない）
-const DAN_WIN_THRESHOLDS = [9 => 290, 8 => 190, 7 => 120, 6 => 70, 5 => 30];
+//   各基準は下限＝一度上がった段位は下がらない
+const DAN_WIN_STEP = [5 => 30, 6 => 40, 7 => 50, 8 => 70, 9 => 100]; // 昇段先の段 => その段になるまでに必要な増分勝数
 const DAN_LEAGUE_FLOOR = ['A' => 7, 'B' => 6, 'C' => 5];
+const DAN_KANJI = [1 => '一', 2 => '二', 3 => '三', 4 => '四', 5 => '五', 6 => '六', 7 => '七', 8 => '八', 9 => '九'];
 
-function calc_dan($totalWins, array $leaguesReached, array $titleTotalsByTitle, $hasEternalTitle) {
-    $dan = 4;
-    foreach (DAN_WIN_THRESHOLDS as $d => $needWins) {
-        if ($totalWins >= $needWins) { $dan = max($dan, $d); break; }
+// 1個体分の段位の変遷を時系列でシミュレートする。
+// $debutSeason/$debutLeague：デビュー季とその季点の所属リーグ（第1季創設メンバーの
+//   最低段位スタートに使う。$debutLeagueが'A'/'B'/'C'でなければ通常通り4段スタート）
+// $nonWinCandidates：勝数以外（リーグ昇格・タイトル実績）による昇段候補
+//   [['season'=>int, 'dan'=>int, 'reason'=>string], ...]（順不同でよい。内部でsortする）
+// $cumWinBySeason：season(int) => その季終了時点の通算勝数（キーの並び順は問わない）
+// 戻り値：['dan' => 現在の段位, 'history' => [['season'=>,'dan'=>,'reason'=>], ...]（昇段が起きた順）]
+function simulate_dan_progression($debutSeason, $debutLeague, array $nonWinCandidates, array $cumWinBySeason) {
+    usort($nonWinCandidates, fn($a, $b) => $a['season'] <=> $b['season'] ?: $a['dan'] <=> $b['dan']);
+    $nonWinBySeasonList = [];
+    foreach ($nonWinCandidates as $c) { $nonWinBySeasonList[$c['season']][] = $c; }
+
+    $startDan = DAN_LEAGUE_FLOOR[$debutLeague] ?? 4;
+    $dan = $startDan;
+    $winBaseline = 0; // 現在の段位になった時点の通算勝数（勝数昇段はここからの増分で判定）
+    $history = [['season' => $debutSeason, 'dan' => $startDan, 'reason' => '新規参入']];
+
+    $seasons = array_unique(array_merge(array_keys($cumWinBySeason), array_keys($nonWinBySeasonList)));
+    sort($seasons);
+
+    $lastCumWin = 0;
+    foreach ($seasons as $s) {
+        if ($s < $debutSeason) continue;
+        // 1) リーグ・タイトルによる昇段（飛び級）：現在の段位を上回るものだけ適用し、勝数カウントをリセット
+        if (isset($nonWinBySeasonList[$s])) {
+            foreach ($nonWinBySeasonList[$s] as $c) {
+                if ($c['dan'] > $dan) {
+                    $dan = $c['dan'];
+                    $winBaseline = $cumWinBySeason[$s] ?? $lastCumWin;
+                    $history[] = ['season' => $s, 'dan' => $dan, 'reason' => $c['reason']];
+                }
+            }
+        }
+        // 2) 勝数による昇段：現在の段になってからの増分勝数が必要数に達するたび、1段ずつ（複数段も）昇段
+        if (isset($cumWinBySeason[$s])) $lastCumWin = $cumWinBySeason[$s];
+        $cum = $lastCumWin;
+        while ($dan < 9) {
+            $step = DAN_WIN_STEP[$dan + 1] ?? null;
+            if ($step === null || ($cum - $winBaseline) < $step) break;
+            $prevDan = $dan;
+            $winBaseline += $step; // 超過分は次の段への進捗として繰り越す（切り捨てない）
+            $dan++;
+            $history[] = ['season' => $s, 'dan' => $dan, 'reason' => (DAN_KANJI[$prevDan] ?? $prevDan) . "段昇段後{$step}勝"];
+        }
     }
-    foreach (DAN_LEAGUE_FLOOR as $league => $floor) {
-        if (in_array($league, $leaguesReached, true)) { $dan = max($dan, $floor); break; }
-    }
-    $seiryu = $titleTotalsByTitle['青龍'] ?? 0;
-    $others = ($titleTotalsByTitle['朱雀'] ?? 0) + ($titleTotalsByTitle['白虎'] ?? 0) + ($titleTotalsByTitle['玄武'] ?? 0);
-    if ($seiryu >= 1 || $others >= 2) $dan = max($dan, 8);
-    if ($hasEternalTitle) $dan = max($dan, 9);
-    return min($dan, 9);
+    return ['dan' => $dan, 'history' => $history];
 }
 
 // タイトル履歴の「保持シーズン一覧」（ソート済み）から、連続保持の最大値を求める。
@@ -163,41 +203,72 @@ function max_consecutive_run(array $sortedSeasons) {
     return $best;
 }
 
-// 複数個体分の段位をまとめて算出する（1個体ずつ算出する場合と違い、通算勝数・経験リーグ・
+// 複数個体分の段位をまとめて算出する（1個体ずつ算出する場合と違い、対局・順位・
 // タイトル実績のクエリをそれぞれ1回で済ませる）。$currentLeagueById（省略可）を渡すと、
-// standingsにまだ反映されていない「現在の所属リーグ」もフロアとして加味する。
-// 戻り値：id => 段位（1〜9）
+// standingsにまだ反映されていない「現在の所属リーグ」も昇段候補として加味する
+// （今季昇格したばかりの個体が、段位バッジ上は昇格後の段のまま表示されるようにするため）。
+// 戻り値：id => 段位（1〜9）。各個体についてsimulate_dan_progression()を呼び出し、
+// 'dan'だけを取り出す（履歴が要る場合は個体詳細エンドポイント側で単体計算する）
 function calc_dan_bulk($pdo, array $ids, array $currentLeagueById = []) {
     if (!$ids) return [];
     $placeholders = implode(',', array_fill(0, count($ids), '?'));
 
-    $recStmt = $pdo->prepare(
-        "SELECT pid, SUM(CASE WHEN outcome = 'win' THEN 1 ELSE 0 END) AS win
-         FROM (
-            SELECT individual_a_id AS pid, result AS outcome
+    // デビュー季・所属リーグの変遷：individual_id昇順→season昇順で1回取得し、PHP側で
+    // 「最初の行＝デビュー季とその時点のリーグ」「リーグごとの初到達季」を組み立てる
+    $standStmt = $pdo->prepare(
+        "SELECT individual_id, season, league FROM standings
+         WHERE individual_id IN ($placeholders) AND league IN ('A', 'B', 'C', 'D')
+         ORDER BY individual_id ASC, season ASC"
+    );
+    $standStmt->execute($ids);
+    $debutSeasonById = [];
+    $debutLeagueById = [];
+    $leagueFirstSeasonById = [];
+    foreach ($standStmt->fetchAll() as $r) {
+        $iid = $r['individual_id']; $s = (int)$r['season']; $lg = $r['league'];
+        if (!isset($debutSeasonById[$iid])) { $debutSeasonById[$iid] = $s; $debutLeagueById[$iid] = $lg; }
+        if (!isset($leagueFirstSeasonById[$iid][$lg])) $leagueFirstSeasonById[$iid][$lg] = $s;
+    }
+    // standingsにまだ反映されていない今季の所属リーグ（$currentLeagueById）を、
+    // 「直近の確定季の次の季」として昇段候補に加える
+    $latestKnownSeason = null;
+    foreach ($currentLeagueById as $id => $league) {
+        if (!in_array($league, ['A', 'B', 'C', 'D'], true)) continue;
+        if (isset($leagueFirstSeasonById[$id][$league])) continue;
+        if ($latestKnownSeason === null) {
+            $latestKnownSeason = (int)($pdo->query("SELECT MAX(season) FROM standings")->fetchColumn() ?: 0);
+        }
+        $leagueFirstSeasonById[$id][$league] = $latestKnownSeason + 1;
+        if (!isset($debutSeasonById[$id])) { $debutSeasonById[$id] = $latestKnownSeason + 1; $debutLeagueById[$id] = $league; }
+    }
+
+    // 対局：季ごとの勝数を積み上げて、個体ごとの「季 => その季終了時点の累計勝数」を作る
+    $matchStmt = $pdo->prepare(
+        "SELECT pid, season, outcome FROM (
+            SELECT individual_a_id AS pid, season, result AS outcome
             FROM matches WHERE individual_a_id IN ($placeholders)
             UNION ALL
-            SELECT individual_b_id AS pid,
+            SELECT individual_b_id AS pid, season,
                    CASE result WHEN 'win' THEN 'loss' WHEN 'loss' THEN 'win' ELSE 'draw' END AS outcome
             FROM matches WHERE individual_b_id IN ($placeholders)
          ) AS all_games
-         GROUP BY pid"
+         ORDER BY pid ASC, season ASC"
     );
-    $recStmt->execute(array_merge($ids, $ids));
-    $winById = [];
-    foreach ($recStmt->fetchAll() as $r) { $winById[$r['pid']] = (int)$r['win']; }
-
-    $lrStmt = $pdo->prepare(
-        "SELECT DISTINCT individual_id, league FROM standings
-         WHERE individual_id IN ($placeholders) AND league IN ('A', 'B', 'C', 'D')"
-    );
-    $lrStmt->execute($ids);
-    $leaguesById = [];
-    foreach ($lrStmt->fetchAll() as $lr) { $leaguesById[$lr['individual_id']][] = $lr['league']; }
-    foreach ($currentLeagueById as $id => $league) {
-        if (in_array($league, ['A', 'B', 'C', 'D'], true)) $leaguesById[$id][] = $league;
+    $matchStmt->execute(array_merge($ids, $ids));
+    $winThisSeasonById = [];
+    foreach ($matchStmt->fetchAll() as $r) {
+        if ($r['outcome'] === 'win') {
+            $winThisSeasonById[$r['pid']][(int)$r['season']] = ($winThisSeasonById[$r['pid']][(int)$r['season']] ?? 0) + 1;
+        }
+    }
+    $cumWinBySeasonById = [];
+    foreach ($winThisSeasonById as $iid => $bySeason) {
+        ksort($bySeason);
+        $cum = 0;
+        foreach ($bySeason as $s => $w) { $cum += $w; $cumWinBySeasonById[$iid][$s] = $cum; }
     }
 
+    // タイトル：個体・タイトルごとの保持季一覧（季昇順）を組み立てる
     $thStmt = $pdo->query(
         "SELECT th.season, th.title, COALESCE(th.holder_id, i.id, ra.id) AS holder_id
          FROM title_history th
@@ -205,35 +276,51 @@ function calc_dan_bulk($pdo, array $ids, array $currentLeagueById = []) {
          LEFT JOIN retired_archive ra ON ra.display_name = th.holder_name
          ORDER BY th.title, th.season ASC"
     );
-    $titleCountsByTitle = [];
-    $maxStreak = [];
-    $streakId = null; $streakTitle = null; $streakCount = 0;
+    $titleSeasonsByIndivTitle = [];
     foreach ($thStmt->fetchAll() as $row) {
         $hid = $row['holder_id'];
-        if ($hid !== null) {
-            $titleCountsByTitle[$hid][$row['title']] = ($titleCountsByTitle[$hid][$row['title']] ?? 0) + 1;
-        }
-        if ($row['title'] !== $streakTitle || $hid !== $streakId) {
-            $streakTitle = $row['title']; $streakId = $hid; $streakCount = 1;
-        } else {
-            $streakCount++;
-        }
-        if ($hid !== null && (!isset($maxStreak[$hid][$row['title']]) || $streakCount > $maxStreak[$hid][$row['title']])) {
-            $maxStreak[$hid][$row['title']] = $streakCount;
-        }
-    }
-    $eternalIds = [];
-    foreach ($titleCountsByTitle as $hid => $byTitle) {
-        foreach ($byTitle as $title => $total) {
-            if (is_eternal_title($title, $total, $maxStreak[$hid][$title] ?? 0)) { $eternalIds[$hid] = true; break; }
-        }
+        if ($hid === null) continue;
+        $titleSeasonsByIndivTitle[$hid][$row['title']][] = (int)$row['season'];
     }
 
     $danById = [];
     foreach ($ids as $id) {
-        $danById[$id] = calc_dan(
-            $winById[$id] ?? 0, $leaguesById[$id] ?? [], $titleCountsByTitle[$id] ?? [], !empty($eternalIds[$id])
+        $nonWinCandidates = [];
+        foreach (DAN_LEAGUE_FLOOR as $lg => $floor) {
+            if (isset($leagueFirstSeasonById[$id][$lg])) {
+                $nonWinCandidates[] = ['season' => $leagueFirstSeasonById[$id][$lg], 'dan' => $floor, 'reason' => "{$lg}リーグ昇格"];
+            }
+        }
+        $byTitle = $titleSeasonsByIndivTitle[$id] ?? [];
+        if (isset($byTitle['青龍'])) {
+            $nonWinCandidates[] = ['season' => min($byTitle['青龍']), 'dan' => 8, 'reason' => '青龍位獲得'];
+        }
+        $otherEvents = [];
+        foreach ($byTitle as $title => $seasons) {
+            if ($title === '青龍') continue;
+            foreach ($seasons as $s) { $otherEvents[] = [$s, $title]; }
+        }
+        if (count($otherEvents) >= 2) {
+            usort($otherEvents, fn($a, $b) => $a[0] <=> $b[0]);
+            $nonWinCandidates[] = ['season' => $otherEvents[1][0], 'dan' => 8, 'reason' => 'タイトル通算2期'];
+        }
+        foreach ($byTitle as $title => $seasons) {
+            $consec = 0; $prev = null;
+            foreach ($seasons as $idx => $s) {
+                $consec = ($prev !== null && $s === $prev + 1) ? $consec + 1 : 1;
+                $prev = $s;
+                if (is_eternal_title($title, $idx + 1, $consec)) {
+                    $nonWinCandidates[] = ['season' => $s, 'dan' => 9, 'reason' => "永世{$title}"];
+                    break;
+                }
+            }
+        }
+
+        $result = simulate_dan_progression(
+            $debutSeasonById[$id] ?? 1, $debutLeagueById[$id] ?? null,
+            $nonWinCandidates, $cumWinBySeasonById[$id] ?? []
         );
+        $danById[$id] = $result['dan'];
     }
     return $danById;
 }
@@ -894,11 +981,11 @@ switch ($action) {
         // 「タイトル別通算期数」「永世称号を得ているか」もここで一緒に集計する
         $titleRanges = [];
         $titleTotalsByTitle = [];
-        $hasEternalTitle = false;
-        // 段位履歴用：タイトルごとの保持季一覧・青龍の初獲得季・他タイトルの(季,タイトル)一覧を集める
+        // 段位（$nonWinCandidates）用：タイトルごとの保持季一覧から、青龍の初獲得季・
+        // 他タイトル通算2期に達した季・永世称号を初めて満たした季を求める
+        $nonWinCandidates = [];
         $seiryuFirstSeason = null;
         $otherTitleEvents = []; // [[season, title], ...]（朱雀・白虎・玄武）
-        $danCandidates = []; // [['season'=>, 'dan'=>, 'reason'=>], ...]
         foreach (TITLE_NAMES_LIST as $title) {
             $holdStmt = $pdo->prepare(
                 "SELECT season, holder_id, holder_name FROM title_history
@@ -917,9 +1004,6 @@ switch ($action) {
             $rangeText = format_season_ranges($mySeasons, $lastSeason);
             $titleRanges[] = ['title' => $title, 'ranges' => $rangeText, 'total' => count($mySeasons)];
             $titleTotalsByTitle[$title] = count($mySeasons);
-            if (is_eternal_title($title, count($mySeasons), max_consecutive_run($mySeasons))) {
-                $hasEternalTitle = true;
-            }
 
             if ($title === '青龍') {
                 $seiryuFirstSeason = min($mySeasons);
@@ -933,14 +1017,14 @@ switch ($action) {
                 $consec = ($prevSeason !== null && $s === $prevSeason + 1) ? $consec + 1 : 1;
                 $prevSeason = $s;
                 if (is_eternal_title($title, $idx + 1, $consec)) {
-                    $danCandidates[] = ['season' => $s, 'dan' => 9, 'reason' => "永世{$title}"];
+                    $nonWinCandidates[] = ['season' => $s, 'dan' => 9, 'reason' => "永世{$title}"];
                     break;
                 }
             }
         }
         $titleTotalSeasons = array_sum(array_column($titleRanges, 'total'));
         if ($seiryuFirstSeason !== null) {
-            $danCandidates[] = ['season' => $seiryuFirstSeason, 'dan' => 8, 'reason' => '青龍位獲得'];
+            $nonWinCandidates[] = ['season' => $seiryuFirstSeason, 'dan' => 8, 'reason' => '青龍位獲得'];
         }
         if (!empty($otherTitleEvents)) {
             usort($otherTitleEvents, fn($a, $b) => $a[0] <=> $b[0]);
@@ -948,27 +1032,15 @@ switch ($action) {
             foreach ($otherTitleEvents as [$s, $t]) {
                 $cnt++;
                 if ($cnt >= 2) {
-                    $danCandidates[] = ['season' => $s, 'dan' => 8, 'reason' => 'タイトル通算2期'];
+                    $nonWinCandidates[] = ['season' => $s, 'dan' => 8, 'reason' => 'タイトル通算2期'];
                     break;
                 }
             }
         }
 
-        // 段位：通算勝数（$record、下で算出）・経験リーグ・タイトル実績から算出する
-        $leagueReachedStmt = $pdo->prepare(
-            "SELECT DISTINCT league FROM standings WHERE individual_id = :id AND league IN ('A', 'B', 'C', 'D')"
-        );
-        $leagueReachedStmt->execute(['id' => $id]);
-        $leaguesReached = array_column($leagueReachedStmt->fetchAll(), 'league');
-        if (in_array($row['league'], ['A', 'B', 'C', 'D'], true)) {
-            $leaguesReached[] = $row['league']; // standingsに未反映の現シーズン分も念のため含める
-        }
-        $row['dan'] = calc_dan((int)$record['win'], $leaguesReached, $titleTotalsByTitle, $hasEternalTitle);
-
-        // 段位履歴：経験リーグ（初めて所属した季）を昇段候補に追加。
-        // 今季昇格したばかりでstandingsにまだ反映されていないリーグは、$row['dan']側の
-        // フォールバック（下の$leaguesReachedと同じ考え方）に合わせ、直近の確定季の次の季として加える。
-        // これをしないと、履歴が「現在の段位」より低い段で止まって見える不具合になる
+        // 段位（$nonWinCandidates）用：経験リーグ（初めて所属した季）を昇段候補に追加。
+        // 今季昇格したばかりでstandingsにまだ反映されていないリーグは、直近の確定季の
+        // 次の季として加える（これをしないと、段位が実際より低いまま止まって見える）
         $leagueSeasonStmt = $pdo->prepare(
             "SELECT league, MIN(season) AS first_season FROM standings
              WHERE individual_id = :id AND league IN ('A', 'B', 'C', 'D') GROUP BY league"
@@ -982,11 +1054,11 @@ switch ($action) {
         }
         foreach (DAN_LEAGUE_FLOOR as $lg => $floorDan) {
             if (isset($leagueFirstSeason[$lg])) {
-                $danCandidates[] = ['season' => $leagueFirstSeason[$lg], 'dan' => $floorDan, 'reason' => "{$lg}リーグ昇格"];
+                $nonWinCandidates[] = ['season' => $leagueFirstSeason[$lg], 'dan' => $floorDan, 'reason' => "{$lg}リーグ昇格"];
             }
         }
 
-        // 段位履歴：通算勝数が各閾値を初めて超えた季を昇段候補に追加
+        // 季ごとの累計勝数（勝数による昇段は、現在の段になってからの増分で判定する。下記参照）
         $matchSeasonStmt = $pdo->prepare(
             "SELECT season, individual_a_id, result FROM matches
              WHERE individual_a_id = :idA OR individual_b_id = :idB ORDER BY season ASC"
@@ -1002,32 +1074,17 @@ switch ($action) {
             if ($result === 'win') $cumWin++;
             $cumWinBySeason[(int)$m['season']] = $cumWin;
         }
-        foreach (DAN_WIN_THRESHOLDS as $dan => $needWins) {
-            foreach ($cumWinBySeason as $s => $cum) {
-                if ($cum >= $needWins) {
-                    $danCandidates[] = ['season' => $s, 'dan' => $dan, 'reason' => "通算{$needWins}勝"];
-                    break;
-                }
-            }
-        }
 
-        // 段位履歴：デビュー季（4段スタート）を起点に加え、時系列で「それまでの最大値を更新した」
-        // 昇段だけを残す（calc_dan()がmax()で決めているのと同じ考え方を、時系列に展開したもの）
-        $debutStmt = $pdo->prepare("SELECT MIN(season) FROM standings WHERE individual_id = :id");
+        // デビュー季・その時点の所属リーグ（第1季創設メンバーの最低段位スタートに使う）
+        $debutStmt = $pdo->prepare("SELECT season, league FROM standings WHERE individual_id = :id ORDER BY season ASC LIMIT 1");
         $debutStmt->execute(['id' => $id]);
-        $debutSeason = (int)($debutStmt->fetchColumn() ?: 1);
-        $danCandidates[] = ['season' => $debutSeason, 'dan' => 4, 'reason' => '新規参入'];
+        $debutRow = $debutStmt->fetch();
+        $debutSeason = $debutRow ? (int)$debutRow['season'] : 1;
+        $debutLeague = $debutRow ? $debutRow['league'] : null;
 
-        usort($danCandidates, fn($a, $b) => $a['season'] <=> $b['season'] ?: $a['dan'] <=> $b['dan']);
-        $danHistory = [];
-        $maxDanSoFar = 0;
-        foreach ($danCandidates as $c) {
-            if ($c['dan'] > $maxDanSoFar) {
-                $maxDanSoFar = $c['dan'];
-                $danHistory[] = $c;
-            }
-        }
-        $row['dan_history'] = $danHistory;
+        $danResult = simulate_dan_progression($debutSeason, $debutLeague, $nonWinCandidates, $cumWinBySeason);
+        $row['dan'] = $danResult['dan'];
+        $row['dan_history'] = $danResult['history'];
 
         // タイトル挑戦記録：本戦に「挑戦者」または「防衛側（前季保持者）」として登場したシーズンをまとめる
         // （防衛戦も"登場"に含まれるため、登場回数は獲得合計以上になる）
@@ -1872,19 +1929,8 @@ switch ($action) {
             }
         }
 
-        // 段位算出用：経験リーグ一覧（id => [league, ...]）
-        $leaguesReachedMap2 = [];
-        if ($ids) {
-            $placeholders2 = implode(',', array_fill(0, count($ids), '?'));
-            $lrStmt2 = $pdo->prepare(
-                "SELECT DISTINCT individual_id, league FROM standings
-                 WHERE individual_id IN ($placeholders2) AND league IN ('A', 'B', 'C', 'D')"
-            );
-            $lrStmt2->execute($ids);
-            foreach ($lrStmt2->fetchAll() as $lr) {
-                $leaguesReachedMap2[$lr['individual_id']][] = $lr['league'];
-            }
-        }
+        $currentLeagueById2 = array_column($rows, 'league', 'id');
+        $danById2 = calc_dan_bulk($pdo, $ids, $currentLeagueById2);
 
         foreach ($rows as &$r) {
             $r['elo_rating'] = round((float)$r['elo_rating'], 1);
@@ -1896,12 +1942,7 @@ switch ($action) {
             $r['title_count'] = $titleCounts[$r['id']] ?? 0;
             $r['title_count_by_title'] = $titleCountsByTitle[$r['id']] ?? [];
             $r['eternal_titles'] = $eternalIds2[$r['id']] ?? [];
-            $leaguesReached2 = $leaguesReachedMap2[$r['id']] ?? [];
-            if (in_array($r['league'], ['A', 'B', 'C', 'D'], true)) $leaguesReached2[] = $r['league'];
-            $r['dan'] = calc_dan(
-                $r['win'], $leaguesReached2, $titleCountsByTitle[$r['id']] ?? [],
-                !empty($eternalIds2[$r['id']])
-            );
+            $r['dan'] = $danById2[$r['id']] ?? 4;
             // 在籍シーズン範囲（例：2-16）。継続参加を前提に、引退季と通算季数から逆算する
             $r['debut_season'] = (int)$r['retired_season'] - (int)$r['total_seasons'] + 1;
             // 引退時点の年齢
@@ -2025,26 +2066,13 @@ switch ($action) {
         // 勝率ランキングで対局数が極端に少ない個体が勝率100%で独占するのを防ぐための足切り
         $CUMULATIVE_MIN_GAMES_FOR_RATE = 10;
 
-        // 段位算出用：経験リーグ一覧（id => [league, ...]）
-        $leaguesReachedMap = [];
-        if ($ids) {
-            $placeholders3 = implode(',', array_fill(0, count($ids), '?'));
-            $lrStmt = $pdo->prepare(
-                "SELECT DISTINCT individual_id, league FROM standings
-                 WHERE individual_id IN ($placeholders3) AND league IN ('A', 'B', 'C', 'D')"
-            );
-            $lrStmt->execute($ids);
-            foreach ($lrStmt->fetchAll() as $lr) {
-                $leaguesReachedMap[$lr['individual_id']][] = $lr['league'];
-            }
-        }
+        $currentLeagueById = array_column($ranked, 'league', 'id');
+        $danById = calc_dan_bulk($pdo, $ids, $currentLeagueById);
 
         $result = [];
         foreach ($ranked as $r) {
             $rec = $records[$r['id']] ?? ['total' => 0, 'win' => 0, 'loss' => 0, 'draw' => 0];
             $decisive = (int)$rec['win'] + (int)$rec['loss'];
-            $leaguesReached = $leaguesReachedMap[$r['id']] ?? [];
-            if (in_array($r['league'], ['A', 'B', 'C', 'D'], true)) $leaguesReached[] = $r['league'];
             $result[] = [
                 'id' => $r['id'], 'display_name' => $r['display_name'], 'clan_root_id' => $r['clan_root_id'],
                 'retired' => (int)$r['retired'],
@@ -2055,7 +2083,7 @@ switch ($action) {
                 'win_rate' => $decisive >= $CUMULATIVE_MIN_GAMES_FOR_RATE ? round($rec['win'] / $decisive, 4) : null,
                 'title_count' => $titleCounts[$r['id']] ?? 0,
                 'eternal_titles' => $eternalIds[$r['id']] ?? [],
-                'dan' => calc_dan((int)$rec['win'], $leaguesReached, $titleCountsByTitle[$r['id']] ?? [], !empty($eternalIds[$r['id']])),
+                'dan' => $danById[$r['id']] ?? 4,
             ];
         }
 
