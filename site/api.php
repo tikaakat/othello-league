@@ -2096,7 +2096,7 @@ switch ($action) {
         // これを補完しないと、初代襲名を含む在位が「1期分足りない」扱いになり、
         // 通算期数がずれたり、永世称号（5期）がちょうど5期の人だけ判定漏れしたりする。
         $thStmt = $pdo->query(
-            "SELECT th.season, th.title,
+            "SELECT th.season, th.title, th.event_type,
                     COALESCE(th.holder_id, i.id, ra2.id) AS holder_id
              FROM title_history th
              LEFT JOIN individuals i ON i.display_name = th.holder_name
@@ -2104,27 +2104,53 @@ switch ($action) {
              ORDER BY th.title, th.season ASC"
         );
 
-        // 通算タイトル数（合計・タイトル別内訳）と、連続保持の最大値を1パスで集計する
+        // 通算タイトル数（合計・タイトル別内訳）と、連続保持の最大値を1パスで集計する。
+        // あわせて、個体詳細ページの「タイトル挑戦記録」と同じ定義（挑戦者 or 防衛側として
+        // 登場した季の延べ数。初代襲名は対局が無いが登場扱い）で、タイトル挑戦数も集計する
+        // （(id, season, title)のユニーク集合として数え、挑戦者分は後段のmatchesクエリで追加する）
         $titleCounts = [];        // id => 合計期数
         $titleCountsByTitle = []; // id => ['青龍' => n, '朱雀' => n, '白虎' => n, '玄武' => n]
         $maxStreak = [];          // id => ['青龍' => 連続保持の最大値, ...]
+        $appearanceSet = [];      // id => ['season|title' => true, ...]（挑戦者・防衛側の延べ登場季）
         $streakId = null; $streakTitle = null; $streakCount = 0;
+        $prevRowByTitle = [];     // title => 直前の行（防衛側＝前季保持者の判定に使う）
         foreach ($thStmt->fetchAll() as $row4) {
             $hid = $row4['holder_id'];
+            $title4 = $row4['title'];
             if ($hid !== null) {
                 $titleCounts[$hid] = ($titleCounts[$hid] ?? 0) + 1;
                 if (!isset($titleCountsByTitle[$hid])) $titleCountsByTitle[$hid] = [];
-                $titleCountsByTitle[$hid][$row4['title']] = ($titleCountsByTitle[$hid][$row4['title']] ?? 0) + 1;
+                $titleCountsByTitle[$hid][$title4] = ($titleCountsByTitle[$hid][$title4] ?? 0) + 1;
             }
-            if ($row4['title'] !== $streakTitle || $hid !== $streakId) {
-                $streakTitle = $row4['title']; $streakId = $hid; $streakCount = 1;
+            if ($row4['event_type'] === '初代襲名') {
+                if ($hid !== null) $appearanceSet[$hid]["{$row4['season']}|{$title4}"] = true;
+            } else {
+                $prevHid = $prevRowByTitle[$title4]['holder_id'] ?? null;
+                if ($prevHid !== null) $appearanceSet[$prevHid]["{$row4['season']}|{$title4}"] = true;
+            }
+            $prevRowByTitle[$title4] = $row4;
+            if ($title4 !== $streakTitle || $hid !== $streakId) {
+                $streakTitle = $title4; $streakId = $hid; $streakCount = 1;
             } else {
                 $streakCount++;
             }
-            if ($hid !== null && (!isset($maxStreak[$hid][$row4['title']]) || $streakCount > $maxStreak[$hid][$row4['title']])) {
-                $maxStreak[$hid][$row4['title']] = $streakCount;
+            if ($hid !== null && (!isset($maxStreak[$hid][$title4]) || $streakCount > $maxStreak[$hid][$title4])) {
+                $maxStreak[$hid][$title4] = $streakCount;
             }
         }
+
+        // 挑戦者として登場した季（本戦に individual_a_id として出場した季・タイトルの延べ数）
+        if ($ids) {
+            $challengeStmt = $pdo->prepare(
+                "SELECT DISTINCT individual_a_id AS pid, season, league AS title FROM matches
+                 WHERE individual_a_id IN ($placeholders) AND league IN ('青龍', '朱雀', '白虎', '玄武')"
+            );
+            $challengeStmt->execute($ids);
+            foreach ($challengeStmt->fetchAll() as $c) {
+                $appearanceSet[$c['pid']]["{$c['season']}|{$c['title']}"] = true;
+            }
+        }
+        $titleChallengeCount = array_map('count', $appearanceSet);
 
         // 永世称号：タイトルごとに基準が異なる（is_eternal_title()参照）
         $eternalIds = []; // id => [永世称号を得たタイトル, ...]
@@ -2158,6 +2184,7 @@ switch ($action) {
                 'draw' => (int)($rec['draw'] ?? 0),
                 'win_rate' => $decisive >= $CUMULATIVE_MIN_GAMES_FOR_RATE ? round($rec['win'] / $decisive, 4) : null,
                 'title_count' => $titleCounts[$r['id']] ?? 0,
+                'title_challenge_count' => $titleChallengeCount[$r['id']] ?? 0,
                 'eternal_titles' => $eternalIds[$r['id']] ?? [],
                 'dan' => $danById[$r['id']] ?? 4,
             ];
