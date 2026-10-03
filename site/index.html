@@ -2091,24 +2091,28 @@ function competitionRanks(rows, keyFn) {
 }
 
 let _collapsibleSeq = 0;
-function renderCollapsibleTable(headHtml, rows, rowFn, topN, keyFn) {
+function renderCollapsibleTable(headHtml, rows, rowFn, topN, keyFn, wide) {
   // 上位topN件は常時表示、残りは折りたたみにする共通ヘルパー（表彰・殿堂タブで使用）。
   // keyFnを渡すと、rowFn(row, rank) の第2引数に同率順位（1,1,3方式）が渡される。
   // 渡さない場合は従来通りの連番（1,2,3…）になる。
   // 列数の多い表（殿堂の総合ランキング等）がパネル幅からはみ出さないよう、
-  // 各<table>はoverflow-x:autoのラッパーで囲み、収まらない分は横スクロールにする
+  // 各<table>はoverflow-x:autoのラッパーで囲み、収まらない分は横スクロールにする。
+  // wide=trueの場合、table自体はwidth:100%に押し広げられず（width:auto）、各セルの
+  // 内容がtable{width:100%}（全体CSS）の制約で折り返されるのを防ぐ。これにより、
+  // 1行＝1人の表示が縦に割れず、代わりに横スクロールで全列を見られるようにする
   const uid = 'cq' + (_collapsibleSeq++);
+  const tableStyle = wide ? ' style="width:auto; min-width:100%;"' : '';
   const ranks = keyFn ? competitionRanks(rows, keyFn) : rows.map((_, i) => i + 1);
   const top = rows.slice(0, topN);
   const rest = rows.slice(topN);
-  let html = `<div style="overflow-x:auto;"><table>${headHtml}<tbody>`;
+  let html = `<div style="overflow-x:auto;"><table${tableStyle}>${headHtml}<tbody>`;
   top.forEach((r, i) => { html += rowFn(r, ranks[i]); });
   html += '</tbody></table></div>';
   if (rest.length > 0) {
     html += `<div class="collapsible-toggle" data-target="${uid}" style="margin:6px 0 4px; cursor:pointer; color:var(--text-dim); font-size:0.74rem; display:flex; align-items:center; gap:6px;">
       <span class="collapsible-arrow">▶</span><span data-show-text="他${rest.length}件を表示">他${rest.length}件を表示</span>
     </div>`;
-    html += `<div id="${uid}" class="hidden"><div style="overflow-x:auto;"><table>${headHtml}<tbody>`;
+    html += `<div id="${uid}" class="hidden"><div style="overflow-x:auto;"><table${tableStyle}>${headHtml}<tbody>`;
     rest.forEach((r, i) => { html += rowFn(r, ranks[topN + i]); });
     html += '</tbody></table></div></div>';
   }
@@ -2185,6 +2189,7 @@ function renderHofView(el, view) {
         { key: 'loss', label: '敗数' },
         { key: 'win_rate', label: '勝率' },
         { key: 'title_count', label: 'タイトル' },
+        { key: 'title_challenge_count', label: 'タイトル挑戦' },
       ];
       const sort = _hofRankingSort;
       const sorted = ranking.slice().sort((a, b) => {
@@ -2205,16 +2210,17 @@ function renderHofView(el, view) {
         if (key === 'loss') return `${p.loss}敗`;
         if (key === 'win_rate') return p.win_rate === null ? '-' : p.win_rate.toFixed(3);
         if (key === 'title_count') return p.title_count > 0 ? `<span class="chip gold">${p.title_count}期</span>` : '-';
+        if (key === 'title_challenge_count') return p.title_challenge_count > 0 ? `<span class="chip cyan">${p.title_challenge_count}回</span>` : '-';
         return '';
       };
       const rowFn = (p, rank) => {
         const ageNote = (p.age !== null && p.age !== undefined) ? `<span style="color:var(--text-dim); font-size:0.68rem;">（${p.age}歳）</span>` : '';
         return `<tr data-id="${escapeHtml(p.id)}"><td class="rank-num">${rank}</td>
-          <td>${eternalIcon(p.eternal_titles)}${escapeHtml(p.display_name)}${ageNote}${p.retired ? '<span style="color:var(--text-dim); font-size:0.68rem;">（引退）</span>' : ''}</td>
-          ${cols.map(c => `<td${c.key === sort.key ? ' style="color:var(--amber);"' : ''}>${cellFor(p, c.key)}</td>`).join('')}</tr>`;
+          <td style="white-space:nowrap;">${eternalIcon(p.eternal_titles)}${escapeHtml(p.display_name)}${ageNote}${p.retired ? '<span style="color:var(--text-dim); font-size:0.68rem;">（引退）</span>' : ''}</td>
+          ${cols.map(c => `<td style="white-space:nowrap;${c.key === sort.key ? ' color:var(--amber);' : ''}">${cellFor(p, c.key)}</td>`).join('')}</tr>`;
       };
-      html = `<div style="font-size:0.68rem; color:var(--text-dim); margin-bottom:6px;">列見出しをクリックすると並び替え（勝率は${hofData.min_games_for_rate}対局以上が対象）</div>`;
-      html += renderCollapsibleTable(headHtml, sorted, rowFn, 15);
+      html = `<div style="font-size:0.68rem; color:var(--text-dim); margin-bottom:6px;">列見出しをクリックすると並び替え（勝率は${hofData.min_games_for_rate}対局以上が対象。横スクロールで全項目を表示）</div>`;
+      html += renderCollapsibleTable(headHtml, sorted, rowFn, 15, null, true);
     }
   } else if (view === 'matchup') {
     const byMatchup = hofData.by_matchup || [];
@@ -2226,13 +2232,13 @@ function renderHofView(el, view) {
       const rowFn = (m, rank) => {
         const drawNote = m.draw > 0 ? `（引分${m.draw}）` : '';
         return `<tr><td class="rank-num">${rank}</td>
-          <td>${escapeHtml(m.display_name_a)}${m.retired_a ? '<span style="color:var(--text-dim); font-size:0.68rem;">（引退）</span>' : ''}
+          <td style="white-space:nowrap;">${escapeHtml(m.display_name_a)}${m.retired_a ? '<span style="color:var(--text-dim); font-size:0.68rem;">（引退）</span>' : ''}
             <span style="color:var(--text-dim);">vs</span>
             ${escapeHtml(m.display_name_b)}${m.retired_b ? '<span style="color:var(--text-dim); font-size:0.68rem;">（引退）</span>' : ''}</td>
           <td style="font-size:0.76rem; white-space:nowrap;">${m.win_a}勝${m.win_b}敗${drawNote}</td>
-          <td>${m.count}回</td></tr>`;
+          <td style="white-space:nowrap;">${m.count}回</td></tr>`;
       };
-      html = renderCollapsibleTable(headHtml, byMatchup, rowFn, 15, m => m.count);
+      html = renderCollapsibleTable(headHtml, byMatchup, rowFn, 15, m => m.count, true);
     }
   } else if (view === 'retired') {
     // 引退者一覧はタイトル獲得数順（APIが既にソート済み）。elo・成績は表示せず、できるだけコンパクトにする
@@ -2244,12 +2250,12 @@ function renderHofView(el, view) {
       const rowFn = r => {
         const ageNote = (r.retired_age !== null && r.retired_age !== undefined) ? `<span style="color:var(--text-dim); font-size:0.68rem;">（引退時${r.retired_age}歳）</span>` : '';
         return `<tr data-id="${escapeHtml(r.id)}">
-          <td>${eternalIcon(r.eternal_titles)}${escapeHtml(r.display_name)}${ageNote}</td>
-          <td><span class="chip cyan">${danLabel(r.dan)}</span></td>
-          <td style="font-size:0.72rem; color:var(--text-dim);">${r.debut_season}-${r.retired_season}</td>
-          <td>${r.title_count > 0 ? `<span class="chip gold">${r.title_count}期</span>` : '-'}</td></tr>`;
+          <td style="white-space:nowrap;">${eternalIcon(r.eternal_titles)}${escapeHtml(r.display_name)}${ageNote}</td>
+          <td style="white-space:nowrap;"><span class="chip cyan">${danLabel(r.dan)}</span></td>
+          <td style="font-size:0.72rem; color:var(--text-dim); white-space:nowrap;">${r.debut_season}-${r.retired_season}</td>
+          <td style="white-space:nowrap;">${r.title_count > 0 ? `<span class="chip gold">${r.title_count}期</span>` : '-'}</td></tr>`;
       };
-      html = renderCollapsibleTable(headHtml, retired, rowFn, 20);
+      html = renderCollapsibleTable(headHtml, retired, rowFn, 20, null, true);
     }
   } else if (view === 'awakened') {
     const awakened = awakenedData.awakened || [];
@@ -2258,11 +2264,11 @@ function renderHofView(el, view) {
     } else {
       const headHtml = '<thead><tr><th>名前</th><th>Elo</th><th>覚醒パラメータ</th></tr></thead>';
       const rowFn = a => `<tr data-id="${escapeHtml(a.id)}">
-          <td>${leagueTag(a.league)}${escapeHtml(a.display_name)}</td>
-          <td class="elo-val">${Math.round(a.elo_rating)}</td>
-          <td style="color:var(--amber);">★ ${escapeHtml(paramLabel(a.awakened_param))}</td>
+          <td style="white-space:nowrap;">${leagueTag(a.league)}${escapeHtml(a.display_name)}</td>
+          <td class="elo-val" style="white-space:nowrap;">${Math.round(a.elo_rating)}</td>
+          <td style="color:var(--amber); white-space:nowrap;">★ ${escapeHtml(paramLabel(a.awakened_param))}</td>
         </tr>`;
-      html = renderCollapsibleTable(headHtml, awakened, rowFn, 15);
+      html = renderCollapsibleTable(headHtml, awakened, rowFn, 15, null, true);
     }
   }
 
