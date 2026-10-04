@@ -214,7 +214,7 @@ def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_b
         set(state.get("suzaku_league", {}).get("white", []))
 
     all_members = ranked_A + ranked_B + ranked_C + ranked_D
-    title_results, title_extra_match_log, suzaku_group_snapshot = _run_title_matches(
+    title_results, title_extra_match_log, suzaku_group_snapshot, title_extra_protected_ids = _run_title_matches(
         ranked_A, ranked_competing_A, champion_ind, ranked_B, ranked_C, ranked_D, all_members, state, season,
     )
     title_match_log = _title_results_to_match_log(title_results, season)
@@ -228,6 +228,7 @@ def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_b
     suzaku_league_ids = suzaku_league_ids_before | suzaku_league_ids_after
     rosters, retired, vacancy = relegate_and_retire(
         rosters, season, titleholders=titleholders, suzaku_league_ids=suzaku_league_ids,
+        extra_protected_ids=title_extra_protected_ids,
     )
 
     # --- 昇降格・新規・引退マークを確定する ---
@@ -391,10 +392,17 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
     titleholder_params = state.setdefault("titleholder_params", {"青龍": None, "白虎": None, "玄武": None, "朱雀": None})
     all_members_by_id = {ind.id: ind for ind in all_members}
 
+    # 引退免除対象の拡大用：この季の各タイトル戦の挑戦者・白虎トーナメント出場者・
+    # 玄武ブロック優勝者を集める（在位者と同様、年齢・Dリーグ降級点による強制引退から
+    # 一時的に保護する。挑戦するところまで勝ち上がったのに、同じ季のうちに
+    # 引退させてしまうのを防ぐため）
+    extra_protected_ids = set()
+
     # ============================================================
     # 青龍：Aリーグ総当たり1位が挑戦（青龍在位者は対局免除で待ち受ける）
     # ============================================================
     a_challenger = ranked_competing_A[0]
+    extra_protected_ids.add(a_challenger.id)
     seiryuu_defended = None
 
     seiryuu_vacant = titleholders["青龍"] is not None and champion_ind is None
@@ -535,6 +543,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
 
         red_champion, white_champion = red_ranked[0], white_ranked[0]
         challenger, decision_info = run_suzaku_challenger_decision(red_champion, white_champion, depth=SUZAKU_LEAGUE_DEPTH)
+        extra_protected_ids.add(challenger.id)
         print(f"  朱雀・挑戦者決定戦: {red_champion.display_name}（紅組1位） {decision_info['red_wins']}"
               f"-{decision_info['white_wins']} {white_champion.display_name}（白組1位） → 挑戦者は{challenger.display_name}")
         extra_match_log += _best_of_n_to_match_log(
@@ -626,7 +635,8 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
     # 白虎：Elo上位16名（前年白虎在位者は防衛専念枠として除外）による正式シードトーナメント
     # ============================================================
     byakko_holder_id = (titleholders.get("白虎") or {}).get("id")
-    challenger, bracket_log = determine_byakko_challenger(all_members, exclude_id=byakko_holder_id, depth=BYAKKO_LEAGUE_DEPTH, top_n=16)
+    challenger, bracket_log, byakko_entrants = determine_byakko_challenger(all_members, exclude_id=byakko_holder_id, depth=BYAKKO_LEAGUE_DEPTH, top_n=16)
+    extra_protected_ids.update(ind.id for ind in byakko_entrants)
 
     for matchup in bracket_log:
         ind_a, ind_b = all_members_by_id.get(matchup["a"]), all_members_by_id.get(matchup["b"])
@@ -685,10 +695,11 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
     genbu_holder_id = (titleholders.get("玄武") or {}).get("id")
     genbu_seed_titleholder_ids = {info["id"] for info in titleholders.values() if info and info.get("id")}
     genbu_seed_a_order = [ind.id for ind in ranked_A]
-    challenger, bracket_log = determine_genbu_challenger(
+    challenger, bracket_log, genbu_block_champions = determine_genbu_challenger(
         all_members, exclude_id=genbu_holder_id, depth=GENBU_LEAGUE_DEPTH, bracket_size=64,
         titleholder_ids=genbu_seed_titleholder_ids, a_league_order=genbu_seed_a_order,
     )
+    extra_protected_ids.update(ind.id for ind in genbu_block_champions)
 
     for matchup in bracket_log:
         ind_a, ind_b = all_members_by_id.get(matchup["a"]), all_members_by_id.get(matchup["b"])
@@ -741,7 +752,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
             "bracket": bracket_log,
         })
 
-    return results, extra_match_log, suzaku_group_snapshot
+    return results, extra_match_log, suzaku_group_snapshot, extra_protected_ids
 
 
 def main():

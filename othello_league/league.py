@@ -13,7 +13,7 @@ B_TO_C_RELEGATE = 3  # B→C降格人数（＝C→B昇格人数）
 D_TO_C_PROMOTE = 3   # D→C昇格人数（C→D降格人数と揃え、Cリーグの定員超過を防ぐ）
 
 RETIREMENT_AGE = 60
-D_CONSECUTIVE_LOSING_LIMIT = 2
+D_DEMOTION_POINT_LIMIT = 2  # Dリーグでの降級点がこの数に達すると強制引退（連続でなくてもよい）
 C_TO_D_RELEGATE = 3  # C→D降格人数（B→Cと同数）
 
 # Dリーグの新人受け入れに関する最低保証設定。
@@ -28,7 +28,7 @@ PARAM_KEYS = [
 ]
 
 
-def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=None):
+def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=None, extra_protected_ids=None):
     """
     1シーズンの対局終了後の昇降格・強制引退の判定のみを行う（Dリーグの新規補充は
     recruit_d_league()が別関数として、次シーズンの対局が始まる前に行う）。
@@ -42,10 +42,16 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
     季からそのまま出走できるようになる。
 
     suzaku_league_idsが与えられた場合、朱雀紅白リーグに在籍中の個体は、タイトル保持者と
-    同様に強制引退（年齢・Dリーグ連続負け越し・Dリーグ定員超過カット）の対象から除外する。
+    同様に強制引退（年齢・Dリーグ降級点・Dリーグ定員超過カット）の対象から除外する。
     予選を勝ち抜いて来季から紅白リーグに加入する個体も、その加入前の季にこれらの条件で
     引退させてしまうと来季の紅白リーグに欠員が生じるため、同様に保護する
     （C〜Aリーグの定員超過による「降格」は引退ではなく在籍リーグが変わるだけなので対象外）。
+
+    extra_protected_idsが与えられた場合も同様に保護する。この季の各タイトル戦の
+    挑戦者（青龍・朱雀・白虎・玄武）、白虎トーナメント出場者（16名）、玄武ブロック優勝者
+    （8名）が対象。挑戦するところまで勝ち上がったのに、同じ季のうちに引退させてしまうのを
+    防ぐため（勝って在位者になればtitleholder_idsの保護に引き継がれる）。
+
     戻り値: (更新後のrosters dict（Dリーグは欠員分だけ定員割れのことがある）,
              引退者リスト, Dリーグの欠員数)
     """
@@ -56,9 +62,11 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
 
     # --- 60歳以上、かつ無冠（どのタイトルも持っていない）の個体は強制引退させる。
     #     タイトルを1つでも持っていれば、全て失冠するまで猶予が続く。
-    #     朱雀紅白リーグ在籍者（来季から加入予定の予選通過者も含む）も、在籍中は
-    #     年齢引退に加えて、Dリーグ連続負け越し・Dリーグ定員超過カットも免除する
-    #     （でないと紅白リーグ加入前に引退させてしまい、来季の紅白リーグに欠員が生じるため） ---
+    #     朱雀紅白リーグ在籍者（来季から加入予定の予選通過者も含む）・この季のタイトル戦
+    #     挑戦者・白虎トーナメント出場者・玄武ブロック優勝者（extra_protected_ids）も、
+    #     在籍中（または対象になった季）は年齢引退に加えて、Dリーグ降級点・Dリーグ定員超過
+    #     カットも免除する（でないと紅白リーグ加入前や、挑戦するところまで勝ち上がった
+    #     直後に引退させてしまうため） ---
     titleholder_ids = set()
     if titleholders:
         for info in titleholders.values():
@@ -68,6 +76,8 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
     protected_ids = set(titleholder_ids)
     if suzaku_league_ids:
         protected_ids.update(suzaku_league_ids)
+    if extra_protected_ids:
+        protected_ids.update(extra_protected_ids)
 
     age_retired = []
     def _filter_aged_out(members):
@@ -107,12 +117,12 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
     d_promote_to_c = D[:D_TO_C_PROMOTE]
     d_remain = D[D_TO_C_PROMOTE:]
 
-    # Dリーグを卒業（Cへ昇格）する個体は、「2連続負け越し」のカウンタをリセットする。
-    # このカウンタはDリーグ在籍中の成績のみを反映すべきものなので、
-    # リセットしないと「昔Dにいた時の負け越し1回」が記録に残ったまま何季も引き継がれ、
-    # 何季も後にDへ舞い戻った際に、実際には連続していない負け越しで即引退扱いになってしまう。
+    # Dリーグを卒業（Cへ昇格）する個体は、降級点をリセットする。
+    # 降級点はDリーグ在籍中の成績のみを反映すべきものなので、
+    # リセットしないと「昔Dにいた時の降級点」が残ったまま何季も引き継がれ、
+    # 何季も後にDへ舞い戻った際に、既に引退間際の状態で再出発することになってしまう。
     for ind in d_promote_to_c:
-        ind.consecutive_losing_seasons = 0
+        ind.demotion_points = 0
 
     A = a_remain + b_promote_to_a
     B = b_remain + a_relegate + c_promote_to_b
@@ -137,20 +147,22 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
 
     C, c_relegate_overflow = _relegate_overflow(C, LEAGUE_CAPACITY["C"])
 
-    # --- Dリーグ：2シーズン連続で負け越したら、実力・在籍年数に関わらず即引退
-    #     （ただしタイトル保持者・朱雀紅白リーグ在籍者は、age_retiredと同様に猶予対象）。
+    # --- Dリーグ：降級点制。負け越した季ごとに降級点が1つ積み重なり（連続していなくてもよい）、
+    #     2つに達したら実力・在籍年数に関わらず即引退する（ただしタイトル保持者・朱雀紅白
+    #     リーグ在籍者・extra_protected_idsは、age_retiredと同様に猶予対象）。
+    #     以前は「2季連続で負け越した場合のみ」引退としていたが、勝ち越しを挟むと
+    #     カウンタがリセットされてしまい、長期的に負け越しがちな個体がいつまでも
+    #     居座れる不備があったため、点として積み重ねる方式に変更した。
     #     この判定は「今季も引き続きDに在籍していた個体（d_remain）」のみを対象にする。
     #     今季Cから降格してきた個体（c_relegate_to_d・c_relegate_overflow）は、
     #     まだDでの対局実績が無い（直前の成績はC所属時のもの）ため対象外とし、
-    #     カウンタを0にリセットして「Dでの連続負け越し」を来季以降ゼロから数え直す。 ---
+    #     降級点を0にリセットして「Dでの降級点」を来季以降ゼロから数え直す。 ---
     d_up_or_out_retired = []
     d_keep = []
     for ind in d_remain:
         if ind.loss_this_season > ind.win_this_season:
-            ind.consecutive_losing_seasons += 1
-        else:
-            ind.consecutive_losing_seasons = 0
-        if ind.consecutive_losing_seasons >= D_CONSECUTIVE_LOSING_LIMIT and ind.id not in protected_ids:
+            ind.demotion_points += 1
+        if ind.demotion_points >= D_DEMOTION_POINT_LIMIT and ind.id not in protected_ids:
             ind.retired = True
             ind.total_seasons += 1  # age_retiredと同様、引退する今季分も在籍シーズン数に数える
             d_up_or_out_retired.append(ind)
@@ -159,7 +171,7 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
 
     new_d_arrivals = c_relegate_to_d + c_relegate_overflow
     for ind in new_d_arrivals:
-        ind.consecutive_losing_seasons = 0
+        ind.demotion_points = 0
     D = d_keep + new_d_arrivals
 
     # --- 年齢引退等でA・B・Cに定員割れが生じた場合、下位リーグから繰り上げて埋める。

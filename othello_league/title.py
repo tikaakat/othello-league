@@ -350,7 +350,10 @@ def determine_byakko_challenger(all_members, exclude_id=None, depth=1, top_n=16)
         round_members = next_round
 
     challenger = round_members[0]
-    return challenger, bracket_log
+    # 引退免除判定（白虎戦トーナメント出場者）用に、実際の出場16名をそのまま返す
+    # （bracket_logから復元すると、バイ（1回戦不戦勝）で1回も対局しなかった個体を
+    #  見逃す恐れがあるため、母集団のrankedをそのまま使う）
+    return challenger, bracket_log, ranked
 
 
 def run_byakko_challenge(challenger, titleholder_params, depth=1, titleholder_volatility=1.0):
@@ -435,6 +438,7 @@ def determine_genbu_challenger(all_members, exclude_id=None, depth=1, bracket_si
         return winner_ind
 
     round_members = bracketed
+    block_champions = None
     while len(round_members) > 1:
         num_pairs = len(round_members) // 2
         # ブロックの勝者がnum_blocks名に絞られるまでは各ブロック内の対戦（block段階）、
@@ -450,9 +454,17 @@ def determine_genbu_challenger(all_members, exclude_id=None, depth=1, bracket_si
                 winner = single_game(round_members[i], round_members[i + 1], "final")
             next_round.append(winner)
         round_members = next_round
+        # ブロック段階からfinal段階に移った直後（＝ブロックの勝者がちょうどnum_blocks名に
+        # 絞られた瞬間）の面々が「ブロック優勝者」。bracket_logから復元すると、バイで
+        # ブロック内の対局が1回も記録されなかった個体を見逃す恐れがあるため、ここで直接控える
+        if block_champions is None and len(round_members) == num_blocks:
+            block_champions = list(round_members)
 
     challenger = round_members[0]
-    return challenger, bracket_log
+    # num_blocks<=1等でブロック段階が存在しなかった場合の保険
+    if block_champions is None:
+        block_champions = [challenger]
+    return challenger, bracket_log, block_champions
 
 
 def run_genbu_challenge(challenger, titleholder_params, depth=1, titleholder_volatility=1.0):
