@@ -84,7 +84,11 @@ jobs:
           echo "=== data/ の中身 ==="
           ls -la data/newcomer_league/ 2>&1 || echo "(newcomer_league/ ディレクトリが存在しません)"
 
-          git add data/newcomer_winners.json data/newcomer_league data/newcomer_candidate_pool.json
+          # newcomer_candidate_pool.jsonは「二重実行スキップ」等の早期returnでは
+          # 作られないことがある（実際に初回遭遇でgit add全体が失敗した）ため、
+          # 他の任意ファイルと同様に存在しなくても失敗しないようにする
+          git add data/newcomer_winners.json data/newcomer_league 2>/dev/null || true
+          git add data/newcomer_candidate_pool.json 2>/dev/null || true
           if ! git diff --staged --quiet; then
             git commit -m "Newcomer league results [skip ci]"
 
@@ -114,7 +118,8 @@ jobs:
               # ファイル名・内容を修正する（既に正しい季の結果があれば二重実行として破棄）
               python -u run_newcomer_league.py --data-dir data --relabel-check
 
-              git add data/newcomer_winners.json data/newcomer_league data/newcomer_candidate_pool.json
+              git add data/newcomer_winners.json data/newcomer_league 2>/dev/null || true
+              git add data/newcomer_candidate_pool.json 2>/dev/null || true
               if git diff --staged --quiet; then
                 echo "最新のmainに既に同じ内容が反映されていました（他の実行と重複した可能性）"
                 PUSHED=1
