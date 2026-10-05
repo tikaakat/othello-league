@@ -6,8 +6,10 @@ Dリーグに新規参入した人数分）だけが、この日の夜に実行�
 
 投稿が目標人数（30名）に満たない場合は、自動生成の候補で埋める。この自動生成候補は
 毎回使い捨てにはせず、敗退した個体をnewcomer_candidate_pool.jsonへ持ち越し、次回以降の
-新人リーグで同じ能力のまま再挑戦できるようにする（NEWCOMER_RETRY_AGE_LIMIT回挑戦しても
-勝ち上がれなければ、そこで引退してプールから外れ、新しい自動生成候補に入れ替わる）。
+新人リーグで同じ能力・同じ年齢のまま再挑戦できるようにする（年齢制：本戦のDリーグ
+強制引退と同じ考え方で、NEWCOMER_RETIREMENT_AGE歳に達しても勝ち上がれなければ、
+そこで引退してプールから外れ、新しい自動生成候補に入れ替わる。開始年齢は通常の新弟子と
+同じ18〜24歳のランダムなので、挑戦できる回数には個体差がある）。
 投稿（プレイヤーがキャラクリエイトしたもの）はこの持ち越しの対象外：敗退しても自動で
 再挑戦はせず、投稿者が望めば改めて投稿し直す形のまま（1投稿＝1回の挑戦という前提を保つ）。
 本戦（run_season.py）とは別プロセス・別スケジュール（AM実行）で動かす想定。
@@ -31,9 +33,10 @@ NEWCOMER_LEAGUE_DEPTH = 3
 NEWCOMER_LEAGUE_ROUNDS = 15
 NEWCOMER_TARGET_POOL = 30
 NEWCOMER_SUBMISSION_CAP = 40
-# 自動生成候補が持ち越しで再挑戦できる回数の上限（これに達しても勝ち上がれなければ
-# プールから外す＝引退扱い。3回/日のペースなら数日で入れ替わる計算）
-NEWCOMER_RETRY_AGE_LIMIT = 5
+# 自動生成候補が持ち越しで再挑戦できる年齢の上限（本戦のDリーグ強制引退（60歳）と
+# 同じ発想。この歳に達しても勝ち上がれなければプールから外す＝引退扱い。
+# 開始年齢は通常の新弟子と同じ18〜24歳のランダムなので、挑戦回数には個体差がある）
+NEWCOMER_RETIREMENT_AGE = 26
 CHARACTER_TYPES = ["balanced", "aggressive", "defensive", "corner"]
 
 # main()が計算したresult_pathを一時保存する場所（git管理外）。
@@ -46,8 +49,9 @@ def _build_entry_pool(submissions, retry_pool, target, registry):
     今回の新人リーグに出場する候補一覧を組み立てる。優先順位は
     投稿（submissions）＞持ち越し中の自動生成候補（retry_pool、待機が長い順）＞
     新規の自動生成候補（不足分を埋める）。
-    各entryには"source"（submission/retry/fresh_auto）と、retry/fresh_autoの場合は
-    "attempts"（今回を含まない、これまでの挑戦回数）を付与する
+    各entryには"source"（submission/retry/fresh_auto）を付与する。retryの場合は
+    前回までの年齢（"initial_age"）をそのまま引き継ぎ、再抽選されないようにする
+    （fresh_autoは通常の新弟子と同じく、この後の個体生成時に18〜24歳からランダムに決まる）
     """
     filled = []
     for s in submissions:
@@ -55,13 +59,13 @@ def _build_entry_pool(submissions, retry_pool, target, registry):
     for c in retry_pool:
         if len(filled) >= target:
             break
-        filled.append({**c, "source": "retry", "attempts": c.get("attempts", 0)})
+        filled.append({**c, "source": "retry", "initial_age": c.get("age")})
     while len(filled) < target:
         filled.append({
             "name": registry.generate(),
             "type": random.choice(CHARACTER_TYPES),
             "auto_generated": True,
-            "source": "fresh_auto", "attempts": 0,
+            "source": "fresh_auto",
         })
     return filled
 
@@ -69,13 +73,14 @@ def _build_entry_pool(submissions, retry_pool, target, registry):
 def run_newcomer_league(submissions, slots_needed, registry, retry_pool=None,
                          depth=NEWCOMER_LEAGUE_DEPTH,
                          rounds=NEWCOMER_LEAGUE_ROUNDS, target_pool=NEWCOMER_TARGET_POOL,
-                         retry_age_limit=NEWCOMER_RETRY_AGE_LIMIT):
+                         retirement_age=NEWCOMER_RETIREMENT_AGE):
     """
     submissions: [{"name":, "type":, "params":}, ...]（当日投稿分、上限は呼び出し側で適用済み想定）
     slots_needed: 今夜のDリーグ新規参入枠（前回シーズンの新規参入人数）
-    retry_pool: 持ち越し中の自動生成候補 [{"name":,"type":,"params":,"awakened_param":,"attempts":}, ...]
+    retry_pool: 持ち越し中の自動生成候補 [{"name":,"type":,"params":,"awakened_param":,"age":}, ...]
     戻り値: (winner_entries, standings, match_log, next_retry_pool)
-      winner_entries: 勝者の元の投稿データ（{"name":,"type":,"params":}形式）のリスト
+      winner_entries: 勝者の元の投稿データ（{"name":,"type":,"params":,"initial_age":}形式）のリスト。
+        initial_ageを含めることで、本戦で実際にDリーグへ参入する際も持ち越した年齢のまま参入する
       standings: 順位表（表示用）
       match_log: 対局ログ（表示用）
       next_retry_pool: 次回の新人リーグに持ち越す自動生成候補の一覧
@@ -88,12 +93,15 @@ def run_newcomer_league(submissions, slots_needed, registry, retry_pool=None,
         ind = _build_character_creation_individual(entry, season="NL", index=i)
         ind.league = "新人"
         candidates.append(ind)
-        # 新人リーグの対局で実際に使われたparams・覚醒判定結果を引き継ぐ。
+        # 新人リーグの対局で実際に使われたparams・覚醒判定結果・年齢を引き継ぐ。
         # こうしないと、本戦で実際にDリーグへ参入する際（勝者）や次回の持ち越し時
-        # （敗者のうちretry対象）に別の乱数でparams・覚醒が再抽選されてしまい、
+        # （敗者のうちretry対象）に別の乱数でparams・覚醒・年齢が再抽選されてしまい、
         # 新人リーグで戦った個体と食い違ってしまう（タイプのみ指定・自動生成の
         # 場合は特にparamsが未指定のため）
-        entries_by_id[ind.id] = {**entry, "params": dict(ind.params), "awakened_param": ind.awakened_param}
+        entries_by_id[ind.id] = {
+            **entry, "params": dict(ind.params), "awakened_param": ind.awakened_param,
+            "initial_age": ind.initial_age,
+        }
 
     if len(candidates) < 2:
         return [], [], [], (retry_pool or [])
@@ -126,13 +134,13 @@ def run_newcomer_league(submissions, slots_needed, registry, retry_pool=None,
         entry = entries_by_id[ind.id]
         if entry.get("source") not in ("retry", "fresh_auto"):
             continue
-        attempts = entry.get("attempts", 0) + 1
-        if attempts >= retry_age_limit:
-            continue  # 挑戦回数の上限に達した＝引退してプールから外れる
+        next_age = entry["initial_age"] + 1
+        if next_age >= retirement_age:
+            continue  # 年齢上限に達した＝引退してプールから外れる
         next_retry_pool.append({
             "name": entry.get("name"), "type": entry.get("type"),
             "params": entry["params"], "awakened_param": entry.get("awakened_param"),
-            "auto_generated": True, "attempts": attempts,
+            "auto_generated": True, "age": next_age,
         })
 
     return winner_entries, standings, match_log, next_retry_pool

@@ -475,11 +475,21 @@ def _build_character_creation_individual(request, season, index, master=None):
     else:
         clan_root_id = ind_id
 
+    # initial_ageが明示されていれば最優先で使う（新人リーグで持ち越し中の候補が、
+    # 前回までの挑戦で重ねた年齢のまま再挑戦・参入する場合）。無指定なら従来通り、
+    # 覚醒していれば若い年齢層、していなければLeagueIndividualの既定（18〜24歳）で抽選する
+    if "initial_age" in request and request["initial_age"] is not None:
+        resolved_initial_age = request["initial_age"]
+    elif awakened_key:
+        resolved_initial_age = random.randint(*AWAKENED_INITIAL_AGE_RANGE)
+    else:
+        resolved_initial_age = None
+
     ind = LeagueIndividual(
         ind_id, "D", params=params, generation=0,
         parent_a_id=master_id, parent_b_id=None,
         display_name=request.get("name") or ind_id, clan_root_id=clan_root_id,
-        initial_age=random.randint(*AWAKENED_INITIAL_AGE_RANGE) if awakened_key else None,
+        initial_age=resolved_initial_age,
     )
     ind.awakened_param = awakened_key
     ind.volatility = round(max(0.1, min(3.0, random.uniform(0.3, 2.0))), 2)
