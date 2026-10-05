@@ -24,7 +24,7 @@ class LeagueIndividual:
         self.parent_b_id = parent_b_id
         self.initial_age = initial_age if initial_age is not None else random.randint(18, 24)
         self.age_multipliers = {}              # 年齢バフ（パラメータ別倍率）。シーズン開始時に再抽選
-        self.consecutive_losing_seasons = 0     # Dリーグの2連続負け越し引退判定用
+        self.demotion_points = 0                # Dリーグの降級点（2点で引退。連続でなくてもよい）
 
         self.peak_elo = 1500.0  # 歴代最高Elo（殿堂ページの表示用）。elo setterが自動更新する
         self.elo = 1500.0
@@ -73,7 +73,7 @@ class LeagueIndividual:
             "parent_b_id": self.parent_b_id,
             "initial_age": self.initial_age,
             "age_multipliers": self.age_multipliers,
-            "consecutive_losing_seasons": self.consecutive_losing_seasons,
+            "demotion_points": self.demotion_points,
             "elo": self.elo,
             "peak_elo": self.peak_elo,
             "volatility": self.volatility,
@@ -95,7 +95,11 @@ class LeagueIndividual:
         )
         ind.initial_age = d.get("initial_age", random.randint(18, 24))  # 既存個体は移行時のみランダム付与
         ind.age_multipliers = d.get("age_multipliers", {})
-        ind.consecutive_losing_seasons = d.get("consecutive_losing_seasons", 0)
+        # 旧フィールド名（consecutive_losing_seasons）からの1回限りの移行。
+        # 旧方式は「2連続負け越し」で、新方式は「負け越し2回（連続でなくてもよい）」のため
+        # 厳密には意味が異なるが、既存の値をそのまま降級点の初期値として引き継ぐ
+        # （移行時点で急に引退・保護が変わらないよう、素直に数値を転用する）
+        ind.demotion_points = d.get("demotion_points", d.get("consecutive_losing_seasons", 0))
         # peak_elo→eloの順で設定する（eloのsetterがpeak_eloとの比較で自動更新するため、
         # 先にpeak_eloを正しい保存値にしておかないと、ロード直後に誤って上書きされてしまう）
         ind.peak_elo = d.get("peak_elo", d.get("elo", 1500.0))
