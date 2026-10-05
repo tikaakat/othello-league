@@ -20,12 +20,11 @@ import os
 import random
 import re
 
-from othello_league.individual import LeagueIndividual
 from othello_league.league import _build_character_creation_individual
 from othello_league.swiss import run_swiss_league
 from othello_league.names import NameRegistry
 from othello_league.io_utils import (
-    load_season_state, save_season_state,
+    load_season_state,
     load_newcomer_candidate_pool, save_newcomer_candidate_pool,
 )
 

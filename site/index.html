@@ -330,9 +330,6 @@ function getFavoriteIds() {
 function saveFavoriteIds(ids) {
   try { localStorage.setItem(FAVORITES_KEY, JSON.stringify(Array.from(ids))); } catch (e) { /* 保存できなくても致命的ではない */ }
 }
-function isFavorite(id) {
-  return getFavoriteIds().has(id);
-}
 function toggleFavorite(id) {
   const ids = getFavoriteIds();
   if (ids.has(id)) ids.delete(id); else ids.add(id);
@@ -2066,14 +2063,6 @@ function eternalIcon(titles) {
     `<span style="display:inline-block; font-size:0.6rem; color:var(--navy-950); background:var(--amber); border-radius:2px; padding:0 3px; margin-right:2px; font-weight:700;" title="永世${escapeHtml(t)}">${escapeHtml(t.charAt(0))}</span>`
   ).join('');
   return chips + ' ';
-}
-
-function eloTwoLine(current, peak) {
-  return `<div class="elo-val" style="line-height:1.25;">${Math.round(current)}</div><div style="font-size:0.62rem; color:var(--amber); line-height:1.25;">最高${Math.round(peak)}</div>`;
-}
-// 殿堂タブ（最高Eloランキング）用：ランキングの基準である最高Eloを主表示にする
-function eloTwoLinePeakFirst(current, peak) {
-  return `<div class="elo-val" style="line-height:1.25;">${Math.round(peak)}</div><div style="font-size:0.62rem; color:var(--text-dim); line-height:1.25;">現在${Math.round(current)}</div>`;
 }
 
 // 同率順位（1位、1位、3位…のように、同じ値なら同じ順位にし、次の順位を人数分飛ばす）を算出する。
