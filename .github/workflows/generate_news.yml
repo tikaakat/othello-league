@@ -1,10 +1,14 @@
 name: Generate News Article (オセロ界タイムズ)
 
 # 本戦（evolve.yml、"Run Othello League Season"）が成功した直後に、その季の
-# ダイジェスト記事をClaude APIで生成してdata/news/articles.jsonへpushし、
-# news-site/（フロントエンド）とdata/news/articles.jsonをxserver上の
-# othello-news/（lab.spia-net.com/othello-news/、結果サイトのothello-league/とは
-# 別のサブパス）へ反映する。
+# ダイジェスト記事をClaude Code CLI（`claude -p`、ヘッドレス実行）で生成して
+# data/news/articles.jsonへpushし、news-site/（フロントエンド）と
+# data/news/articles.jsonをxserver上のothello-news/（lab.spia-net.com/othello-news/、
+# 結果サイトのothello-league/とは別のサブパス）へ反映する。
+#
+# 記事生成はAPI従量課金（ANTHROPIC_API_KEY）ではなく、Claude Pro/Max/Team/
+# Enterpriseサブスクリプションの利用枠（CLAUDE_CODE_OAUTH_TOKEN、
+# `claude setup-token`で発行したものをGitHub Secretsに登録）を使う
 #
 # workflow_runトリガーは、トリガー元ワークフローファイル（このファイル自体）が
 # デフォルトブランチ（main）に存在しないと発火しない仕様のため、このブランチ上では
@@ -46,12 +50,20 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install dependencies
-        run: pip install anthropic
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
 
       - name: Generate article and push
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # claude setup-tokenで発行した、Claude Pro/Max/Team/Enterprise
+          # サブスクリプションの長期OAuthトークン。ANTHROPIC_API_KEYは
+          # 設定しない（設定するとそちらが優先され従量課金になってしまう）
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
         run: |
           git config user.name "othello-league-bot"
           git config user.email "actions@users.noreply.github.com"

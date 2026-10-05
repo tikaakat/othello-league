@@ -1,24 +1,26 @@
 """
 ニュース記事生成：直近のシーズン結果からダイジェスト記事を1本生成し、
-data/news/articles.json へ追記する。文章はClaude API（Anthropic公式SDK）で
-生成し、news-site/persona.md の内容をsystemプロンプトとして渡すことで、
-記者としての人格・文体を毎回一貫させる。
+data/news/articles.json へ追記する。文章はClaude Code CLI（`claude -p`、
+ヘッドレス実行）で生成し、news-site/persona.md の内容をsystemプロンプトと
+して渡すことで、記者としての人格・文体を毎回一貫させる。
+
+API従量課金ではなく、Claude Pro/Max/Team/Enterpriseサブスクリプションの
+利用枠を使う（CLAUDE_CODE_OAUTH_TOKEN環境変数、`claude setup-token`で発行。
+GitHub Secretsに登録して渡す想定）。ツールは一切使わせない（--tools ""）、
+純粋なテキスト生成としてCLIを呼び出す。
 
 対象は「まだダイジェストが無い最新シーズン」。既に生成済みのシーズンは
 再生成しない（articles.jsonにそのシーズンのidが無ければ対象、あれば
 スキップ）。本戦（run_season.py）とは別プロセス・別スケジュールで動かす想定
 （本戦の実行が終わり、data/standings・data/matchesが更新された後に呼ぶ）。
-
-ANTHROPIC_API_KEY環境変数が必要（GitHub Secretsに登録して渡す想定）。
 """
 import argparse
 import datetime
 import json
 import os
+import subprocess
 
-import anthropic
-
-DEFAULT_MODEL = "claude-sonnet-5-5"
+DEFAULT_MODEL = "sonnet"
 TITLE_NAMES = ["青龍", "朱雀", "白虎", "玄武"]
 PERSONA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "news-site", "persona.md")
 
@@ -128,14 +130,27 @@ def generate_article(facts, model=DEFAULT_MODEL):
     with open(PERSONA_PATH, "r", encoding="utf-8") as f:
         persona = f.read()
 
-    client = anthropic.Anthropic()
     prompt = build_prompt(facts)
-    resp = client.messages.create(
-        model=model, max_tokens=1024,
-        system=persona,
-        messages=[{"role": "user", "content": prompt}],
+    result = subprocess.run(
+        [
+            "claude", "-p", prompt,
+            "--system-prompt", persona,
+            "--model", model,
+            "--output-format", "json",
+            "--tools", "",
+        ],
+        capture_output=True, text=True, timeout=300,
     )
-    text = resp.content[0].text.strip()
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"claude CLIの実行に失敗しました（終了コード{result.returncode}）: {result.stderr.strip()}"
+        )
+
+    response = json.loads(result.stdout)
+    if response.get("is_error"):
+        raise RuntimeError(f"claude CLIがエラーを返しました: {response.get('result')}")
+
+    text = response["result"].strip()
     if text.startswith("```"):
         text = text.split("\n", 1)[1]
         text = text.rsplit("```", 1)[0]
