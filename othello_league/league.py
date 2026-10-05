@@ -28,7 +28,8 @@ PARAM_KEYS = [
 ]
 
 
-def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=None, extra_protected_ids=None):
+def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=None,
+                         extra_protected_ids=None, demotion_relief_ids=None):
     """
     1シーズンの対局終了後の昇降格・強制引退の判定のみを行う（Dリーグの新規補充は
     recruit_d_league()が別関数として、次シーズンの対局が始まる前に行う）。
@@ -48,9 +49,14 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
     （C〜Aリーグの定員超過による「降格」は引退ではなく在籍リーグが変わるだけなので対象外）。
 
     extra_protected_idsが与えられた場合も同様に保護する。この季の各タイトル戦の
-    挑戦者（青龍・朱雀・白虎・玄武）、白虎トーナメント出場者（16名）、玄武ブロック優勝者
-    （8名）が対象。挑戦するところまで勝ち上がったのに、同じ季のうちに引退させてしまうのを
-    防ぐため（勝って在位者になればtitleholder_idsの保護に引き継がれる）。
+    挑戦者（青龍・朱雀・白虎・玄武、最大4名）が対象。挑戦するところまで勝ち上がったのに、
+    同じ季のうちに引退させてしまうのを防ぐため（勝って在位者になればtitleholder_idsの
+    保護に引き継がれる）。
+
+    demotion_relief_idsが与えられた場合、Dリーグ降級点の判定（下記）で対象者の降級点を
+    1点減らす（0未満にはしない）。この季の白虎トーナメント出場者（16名）・玄武ブロック
+    優勝者（8名）が対象。挑戦者ほどの重みではないため、強制引退からの完全な免除
+    （extra_protected_ids）ではなく、勝ち越しと同じ「減点」による救済にとどめる。
 
     戻り値: (更新後のrosters dict（Dリーグは欠員分だけ定員割れのことがある）,
              引退者リスト, Dリーグの欠員数)
@@ -153,15 +159,25 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
     #     以前は「2季連続で負け越した場合のみ」引退としていたが、勝ち越しを挟むと
     #     カウンタがリセットされてしまい、長期的に負け越しがちな個体がいつまでも
     #     居座れる不備があったため、点として積み重ねる方式に変更した。
+    #     ただし積み上がる一方では救いが無さすぎるため、勝ち越した季・
+    #     demotion_relief_ids該当（白虎トーナメント出場・玄武ブロック優勝）の季は
+    #     それぞれ1点減らす（複数該当すれば重複して減らしてよい。0未満にはしない）。
     #     この判定は「今季も引き続きDに在籍していた個体（d_remain）」のみを対象にする。
     #     今季Cから降格してきた個体（c_relegate_to_d・c_relegate_overflow）は、
     #     まだDでの対局実績が無い（直前の成績はC所属時のもの）ため対象外とし、
     #     降級点を0にリセットして「Dでの降級点」を来季以降ゼロから数え直す。 ---
+    demotion_relief_ids = demotion_relief_ids or set()
     d_up_or_out_retired = []
     d_keep = []
     for ind in d_remain:
+        delta = 0
         if ind.loss_this_season > ind.win_this_season:
-            ind.demotion_points += 1
+            delta += 1
+        elif ind.win_this_season > ind.loss_this_season:
+            delta -= 1
+        if ind.id in demotion_relief_ids:
+            delta -= 1
+        ind.demotion_points = max(0, ind.demotion_points + delta)
         if ind.demotion_points >= D_DEMOTION_POINT_LIMIT and ind.id not in protected_ids:
             ind.retired = True
             ind.total_seasons += 1  # age_retiredと同様、引退する今季分も在籍シーズン数に数える

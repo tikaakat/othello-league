@@ -61,3 +61,20 @@ def save_standings(data_dir, season, standings_snapshot):
     path = os.path.join(data_dir, "standings", f"season_{season}.json")
     with open(path, "w", encoding="utf-8") as f:
         json.dump(standings_snapshot, f, ensure_ascii=False, indent=2)
+
+
+def load_newcomer_candidate_pool(data_dir):
+    """新人リーグで敗退した自動生成候補のうち、再挑戦中のプールを読み込む。
+    無ければ空リストを返す（初回起動の合図）"""
+    path = os.path.join(data_dir, "newcomer_candidate_pool.json")
+    if not os.path.exists(path):
+        return []
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f) or []
+
+
+def save_newcomer_candidate_pool(data_dir, pool):
+    os.makedirs(data_dir, exist_ok=True)
+    path = os.path.join(data_dir, "newcomer_candidate_pool.json")
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(pool, f, ensure_ascii=False, indent=2)
