@@ -43,6 +43,10 @@ on:
           - ""
           - "add_submitter_name_column"
         default: ""
+      create_dir:
+        description: "デプロイの代わりに、lab.spia-net.com直下（othello-league/の1つ上）に相対パスでディレクトリを作成する（例: othello-news）。「..」や先頭「/」は不可"
+        required: false
+        default: ""
 
 jobs:
   deploy-site:
@@ -52,7 +56,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Lint PHP before deploying
-        if: ${{ github.event.inputs.list_only != 'true' && github.event.inputs.delete_files == '' && github.event.inputs.read_file == '' && github.event.inputs.run_migration == '' }}
+        if: ${{ github.event.inputs.list_only != 'true' && github.event.inputs.delete_files == '' && github.event.inputs.read_file == '' && github.event.inputs.run_migration == '' && github.event.inputs.create_dir == '' }}
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq php-cli
           php -l site/api.php
@@ -67,10 +71,14 @@ jobs:
           # data/配下（XSERVER_TARGET_DIR）の1つ上、サイトのドキュメントルート
           # （spia-net.com/public_html/lab.spia-net.com/othello-league/）
           XSERVER_SITE_DIR: "spia-net.com/public_html/lab.spia-net.com/othello-league/"
+          # othello-league/の1つ上（lab.spia-net.com直下）。ニュースサイト等、
+          # 結果サイトとは別のサブパスをここに新設する（create_dirの基準ディレクトリ）
+          XSERVER_LAB_DIR: "spia-net.com/public_html/lab.spia-net.com/"
           LIST_ONLY: ${{ github.event.inputs.list_only }}
           DELETE_FILES: ${{ github.event.inputs.delete_files }}
           READ_FILE: ${{ github.event.inputs.read_file }}
           RUN_MIGRATION: ${{ github.event.inputs.run_migration }}
+          CREATE_DIR: ${{ github.event.inputs.create_dir }}
         run: |
           echo "$XSERVER_SSH_KEY" > /tmp/deploy_key
           chmod 600 /tmp/deploy_key
@@ -143,6 +151,21 @@ jobs:
                   }
                 }
               '"
+            rm -f /tmp/deploy_key
+            exit 0
+          fi
+
+          if [ -n "$CREATE_DIR" ]; then
+            d="$(echo "$CREATE_DIR" | xargs)"
+            # 英数字・ハイフン・アンダースコア・スラッシュのみ許可（コマンド注入・パストラバーサル対策）
+            if [[ -z "$d" || ! "$d" =~ ^[A-Za-z0-9_/-]+$ || "$d" == *".."* || "$d" == /* ]]; then
+              echo "::error::不正なディレクトリパス: '$d'"
+              rm -f /tmp/deploy_key
+              exit 1
+            fi
+            echo "=== ${XSERVER_LAB_DIR}${d} を作成 ==="
+            retry_cmd ssh -i /tmp/deploy_key -p "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
+              "$XSERVER_USER@$XSERVER_HOST" "mkdir -pv -- '${XSERVER_LAB_DIR}${d}'"
             rm -f /tmp/deploy_key
             exit 0
           fi
