@@ -1,0 +1,134 @@
+name: Generate News Article (オセロ界タイムズ)
+
+# 本戦（evolve.yml、"Run Othello League Season"）が成功した直後に、その季の
+# ダイジェスト記事をClaude APIで生成してdata/news/articles.jsonへpushし、
+# news-site/（フロントエンド）とdata/news/articles.jsonをxserver上の
+# othello-news/（lab.spia-net.com/othello-news/、結果サイトのothello-league/とは
+# 別のサブパス）へ反映する。
+#
+# workflow_runトリガーは、トリガー元ワークフローファイル（このファイル自体）が
+# デフォルトブランチ（main）に存在しないと発火しない仕様のため、このブランチ上では
+# 動作確認できず、mainへマージされて初めて有効になる。
+#
+# 本戦・新人リーグと同じ排他グループ（othello-league）を使うことで、
+# data/standings・data/matchesの読み込み中に次の本戦バッチが書き込みを始めて
+# 競合することを防ぐ（本戦→新人リーグ→ニュース生成の順で原則直列に実行される）
+concurrency:
+  group: othello-league
+  cancel-in-progress: false
+
+on:
+  workflow_dispatch:
+    inputs:
+      season:
+        description: "対象シーズン番号（省略時は最新）"
+        required: false
+        default: ""
+  workflow_run:
+    workflows: ["Run Othello League Season"]
+    types: [completed]
+
+jobs:
+  generate-news:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # 排他グループでの順番待ちが長引いても、実行時点の最新mainを必ず取得する
+          # （evolve.yml・newcomer_league.ymlと同じ理由）
+          ref: main
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install anthropic
+
+      - name: Generate article and push
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          git config user.name "othello-league-bot"
+          git config user.email "actions@users.noreply.github.com"
+
+          SEASON_ARG=""
+          if [ -n "${{ github.event.inputs.season }}" ]; then
+            SEASON_ARG="--season ${{ github.event.inputs.season }}"
+          fi
+
+          python -u generate_news.py --data-dir data --news-dir data/news $SEASON_ARG
+
+          git add data/news/articles.json
+          if ! git diff --staged --quiet; then
+            git commit -m "Generate news article [skip ci]"
+
+            # push失敗時の積み直し方式はevolve.yml・newcomer_league.ymlと同じ
+            # （rebaseの競合解決に頼らず、最新originの上へ今回の結果を積み直す）
+            PUSHED=0
+            for attempt in 1 2 3 4; do
+              if git push; then
+                PUSHED=1
+                break
+              fi
+              echo "::warning::git push 失敗（試行 ${attempt}/4）。最新のmainを取り込んで積み直します"
+              git fetch origin main || break
+              git reset --mixed origin/main
+              git add data/news/articles.json
+              if git diff --staged --quiet; then
+                echo "最新のmainに既に同じ内容が反映されていました（他の実行と重複した可能性）"
+                PUSHED=1
+                break
+              fi
+              git commit -m "Generate news article [skip ci]"
+              sleep $((attempt * 3))
+            done
+
+            if [ "$PUSHED" != "1" ]; then
+              echo "::error::git pushに複数回失敗しました。生成した記事はローカルに残っています"
+              exit 1
+            fi
+          else
+            echo "変更なし（新しい記事は生成されませんでした。対象季が無い、または既に生成済みです）"
+          fi
+
+      - name: Deploy news-site to xserver
+        env:
+          XSERVER_HOST: ${{ secrets.XSERVER_HOST }}
+          XSERVER_USER: ${{ secrets.XSERVER_USER }}
+          XSERVER_PORT: ${{ secrets.XSERVER_SSH_PORT }}
+          XSERVER_SSH_KEY: ${{ secrets.XSERVER_SSH_KEY }}
+          # deploy_site.ymlのXSERVER_SITE_DIR（othello-league/）とは別の、
+          # 同じくlab.spia-net.com直下のサブパス（create_dirアクションで作成済み）
+          XSERVER_NEWS_DIR: "spia-net.com/public_html/lab.spia-net.com/othello-news/"
+        run: |
+          echo "$XSERVER_SSH_KEY" > /tmp/deploy_key
+          chmod 600 /tmp/deploy_key
+
+          retry_cmd() {
+            local max_attempts=4
+            local delay=5
+            local attempt=1
+            until "$@"; do
+              if [ "$attempt" -ge "$max_attempts" ]; then
+                return 1
+              fi
+              echo "::warning::コマンド失敗（試行 $attempt/$max_attempts）。${delay}秒後にリトライします: $*"
+              sleep "$delay"
+              attempt=$((attempt + 1))
+              delay=$((delay * 2))
+            done
+          }
+
+          retry_cmd ssh -i /tmp/deploy_key -p "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
+            "$XSERVER_USER@$XSERVER_HOST" "mkdir -p ${XSERVER_NEWS_DIR}"
+
+          retry_cmd scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
+            news-site/index.html data/news/articles.json \
+            "$XSERVER_USER@$XSERVER_HOST:${XSERVER_NEWS_DIR}"
+
+          rm -f /tmp/deploy_key
