@@ -786,8 +786,12 @@ async function renderIndividualProfile(id) {
   const name = ind.display_name || id;
   const statusLine = ind.retired ? '引退済み' : `現在：${escapeHtml(ind.league || '-')}リーグ`;
   const titleRanges = data.title_ranges || [];
+  const eternalTitles = data.eternal_titles || [];
   const titleHtml = titleRanges.length
-    ? titleRanges.map(t => `<div class="profile-title-row">${escapeHtml(t.title)}：${t.total}期（${escapeHtml(t.ranges)}）</div>`).join('')
+    ? titleRanges.map(t => {
+        const eternalNote = eternalTitles.includes(t.title) ? '　<b>永世称号</b>' : '';
+        return `<div class="profile-title-row">${escapeHtml(t.title)}：${t.total}期（${escapeHtml(t.ranges)}）${eternalNote}</div>`;
+      }).join('')
     : '<div class="profile-title-row" style="color:var(--text-dim);">タイトル獲得歴なし</div>';
 
   const allArticles = await loadArticles();
@@ -1024,11 +1028,12 @@ async function loadSponsorList(id) {
 let _rosterView = 'active'; // 'active' | 'retired'
 let _rosterGroupBy = 'league'; // 'league' | 'dan'
 
-// タイトル獲得数・永世称号バッジ（現役・引退どちらの一覧でも使う共通部品）
+// タイトル獲得数バッジ（現役・引退どちらの一覧でも使う共通部品）。
+// 永世称号の有無はここでは示さない（分かりにくいため）。該当する場合は
+// 個体ページ側に明記する（renderIndividualProfile参照）
 function titleCountBadgeHtml(r) {
   if (!r.title_count) return '';
-  const crown = (r.eternal_titles && r.eternal_titles.length) ? '👑' : '';
-  return ` <span class="oshi-badge">${crown}タイトル${r.title_count}期</span>`;
+  return ` <span class="oshi-badge">タイトル${r.title_count}期</span>`;
 }
 
 function rosterRowHtml(r, extraBadge) {
