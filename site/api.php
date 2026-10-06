@@ -557,6 +557,53 @@ switch ($action) {
         foreach ($individualsById as $iid => &$ind) { $ind['dan'] = $danById[$iid] ?? 4; }
         unset($ind);
 
+        // 通算タイトル獲得数・永世称号（選手名鑑の現役一覧に表示するため）。
+        // 考え方はretired_archive/hall_of_fameと同じ（初代襲名の行はholder_idが無いので
+        // holder_nameで突き合わせて補完する）
+        $thStmt3 = $pdo->query(
+            "SELECT th.season, th.title,
+                    COALESCE(th.holder_id, i.id, ra3.id) AS holder_id
+             FROM title_history th
+             LEFT JOIN individuals i ON i.display_name = th.holder_name
+             LEFT JOIN retired_archive ra3 ON ra3.display_name = th.holder_name
+             ORDER BY th.title, th.season ASC"
+        );
+        $titleCounts3 = [];
+        $titleCountsByTitle3 = [];
+        $maxStreak3 = [];
+        $streakId3 = null; $streakTitle3 = null; $streakCount3 = 0;
+        foreach ($thStmt3->fetchAll() as $row3) {
+            $hid = $row3['holder_id'];
+            if ($hid !== null) {
+                $titleCounts3[$hid] = ($titleCounts3[$hid] ?? 0) + 1;
+                if (!isset($titleCountsByTitle3[$hid])) $titleCountsByTitle3[$hid] = [];
+                $titleCountsByTitle3[$hid][$row3['title']] = ($titleCountsByTitle3[$hid][$row3['title']] ?? 0) + 1;
+            }
+            if ($row3['title'] !== $streakTitle3 || $hid !== $streakId3) {
+                $streakTitle3 = $row3['title']; $streakId3 = $hid; $streakCount3 = 1;
+            } else {
+                $streakCount3++;
+            }
+            if ($hid !== null && (!isset($maxStreak3[$hid][$row3['title']]) || $streakCount3 > $maxStreak3[$hid][$row3['title']])) {
+                $maxStreak3[$hid][$row3['title']] = $streakCount3;
+            }
+        }
+        $eternalIds3 = [];
+        foreach ($titleCountsByTitle3 as $hid => $byTitle) {
+            foreach ($byTitle as $title => $total) {
+                $consec = $maxStreak3[$hid][$title] ?? 0;
+                if (is_eternal_title($title, $total, $consec)) {
+                    if (!isset($eternalIds3[$hid])) $eternalIds3[$hid] = [];
+                    $eternalIds3[$hid][] = $title;
+                }
+            }
+        }
+        foreach ($individualsById as $iid => &$ind) {
+            $ind['title_count'] = $titleCounts3[$iid] ?? 0;
+            $ind['eternal_titles'] = $eternalIds3[$iid] ?? [];
+        }
+        unset($ind);
+
         $byLeague = ["A" => [], "B" => [], "C" => [], "D" => []];
         $placed = [];
         $standRows = [];

@@ -198,6 +198,7 @@
   .card.followed { border-left: 3px solid var(--accent); }
   .oshi-badge { font-size: 0.68rem; font-weight: 700; color: var(--accent-dark); background: #FFF1E0; border-radius: 8px; padding: 2px 8px; margin-right: 4px; }
   .oshi-star { color: var(--accent-dark); margin-right: 2px; }
+  .roster-new-badge { font-size: 0.68rem; color: var(--text-dim); border: 1px solid var(--border); border-radius: 8px; padding: 1px 6px; margin-right: 4px; }
 
   .cheer-box {
     background: var(--card); border: 1px solid var(--border); border-radius: 14px;
@@ -1023,10 +1024,19 @@ async function loadSponsorList(id) {
 let _rosterView = 'active'; // 'active' | 'retired'
 let _rosterGroupBy = 'league'; // 'league' | 'dan'
 
+// タイトル獲得数・永世称号バッジ（現役・引退どちらの一覧でも使う共通部品）
+function titleCountBadgeHtml(r) {
+  if (!r.title_count) return '';
+  const crown = (r.eternal_titles && r.eternal_titles.length) ? '👑' : '';
+  return ` <span class="oshi-badge">${crown}タイトル${r.title_count}期</span>`;
+}
+
 function rosterRowHtml(r, extraBadge) {
+  const ageLabel = r.age != null ? `${r.age}歳　` : '';
+  const newBadge = r.is_new ? '<span class="roster-new-badge">新</span> ' : '';
   return `<div class="roster-row" data-goto-individual="${escapeHtml(r.id)}">
-      <span>${isFollowed(r.id) ? '<span class="oshi-star">★</span>' : ''}${escapeHtml(r.display_name || r.id)}${extraBadge || ''}</span>
-      <span class="roster-right">${danLabel(r.dan)}　${r.eloLabel}</span>
+      <span>${isFollowed(r.id) ? '<span class="oshi-star">★</span>' : ''}${newBadge}${escapeHtml(r.display_name || r.id)}${extraBadge || ''}</span>
+      <span class="roster-right">${ageLabel}${danLabel(r.dan)}　${r.eloLabel}</span>
     </div>`;
 }
 
@@ -1066,10 +1076,7 @@ async function renderIndividualList() {
       return;
     }
     const rows = data.retired.map(r => ({ ...r, eloLabel: `最高Elo ${Math.round(r.peak_elo)}（第${r.debut_season}〜${r.retired_season}季）` }));
-    const rowsHtml = rows.map(r => {
-      const badge = r.title_count > 0 ? ` <span class="oshi-badge">タイトル${r.title_count}期</span>` : '';
-      return rosterRowHtml(r, badge);
-    }).join('');
+    const rowsHtml = rows.map(r => rosterRowHtml(r, titleCountBadgeHtml(r))).join('');
     el.innerHTML = `${rosterViewChipsHtml()}
       <div class="empty" style="padding:0 0 16px; text-align:left; color:var(--text-dim); font-size:0.8rem;">
         引退した選手の名鑑です（タイトル獲得数が多い順）。
@@ -1110,7 +1117,7 @@ async function renderIndividualList() {
         .map(r => ({ ...r, eloLabel: `Elo ${Math.round(r.elo_rating)}` }));
       return `<div class="roster-league-group">
         <h3>${danLabel(dan)}（${rows.length}名）</h3>
-        ${rows.map(r => rosterRowHtml(r)).join('') || '<div class="empty">在籍者なし</div>'}
+        ${rows.map(r => rosterRowHtml(r, titleCountBadgeHtml(r))).join('') || '<div class="empty">在籍者なし</div>'}
       </div>`;
     }).join('');
   } else {
@@ -1118,7 +1125,7 @@ async function renderIndividualList() {
       const rows = (leagues[lg] || []).map(r => ({ ...r, eloLabel: `Elo ${Math.round(r.elo_rating)}` }));
       return `<div class="roster-league-group">
         <h3>${lg}リーグ（${rows.length}名）</h3>
-        ${rows.map(r => rosterRowHtml(r)).join('') || '<div class="empty">在籍者なし</div>'}
+        ${rows.map(r => rosterRowHtml(r, titleCountBadgeHtml(r))).join('') || '<div class="empty">在籍者なし</div>'}
       </div>`;
     }).join('');
   }
