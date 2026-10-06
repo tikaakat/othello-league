@@ -26,6 +26,7 @@ from othello_league.league import (
     count_existing_disciples,
 )
 from othello_league.swiss import run_swiss_league
+from othello_league.play import play_decisive_match
 from othello_league.names import NameRegistry
 from othello_league.io_utils import (
     load_season_state, load_rosters,
@@ -70,6 +71,98 @@ def _build_entry_pool(submissions, retry_pool, target, registry):
     return filled
 
 
+def _run_playoff_round(tied_ids, by_id, depth):
+    """
+    tied_idsの総当たり（1回戦ずつ、引き分け無しで決着）を1ラウンド行い、
+    (勝数dict, 対局ログ)を返す"""
+    wins = {iid: 0 for iid in tied_ids}
+    matches = []
+    for i in range(len(tied_ids)):
+        for j in range(i + 1, len(tied_ids)):
+            a_id, b_id = tied_ids[i], tied_ids[j]
+            outcome_a, games = play_decisive_match(by_id[a_id], by_id[b_id], depth=depth)
+            winner_id = a_id if outcome_a == "win" else b_id
+            wins[winner_id] += 1
+            matches.append({
+                "a": a_id, "b": b_id, "a_name": by_id[a_id].display_name,
+                "b_name": by_id[b_id].display_name, "winner": winner_id, "games": games,
+            })
+    return wins, matches
+
+
+def resolve_promotion_playoff(tied_ids, by_id, remaining_slots, depth, _round=1, _max_rounds=5):
+    """
+    昇格枠の境界で同成績になった候補者（tied_ids）の中からremaining_slots名を、
+    総当たり・引き分け無しのプレーオフで決める（新人リーグの順位はEloで同点が
+    決まらず、全員が新規参入者で初期Eloも揃っているため、実力に基づかない
+    投稿順タイブレークになってしまっていた不備への対応）。
+
+    勝数で順位付けし、それでも境界で同数が残れば、その対象だけを絞り込んで
+    再度プレーオフを行う（収束するまで、最大_max_rounds回）。万一収束しなかった
+    場合のみ、現在のElo順（対局によりこの時点では差がついている）で確定する。
+
+    戻り値: (昇格者idリスト, 非昇格者idリスト, プレーオフラウンドのログ)
+    """
+    if len(tied_ids) <= remaining_slots:
+        return list(tied_ids), [], []
+    if len(tied_ids) < 2 or _round > _max_rounds:
+        ordered = sorted(tied_ids, key=lambda iid: -by_id[iid].elo)
+        return ordered[:remaining_slots], ordered[remaining_slots:], []
+
+    wins, matches = _run_playoff_round(tied_ids, by_id, depth)
+    ordered = sorted(tied_ids, key=lambda iid: -wins[iid])
+    boundary_wins = wins[ordered[remaining_slots - 1]]
+    above = [iid for iid in ordered if wins[iid] > boundary_wins]
+    at_boundary = [iid for iid in ordered if wins[iid] == boundary_wins]
+    below = [iid for iid in ordered if wins[iid] < boundary_wins]
+
+    rounds_log = [{"round": _round, "matches": matches}]
+    slots_left = remaining_slots - len(above)
+    sub_promoted, sub_non_promoted, sub_log = resolve_promotion_playoff(
+        at_boundary, by_id, slots_left, depth, _round=_round + 1, _max_rounds=_max_rounds,
+    )
+    return above + sub_promoted, sub_non_promoted + below, rounds_log + sub_log
+
+
+def _determine_promotion(ranked, score, slots_needed, by_id, depth):
+    """
+    スイス方式終了後の最終スコアから昇格者を確定する。昇格枠の境界に同成績が
+    並ばない（通常のケース）場合はそのままrank<=slots_needed、並ぶ場合は
+    resolve_promotion_playoff()でプレーオフを行う。
+    戻り値: (昇格者idの集合, 表示用順位（playoffで並び替え済み）のindividual_idリスト,
+             プレーオフログ)
+    """
+    if slots_needed <= 0 or slots_needed >= len(ranked):
+        promoted_ids = {ind.id for ind in ranked[:slots_needed]}
+        return promoted_ids, [ind.id for ind in ranked], []
+
+    boundary_score = score[ranked[slots_needed - 1].id]
+    clearly_above = [ind.id for ind in ranked if score[ind.id] > boundary_score]
+    tied_ids = [ind.id for ind in ranked if score[ind.id] == boundary_score]
+    remaining_slots = slots_needed - len(clearly_above)
+
+    promoted_tied, non_promoted_tied, playoff_log = resolve_promotion_playoff(
+        tied_ids, by_id, remaining_slots, depth,
+    )
+    promoted_ids = set(clearly_above) | set(promoted_tied)
+
+    # 表示順も、境界で並んでいた同成績グループだけプレーオフの結果順に並べ替える
+    # （順位欄とpromotedフラグが食い違わないようにするため）。グループ外の順序は変えない
+    tied_set = set(tied_ids)
+    reordered_tied = promoted_tied + non_promoted_tied
+    display_order = []
+    inserted = False
+    for ind in ranked:
+        if ind.id in tied_set:
+            if not inserted:
+                display_order.extend(reordered_tied)
+                inserted = True
+            continue
+        display_order.append(ind.id)
+
+    return promoted_ids, display_order, playoff_log
+
+
 def run_newcomer_league(submissions, slots_needed, registry, retry_pool=None,
                          depth=NEWCOMER_LEAGUE_DEPTH,
                          rounds=NEWCOMER_LEAGUE_ROUNDS, target_pool=NEWCOMER_TARGET_POOL,
@@ -83,14 +176,18 @@ def run_newcomer_league(submissions, slots_needed, registry, retry_pool=None,
     pool: 師匠選出に使う現役個体一覧（A〜D全リーグ）。Noneの場合、新規の師弟関係は
       決めない（全員が無流派の新規開祖扱いになる。テスト・後方互換用）
     titleholder_ids: 師匠選出の重み付けに使うタイトル保持者ID集合
-    戻り値: (winner_entries, standings, match_log, next_retry_pool)
+    戻り値: (winner_entries, standings, match_log, next_retry_pool, playoff_log)
       winner_entries: 勝者の元の投稿データ（{"name":,"type":,"params":,"initial_age":,
         "parent_a_id":,"clan_root_id":,"generation":,"volatility":}形式）のリスト。
         これらを含めることで、本戦で実際にDリーグへ参入する際も新人リーグ時点で
         決まった値のまま参入する（師弟関係も年齢も再抽選しない）
-      standings: 順位表（表示用）
+      standings: 順位表（表示用。昇格枠の境界で同成績が並んだ場合は、プレーオフの
+        結果順に並べ替えてある）
       match_log: 対局ログ（表示用）
       next_retry_pool: 次回の新人リーグに持ち越す候補（非昇格者の上位5名）
+      playoff_log: 昇格枠の境界で同成績が並んだ場合のプレーオフ対局ログ
+        （[{"round":, "matches":[{"a":,"b":,"a_name":,"b_name":,"winner":,"games":}, ...]}, ...]）。
+        同成績が発生しなかった場合は空リスト。永続保存はせず、この季の結果ファイルにのみ記録する
     """
     entries = _build_entry_pool(submissions, retry_pool or [], target_pool, registry)
 
@@ -130,30 +227,39 @@ def run_newcomer_league(submissions, slots_needed, registry, retry_pool=None,
         }
 
     if len(candidates) < 2:
-        return [], [], [], (retry_pool or [])
+        return [], [], [], (retry_pool or []), []
 
     ranked, match_log, score, record = run_swiss_league(
         candidates, rounds=rounds, depth=depth, league_name="新人リーグ",
     )
 
+    # スイス方式終了時点のスコアだけでは、昇格枠の境界に複数名が同成績で並んだ場合の
+    # 決着がつかない（新人リーグは全員が新規参入者で初期Eloも揃っているため、
+    # 従来のEloタイブレークは実質無意味で、投稿順という実力と無関係な決定になっていた）。
+    # 境界で同成績が並んだ場合のみ、該当者同士のプレーオフ（引き分け無し）で昇格者を決める
+    by_id = {ind.id: ind for ind in ranked}
+    promoted_ids, display_order, playoff_log = _determine_promotion(
+        ranked, score, slots_needed, by_id, depth,
+    )
+
     standings = []
-    for rank, ind in enumerate(ranked, 1):
-        rec = record.get(ind.id, {"win": 0, "loss": 0, "draw": 0})
-        entry = entries_by_id[ind.id]
+    for rank, iid in enumerate(display_order, 1):
+        ind = by_id[iid]
+        rec = record.get(iid, {"win": 0, "loss": 0, "draw": 0})
+        entry = entries_by_id[iid]
         standings.append({
-            "rank": rank, "individual_id": ind.id, "display_name": ind.display_name,
+            "rank": rank, "individual_id": iid, "display_name": ind.display_name,
             "win": rec["win"], "loss": rec["loss"], "draw": rec["draw"],
             "auto_generated": bool(entry.get("auto_generated")),
-            "promoted": rank <= slots_needed,
+            "promoted": iid in promoted_ids,
         })
 
-    winners = ranked[:slots_needed]
-    winner_ids = {w.id for w in winners}
+    winners = [ind for ind in ranked if ind.id in promoted_ids]
     winner_entries = [entries_by_id[w.id] for w in winners]
 
     # 非昇格者のうち、成績上位5名（投稿・自動生成を問わない）だけを次回へ持ち越す。
-    # rankedは既に成績順（スイス方式の最終順位）なので、winner以降の先頭5名がそのまま対象
-    non_promoted = [ind for ind in ranked if ind.id not in winner_ids]
+    # display_orderは既にプレーオフ結果を反映した最終順位なので、winner以降の先頭5名がそのまま対象
+    non_promoted = [by_id[iid] for iid in display_order if iid not in promoted_ids]
     next_retry_pool = []
     for ind in non_promoted[:NEWCOMER_RETRY_KEEP_TOP_N]:
         entry = entries_by_id[ind.id]
@@ -165,7 +271,7 @@ def run_newcomer_league(submissions, slots_needed, registry, retry_pool=None,
             "generation": entry.get("generation", 0), "volatility": entry.get("volatility"),
         })
 
-    return winner_entries, standings, match_log, next_retry_pool
+    return winner_entries, standings, match_log, next_retry_pool, playoff_log
 
 
 def relabel_if_stale(data_dir, marker_path=RESULT_MARKER_PATH):
@@ -278,10 +384,12 @@ def main():
     }
 
     registry = NameRegistry()
-    winner_entries, standings, match_log, next_retry_pool = run_newcomer_league(
+    winner_entries, standings, match_log, next_retry_pool, playoff_log = run_newcomer_league(
         submissions, slots_needed, registry, retry_pool=retry_pool,
         pool=pool, titleholder_ids=titleholder_ids,
     )
+    if playoff_log:
+        print(f"[DEBUG] 昇格枠の境界で同成績が発生したため、プレーオフを{len(playoff_log)}ラウンド実施しました", flush=True)
 
     winners_path = os.path.join(args.data_dir, "newcomer_winners.json")
     with open(winners_path, "w", encoding="utf-8") as f:
@@ -293,6 +401,7 @@ def main():
         json.dump({
             "for_season": target_season, "slots_needed": slots_needed,
             "submission_count": len(submissions), "standings": standings, "match_log": match_log,
+            "promotion_playoff": playoff_log,
         }, f, ensure_ascii=False, indent=2)
     print(f"[DEBUG] 新人リーグ結果を{result_path}に保存しました", flush=True)
 
