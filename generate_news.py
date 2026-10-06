@@ -73,14 +73,29 @@ def gather_season_facts(data_dir, season):
         })
         related.append((winner_id, names.get(winner_id, winner_id)))
 
-    movements = {"promoted": [], "relegated": [], "new": [], "retired": []}
+    # 昇格・降格は、Aリーグが絡むもの（B→A・A→B）だけ個別に名前を残す。
+    # B〜D間の入れ替えは人数が多く記事が名前の列挙だけで埋まってしまうため、件数のみ集計する
+    movements = {"promoted_a": [], "relegated_a": [], "promoted_other": 0, "relegated_other": 0,
+                 "new": [], "retired": []}
     for r in standings:
-        if r.get("league") not in ("A", "B", "C", "D"):
+        league = r.get("league")
+        if league not in ("A", "B", "C", "D"):
             continue
         mv = r.get("movement", "")
-        for key in movements:
-            if key in mv:
-                movements[key].append(r["display_name"])
+        if "promoted" in mv:
+            if league == "B":
+                movements["promoted_a"].append(r["display_name"])
+            else:
+                movements["promoted_other"] += 1
+        if "relegated" in mv:
+            if league == "A":
+                movements["relegated_a"].append(r["display_name"])
+            else:
+                movements["relegated_other"] += 1
+        if "new" in mv:
+            movements["new"].append(r["display_name"])
+        if "retired" in mv:
+            movements["retired"].append(r["display_name"])
 
     seen = set()
     related_unique = []
@@ -107,10 +122,15 @@ def build_prompt(facts):
     mv = facts["movements"]
     lines.append("")
     lines.append("■リーグ戦")
-    if mv["promoted"]:
-        lines.append(f"・昇格：{'、'.join(mv['promoted'])}")
-    if mv["relegated"]:
-        lines.append(f"・降格：{'、'.join(mv['relegated'])}")
+    if mv["promoted_a"]:
+        lines.append(f"・Aリーグへ昇格：{'、'.join(mv['promoted_a'])}")
+    if mv["relegated_a"]:
+        lines.append(f"・Aリーグから降格：{'、'.join(mv['relegated_a'])}")
+    if mv["promoted_other"] or mv["relegated_other"]:
+        lines.append(
+            f"・B〜Dリーグ内の入れ替え：昇格{mv['promoted_other']}名、降格{mv['relegated_other']}名"
+            "（個別の名前のデータはここでは渡していない）"
+        )
     if mv["new"]:
         lines.append(f"・新規参入：{'、'.join(mv['new'])}")
     if mv["retired"]:
@@ -119,6 +139,8 @@ def build_prompt(facts):
     lines.append(
         f"以上の事実だけをもとに、第{facts['season']}季のダイジェスト記事を書いてください。"
         "データに無い出来事・数字は書かないこと。"
+        "リーグ戦については、Aリーグに関わる昇格・降格だけ名前を挙げて触れればよい。"
+        "B〜Dリーグ内の入れ替えは、件数だけ一言触れる程度で十分（個別の名前は渡していないので書けない）。"
         "出力は次のJSON形式のみ（説明文やコードフェンスなど、他のテキストは一切含めない）：\n"
         '{"title": "見出し", "summary": "1〜2文の要約", "body": "本文（300〜500字程度）", '
         '"tags": ["結果", "関係するタイトル名..."]}'
