@@ -1078,6 +1078,7 @@ switch ($action) {
         $titleWinEvents = []; // [['season'=>, 'title'=>], ...]（全タイトル。タイトル獲得による6/7段判定に使う）
         $seiryuFirstSeason = null;
         $otherTitleEvents = []; // [[season, title], ...]（朱雀・白虎・玄武）
+        $eternalTitlesRow = []; // 現時点で永世称号の基準を満たしているタイトル名の一覧（簡易個体ページ表示用）
         foreach (TITLE_NAMES_LIST as $title) {
             $holdStmt = $pdo->prepare(
                 "SELECT season, holder_id, holder_name FROM title_history
@@ -1114,6 +1115,18 @@ switch ($action) {
                     $nonWinCandidates[] = ['season' => $s, 'dan' => 9, 'reason' => "永世{$title}"];
                     break;
                 }
+            }
+
+            // 永世称号の最終判定（現時点で満たしているか）。上のループは段位計算用に
+            // 「最初に満たした季」で止まるため、通算期数・最大連続期数を改めて最後まで数え直す
+            $maxConsecFinal = 0; $consecFinal = 0; $prevSeasonFinal = null;
+            foreach ($mySeasons as $s) {
+                $consecFinal = ($prevSeasonFinal !== null && $s === $prevSeasonFinal + 1) ? $consecFinal + 1 : 1;
+                $prevSeasonFinal = $s;
+                if ($consecFinal > $maxConsecFinal) $maxConsecFinal = $consecFinal;
+            }
+            if (is_eternal_title($title, count($mySeasons), $maxConsecFinal)) {
+                $eternalTitlesRow[] = $title;
             }
         }
         $titleTotalSeasons = array_sum(array_column($titleRanges, 'total'));
@@ -1257,6 +1270,7 @@ switch ($action) {
             'record' => $record, 'opponent_records' => $opponentRecords,
             'parent' => $parent, 'ancestors' => $ancestors, 'children' => $children,
             'title_ranges' => $titleRanges, 'title_total_seasons' => $titleTotalSeasons,
+            'eternal_titles' => $eternalTitlesRow,
             'challenge_ranges' => $challengeRanges, 'challenge_total_seasons' => $challengeTotalSeasons,
         ]);
         break;
