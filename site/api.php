@@ -235,19 +235,6 @@ function simulate_dan_progression($debutSeason, $debutLeague, array $nonWinCandi
     return ['dan' => $dan, 'history' => $history];
 }
 
-// タイトル履歴の「保持シーズン一覧」（ソート済み）から、連続保持の最大値を求める。
-// title_history由来のシーズン番号は、保持者交代があれば必ず歯抜けになるため、
-// 単純に「並んだ整数の最長連続区間」を数えるだけで、保持者ごとの連続記録の最大値と等価になる
-function max_consecutive_run(array $sortedSeasons) {
-    if (empty($sortedSeasons)) return 0;
-    $best = 1; $cur = 1;
-    for ($i = 1; $i < count($sortedSeasons); $i++) {
-        $cur = ($sortedSeasons[$i] === $sortedSeasons[$i - 1] + 1) ? $cur + 1 : 1;
-        $best = max($best, $cur);
-    }
-    return $best;
-}
-
 // 複数個体分の段位をまとめて算出する（1個体ずつ算出する場合と違い、対局・順位・
 // タイトル実績のクエリをそれぞれ1回で済ませる）。$currentLeagueById（省略可）を渡すと、
 // standingsにまだ反映されていない「現在の所属リーグ」も昇段候補として加味する
@@ -945,28 +932,24 @@ switch ($action) {
             $row['clan_established'] = ((int)$ccStmt->fetchColumn()) >= 3;
         }
 
-        // 系譜：師匠 → その師匠 → ...と、辿れるところまで遡る（開祖・新規開祖で親がいなければ空配列）。
+        // 系譜：直接の師匠のみを見る（開祖・新規開祖で親がいなければ空配列）。
+        // 師匠の師匠…とさらに遡った表示は個体情報ページでは行わない（一門タブで見られる）。
         // elo_ratingは、引退済みならretired_archiveの値（＝引退時点のelo）、現役なら現在のeloになる。
-        // 循環参照が万一発生しても無限ループしないよう、訪問済みIDの記録と深さ上限で保険をかける。
         $ancestors = [];
-        $curParentId = $row['parent_a_id'] ?? null;
-        $visitedIds = [$id => true];
-        while (!empty($curParentId) && count($ancestors) < 200) {
-            if (isset($visitedIds[$curParentId])) break;
-            $visitedIds[$curParentId] = true;
+        $parentId = $row['parent_a_id'] ?? null;
+        if (!empty($parentId)) {
             $ancStmt = $pdo->prepare(
-                "SELECT id, display_name, elo_rating, parent_a_id, 0 AS retired FROM individuals WHERE id = :id
+                "SELECT id, display_name, elo_rating, 0 AS retired FROM individuals WHERE id = :id
                  UNION ALL
-                 SELECT id, display_name, elo_rating, parent_a_id, 1 AS retired FROM retired_archive WHERE id = :id2
+                 SELECT id, display_name, elo_rating, 1 AS retired FROM retired_archive WHERE id = :id2
                  LIMIT 1"
             );
-            $ancStmt->execute(['id' => $curParentId, 'id2' => $curParentId]);
+            $ancStmt->execute(['id' => $parentId, 'id2' => $parentId]);
             $anc = $ancStmt->fetch();
-            if (!$anc) break;
-            $anc['elo_rating'] = round((float)$anc['elo_rating'], 1);
-            $curParentId = $anc['parent_a_id'];
-            unset($anc['parent_a_id']);
-            $ancestors[] = $anc;
+            if ($anc) {
+                $anc['elo_rating'] = round((float)$anc['elo_rating'], 1);
+                $ancestors[] = $anc;
+            }
         }
         $parent = $ancestors[0] ?? null;
 

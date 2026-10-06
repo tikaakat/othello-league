@@ -4,14 +4,15 @@
 Dリーグに新規参入した人数分）だけが、この日の夜に実行される本戦でDリーグへ
 新規参入する。
 
-投稿が目標人数（30名）に満たない場合は、自動生成の候補で埋める。この自動生成候補は
-毎回使い捨てにはせず、敗退した個体をnewcomer_candidate_pool.jsonへ持ち越し、次回以降の
-新人リーグで同じ能力・同じ年齢のまま再挑戦できるようにする（年齢制：本戦のDリーグ
-強制引退と同じ考え方で、NEWCOMER_RETIREMENT_AGE歳に達しても勝ち上がれなければ、
-そこで引退してプールから外れ、新しい自動生成候補に入れ替わる。開始年齢は通常の新弟子と
-同じ18〜24歳のランダムなので、挑戦できる回数には個体差がある）。
-投稿（プレイヤーがキャラクリエイトしたもの）はこの持ち越しの対象外：敗退しても自動で
-再挑戦はせず、投稿者が望めば改めて投稿し直す形のまま（1投稿＝1回の挑戦という前提を保つ）。
+投稿が目標人数（30名）に満たない場合は、自動生成の候補で埋める。
+非昇格者のうち上位5名（投稿・自動生成を問わない）だけを次回の新人リーグに持ち越す
+（newcomer_candidate_pool.json）。年齢制限は設けない：持ち越し中も年齢は重ねるが、
+何歳でも上位5名に入り続ける限り再挑戦できる。
+
+新人リーグのロスターを組む時点（＝本戦でDリーグに参入するよりも前）で、師匠（弟子で
+あれば誰の弟子か）を決めておく。これにより、新人リーグを戦っている時点で既に
+師弟関係が決まった状態になる（本戦でのDリーグ参入時に初めて師匠を決めるのではない）。
+持ち越し中の候補は、最初に決まった師弟関係をそのまま引き継ぐ（再抽選しない）。
 本戦（run_season.py）とは別プロセス・別スケジュール（AM実行）で動かす想定。
 """
 import argparse
@@ -20,12 +21,14 @@ import os
 import random
 import re
 
-from othello_league.individual import LeagueIndividual
-from othello_league.league import _build_character_creation_individual
+from othello_league.league import (
+    _build_character_creation_individual, _pick_master, MASTER_MIN_AGE,
+    count_existing_disciples,
+)
 from othello_league.swiss import run_swiss_league
 from othello_league.names import NameRegistry
 from othello_league.io_utils import (
-    load_season_state, save_season_state,
+    load_season_state, load_rosters,
     load_newcomer_candidate_pool, save_newcomer_candidate_pool,
 )
 
@@ -33,10 +36,7 @@ NEWCOMER_LEAGUE_DEPTH = 3
 NEWCOMER_LEAGUE_ROUNDS = 15
 NEWCOMER_TARGET_POOL = 30
 NEWCOMER_SUBMISSION_CAP = 40
-# 自動生成候補が持ち越しで再挑戦できる年齢の上限（本戦のDリーグ強制引退（60歳）と
-# 同じ発想。この歳に達しても勝ち上がれなければプールから外す＝引退扱い。
-# 開始年齢は通常の新弟子と同じ18〜24歳のランダムなので、挑戦回数には個体差がある）
-NEWCOMER_RETIREMENT_AGE = 26
+NEWCOMER_RETRY_KEEP_TOP_N = 5  # 非昇格者のうち、次回へ持ち越すのは上位何名まで
 CHARACTER_TYPES = ["balanced", "aggressive", "defensive", "corner"]
 
 # main()が計算したresult_pathを一時保存する場所（git管理外）。
@@ -73,34 +73,60 @@ def _build_entry_pool(submissions, retry_pool, target, registry):
 def run_newcomer_league(submissions, slots_needed, registry, retry_pool=None,
                          depth=NEWCOMER_LEAGUE_DEPTH,
                          rounds=NEWCOMER_LEAGUE_ROUNDS, target_pool=NEWCOMER_TARGET_POOL,
-                         retirement_age=NEWCOMER_RETIREMENT_AGE):
+                         pool=None, titleholder_ids=frozenset()):
     """
     submissions: [{"name":, "type":, "params":}, ...]（当日投稿分、上限は呼び出し側で適用済み想定）
     slots_needed: 今夜のDリーグ新規参入枠（前回シーズンの新規参入人数）
-    retry_pool: 持ち越し中の自動生成候補 [{"name":,"type":,"params":,"awakened_param":,"age":}, ...]
+    retry_pool: 持ち越し中の候補（前回上位5名）
+      [{"name":,"type":,"params":,"awakened_param":,"age":,"parent_a_id":,"clan_root_id":,
+        "generation":,"volatility":,"auto_generated":}, ...]
+    pool: 師匠選出に使う現役個体一覧（A〜D全リーグ）。Noneの場合、新規の師弟関係は
+      決めない（全員が無流派の新規開祖扱いになる。テスト・後方互換用）
+    titleholder_ids: 師匠選出の重み付けに使うタイトル保持者ID集合
     戻り値: (winner_entries, standings, match_log, next_retry_pool)
-      winner_entries: 勝者の元の投稿データ（{"name":,"type":,"params":,"initial_age":}形式）のリスト。
-        initial_ageを含めることで、本戦で実際にDリーグへ参入する際も持ち越した年齢のまま参入する
+      winner_entries: 勝者の元の投稿データ（{"name":,"type":,"params":,"initial_age":,
+        "parent_a_id":,"clan_root_id":,"generation":,"volatility":}形式）のリスト。
+        これらを含めることで、本戦で実際にDリーグへ参入する際も新人リーグ時点で
+        決まった値のまま参入する（師弟関係も年齢も再抽選しない）
       standings: 順位表（表示用）
       match_log: 対局ログ（表示用）
-      next_retry_pool: 次回の新人リーグに持ち越す自動生成候補の一覧
+      next_retry_pool: 次回の新人リーグに持ち越す候補（非昇格者の上位5名）
     """
     entries = _build_entry_pool(submissions, retry_pool or [], target_pool, registry)
+
+    # 師匠候補（30歳以上の現役個体。該当者がいなければ制限なしにフォールバック）。
+    # 一門分岐の判定（弟子5名超で分岐）に使うdisciple_countsは、このバッチ全体で
+    # 使い回し、割り当てるたびに加算する（count_existing_disciplesで現在の人数から開始）
+    active_pool = [ind for ind in (pool or []) if not ind.retired]
+    eligible_masters = [ind for ind in active_pool if ind.age >= MASTER_MIN_AGE] or active_pool
+    disciple_counts = count_existing_disciples(active_pool)
 
     candidates = []
     entries_by_id = {}
     for i, entry in enumerate(entries):
-        ind = _build_character_creation_individual(entry, season="NL", index=i)
+        # retry（持ち越し）は前回決定した師弟関係をentry自体が既に持っている
+        # （"parent_a_id"キーの有無で判定）ので、ここでは再抽選しない。
+        # submission・fresh_autoは、新人リーグのロスターを組むこの時点で師匠を決める
+        # （本戦でのDリーグ参入時まで待たない）
+        if "parent_a_id" in entry:
+            master = None
+        else:
+            master = _pick_master(eligible_masters, titleholder_ids, allow_new_founder=False) if eligible_masters else None
+
+        ind = _build_character_creation_individual(
+            entry, season="NL", index=i, master=master, disciple_counts=disciple_counts,
+        )
         ind.league = "新人"
         candidates.append(ind)
-        # 新人リーグの対局で実際に使われたparams・覚醒判定結果・年齢を引き継ぐ。
+        # 新人リーグの対局で実際に使われたparams・師弟関係・覚醒判定結果・年齢を引き継ぐ。
         # こうしないと、本戦で実際にDリーグへ参入する際（勝者）や次回の持ち越し時
-        # （敗者のうちretry対象）に別の乱数でparams・覚醒・年齢が再抽選されてしまい、
-        # 新人リーグで戦った個体と食い違ってしまう（タイプのみ指定・自動生成の
-        # 場合は特にparamsが未指定のため）
+        # （非昇格者の上位5名）に別の乱数で再抽選されてしまい、新人リーグで戦った個体と
+        # 食い違ってしまう
         entries_by_id[ind.id] = {
             **entry, "params": dict(ind.params), "awakened_param": ind.awakened_param,
-            "initial_age": ind.initial_age,
+            "initial_age": ind.initial_age, "parent_a_id": ind.parent_a_id,
+            "clan_root_id": ind.clan_root_id, "generation": ind.generation,
+            "volatility": ind.volatility,
         }
 
     if len(candidates) < 2:
@@ -125,22 +151,18 @@ def run_newcomer_league(submissions, slots_needed, registry, retry_pool=None,
     winner_ids = {w.id for w in winners}
     winner_entries = [entries_by_id[w.id] for w in winners]
 
-    # 敗退者のうち、自動生成（持ち越し中 or 今回新規）だったものだけを次回へ持ち越す。
-    # 投稿（source="submission"）は対象外：敗退しても自動で再挑戦はさせない
+    # 非昇格者のうち、成績上位5名（投稿・自動生成を問わない）だけを次回へ持ち越す。
+    # rankedは既に成績順（スイス方式の最終順位）なので、winner以降の先頭5名がそのまま対象
+    non_promoted = [ind for ind in ranked if ind.id not in winner_ids]
     next_retry_pool = []
-    for ind in ranked:
-        if ind.id in winner_ids:
-            continue
+    for ind in non_promoted[:NEWCOMER_RETRY_KEEP_TOP_N]:
         entry = entries_by_id[ind.id]
-        if entry.get("source") not in ("retry", "fresh_auto"):
-            continue
-        next_age = entry["initial_age"] + 1
-        if next_age >= retirement_age:
-            continue  # 年齢上限に達した＝引退してプールから外れる
         next_retry_pool.append({
             "name": entry.get("name"), "type": entry.get("type"),
             "params": entry["params"], "awakened_param": entry.get("awakened_param"),
-            "auto_generated": True, "age": next_age,
+            "auto_generated": bool(entry.get("auto_generated")), "age": entry["initial_age"] + 1,
+            "parent_a_id": entry.get("parent_a_id"), "clan_root_id": entry.get("clan_root_id"),
+            "generation": entry.get("generation", 0), "volatility": entry.get("volatility"),
         })
 
     return winner_entries, standings, match_log, next_retry_pool
@@ -245,11 +267,20 @@ def main():
     print(f"[DEBUG] 今夜のDリーグ新規参入枠: {slots_needed}名", flush=True)
 
     retry_pool = load_newcomer_candidate_pool(args.data_dir)
-    print(f"[DEBUG] 持ち越し中の自動生成候補: {len(retry_pool)}件", flush=True)
+    print(f"[DEBUG] 持ち越し中の候補（前回上位{NEWCOMER_RETRY_KEEP_TOP_N}名）: {len(retry_pool)}件", flush=True)
+
+    # 師匠選出用に現役ロスターとタイトル保持者IDを読み込む（新人リーグのロスターを
+    # 組む時点で師弟関係を決めるため、本戦のDリーグ補充と同じ情報が要る）
+    rosters = load_rosters(args.data_dir) or {"A": [], "B": [], "C": [], "D": []}
+    pool = [ind for league_list in rosters.values() for ind in league_list]
+    titleholder_ids = {
+        info["id"] for info in (state.get("titleholders") or {}).values() if info and info.get("id")
+    }
 
     registry = NameRegistry()
     winner_entries, standings, match_log, next_retry_pool = run_newcomer_league(
         submissions, slots_needed, registry, retry_pool=retry_pool,
+        pool=pool, titleholder_ids=titleholder_ids,
     )
 
     winners_path = os.path.join(args.data_dir, "newcomer_winners.json")
