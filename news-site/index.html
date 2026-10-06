@@ -9,7 +9,7 @@
 <style>
   :root {
     --bg: #FFFBF4; --card: #FFFFFF; --text-main: #3A332E; --text-dim: #8C8378;
-    --accent: #D9704F; --accent-dark: #B8573A;
+    --accent: #D9704F; --accent-dark: #B8573A; --border: #EEE6DB;
   }
   * { box-sizing: border-box; }
   body {
@@ -24,12 +24,43 @@
 
   header {
     display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
-    gap: 12px; margin-bottom: 26px;
+    gap: 12px; margin-bottom: 18px;
   }
   .brand-link { text-decoration: none; }
   .brand { font-size: 1.4rem; font-weight: 900; color: var(--accent); cursor: pointer; }
   .tagline { font-size: 0.74rem; color: var(--text-dim); margin-top: 2px; }
-  nav { display: flex; gap: 14px; font-size: 0.8rem; font-weight: 700; flex-wrap: wrap; }
+  nav { display: flex; gap: 14px; font-size: 0.8rem; font-weight: 700; flex-wrap: wrap; align-items: center; }
+  nav a.nav-tab { color: var(--text-dim); padding-bottom: 2px; border-bottom: 2px solid transparent; }
+  nav a.nav-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  nav a.nav-external { color: var(--text-dim); font-weight: 500; }
+
+  .holders-card {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+    background: var(--card); border-radius: 16px; padding: 12px 10px;
+    margin-bottom: 18px; box-shadow: 0 2px 10px rgba(58,51,46,0.07);
+  }
+  .holder-slot { text-align: center; cursor: pointer; padding: 4px 2px; border-radius: 10px; }
+  .holder-slot:hover { background: #FFF6EE; }
+  .holder-title { font-size: 0.66rem; font-weight: 700; color: var(--text-dim); margin-bottom: 3px; }
+  .holder-name { font-size: 0.78rem; font-weight: 700; color: var(--text-main); line-height: 1.3; word-break: break-word; }
+  .holders-season { font-size: 0.68rem; color: var(--text-dim); text-align: center; margin: -8px 0 16px; }
+
+  .chip-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+  .chip-btn {
+    font-size: 0.72rem; font-weight: 700; padding: 5px 12px; border-radius: 12px;
+    background: var(--card); color: var(--text-dim); border: 1px solid var(--border); cursor: pointer;
+  }
+  .chip-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  .filter-banner {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    background: #FFF6EE; border: 1px solid #F3DCC9; border-radius: 12px;
+    padding: 8px 14px; margin-bottom: 14px; font-size: 0.78rem; color: var(--accent-dark);
+  }
+  .filter-banner button {
+    font-size: 0.72rem; font-weight: 700; color: var(--text-dim); background: none;
+    border: 1px solid var(--border); border-radius: 10px; padding: 3px 10px; cursor: pointer;
+  }
 
   .card {
     background: var(--card); border-radius: 18px; padding: 18px;
@@ -46,20 +77,41 @@
   .card-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
   .tag {
     font-size: 0.66rem; font-weight: 700; padding: 3px 10px; border-radius: 10px;
-    white-space: nowrap;
+    white-space: nowrap; cursor: pointer;
   }
   .card-time { color: var(--text-dim); font-size: 0.7rem; }
   .card-title { font-size: 1rem; margin: 0 0 6px; line-height: 1.4; }
-  .card-summary { font-size: 0.82rem; color: #5B5349; line-height: 1.6; margin: 0; }
+  .card-summary { font-size: 0.82rem; color: #5B5349; line-height: 1.6; margin: 0 0 6px; }
+  .card-individuals { display: flex; gap: 6px; flex-wrap: wrap; }
+  .ind-chip {
+    font-size: 0.68rem; color: var(--accent-dark); background: #FFF6EE; border-radius: 8px;
+    padding: 2px 8px; cursor: pointer;
+  }
+  .ind-chip:hover { text-decoration: underline; }
 
   .article-header { margin-bottom: 18px; }
   .back-link { font-size: 0.8rem; font-weight: 700; display: inline-block; margin-bottom: 14px; }
   .article-title { font-size: 1.3rem; margin: 10px 0; line-height: 1.4; }
   .article-body { font-size: 0.92rem; line-height: 1.9; white-space: pre-line; }
+  .related-box {
+    margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--border);
+  }
+  .related-box h4 { font-size: 0.78rem; color: var(--text-dim); margin: 0 0 8px; }
+  .related-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    padding: 8px 12px; margin-bottom: 6px; font-size: 0.82rem;
+  }
+  .related-row .ext-link { font-size: 0.72rem; white-space: nowrap; }
+
+  .rules h3 { font-size: 0.88rem; color: var(--accent-dark); margin: 22px 0 8px; }
+  .rules h3:first-child { margin-top: 0; }
+  .rules div.sec { font-size: 0.82rem; line-height: 1.8; color: #5B5349; }
+  .rules b { color: var(--text-main); }
 
   .empty { color: var(--text-dim); font-size: 0.85rem; padding: 30px 0; text-align: center; }
   .footer-note {
-    margin-top: 30px; padding-top: 16px; border-top: 1px solid #EEE6DB;
+    margin-top: 30px; padding-top: 16px; border-top: 1px solid var(--border);
     font-size: 0.7rem; color: var(--text-dim); line-height: 1.7;
   }
 </style>
@@ -74,9 +126,12 @@
       <div class="tagline">CIRCUIT OTHELLO LEAGUEの非公式ファンメディア（これは架空のリーグです）</div>
     </div>
     <nav>
-      <a href="https://lab.spia-net.com/othello-league/" target="_blank" rel="noopener">結果サイトへ</a>
+      <a class="nav-tab" id="nav-feed" href="#" onclick="navigateTo('');return false;">フィード</a>
+      <a class="nav-tab" id="nav-rules" href="#" onclick="navigateTo('rules');return false;">ルール</a>
+      <a class="nav-external" href="https://lab.spia-net.com/othello-league/" target="_blank" rel="noopener">結果サイトへ ↗</a>
     </nav>
   </header>
+  <div id="holders"></div>
   <div id="content"><div class="empty">読み込み中…</div></div>
   <div class="footer-note">
     「オセロ界タイムズ」は架空のオセロリーグ（CIRCUIT OTHELLO LEAGUE）を題材にした、ファンによる非公式のニュースメディアです。登場する個体・対局結果はすべて自動対局シミュレーションによるものであり、実在の人物・団体とは関係ありません。
@@ -88,6 +143,7 @@ const TAG_COLORS = {
   '速報': { bg: '#EAF4FC', fg: '#2D6FA6' },
   '結果': { bg: '#F1EBFB', fg: '#6B4FA0' },
   '展望': { bg: '#FDEFF5', fg: '#B84C78' },
+  '特集': { bg: '#FFF1E6', fg: '#B8692E' },
   '挑戦者決定': { bg: '#E9F7EE', fg: '#2F7A52' },
   '深掘り': { bg: '#FFF1E6', fg: '#B8692E' },
   '青龍': { bg: '#EAF4FC', fg: '#2D6FA6' },
@@ -100,8 +156,10 @@ const AVATAR_PALETTE = [
   { bg: '#F1EBFB', fg: '#6B4FA0' }, { bg: '#FFF1E6', fg: '#B8692E' },
   { bg: '#E9F7EE', fg: '#2F7A52' },
 ];
+const RESULTS_SITE_BASE = 'https://lab.spia-net.com/othello-league/';
 
 let _articles = null;
+let _holders = null;
 
 function escapeHtml(s) {
   return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
@@ -121,7 +179,11 @@ function avatarFor(name, seed) {
 
 function tagChip(tag) {
   const c = TAG_COLORS[tag] || { bg: '#F1EBFB', fg: '#6B4FA0' };
-  return `<span class="tag" style="background:${c.bg}; color:${c.fg};">${escapeHtml(tag)}</span>`;
+  return `<span class="tag" style="background:${c.bg}; color:${c.fg};" data-filter-tag="${escapeHtml(tag)}">${escapeHtml(tag)}</span>`;
+}
+
+function resultsSiteIndividualUrl(id) {
+  return `${RESULTS_SITE_BASE}#individual/${encodeURIComponent(id)}`;
 }
 
 function timeAgo(iso) {
@@ -142,8 +204,16 @@ async function loadArticles() {
   return _articles;
 }
 
-function primaryTag(article) {
-  return (article.tags && article.tags[0]) || '';
+async function loadHolders() {
+  if (_holders) return _holders;
+  try {
+    const res = await fetch('./season_state.json', { cache: 'no-store' });
+    if (!res.ok) throw new Error('not found');
+    _holders = await res.json();
+  } catch (e) {
+    _holders = null;
+  }
+  return _holders;
 }
 
 function primaryName(article) {
@@ -151,29 +221,131 @@ function primaryName(article) {
     || (article.related_individual_ids && article.related_individual_ids[0]) || '?';
 }
 
-async function renderFeed() {
+function relatedPairs(article) {
+  const ids = article.related_individual_ids || [];
+  const names = article.related_individual_names || [];
+  return ids.map((id, i) => ({ id, name: names[i] || id }));
+}
+
+async function renderHolders() {
+  const el = document.getElementById('holders');
+  const state = await loadHolders();
+  const holders = state && state.titleholders;
+  if (!holders) { el.innerHTML = ''; return; }
+  const order = ['青龍', '朱雀', '白虎', '玄武'];
+  const slots = order.map(title => {
+    const h = holders[title];
+    const name = h && h.name ? h.name : '空位';
+    const onclick = h && h.id ? `navigateTo('individual/${encodeURIComponent(h.id)}')` : '';
+    return `<div class="holder-slot" ${onclick ? `onclick="${onclick}"` : ''}>
+      <div class="holder-title">${escapeHtml(title)}</div>
+      <div class="holder-name">${escapeHtml(name)}</div>
+    </div>`;
+  }).join('');
+  const seasonLine = state.current_season
+    ? `<div class="holders-season">第${state.current_season}季・現在のタイトル保持者</div>` : '';
+  el.innerHTML = `<div class="holders-card">${slots}</div>${seasonLine}`;
+}
+
+function parseFilter(hash) {
+  if (hash.startsWith('tag/')) return { type: 'tag', value: decodeURIComponent(hash.slice(4)) };
+  if (hash.startsWith('individual/')) return { type: 'individual', value: decodeURIComponent(hash.slice(11)) };
+  if (hash.startsWith('season/')) return { type: 'season', value: Number(hash.slice(7)) };
+  return null;
+}
+
+function applyFilter(articles, filter) {
+  if (!filter) return articles;
+  if (filter.type === 'tag') return articles.filter(a => (a.tags || []).includes(filter.value));
+  if (filter.type === 'individual') return articles.filter(a => (a.related_individual_ids || []).includes(filter.value));
+  if (filter.type === 'season') return articles.filter(a => a.season === filter.value);
+  return articles;
+}
+
+function filterLabel(articles, filter) {
+  if (filter.type === 'tag') return `タグ「${filter.value}」の記事`;
+  if (filter.type === 'season') return `第${filter.value}季の記事`;
+  if (filter.type === 'individual') {
+    const hit = articles.find(a => (a.related_individual_ids || []).includes(filter.value));
+    const name = hit ? (hit.related_individual_names || [])[(hit.related_individual_ids || []).indexOf(filter.value)] : filter.value;
+    return `「${name || filter.value}」関連の記事`;
+  }
+  return '';
+}
+
+function setActiveNav(tab) {
+  document.getElementById('nav-feed').classList.toggle('active', tab === 'feed');
+  document.getElementById('nav-rules').classList.toggle('active', tab === 'rules');
+}
+
+async function renderFeed(filter) {
+  setActiveNav('feed');
   const el = document.getElementById('content');
-  const articles = await loadArticles();
-  if (articles.length === 0) {
+  const allArticles = await loadArticles();
+  if (allArticles.length === 0) {
     el.innerHTML = '<div class="empty">まだ記事がありません</div>';
     return;
   }
-  el.innerHTML = articles.map(a => `
-    <article class="card" onclick="navigateTo('article/${encodeURIComponent(a.id)}')">
-      ${avatarFor(primaryName(a), a.related_individual_ids && a.related_individual_ids[0])}
-      <div class="card-body">
-        <div class="card-meta">
-          ${(a.tags || []).slice(0, 1).map(tagChip).join('')}
-          <span class="card-time">${timeAgo(a.published_at)}</span>
-        </div>
-        <h2 class="card-title">${escapeHtml(a.title)}</h2>
-        <p class="card-summary">${escapeHtml(a.summary)}</p>
-      </div>
-    </article>
-  `).join('');
+
+  const seasons = [...new Set(allArticles.map(a => a.season).filter(s => s != null))].sort((a, b) => b - a);
+  const seasonChips = seasons.length > 1 ? `<div class="chip-row">
+      <button class="chip-btn ${!filter ? 'active' : ''}" onclick="navigateTo('')">すべて</button>
+      ${seasons.map(s => `<button class="chip-btn ${filter && filter.type === 'season' && filter.value === s ? 'active' : ''}"
+        onclick="navigateTo('season/${s}')">第${s}季</button>`).join('')}
+    </div>` : '';
+
+  const articles = applyFilter(allArticles, filter);
+  const banner = filter ? `<div class="filter-banner">
+      <span>${escapeHtml(filterLabel(allArticles, filter))}（${articles.length}件）</span>
+      <button onclick="navigateTo('')">✕ 絞り込み解除</button>
+    </div>` : '';
+
+  const list = articles.length === 0
+    ? '<div class="empty">該当する記事がありません</div>'
+    : articles.map(a => {
+        const pairs = relatedPairs(a);
+        const individualsHtml = pairs.length ? `<div class="card-individuals">
+            ${pairs.map(p => `<span class="ind-chip" data-filter-individual="${escapeHtml(p.id)}">${escapeHtml(p.name)}</span>`).join('')}
+          </div>` : '';
+        return `
+        <article class="card" data-article-id="${escapeHtml(a.id)}">
+          ${avatarFor(primaryName(a), a.related_individual_ids && a.related_individual_ids[0])}
+          <div class="card-body">
+            <div class="card-meta">
+              ${(a.tags || []).slice(0, 2).map(tagChip).join('')}
+              <span class="card-time">${timeAgo(a.published_at)}</span>
+            </div>
+            <h2 class="card-title">${escapeHtml(a.title)}</h2>
+            <p class="card-summary">${escapeHtml(a.summary)}</p>
+            ${individualsHtml}
+          </div>
+        </article>`;
+      }).join('');
+
+  el.innerHTML = seasonChips + banner + list;
+
+  el.querySelectorAll('.card').forEach(card => {
+    card.addEventListener('click', (ev) => {
+      if (ev.target.closest('[data-filter-tag],[data-filter-individual]')) return;
+      navigateTo('article/' + encodeURIComponent(card.dataset.articleId));
+    });
+  });
+  el.querySelectorAll('[data-filter-tag]').forEach(elm => {
+    elm.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      navigateTo('tag/' + encodeURIComponent(elm.dataset.filterTag));
+    });
+  });
+  el.querySelectorAll('[data-filter-individual]').forEach(elm => {
+    elm.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      navigateTo('individual/' + encodeURIComponent(elm.dataset.filterIndividual));
+    });
+  });
 }
 
 async function renderArticle(id) {
+  setActiveNav('feed');
   const el = document.getElementById('content');
   const articles = await loadArticles();
   const a = articles.find(x => x.id === id);
@@ -181,6 +353,15 @@ async function renderArticle(id) {
     el.innerHTML = '<div class="empty">記事が見つかりませんでした</div><a class="back-link" href="#" onclick="navigateTo(\'\');return false;">← フィードへ戻る</a>';
     return;
   }
+  const pairs = relatedPairs(a);
+  const relatedHtml = pairs.length ? `<div class="related-box">
+      <h4>関連個体</h4>
+      ${pairs.map(p => `<div class="related-row">
+          <span class="ind-chip" data-filter-individual="${escapeHtml(p.id)}">${escapeHtml(p.name)}</span>
+          <a class="ext-link" href="${resultsSiteIndividualUrl(p.id)}" target="_blank" rel="noopener">結果サイトで成績を見る ↗</a>
+        </div>`).join('')}
+    </div>` : '';
+
   el.innerHTML = `
     <a class="back-link" href="#" onclick="navigateTo('');return false;">← フィードへ戻る</a>
     <div class="article-header">
@@ -188,7 +369,87 @@ async function renderArticle(id) {
       <h1 class="article-title">${escapeHtml(a.title)}</h1>
     </div>
     <div class="article-body">${escapeHtml(a.body)}</div>
+    ${relatedHtml}
   `;
+  el.querySelectorAll('[data-filter-tag]').forEach(elm => {
+    elm.addEventListener('click', () => navigateTo('tag/' + encodeURIComponent(elm.dataset.filterTag)));
+  });
+  el.querySelectorAll('[data-filter-individual]').forEach(elm => {
+    elm.addEventListener('click', () => navigateTo('individual/' + encodeURIComponent(elm.dataset.filterIndividual)));
+  });
+}
+
+function renderRules() {
+  setActiveNav('rules');
+  const el = document.getElementById('content');
+  el.innerHTML = `<div class="rules">
+    <h3>リーグ制度</h3>
+    <div class="sec">
+      A（9名・総当たり）／B（12名）・C（16名）・D（20名）（スイス方式・6回戦）の4部制。<br>
+      A⇄B：下位2名⇄上位2名を毎季入れ替え。B⇄C：下位3名⇄上位3名。C⇄D：下位3名⇄上位3名を毎季入れ替え。<br>
+      本戦（A総当たり・B/C/Dスイス方式）は引き分けを引き分けのまま確定し、再戦は行わない
+      （例外：Aリーグの1位が複数名並んだ場合のみ、同率者同士で順位決定戦を行う。これは決着まで最大3回まで再戦する）。
+    </div>
+
+    <h3>一門と弟子</h3>
+    <div class="sec">
+      新弟子は師弟制：Dリーグの空き枠数ぶん、現役個体から選ばれた「師匠」1人ごとに、そのパラメータを変異（±15%程度）
+      させた弟子が1人入門する（2個体の交配ではない）。師匠になれるのは30歳以上の個体のみ。
+      師弟関係は新人リーグの出走時点で決定し、その後Dリーグへ昇格しても変わらない。<br>
+      師匠選びはランダムだが、Elo・タイトル保持で重み付けされており、実力のある個体ほど弟子を持ちやすい。<br>
+      一門は、最も遡った開祖を根とする師弟の系譜のまとまり。同じ師匠につく弟子が5人を超えた時点で、
+      6人目以降の弟子は新しい一門の開祖として分岐する。さらに稀（8%）に、師匠を持たず完全にランダムな
+      能力の新規開祖が参入することもある。<br>
+      稀（3%）に、新弟子の誰かが「覚醒」し、1パラメータが通常の変異幅を超えて大きく伸びることがある
+      （「神童」として通常より若い14〜16歳で参入）。<br>
+      本戦・新人リーグとも<b>1日2回、本戦→新人リーグの順</b>で実行：<br>
+      ・6:00(JST)までのエントリー → 7:00の新人リーグで選抜 → 夜18:00の本戦からDリーグ入り<br>
+      ・6:00〜18:00(JST)のエントリー → 19:00の新人リーグで選抜 → 翌朝6:00の本戦からDリーグ入り<br>
+      新人リーグで昇格しなかった個体のうち、順位上位5名は師弟関係を保ったまま次回へ持ち越される。
+    </div>
+
+    <h3>引退</h3>
+    <div class="sec">
+      年齢（初期年齢＋通算シーズン数）が60歳に達すると、リーグを問わず強制引退する。<br>
+      Dリーグは「降級点」制：負け越した季ごとに1点積み重なり、2点で実力・在籍年数に関わらず即引退
+      するup-or-out制（勝ち越した季は1点減る）。<br>
+      C・Dリーグで定員を超えた場合、Eloが低い順に引退となる。<br>
+      タイトル保持者・朱雀紅白リーグ在籍者・Aリーグ所属者（今季A→B降格が決まった者を除く）は、
+      これらの条件から猶予される。
+    </div>
+
+    <h3>タイトル戦</h3>
+    <div class="sec">
+      <b>青龍</b>（名人モデル）：Aリーグ総当たり優勝者が挑戦。7局制4本先取。在位者はAリーグ総当たりを免除される防衛専念枠。<br><br>
+      <b>朱雀</b>（王位モデル）：紅組・白組（各5名）の永続サブリーグ制。両組1位の挑戦者決定戦（5局制3本先取）を経て、
+      朱雀在位者（5局制3本先取）に挑む。下位2名×2組は外部との入れ替えトーナメントで補充。<br><br>
+      <b>白虎</b>（王将モデル）：Elo上位16名によるシード付きトーナメント。5局制3本先取。在位者は防衛専念枠。<br><br>
+      <b>玄武</b>：ほぼ全所属個体が参加する抽選トーナメント（超早指し戦）。5局制3本先取。ブラケットサイズ64。在位者は防衛専念枠。<br><br>
+      初代不在のタイトルは、挑戦者が無条件で襲名する。タイトル戦・挑戦者決定戦は引き分けなら決着するまで再戦するが、
+      A総当たり・B/C/Dスイス方式には適用されない（上記の通り）。<br><br>
+      探索深さ（運用上固定）：A/B/C/D本戦=4、青龍タイトル戦=5／朱雀予選=3・タイトル戦=5／
+      白虎予選=3・タイトル戦=4／玄武予選=2・タイトル戦=3。
+    </div>
+
+    <h3>永世称号</h3>
+    <div class="sec">
+      タイトルごとに基準が異なる。永世青龍：通算5期保持。永世朱雀：連続5期保持、または通算10期保持。
+      永世白虎：連続5期保持。永世玄武：通算10期保持。一度獲得すると、その後失冠しても称号は残る。
+    </div>
+
+    <h3>段位</h3>
+    <div class="sec">
+      対局結果・リーグ経験・タイトル実績から算出する表示専用の指標。新人は4段スタートし、勝数・昇格・
+      タイトル挑戦・タイトル獲得・永世称号などに応じて段位が上がる（詳細な昇段条件は結果サイトのルール説明を参照）。
+    </div>
+
+    <h3>Eloレーティング</h3>
+    <div class="sec">
+      標準的なEloレーティングを対局ごとに更新する。K値は在籍季数に応じて段階的に下げる：
+      在籍3季未満はK=18、8季未満はK=13、それ以上はK=10
+      （過去の全対局データを用いたブライアスコア最小化により再調整済み）。
+    </div>
+  </div>`;
 }
 
 function navigateTo(path) {
@@ -197,13 +458,16 @@ function navigateTo(path) {
 
 function route() {
   const hash = location.hash.replace(/^#/, '');
-  if (hash.startsWith('article/')) {
+  if (hash === 'rules') {
+    renderRules();
+  } else if (hash.startsWith('article/')) {
     renderArticle(decodeURIComponent(hash.slice('article/'.length)));
   } else {
-    renderFeed();
+    renderFeed(parseFilter(hash));
   }
 }
 
+renderHolders();
 window.addEventListener('hashchange', route);
 route();
 </script>

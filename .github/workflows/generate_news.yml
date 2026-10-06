@@ -2,8 +2,9 @@ name: Generate News Article (オセロ界タイムズ)
 
 # 本戦（evolve.yml、"Run Othello League Season"）が成功した直後に、その季の
 # ダイジェスト記事をClaude Code CLI（`claude -p`、ヘッドレス実行）で生成して
-# data/news/articles.jsonへpushし、news-site/（フロントエンド）と
-# data/news/articles.jsonをxserver上のothello-news/（lab.spia-net.com/othello-news/、
+# data/news/articles.jsonへpushし、news-site/（フロントエンド）・
+# data/news/articles.json・data/season_state.json（タイトル保持者カード表示用）を
+# xserver上のothello-news/（lab.spia-net.com/othello-news/、
 # 結果サイトのothello-league/とは別のサブパス）へ反映する。
 #
 # 記事生成はAPI従量課金（ANTHROPIC_API_KEY）ではなく、Claude Pro/Max/Team/
@@ -140,7 +141,7 @@ jobs:
             "$XSERVER_USER@$XSERVER_HOST" "mkdir -p ${XSERVER_NEWS_DIR}"
 
           retry_cmd scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
-            news-site/index.html data/news/articles.json \
+            news-site/index.html data/news/articles.json data/season_state.json \
             "$XSERVER_USER@$XSERVER_HOST:${XSERVER_NEWS_DIR}"
 
           rm -f /tmp/deploy_key
