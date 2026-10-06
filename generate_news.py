@@ -126,11 +126,83 @@ def build_prompt(facts):
     return "\n".join(lines)
 
 
-def generate_article(facts, model=DEFAULT_MODEL):
+MIN_COLUMN_STREAK = 4  # これ未満の連勝では「所感記事」のネタとして採用しない
+
+
+def compute_season_win_streaks(matches):
+    """指定シーズンの対局ログ（A/B/C/Dリーグのみ）から、個体ごとの最長連勝を集計する。
+    対局ログはラウンド単位で記録順に並んでいるため、記録順をそのまま連勝の判定に使う"""
+    streak = {}
+    best = {}
+    for m in matches:
+        if m.get("league") not in ("A", "B", "C", "D"):
+            continue
+        a_id, b_id, result = m["individual_a_id"], m["individual_b_id"], m["result"]
+        for iid, outcome in ((a_id, result), (b_id, "loss" if result == "win" else ("win" if result == "loss" else "draw"))):
+            if outcome == "win":
+                streak[iid] = streak.get(iid, 0) + 1
+                best[iid] = max(best.get(iid, 0), streak[iid])
+            else:
+                streak[iid] = 0
+    return best
+
+
+def gather_column_facts(data_dir, season):
+    """「記者の所感記事」用のネタを1つ選ぶ。今のところ「今季の最長連勝」のみを対象とし、
+    MIN_COLUMN_STREAK未満なら特筆するネタ無しとしてNoneを返す（記事を作らない）"""
+    standings = load_json(os.path.join(data_dir, "standings", f"season_{season}.json"), [])
+    matches = load_json(os.path.join(data_dir, "matches", f"season_{season}.json"), [])
+    if not standings or not matches:
+        return None
+
+    streaks = compute_season_win_streaks(matches)
+    if not streaks:
+        return None
+    top_id, top_streak = max(streaks.items(), key=lambda kv: kv[1])
+    if top_streak < MIN_COLUMN_STREAK:
+        return None
+
+    row = next((r for r in standings if r["individual_id"] == top_id), None)
+    if row is None:
+        return None
+
+    # IDの先頭が「D」＝Dリーグの新人として参入した個体（命名規則上の由来）。
+    # 現在Dリーグ以外にいれば「Dリーグ出身からの成り上がり」の物語として扱える
+    is_grassroots = top_id.startswith("D") and row["league"] != "D"
+
+    return {
+        "season": season, "individual_id": top_id, "name": row["display_name"],
+        "league": row["league"], "streak": top_streak,
+        "win": row.get("win", 0), "loss": row.get("loss", 0),
+        "is_grassroots": is_grassroots,
+        "related_individual_ids": [top_id], "related_individual_names": [row["display_name"]],
+    }
+
+
+def build_column_prompt(facts):
+    lines = [
+        f"第{facts['season']}季の事実データ（これ以外の出来事は起きていない）:", "",
+        f"・{facts['name']}（{facts['league']}リーグ）が、リーグ戦（A/B/C/Dいずれか）で{facts['streak']}連勝した"
+        f"（今季の成績は{facts['win']}勝{facts['loss']}敗）。",
+    ]
+    if facts["is_grassroots"]:
+        lines.append(f"・{facts['name']}はDリーグの新人としてデビューし、現在は{facts['league']}リーグまで昇格している。")
+    lines.append("")
+    lines.append(
+        f"以上の事実だけをもとに、{facts['name']}の{facts['streak']}連勝を主題にした、"
+        "記者個人の所感・コラム記事を書いてください（ダイジェスト記事とは別の、短い読み物）。"
+        "データに無い出来事・数字は書かないこと。"
+        "出力は次のJSON形式のみ（説明文やコードフェンスなど、他のテキストは一切含めない）：\n"
+        '{"title": "見出し", "summary": "1〜2文の要約", "body": "本文（200〜350字程度）", '
+        '"tags": ["コラム", "関係するリーグ名..."]}'
+    )
+    return "\n".join(lines)
+
+
+def run_claude(prompt, model=DEFAULT_MODEL):
     with open(PERSONA_PATH, "r", encoding="utf-8") as f:
         persona = f.read()
 
-    prompt = build_prompt(facts)
     result = subprocess.run(
         [
             "claude", "-p", prompt,
@@ -157,6 +229,68 @@ def generate_article(facts, model=DEFAULT_MODEL):
     return json.loads(text)
 
 
+def generate_article(facts, model=DEFAULT_MODEL):
+    return run_claude(build_prompt(facts), model=model)
+
+
+def save_article(articles_path, articles, article):
+    articles.append(article)
+    os.makedirs(os.path.dirname(articles_path), exist_ok=True)
+    with open(articles_path, "w", encoding="utf-8") as f:
+        json.dump(articles, f, ensure_ascii=False, indent=2)
+    print(f"[DEBUG] {articles_path} に記事を追加しました（id={article['id']}）", flush=True)
+
+
+def try_generate_digest(args, season, articles_path, articles):
+    article_id = f"s{season}-digest"
+    if any(a.get("id") == article_id for a in articles):
+        print(f"[DEBUG] 第{season}季のダイジェストは既に生成済みです（{article_id}）。スキップします", flush=True)
+        return
+
+    facts = gather_season_facts(args.data_dir, season)
+    if not facts["title_results"]:
+        print(f"[DEBUG] 第{season}季のタイトル戦データが見つかりません。ダイジェストをスキップします", flush=True)
+        return
+
+    print(f"[DEBUG] 第{season}季のダイジェストを生成します（model={args.model}）", flush=True)
+    generated = generate_article(facts, model=args.model)
+
+    save_article(articles_path, articles, {
+        "id": article_id, "type": "result", "season": season,
+        "title": generated["title"], "summary": generated["summary"], "body": generated["body"],
+        "published_at": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
+        "related_individual_ids": facts["related_individual_ids"],
+        "related_individual_names": facts["related_individual_names"],
+        "tags": generated.get("tags") or ["結果"],
+        "generated_by": args.model,
+    })
+
+
+def try_generate_column(args, season, articles_path, articles):
+    article_id = f"s{season}-column"
+    if any(a.get("id") == article_id for a in articles):
+        print(f"[DEBUG] 第{season}季のコラムは既に生成済みです（{article_id}）。スキップします", flush=True)
+        return
+
+    facts = gather_column_facts(args.data_dir, season)
+    if facts is None:
+        print(f"[DEBUG] 第{season}季はコラムにするネタ（{MIN_COLUMN_STREAK}連勝以上）が見つかりません。スキップします", flush=True)
+        return
+
+    print(f"[DEBUG] 第{season}季のコラムを生成します（{facts['name']}の{facts['streak']}連勝、model={args.model}）", flush=True)
+    generated = run_claude(build_column_prompt(facts), model=args.model)
+
+    save_article(articles_path, articles, {
+        "id": article_id, "type": "column", "season": season,
+        "title": generated["title"], "summary": generated["summary"], "body": generated["body"],
+        "published_at": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
+        "related_individual_ids": facts["related_individual_ids"],
+        "related_individual_names": facts["related_individual_names"],
+        "tags": generated.get("tags") or ["コラム"],
+        "generated_by": args.model,
+    })
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-dir", default="data")
@@ -172,33 +306,9 @@ def main():
 
     articles_path = os.path.join(args.news_dir, "articles.json")
     articles = load_json(articles_path, [])
-    article_id = f"s{season}-digest"
-    if any(a.get("id") == article_id for a in articles):
-        print(f"[DEBUG] 第{season}季のダイジェストは既に生成済みです（{article_id}）。スキップします", flush=True)
-        return
 
-    facts = gather_season_facts(args.data_dir, season)
-    if not facts["title_results"]:
-        print(f"[DEBUG] 第{season}季のタイトル戦データが見つかりません。スキップします", flush=True)
-        return
-
-    print(f"[DEBUG] 第{season}季のダイジェストを生成します（model={args.model}）", flush=True)
-    generated = generate_article(facts, model=args.model)
-
-    article = {
-        "id": article_id, "type": "result", "season": season,
-        "title": generated["title"], "summary": generated["summary"], "body": generated["body"],
-        "published_at": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
-        "related_individual_ids": facts["related_individual_ids"],
-        "related_individual_names": facts["related_individual_names"],
-        "tags": generated.get("tags") or ["結果"],
-        "generated_by": args.model,
-    }
-    articles.append(article)
-    os.makedirs(args.news_dir, exist_ok=True)
-    with open(articles_path, "w", encoding="utf-8") as f:
-        json.dump(articles, f, ensure_ascii=False, indent=2)
-    print(f"[DEBUG] {articles_path} に記事を追加しました（id={article_id}）", flush=True)
+    try_generate_digest(args, season, articles_path, articles)
+    try_generate_column(args, season, articles_path, articles)
 
 
 if __name__ == "__main__":
