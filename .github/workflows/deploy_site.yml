@@ -1,7 +1,7 @@
 name: Deploy Site (index.html / api.php)
 
 # site/配下（index.html・api.php・create_character.php・cheer.php・article_like.php・
-# supporter.php）はxserver上の
+# supporter.php・sponsor.php）はxserver上の
 # 本番サイトの実体そのもの。従来は手動でxserverへアップロードしていたが、この
 # リポジトリで変更履歴を追えるようにするため site/配下にコミットし、mainへのpush
 # （＝これらのファイルの変更を含むマージ）をきっかけに自動でxserverへ反映する。
@@ -25,6 +25,7 @@ on:
       - "site/cheer.php"
       - "site/article_like.php"
       - "site/supporter.php"
+      - "site/sponsor.php"
   workflow_dispatch:
     inputs:
       list_only:

@@ -181,6 +181,57 @@
     font-size: 0.8rem; color: #5B5349; background: #FFF6EE; border-radius: 8px; padding: 6px 10px;
   }
 
+  /* サポーター（有料支援）：無料の応援とは見た目を分け、少し特別感を出す */
+  .sponsor-box {
+    background: #FFFBF0; border: 1px solid #F0DDB8; border-radius: 14px;
+    padding: 14px 16px; margin-top: 10px;
+  }
+  .sponsor-box h4 { font-size: 0.78rem; color: #8A6A2E; margin: 0 0 8px; }
+  .sponsor-box p.sponsor-desc { font-size: 0.78rem; color: var(--text-dim); margin: 0 0 10px; }
+  .sponsor-cta-btn {
+    font-size: 0.82rem; font-weight: 700; color: #fff; background: #B8692E;
+    border: none; border-radius: 10px; padding: 8px 16px; cursor: pointer;
+  }
+  .sponsor-list { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
+  .sponsor-item {
+    display: flex; align-items: baseline; gap: 6px; font-size: 0.8rem; color: #5B5349;
+    background: #FFF1E0; border-left: 3px solid #D9A24B; border-radius: 6px; padding: 6px 10px;
+  }
+  .sponsor-item .sponsor-name { font-weight: 700; color: #8A6A2E; flex-shrink: 0; }
+  .sponsor-item .sponsor-message { overflow: hidden; text-overflow: ellipsis; }
+
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(43, 36, 26, 0.45);
+    display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 50;
+  }
+  .modal-overlay.hidden { display: none; }
+  .modal-box {
+    background: #fff; border-radius: 16px; padding: 20px; max-width: 360px; width: 100%;
+    max-height: 90vh; overflow-y: auto;
+  }
+  .modal-box h3 { font-size: 0.95rem; margin: 0 0 4px; color: var(--text-main); }
+  .modal-box .modal-sub { font-size: 0.78rem; color: var(--text-dim); margin: 0 0 14px; }
+  .modal-close-x {
+    float: right; border: none; background: none; font-size: 1.1rem; color: var(--text-dim);
+    cursor: pointer; line-height: 1;
+  }
+  .amount-chip-row { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+  .amount-chip {
+    font-size: 0.84rem; font-weight: 700; padding: 8px 14px; border-radius: 10px;
+    border: 1px solid #F0DDB8; background: #FFFBF0; color: #8A6A2E; cursor: pointer;
+  }
+  .amount-chip.active { background: #B8692E; color: #fff; border-color: #B8692E; }
+  .modal-box label { display: block; font-size: 0.76rem; color: var(--text-dim); margin: 10px 0 4px; }
+  .modal-box input[type="text"], .modal-box input[type="number"] {
+    width: 100%; font-family: inherit; font-size: 0.84rem; padding: 8px 10px;
+    border-radius: 8px; border: 1px solid var(--border); box-sizing: border-box;
+  }
+  .modal-submit-btn {
+    width: 100%; margin-top: 16px; font-size: 0.86rem; font-weight: 700; color: #fff;
+    background: #B8692E; border: none; border-radius: 10px; padding: 10px 0; cursor: pointer;
+  }
+  .modal-status { font-size: 0.78rem; color: var(--text-dim); margin-top: 10px; text-align: center; }
+
   .rules h3 { font-size: 0.88rem; color: var(--accent-dark); margin: 22px 0 8px; }
   .rules h3:first-child { margin-top: 0; }
   .rules div.sec { font-size: 0.82rem; line-height: 1.8; color: #5B5349; }
@@ -211,6 +262,26 @@
   </header>
   <div id="holders"></div>
   <div id="content"><div class="empty">読み込み中…</div></div>
+  <div class="modal-overlay hidden" id="sponsor-modal-overlay">
+    <div class="modal-box">
+      <button class="modal-close-x" id="sponsor-modal-close">×</button>
+      <h3>サポーターになる</h3>
+      <p class="modal-sub">支援した金額は表示されません。お名前と一言はプロフィールに表示されます。</p>
+      <div class="amount-chip-row" id="sponsor-amount-chips">
+        <button type="button" class="amount-chip" data-amount="300">300円</button>
+        <button type="button" class="amount-chip" data-amount="500">500円</button>
+        <button type="button" class="amount-chip" data-amount="1000">1000円</button>
+      </div>
+      <label for="sponsor-amount-custom">その他の金額（円）</label>
+      <input type="number" id="sponsor-amount-custom" min="100" step="100" placeholder="例：2000">
+      <label for="sponsor-name">表示名</label>
+      <input type="text" id="sponsor-name" maxlength="30" placeholder="名無しの支援者">
+      <label for="sponsor-message">一言（任意・100文字まで）</label>
+      <input type="text" id="sponsor-message" maxlength="100" placeholder="応援しています！">
+      <button class="modal-submit-btn" id="sponsor-submit-btn">この内容でStripeに進む</button>
+      <div class="modal-status" id="sponsor-modal-status"></div>
+    </div>
+  </div>
   <div class="footer-note">
     「オセロ界タイムズ」は架空のオセロリーグ（CIRCUIT OTHELLO LEAGUE）を題材にした、ファンによる非公式のニュースメディアです。登場する個体・対局結果はすべて自動対局シミュレーションによるものであり、実在の人物・団体とは関係ありません。
   </div>
@@ -649,6 +720,13 @@ async function renderIndividualProfile(id) {
         <button type="submit" id="profile-cheer-btn">♡ 応援する<span class="cheer-count"></span></button>
       </form>
       <div class="cheer-comment-list" id="profile-cheer-comments"></div>
+
+      <div class="sponsor-box">
+        <h4>サポーター</h4>
+        <p class="sponsor-desc">有料でこの個体を支援できます（準備中）。支援者はお名前と一言がここに表示されます。</p>
+        <button class="sponsor-cta-btn" id="sponsor-cta-btn">🎗 サポーターになる</button>
+        <div class="sponsor-list" id="sponsor-list"></div>
+      </div>
     </div>
 
     <div class="profile-section">
@@ -676,6 +754,8 @@ async function renderIndividualProfile(id) {
   });
 
   setupProfileCheer(id);
+  setupSponsorUI(id);
+  loadSponsorList(id);
 }
 
 async function setupProfileCheer(id) {
@@ -729,6 +809,71 @@ async function loadProfileComments(id) {
     const data = await res.json();
     const list = data.comments || [];
     el.innerHTML = list.map(c => `<div class="cheer-comment-item">${escapeHtml(c.message)}</div>`).join('');
+  } catch (e) {
+    el.innerHTML = '';
+  }
+}
+
+// サポーター（有料支援）：見た目・モーダルのみ先行実装。実際の決済（Stripe Checkout）
+// 連携は別途行うため、送信ボタンは「準備中」のステータス表示のみで実際の送信はしない
+let _sponsorTargetId = null;
+
+function setupSponsorUI(id) {
+  const ctaBtn = document.getElementById('sponsor-cta-btn');
+  const overlay = document.getElementById('sponsor-modal-overlay');
+  const closeBtn = document.getElementById('sponsor-modal-close');
+  const chips = document.querySelectorAll('#sponsor-amount-chips .amount-chip');
+  const customInput = document.getElementById('sponsor-amount-custom');
+  const submitBtn = document.getElementById('sponsor-submit-btn');
+  const statusEl = document.getElementById('sponsor-modal-status');
+
+  ctaBtn.onclick = () => {
+    _sponsorTargetId = id;
+    chips.forEach(c => c.classList.remove('active'));
+    customInput.value = '';
+    document.getElementById('sponsor-name').value = '';
+    document.getElementById('sponsor-message').value = '';
+    statusEl.textContent = '';
+    overlay.classList.remove('hidden');
+  };
+  closeBtn.onclick = () => overlay.classList.add('hidden');
+  overlay.onclick = (ev) => { if (ev.target === overlay) overlay.classList.add('hidden'); };
+
+  chips.forEach(chip => {
+    chip.onclick = () => {
+      chips.forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      customInput.value = '';
+    };
+  });
+  customInput.oninput = () => { if (customInput.value) chips.forEach(c => c.classList.remove('active')); };
+
+  submitBtn.onclick = () => {
+    const activeChip = document.querySelector('#sponsor-amount-chips .amount-chip.active');
+    const amount = activeChip ? Number(activeChip.dataset.amount) : Number(customInput.value || 0);
+    if (!amount || amount < 100) {
+      statusEl.textContent = '金額を選択するか、100円以上を入力してください';
+      return;
+    }
+    // Stripe連携は未実装（見た目のみ先行実装中）。連携後はここでCheckout Sessionの
+    // 作成エンドポイントを呼び、返ってきたURLへリダイレクトする想定
+    statusEl.textContent = '決済連携は準備中です。もうしばらくお待ちください🙏';
+  };
+}
+
+async function loadSponsorList(id) {
+  const el = document.getElementById('sponsor-list');
+  if (!el) return;
+  try {
+    const res = await fetch(`${RESULTS_SITE_BASE}sponsor.php?individual_id=${encodeURIComponent(id)}`);
+    const data = await res.json();
+    const list = data.sponsors || [];
+    el.innerHTML = list.length
+      ? list.map(s => `<div class="sponsor-item">
+          <span class="sponsor-name">${escapeHtml(s.display_name)}</span>
+          ${s.message ? `<span class="sponsor-message">${escapeHtml(s.message)}</span>` : ''}
+        </div>`).join('')
+      : '<div style="color:var(--text-dim); font-size:0.78rem;">まだサポーターはいません</div>';
   } catch (e) {
     el.innerHTML = '';
   }
