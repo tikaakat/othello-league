@@ -158,13 +158,14 @@ jobs:
               "php -r '
                 require \"${XSERVER_SITE_DIR}db_config.php\";
                 \$pdo = league_db_connect();
-                \$list = array_filter(explode(\"\\0\", base64_decode(\"${SQL_B64}\")), fn(\$s) => trim(\$s) !== \"\");
+                \$list = array_filter(array_map(\"trim\", explode(\"\\0\", base64_decode(\"${SQL_B64}\"))));
                 foreach (\$list as \$sql) {
                   try {
                     \$pdo->exec(\$sql);
                     echo \"OK: \" . substr(\$sql, 0, 60) . PHP_EOL;
                   } catch (\PDOException \$e) {
-                    if (str_contains(\$e->getMessage(), \"Duplicate column\") || str_contains(\$e->getMessage(), \"already exists\")) {
+                    \$msg = \$e->getMessage();
+                    if (strpos(\$msg, \"Duplicate column\") !== false || strpos(\$msg, \"already exists\") !== false) {
                       echo \"OK(既に適用済み): \" . substr(\$sql, 0, 60) . PHP_EOL;
                     } else {
                       throw \$e;
