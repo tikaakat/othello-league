@@ -1,13 +1,13 @@
 name: Deploy Site (index.html / api.php)
 
-# site/配下（index.html・api.php）はxserver上の本番サイトの実体そのもの。従来は
-# 手動でxserverへアップロードしていたが、このリポジトリで変更履歴を追えるようにするため
-# site/配下にコミットし、mainへのpush（＝これらのファイルの変更を含むマージ）をきっかけに
-# 自動でxserverへ反映する。
+# site/配下（index.html・api.php・create_character.php・cheer.php）はxserver上の
+# 本番サイトの実体そのもの。従来は手動でxserverへアップロードしていたが、この
+# リポジトリで変更履歴を追えるようにするため site/配下にコミットし、mainへのpush
+# （＝これらのファイルの変更を含むマージ）をきっかけに自動でxserverへ反映する。
 #
 # 本戦・新人リーグ（evolve.yml / newcomer_league.yml）とは別の排他グループを使う：
 # あちら側はdata/配下（matches・standings等）だけを扱い、こちらはsite/配下
-# （index.html・api.php）だけを扱うので、同時に走っても書き込み先が重ならず競合しない。
+# （index.html・api.php等）だけを扱うので、同時に走っても書き込み先が重ならず競合しない。
 # 短時間に連続でpushされた場合は、最新のpushだけを反映すれば十分なので
 # cancel-in-progress: trueにしている
 concurrency:
@@ -21,6 +21,7 @@ on:
       - "site/index.html"
       - "site/api.php"
       - "site/create_character.php"
+      - "site/cheer.php"
   workflow_dispatch:
     inputs:
       list_only:
@@ -212,7 +213,7 @@ jobs:
             "$XSERVER_USER@$XSERVER_HOST" "mkdir -p ${XSERVER_SITE_DIR}"
 
           retry_cmd scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
-            site/index.html site/api.php site/create_character.php \
+            site/index.html site/api.php site/create_character.php site/cheer.php \
             "$XSERVER_USER@$XSERVER_HOST:${XSERVER_SITE_DIR}"
 
           rm -f /tmp/deploy_key
