@@ -51,6 +51,20 @@ def latest_season_with_standings(data_dir):
     return max(seasons) if seasons else None
 
 
+def _pick_best_record(rows):
+    """standingsの行（A〜Dリーグのみを想定）の中から、最も勝数が多い個体を選ぶ
+    （同数なら勝数−敗数が大きい方、さらに同じならAリーグ優先・個体ID昇順で決定的にする）。
+    該当者がいなければNoneを返す"""
+    if not rows:
+        return None
+    league_rank = {"A": 0, "B": 1, "C": 2, "D": 3}
+    return max(
+        rows,
+        key=lambda r: (r.get("win", 0), r.get("win", 0) - r.get("loss", 0),
+                       -league_rank.get(r.get("league"), 9), r["individual_id"]),
+    )
+
+
 def gather_season_facts(data_dir, season):
     """指定シーズンの対局結果から、記事生成に使う構造化データ（事実）を集める。
     タイトル戦の勝者側（奪取なら挑戦者、防衛ならホルダー）のIDを
@@ -58,6 +72,14 @@ def gather_season_facts(data_dir, season):
     standings = load_json(os.path.join(data_dir, "standings", f"season_{season}.json"), [])
     matches = load_json(os.path.join(data_dir, "matches", f"season_{season}.json"), [])
     names = {r["individual_id"]: r["display_name"] for r in standings}
+
+    # 今季のMVP（A〜Dリーグの中で最多勝）・新人王（今季新規参入者の中で最多勝）。
+    # 青龍在位者のように防衛専念枠で本戦の総当たりを免除されている個体はwin=0になるため、
+    # 自然に対象から外れる（MVPは「本戦でよく勝った個体」を指し、タイトル戦の結果は
+    # title_resultsで別途扱っているため、ここでは意図的に区別しない）
+    main_league_rows = [r for r in standings if r.get("league") in ("A", "B", "C", "D")]
+    mvp_row = _pick_best_record(main_league_rows)
+    rookie_row = _pick_best_record([r for r in main_league_rows if "new" in r.get("movement", "")])
 
     title_results = []
     related = []  # [(id, name), ...]（勝者のみ、重複は後で除去）
@@ -77,6 +99,25 @@ def gather_season_facts(data_dir, season):
             "result": "奪取" if challenger_won else "防衛",
         })
         related.append((winner_id, names.get(winner_id, winner_id)))
+
+    mvp = None
+    if mvp_row is not None:
+        mvp = {
+            "individual_id": mvp_row["individual_id"], "name": mvp_row["display_name"],
+            "league": mvp_row["league"], "win": mvp_row.get("win", 0), "loss": mvp_row.get("loss", 0),
+        }
+        related.append((mvp_row["individual_id"], mvp_row["display_name"]))
+
+    rookie = None
+    # MVPと同一人物であれば、新人王は重複して取り上げない（今季デビューの新人が
+    # 即座に主力級の成績を出した場合に限りMVPと同一になりうるが、記事としては
+    # MVPの文脈で触れれば十分で、新人王として改めて取り上げる必要は無い）
+    if rookie_row is not None and (mvp_row is None or rookie_row["individual_id"] != mvp_row["individual_id"]):
+        rookie = {
+            "individual_id": rookie_row["individual_id"], "name": rookie_row["display_name"],
+            "league": rookie_row["league"], "win": rookie_row.get("win", 0), "loss": rookie_row.get("loss", 0),
+        }
+        related.append((rookie_row["individual_id"], rookie_row["display_name"]))
 
     # 昇格・降格は、Aリーグが絡むもの（B→A・A→B）だけ個別に名前を残す。
     # B〜D間の入れ替えは人数が多く記事が名前の列挙だけで埋まってしまうため、件数のみ集計する
@@ -112,6 +153,7 @@ def gather_season_facts(data_dir, season):
 
     return {
         "season": season, "title_results": title_results, "movements": movements,
+        "mvp": mvp, "rookie": rookie,
         "related_individual_ids": [iid for iid, _ in related_unique],
         "related_individual_names": [name for _, name in related_unique],
     }
@@ -140,10 +182,21 @@ def build_prompt(facts):
         lines.append(f"・新規参入：{'、'.join(mv['new'])}")
     if mv["retired"]:
         lines.append(f"・引退：{'、'.join(mv['retired'])}")
+
+    mvp, rookie = facts.get("mvp"), facts.get("rookie")
+    if mvp or rookie:
+        lines.append("")
+        lines.append("■今季の活躍")
+        if mvp:
+            lines.append(f"・今季MVP（{mvp['league']}リーグで最多勝）：{mvp['name']}（{mvp['win']}勝{mvp['loss']}敗）")
+        if rookie:
+            lines.append(f"・新人王（今季デビューの新規参入者の中で最多勝）：{rookie['name']}（{rookie['league']}リーグ、{rookie['win']}勝{rookie['loss']}敗）")
+
     lines.append("")
     lines.append(
         f"以上の事実だけをもとに、第{facts['season']}季のダイジェスト記事を書いてください。"
         "データに無い出来事・数字は書かないこと。"
+        "今季MVP・新人王がいる場合は、本文の中でひと言触れること（見出しにする必要はない）。"
         "リーグ戦については、Aリーグに関わる昇格・降格だけ名前を挙げて触れればよい。"
         "B〜Dリーグ内の入れ替えは、件数だけ一言触れる程度で十分（個別の名前は渡していないので書けない）。"
         "出力は次のJSON形式のみ（説明文やコードフェンスなど、他のテキストは一切含めない）：\n"
@@ -223,6 +276,68 @@ def build_column_prompt(facts):
         '{"title": "見出し", "summary": "1〜2文の要約", "body": "本文（200〜350字程度）", '
         '"tags": ["コラム", "関係するリーグ名..."]}'
     )
+    return "\n".join(lines)
+
+
+MIN_UPSET_ELO_GAP = 150  # これ未満のElo差では「波乱」のネタとして採用しない
+
+
+def gather_upset_facts(data_dir, season):
+    """「波乱の一局」のネタを1つ選ぶ。今季のA〜Dリーグの対局（引き分けを除く）の中から、
+    勝者より敗者の方が季開始時点のEloが高かった（かつその差がMIN_UPSET_ELO_GAP以上）
+    組み合わせのうち、最もElo差が大きかった1局を選ぶ。
+    「季開始時点のElo」は前季終了時点のEloをそのまま使う（今季中の対局で変動した
+    Eloを使うと、勝った結果そのものでEloが上がった選手を「本来強かった」と
+    誤判定してしまい、波乱の度合いを過小評価してしまうため）。
+    前季の記録が無い個体（今季デビュー）は、デフォルトの開始Elo（1500.0）とみなす。
+    該当する対局が無ければNoneを返す"""
+    matches = load_json(os.path.join(data_dir, "matches", f"season_{season}.json"), [])
+    standings = load_json(os.path.join(data_dir, "standings", f"season_{season}.json"), [])
+    if not matches or not standings:
+        return None
+    names = {r["individual_id"]: r["display_name"] for r in standings}
+    leagues = {r["individual_id"]: r["league"] for r in standings}
+
+    prev_standings = load_json(os.path.join(data_dir, "standings", f"season_{season - 1}.json"), [])
+    prev_elo = {r["individual_id"]: r["elo"] for r in prev_standings}
+
+    best = None
+    for m in matches:
+        if m.get("league") not in ("A", "B", "C", "D") or m["result"] == "draw":
+            continue
+        winner_id = m["individual_a_id"] if m["result"] == "win" else m["individual_b_id"]
+        loser_id = m["individual_b_id"] if m["result"] == "win" else m["individual_a_id"]
+        gap = prev_elo.get(loser_id, 1500.0) - prev_elo.get(winner_id, 1500.0)
+        if gap >= MIN_UPSET_ELO_GAP and (best is None or gap > best["gap"]):
+            best = {"winner_id": winner_id, "loser_id": loser_id, "gap": gap, "league": m["league"]}
+
+    if best is None:
+        return None
+
+    winner_id, loser_id = best["winner_id"], best["loser_id"]
+    return {
+        "season": season, "league": best["league"], "elo_gap": round(best["gap"]),
+        "winner_id": winner_id, "winner_name": names.get(winner_id, winner_id),
+        "loser_id": loser_id, "loser_name": names.get(loser_id, loser_id),
+        "related_individual_ids": [winner_id, loser_id],
+        "related_individual_names": [names.get(winner_id, winner_id), names.get(loser_id, loser_id)],
+    }
+
+
+def build_upset_prompt(facts):
+    lines = [
+        f"第{facts['season']}季の事実データ（これ以外の出来事は起きていない）:", "",
+        f"・{facts['league']}リーグの対局で、{facts['winner_name']}が{facts['loser_name']}に勝利した。"
+        f"{facts['loser_name']}は前季終了時点のEloが{facts['winner_name']}より約{facts['elo_gap']}ポイント高く、"
+        "実力面では下馬評を覆す結果だった。",
+        "",
+        f"以上の事実だけをもとに、この一局（波乱の一局）を主題にした、"
+        "記者個人の所感・コラム記事を書いてください（ダイジェスト記事とは別の、短い読み物）。"
+        "データに無い出来事・数字は書かないこと。"
+        "出力は次のJSON形式のみ（説明文やコードフェンスなど、他のテキストは一切含めない）：\n"
+        '{"title": "見出し", "summary": "1〜2文の要約", "body": "本文（200〜350字程度）", '
+        '"tags": ["コラム", "関係するリーグ名..."]}'
+    ]
     return "\n".join(lines)
 
 
@@ -397,6 +512,35 @@ def try_generate_column(args, season, articles_path, articles):
     })
 
 
+def try_generate_upset(args, season, articles_path, articles):
+    article_id = f"s{season}-upset"
+    if any(a.get("id") == article_id for a in articles):
+        print(f"[DEBUG] 第{season}季の波乱の一局コラムは既に生成済みです（{article_id}）。スキップします", flush=True)
+        return
+
+    facts = gather_upset_facts(args.data_dir, season)
+    if facts is None:
+        print(f"[DEBUG] 第{season}季は波乱の一局にするネタ（Elo差{MIN_UPSET_ELO_GAP}以上での下克上）が見つかりません。スキップします", flush=True)
+        return
+
+    print(
+        f"[DEBUG] 第{season}季の波乱の一局コラムを生成します"
+        f"（{facts['winner_name']}が{facts['loser_name']}に勝利、Elo差約{facts['elo_gap']}、model={args.model}）",
+        flush=True,
+    )
+    generated = run_claude(build_upset_prompt(facts), model=args.model, persona_path=COLUMN_PERSONA_PATH)
+
+    save_article(articles_path, articles, {
+        "id": article_id, "type": "column", "season": season, "author": AUTHOR_COLUMN,
+        "title": generated["title"], "summary": generated["summary"], "body": generated["body"],
+        "published_at": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
+        "related_individual_ids": facts["related_individual_ids"],
+        "related_individual_names": facts["related_individual_names"],
+        "tags": generated.get("tags") or ["コラム"],
+        "generated_by": args.model,
+    })
+
+
 def try_generate_milestone(args, season, articles_path, articles):
     facts = gather_milestone_facts(args.data_dir, season)
     if facts is None:
@@ -440,6 +584,7 @@ def main():
 
     try_generate_digest(args, season, articles_path, articles)
     try_generate_column(args, season, articles_path, articles)
+    try_generate_upset(args, season, articles_path, articles)
     try_generate_milestone(args, season, articles_path, articles)
 
 
