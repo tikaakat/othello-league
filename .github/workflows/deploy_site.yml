@@ -1,6 +1,7 @@
 name: Deploy Site (index.html / api.php)
 
-# site/配下（index.html・api.php・create_character.php・cheer.php）はxserver上の
+# site/配下（index.html・api.php・create_character.php・cheer.php・article_like.php・
+# supporter.php）はxserver上の
 # 本番サイトの実体そのもの。従来は手動でxserverへアップロードしていたが、この
 # リポジトリで変更履歴を追えるようにするため site/配下にコミットし、mainへのpush
 # （＝これらのファイルの変更を含むマージ）をきっかけに自動でxserverへ反映する。
@@ -22,6 +23,8 @@ on:
       - "site/api.php"
       - "site/create_character.php"
       - "site/cheer.php"
+      - "site/article_like.php"
+      - "site/supporter.php"
   workflow_dispatch:
     inputs:
       list_only:
@@ -44,6 +47,8 @@ on:
           - ""
           - "add_submitter_name_column"
           - "add_cheer_feature"
+          - "add_article_like_feature"
+          - "add_supporter_feature"
         default: ""
       create_dir:
         description: "デプロイの代わりに、lab.spia-net.com直下（othello-league/の1つ上）に相対パスでディレクトリを作成する（例: othello-news）。「..」や先頭「/」は不可"
@@ -144,6 +149,21 @@ jobs:
                   'CREATE TABLE IF NOT EXISTS cheer_log (individual_id VARCHAR(32) NOT NULL, ip_hash CHAR(64) NOT NULL, cheered_date DATE NOT NULL, PRIMARY KEY (individual_id, ip_hash, cheered_date));'
                 )
                 ;;
+              add_article_like_feature)
+                # news-siteの記事への「いいね」機能：記事はdata/news/articles.json側にしか
+                # 無く個体のようなテーブル行が無いため、IPハッシュ単位で1記事1日1回に制限する
+                # ログテーブルだけを作り、件数はCOUNT(*)で求める
+                SQL_LIST=(
+                  'CREATE TABLE IF NOT EXISTS article_likes (article_id VARCHAR(64) NOT NULL, ip_hash CHAR(64) NOT NULL, liked_date DATE NOT NULL, PRIMARY KEY (article_id, ip_hash, liked_date));'
+                )
+                ;;
+              add_supporter_feature)
+                # 応援ページ（無料・名前リスト版）：実際の金銭のやり取りは発生しない。
+                # 名前（任意）だけを掲載するシンプルな一覧用のテーブル
+                SQL_LIST=(
+                  'CREATE TABLE IF NOT EXISTS supporters (id INT AUTO_INCREMENT PRIMARY KEY, display_name VARCHAR(30) NOT NULL, message VARCHAR(100) NULL, ip_hash CHAR(64) NOT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP);'
+                )
+                ;;
               *)
                 echo "::error::未知のマイグレーション: ${RUN_MIGRATION}"
                 rm -f /tmp/deploy_key
@@ -219,6 +239,7 @@ jobs:
 
           retry_cmd scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
             site/index.html site/api.php site/create_character.php site/cheer.php \
+            site/article_like.php site/supporter.php \
             "$XSERVER_USER@$XSERVER_HOST:${XSERVER_SITE_DIR}"
 
           rm -f /tmp/deploy_key
