@@ -123,7 +123,7 @@
   .related-article-link:last-child { border-bottom: none; }
   .related-article-link:hover { color: var(--accent-dark); }
 
-  /* 個体ファンページ */
+  /* 選手ファンページ */
   .profile-header { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
   .profile-header .avatar { width: 56px; height: 56px; font-size: 1.3rem; }
   .profile-name { font-size: 1.25rem; margin: 0 0 4px; }
@@ -139,7 +139,7 @@
   }
   .profile-footer { margin-top: 24px; font-size: 0.8rem; }
 
-  /* 個体一覧ページ */
+  /* 選手名鑑ページ */
   .roster-league-group { margin-top: 20px; }
   .roster-league-group:first-child { margin-top: 0; }
   .roster-league-group h3 { font-size: 0.85rem; color: var(--accent-dark); margin: 0 0 6px; }
@@ -218,6 +218,23 @@
   .sponsor-item .sponsor-name { font-weight: 700; color: #8A6A2E; flex-shrink: 0; }
   .sponsor-item .sponsor-message { overflow: hidden; text-overflow: ellipsis; }
 
+  /* 永久スポンサー枠：1個体につき先着1名のみ。応援・通常サポーターよりも特別な扱いにする */
+  .permanent-slot-box {
+    border-radius: 14px; padding: 12px 16px; margin-bottom: 10px;
+    border: 1px solid #E0C080; background: linear-gradient(135deg, #FFF8E8, #FFF1D0);
+  }
+  .permanent-slot-box h4 {
+    font-size: 0.78rem; color: #96701A; margin: 0 0 6px; display: flex; align-items: center; gap: 4px;
+  }
+  .permanent-slot-filled { display: flex; align-items: baseline; gap: 8px; font-size: 0.86rem; }
+  .permanent-slot-filled .sponsor-name { font-weight: 700; color: #96701A; }
+  .permanent-slot-filled .sponsor-message { color: #5B5349; }
+  .permanent-slot-empty { font-size: 0.78rem; color: var(--text-dim); display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+  .permanent-slot-empty .slot-cta-btn {
+    font-size: 0.78rem; font-weight: 700; color: #fff; background: #96701A;
+    border: none; border-radius: 10px; padding: 6px 12px; cursor: pointer; white-space: nowrap;
+  }
+
   .modal-overlay {
     position: fixed; inset: 0; background: rgba(43, 36, 26, 0.45);
     display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 50;
@@ -273,7 +290,7 @@
     </div>
     <nav>
       <a class="nav-tab" id="nav-feed" href="#" onclick="navigateTo('');return false;">フィード</a>
-      <a class="nav-tab" id="nav-individuals" href="#" onclick="navigateTo('individuals');return false;">個体一覧</a>
+      <a class="nav-tab" id="nav-individuals" href="#" onclick="navigateTo('individuals');return false;">選手名鑑</a>
       <a class="nav-tab" id="nav-rules" href="#" onclick="navigateTo('rules');return false;">ルール</a>
       <a class="nav-external" href="https://lab.spia-net.com/othello-league/" target="_blank" rel="noopener">データサイトへ ↗</a>
     </nav>
@@ -284,12 +301,13 @@
     <div class="modal-box">
       <button class="modal-close-x" id="sponsor-modal-close">×</button>
       <h3>サポーターになる</h3>
-      <p class="modal-sub">支援した金額は表示されません。お名前と一言はプロフィールに表示されます。</p>
+      <p class="modal-sub">100円：名前を掲載／300円：一言メッセージも掲載／500円：空いていれば永久スポンサー枠（先着1名）。支援した金額自体は表示されません。</p>
       <div class="amount-chip-row" id="sponsor-amount-chips">
+        <button type="button" class="amount-chip" data-amount="100">100円</button>
         <button type="button" class="amount-chip" data-amount="300">300円</button>
-        <button type="button" class="amount-chip" data-amount="500">500円</button>
-        <button type="button" class="amount-chip" data-amount="1000">1000円</button>
+        <button type="button" class="amount-chip" data-amount="500" data-permanent="true">500円</button>
       </div>
+      <p class="modal-sub" id="sponsor-amount-hint" style="min-height:1.2em;"></p>
       <label for="sponsor-amount-custom">その他の金額（円）</label>
       <input type="number" id="sponsor-amount-custom" min="100" step="100" placeholder="例：2000">
       <label for="sponsor-name">表示名</label>
@@ -726,7 +744,7 @@ async function setupLikeButton(btn) {
   });
 }
 
-// 個体ファンページ：このサイトでの「応援」はあくまで個体単位のものなので、
+// 選手ファンページ：このサイトでの「応援」はあくまで個体単位のものなので、
 // 応援（コメント付き）・基本情報・関連記事をここに集約し、メインの導線にする。
 // 詳しいデータ（対局履歴・系譜・Elo推移等）を見たい人だけがデータサイトへ進む
 async function renderIndividualProfile(id) {
@@ -740,7 +758,7 @@ async function renderIndividualProfile(id) {
     data = await res.json();
     if (!data.individual) throw new Error('not found');
   } catch (e) {
-    el.innerHTML = `<div class="empty">個体情報の読み込みに失敗しました</div><a class="back-link" href="#" onclick="navigateTo('');return false;">← フィードへ戻る</a>`;
+    el.innerHTML = `<div class="empty">選手情報の読み込みに失敗しました</div><a class="back-link" href="#" onclick="navigateTo('');return false;">← フィードへ戻る</a>`;
     return;
   }
 
@@ -777,6 +795,8 @@ async function renderIndividualProfile(id) {
         <button type="submit" id="profile-cheer-btn">♡ 応援する<span class="cheer-count"></span></button>
       </form>
       <div class="cheer-comment-list" id="profile-cheer-comments"></div>
+
+      <div class="permanent-slot-box" id="permanent-slot-box"></div>
 
       <div class="sponsor-box">
         <h4>サポーター</h4>
@@ -904,19 +924,27 @@ function setupSponsorUI(id) {
     document.getElementById('sponsor-name').value = '';
     document.getElementById('sponsor-message').value = '';
     statusEl.textContent = '';
+    document.getElementById('sponsor-amount-hint').textContent = '';
     overlay.classList.remove('hidden');
   };
   closeBtn.onclick = () => overlay.classList.add('hidden');
   overlay.onclick = (ev) => { if (ev.target === overlay) overlay.classList.add('hidden'); };
 
+  const hintEl = document.getElementById('sponsor-amount-hint');
   chips.forEach(chip => {
     chip.onclick = () => {
       chips.forEach(c => c.classList.remove('active'));
       chip.classList.add('active');
       customInput.value = '';
+      hintEl.textContent = chip.dataset.permanent
+        ? '💡 この金額を選ぶと、空いていればこの選手の永久スポンサー（先着1名）になれます'
+        : '';
     };
   });
-  customInput.oninput = () => { if (customInput.value) chips.forEach(c => c.classList.remove('active')); };
+  customInput.oninput = () => {
+    if (customInput.value) chips.forEach(c => c.classList.remove('active'));
+    hintEl.textContent = '';
+  };
 
   submitBtn.onclick = () => {
     const activeChip = document.querySelector('#sponsor-amount-chips .amount-chip.active');
@@ -933,6 +961,7 @@ function setupSponsorUI(id) {
 
 async function loadSponsorList(id) {
   const el = document.getElementById('sponsor-list');
+  const permEl = document.getElementById('permanent-slot-box');
   if (!el) return;
   try {
     const res = await fetch(`${RESULTS_SITE_BASE}sponsor.php?individual_id=${encodeURIComponent(id)}`);
@@ -944,12 +973,32 @@ async function loadSponsorList(id) {
           ${s.message ? `<span class="sponsor-message">${escapeHtml(s.message)}</span>` : ''}
         </div>`).join('')
       : '<div style="color:var(--text-dim); font-size:0.78rem;">まだサポーターはいません</div>';
+
+    if (permEl) {
+      permEl.innerHTML = data.permanent
+        ? `<h4>👑 永久スポンサー</h4>
+           <div class="permanent-slot-filled">
+             <span class="sponsor-name">${escapeHtml(data.permanent.display_name)}</span>
+             ${data.permanent.message ? `<span class="sponsor-message">${escapeHtml(data.permanent.message)}</span>` : ''}
+           </div>`
+        : `<h4>👑 永久スポンサー枠</h4>
+           <div class="permanent-slot-empty">
+             <span>先着1名限定。この選手が引退するまで名前が残り続けます。まだ空いています。</span>
+             <button type="button" class="slot-cta-btn" id="permanent-slot-cta-btn">空席を埋める</button>
+           </div>`;
+      const slotBtn = document.getElementById('permanent-slot-cta-btn');
+      if (slotBtn) slotBtn.onclick = () => {
+        document.getElementById('sponsor-cta-btn').click();
+        document.querySelector('#sponsor-amount-chips .amount-chip[data-permanent]').click();
+      };
+    }
   } catch (e) {
     el.innerHTML = '';
+    if (permEl) permEl.innerHTML = '';
   }
 }
 
-// 個体一覧：記事経由以外にも個体ファンページへの導線を用意するためのページ。
+// 選手名鑑：記事経由以外にも選手ファンページへの導線を用意するためのページ。
 // データサイトのaction=leagues（現役ロスター、直近シーズンの順位を継承した並び順）を
 // そのまま利用する
 async function renderIndividualList() {
@@ -963,7 +1012,7 @@ async function renderIndividualList() {
     data = await res.json();
     if (!data.leagues) throw new Error('not found');
   } catch (e) {
-    el.innerHTML = '<div class="empty">個体一覧の読み込みに失敗しました</div>';
+    el.innerHTML = '<div class="empty">選手名鑑の読み込みに失敗しました</div>';
     return;
   }
 
@@ -982,7 +1031,7 @@ async function renderIndividualList() {
   }).join('');
 
   el.innerHTML = `<div class="empty" style="padding:0 0 16px; text-align:left; color:var(--text-dim); font-size:0.8rem;">
-      現役の個体一覧です。名前をクリックすると個体ファンページへ移動します。
+      現役選手の名鑑です。名前をクリックすると選手ファンページへ移動します。
     </div>${groupsHtml}`;
 
   el.querySelectorAll('[data-goto-individual]').forEach(elm => {
