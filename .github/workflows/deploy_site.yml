@@ -49,6 +49,7 @@ on:
           - "add_cheer_feature"
           - "add_article_like_feature"
           - "add_supporter_feature"
+          - "add_cheer_message"
         default: ""
       create_dir:
         description: "デプロイの代わりに、lab.spia-net.com直下（othello-league/の1つ上）に相対パスでディレクトリを作成する（例: othello-news）。「..」や先頭「/」は不可"
@@ -162,6 +163,15 @@ jobs:
                 # 名前（任意）だけを掲載するシンプルな一覧用のテーブル
                 SQL_LIST=(
                   'CREATE TABLE IF NOT EXISTS supporters (id INT AUTO_INCREMENT PRIMARY KEY, display_name VARCHAR(30) NOT NULL, message VARCHAR(100) NULL, ip_hash CHAR(64) NOT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP);'
+                )
+                ;;
+              add_cheer_message)
+                # 個体への応援に、一言コメント（任意・匿名）を添えられるようにする。
+                # created_atは応援コメント一覧を新しい順に出すための補助列
+                # （cheered_dateは日付のみで同日分の順序を区別できないため）
+                SQL_LIST=(
+                  'ALTER TABLE cheer_log ADD COLUMN message VARCHAR(140) NULL;'
+                  'ALTER TABLE cheer_log ADD COLUMN created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP;'
                 )
                 ;;
               *)

@@ -26,6 +26,8 @@ _NEWS_SITE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "news-
 PERSONA_PATH = os.path.join(_NEWS_SITE_DIR, "persona.md")
 # コラム・特集は、ダイジェスト（犬飼）とは別の記者（東堂）が書く
 COLUMN_PERSONA_PATH = os.path.join(_NEWS_SITE_DIR, "persona-column.md")
+AUTHOR_DIGEST = "犬飼"
+AUTHOR_COLUMN = "東堂アヤ"
 
 
 def load_json(path, default):
@@ -360,7 +362,7 @@ def try_generate_digest(args, season, articles_path, articles):
     generated = generate_article(facts, model=args.model)
 
     save_article(articles_path, articles, {
-        "id": article_id, "type": "result", "season": season,
+        "id": article_id, "type": "result", "season": season, "author": AUTHOR_DIGEST,
         "title": generated["title"], "summary": generated["summary"], "body": generated["body"],
         "published_at": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
         "related_individual_ids": facts["related_individual_ids"],
@@ -385,7 +387,7 @@ def try_generate_column(args, season, articles_path, articles):
     generated = run_claude(build_column_prompt(facts), model=args.model, persona_path=COLUMN_PERSONA_PATH)
 
     save_article(articles_path, articles, {
-        "id": article_id, "type": "column", "season": season,
+        "id": article_id, "type": "column", "season": season, "author": AUTHOR_COLUMN,
         "title": generated["title"], "summary": generated["summary"], "body": generated["body"],
         "published_at": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
         "related_individual_ids": facts["related_individual_ids"],
@@ -410,7 +412,7 @@ def try_generate_milestone(args, season, articles_path, articles):
     generated = run_claude(build_milestone_prompt(facts), model=args.model, persona_path=COLUMN_PERSONA_PATH)
 
     save_article(articles_path, articles, {
-        "id": article_id, "type": "feature", "season": season,
+        "id": article_id, "type": "feature", "season": season, "author": AUTHOR_COLUMN,
         "title": generated["title"], "summary": generated["summary"], "body": generated["body"],
         "published_at": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
         "related_individual_ids": facts["related_individual_ids"],
