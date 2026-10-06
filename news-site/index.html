@@ -103,6 +103,12 @@
     padding: 8px 12px; margin-bottom: 6px; font-size: 0.82rem;
   }
   .related-row .ext-link { font-size: 0.72rem; white-space: nowrap; }
+  .related-row .row-actions { display: flex; align-items: center; gap: 8px; }
+  .cheer-btn {
+    font-size: 0.72rem; font-weight: 700; color: var(--accent-dark); background: #FFF6EE;
+    border: 1px solid #F3DCC9; border-radius: 10px; padding: 3px 10px; cursor: pointer; white-space: nowrap;
+  }
+  .cheer-btn.cheered { color: #fff; background: #FF6B8A; border-color: #FF6B8A; cursor: default; }
 
   .rules h3 { font-size: 0.88rem; color: var(--accent-dark); margin: 22px 0 8px; }
   .rules h3:first-child { margin-top: 0; }
@@ -357,9 +363,12 @@ async function renderArticle(id) {
   const pairs = relatedPairs(a);
   const relatedHtml = pairs.length ? `<div class="related-box">
       <h4>関連個体</h4>
-      ${pairs.map(p => `<div class="related-row">
+      ${pairs.map(p => `<div class="related-row" data-individual-row="${escapeHtml(p.id)}">
           <span class="ind-chip" data-filter-individual="${escapeHtml(p.id)}">${escapeHtml(p.name)}</span>
-          <a class="ext-link" href="${resultsSiteIndividualUrl(p.id)}" target="_blank" rel="noopener">結果サイトで成績を見る ↗</a>
+          <div class="row-actions">
+            <button class="cheer-btn" data-cheer-id="${escapeHtml(p.id)}">♡ 応援する<span class="cheer-count"></span></button>
+            <a class="ext-link" href="${resultsSiteIndividualUrl(p.id)}" target="_blank" rel="noopener">結果サイトで成績を見る ↗</a>
+          </div>
         </div>`).join('')}
     </div>` : '';
 
@@ -377,6 +386,55 @@ async function renderArticle(id) {
   });
   el.querySelectorAll('[data-filter-individual]').forEach(elm => {
     elm.addEventListener('click', () => navigateTo('individual/' + encodeURIComponent(elm.dataset.filterIndividual)));
+  });
+  el.querySelectorAll('[data-cheer-id]').forEach(setupCheerButton);
+}
+
+// 応援ボタン：実際の金銭のやり取りは発生しない、閲覧専用のカウンタ（いいね的な機能）。
+// cheer.php・api.phpは結果サイト（RESULTS_SITE_BASE）側にあるため、絶対URLで呼び出す
+// （同一オリジンのパス違いなのでCORS上の問題は無い）
+function cheeredTodayKey(id) {
+  return `cheered:${id}:${new Date().toISOString().slice(0, 10)}`;
+}
+async function loadCheerCount(id) {
+  try {
+    const res = await fetch(`${RESULTS_SITE_BASE}api.php?action=individual&id=${encodeURIComponent(id)}`);
+    const data = await res.json();
+    return data.individual && typeof data.individual.cheer_count === 'number' ? data.individual.cheer_count : 0;
+  } catch (e) {
+    return null;
+  }
+}
+async function setupCheerButton(btn) {
+  const id = btn.dataset.cheerId;
+  const countEl = btn.querySelector('.cheer-count');
+  const count = await loadCheerCount(id);
+  if (count !== null && countEl) countEl.textContent = `（${count}）`;
+
+  let alreadyCheeredLocally = false;
+  try { alreadyCheeredLocally = localStorage.getItem(cheeredTodayKey(id)) === '1'; } catch (e) { /* 無視 */ }
+  if (alreadyCheeredLocally) {
+    btn.classList.add('cheered');
+    btn.childNodes[0].textContent = '♡ 応援済み';
+  }
+
+  btn.addEventListener('click', async () => {
+    if (btn.classList.contains('cheered')) return;
+    btn.disabled = true;
+    try {
+      const res = await fetch(`${RESULTS_SITE_BASE}cheer.php`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ individual_id: id }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      if (countEl) countEl.textContent = `（${data.cheer_count}）`;
+      btn.classList.add('cheered');
+      btn.childNodes[0].textContent = '♡ 応援済み';
+      try { localStorage.setItem(cheeredTodayKey(id), '1'); } catch (e) { /* 無視 */ }
+    } catch (e) {
+      btn.disabled = false;
+    }
   });
 }
 

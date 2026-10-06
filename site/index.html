@@ -114,6 +114,11 @@
     border: 1px solid var(--navy-700); padding: 4px 10px; cursor: pointer;
   }
   .fav-toggle.is-fav { color: var(--amber); border-color: var(--amber); }
+  .cheer-btn {
+    font-family: 'Orbitron', sans-serif; font-size: 0.75rem; background: var(--navy-800); color: var(--text-dim);
+    border: 1px solid var(--navy-700); padding: 4px 10px; cursor: pointer; margin-left: 6px;
+  }
+  .cheer-btn.cheered { color: #FF6B8A; border-color: #FF6B8A; cursor: default; }
   .sliders { display: grid; gap: 6px; }
   .slider { display: grid; grid-template-columns: 6.5em 1fr 2.5em; align-items: center; gap: 8px; font-size: 0.78rem; color: var(--text-dim); }
   .slider input[type="range"] { width: 100%; accent-color: var(--cyan); }
@@ -335,6 +340,42 @@ function toggleFavorite(id) {
   if (ids.has(id)) ids.delete(id); else ids.add(id);
   saveFavoriteIds(ids);
   applyFavoriteHighlights();
+}
+
+// 応援ボタン：実際の金銭のやり取りは発生しない、閲覧専用のカウンタ（いいね的な機能）。
+// サーバー側（cheer.php）が1個体1日1回に制限するが、ここでのlocalStorageチェックは
+// 「今日は応援済み」をページ再読込後もすぐ見せるための表示上のヒントに過ぎない
+function cheeredTodayKey(id) {
+  return `cheered:${id}:${new Date().toISOString().slice(0, 10)}`;
+}
+function setupCheerButton(btn) {
+  if (!btn) return;
+  const id = btn.dataset.id;
+  let alreadyCheeredLocally = false;
+  try { alreadyCheeredLocally = localStorage.getItem(cheeredTodayKey(id)) === '1'; } catch (e) { /* 無視 */ }
+  if (alreadyCheeredLocally) {
+    btn.classList.add('cheered');
+    btn.firstChild.textContent = '♡ 応援済み';
+  }
+  btn.addEventListener('click', async () => {
+    if (btn.classList.contains('cheered')) return;
+    btn.disabled = true;
+    try {
+      const res = await fetch('cheer.php', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ individual_id: id }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      const countEl = document.getElementById('ind-cheer-count');
+      if (countEl) countEl.textContent = `（${data.cheer_count}）`;
+      btn.classList.add('cheered');
+      btn.firstChild.textContent = '♡ 応援済み';
+      try { localStorage.setItem(cheeredTodayKey(id), '1'); } catch (e) { /* 無視 */ }
+    } catch (e) {
+      btn.disabled = false;
+    }
+  });
 }
 
 function applyFavoriteHighlights() {
@@ -855,6 +896,7 @@ async function loadIndividualDetail(id) {
         <span style="font-size:0.72rem; color:var(--amber); margin-left:8px;">最高 ${Math.round(ind.peak_elo ?? ind.elo_rating)}</span></div>
       <div style="margin-top:8px;">
         <button id="ind-fav-toggle" class="fav-toggle" data-id="${escapeHtml(ind.id)}">☆ お気に入りに追加</button>
+        <button id="ind-cheer-btn" class="cheer-btn" data-id="${escapeHtml(ind.id)}">♡ 応援する<span id="ind-cheer-count">（${ind.cheer_count ?? 0}）</span></button>
       </div>
       ${ind.clan_established ? `<div style="margin-top:6px;"><span class="back-link" id="ind-clan-link" style="margin-bottom:0;">一門を見る →</span></div>` : ''}
       ${ind.awakened_param ? `<div style="margin-top:8px; display:inline-block; background:rgba(255,182,72,0.15); border:1px solid var(--amber); color:var(--amber); font-size:0.72rem; padding:3px 10px; border-radius:2px;">★ 覚醒：「${escapeHtml(paramLabel(ind.awakened_param))}」突破</div>` : ''}
@@ -897,6 +939,7 @@ async function loadIndividualDetail(id) {
     document.getElementById('ind-back').addEventListener('click', () => navigateTo('leagues'));
     document.getElementById('ind-fav-toggle').addEventListener('click', () => toggleFavorite(ind.id));
     applyFavoriteHighlights();
+    setupCheerButton(document.getElementById('ind-cheer-btn'));
     const clanLink = document.getElementById('ind-clan-link');
     if (clanLink) clanLink.addEventListener('click', () => navigateTo('clans/' + ind.clan_root_id));
     el.querySelectorAll('.lineage-link').forEach(span => span.addEventListener('click', () => navigateTo('individual/' + span.dataset.id)));
