@@ -150,6 +150,25 @@
   .roster-row:last-child { border-bottom: none; }
   .roster-row:hover { color: var(--accent-dark); }
   .roster-row .roster-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; color: var(--text-dim); font-size: 0.78rem; }
+  .roster-link-out { display: inline-block; font-size: 0.78rem; margin-bottom: 14px; cursor: pointer; color: var(--accent-dark); }
+  .roster-link-out:hover { text-decoration: underline; }
+
+  /* 一門系統図 */
+  .clan-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 8px 0; font-size: 0.85rem; border-bottom: 1px solid var(--border); cursor: pointer;
+  }
+  .clan-row:last-child { border-bottom: none; }
+  .clan-row:hover { color: var(--accent-dark); }
+  .clan-row .clan-right { color: var(--text-dim); font-size: 0.78rem; flex-shrink: 0; }
+  .clan-tree-row { font-size: 0.82rem; padding: 4px 0; display: flex; align-items: baseline; gap: 6px; cursor: pointer; }
+  .clan-tree-row:hover .clan-tree-name { color: var(--accent-dark); }
+  .clan-tree-name { color: var(--text-main); }
+  .clan-tree-meta { color: var(--text-dim); font-size: 0.72rem; }
+  .clan-branch-row { font-size: 0.76rem; padding: 3px 0; color: #B8692E; cursor: pointer; }
+  .clan-branch-row:hover { text-decoration: underline; }
+  .clan-branched-from { font-size: 0.78rem; color: var(--text-dim); margin-bottom: 10px; cursor: pointer; }
+  .clan-branched-from:hover { color: var(--accent-dark); }
 
   /* 人気記事ランキング */
   .ranking-box { margin-bottom: 16px; padding: 10px 14px; background: #FFFBF6; border: 1px solid var(--border); border-radius: 10px; }
@@ -999,12 +1018,69 @@ async function loadSponsorList(id) {
 }
 
 // 選手名鑑：記事経由以外にも選手ファンページへの導線を用意するためのページ。
-// データサイトのaction=leagues（現役ロスター、直近シーズンの順位を継承した並び順）を
-// そのまま利用する
+// 将棋連盟の棋士データベース（現役/引退を別リストで持ち、現役は段位別にも見られる）を
+// 参考に、現役⇄引退の切り替えと、現役側はリーグ別⇄段位別の切り替えを持たせている
+let _rosterView = 'active'; // 'active' | 'retired'
+let _rosterGroupBy = 'league'; // 'league' | 'dan'
+
+function rosterRowHtml(r, extraBadge) {
+  return `<div class="roster-row" data-goto-individual="${escapeHtml(r.id)}">
+      <span>${isFollowed(r.id) ? '<span class="oshi-star">★</span>' : ''}${escapeHtml(r.display_name || r.id)}${extraBadge || ''}</span>
+      <span class="roster-right">${danLabel(r.dan)}　${r.eloLabel}</span>
+    </div>`;
+}
+
+function rosterViewChipsHtml() {
+  return `<div class="chip-row">
+      <button class="chip-btn ${_rosterView === 'active' ? 'active' : ''}" data-roster-view="active">現役</button>
+      <button class="chip-btn ${_rosterView === 'retired' ? 'active' : ''}" data-roster-view="retired">引退</button>
+    </div>`;
+}
+
+function wireRosterCommon(el) {
+  el.querySelectorAll('[data-goto-individual]').forEach(elm => {
+    elm.addEventListener('click', () => navigateTo('individual/' + encodeURIComponent(elm.dataset.gotoIndividual)));
+  });
+  el.querySelectorAll('[data-roster-view]').forEach(elm => {
+    elm.addEventListener('click', () => { _rosterView = elm.dataset.rosterView; renderIndividualList(); });
+  });
+  el.querySelectorAll('[data-roster-group]').forEach(elm => {
+    elm.addEventListener('click', () => { _rosterGroupBy = elm.dataset.rosterGroup; renderIndividualList(); });
+  });
+}
+
 async function renderIndividualList() {
   setActiveNav('individuals');
   const el = document.getElementById('content');
   el.innerHTML = '<div class="empty">読み込み中…</div>';
+
+  if (_rosterView === 'retired') {
+    let data;
+    try {
+      const res = await fetch(`${RESULTS_SITE_BASE}api.php?action=retired_archive&limit=100`);
+      data = await res.json();
+      if (!data.retired) throw new Error('not found');
+    } catch (e) {
+      el.innerHTML = rosterViewChipsHtml() + '<div class="empty">選手名鑑（引退）の読み込みに失敗しました</div>';
+      wireRosterCommon(el);
+      return;
+    }
+    const rows = data.retired.map(r => ({ ...r, eloLabel: `最高Elo ${Math.round(r.peak_elo)}（第${r.debut_season}〜${r.retired_season}季）` }));
+    const rowsHtml = rows.map(r => {
+      const badge = r.title_count > 0 ? ` <span class="oshi-badge">タイトル${r.title_count}期</span>` : '';
+      return rosterRowHtml(r, badge);
+    }).join('');
+    el.innerHTML = `${rosterViewChipsHtml()}
+      <div class="empty" style="padding:0 0 16px; text-align:left; color:var(--text-dim); font-size:0.8rem;">
+        引退した選手の名鑑です（タイトル獲得数が多い順）。
+      </div>
+      <div class="roster-league-group">
+        <h3>引退選手（${rows.length}名）</h3>
+        ${rowsHtml || '<div class="empty">まだ引退した選手はいません</div>'}
+      </div>`;
+    wireRosterCommon(el);
+    return;
+  }
 
   let data;
   try {
@@ -1012,30 +1088,168 @@ async function renderIndividualList() {
     data = await res.json();
     if (!data.leagues) throw new Error('not found');
   } catch (e) {
-    el.innerHTML = '<div class="empty">選手名鑑の読み込みに失敗しました</div>';
+    el.innerHTML = rosterViewChipsHtml() + '<div class="empty">選手名鑑の読み込みに失敗しました</div>';
+    wireRosterCommon(el);
     return;
   }
 
-  const leagues = data.leagues;
-  const groupsHtml = ['A', 'B', 'C', 'D'].map(lg => {
-    const rows = leagues[lg] || [];
-    const rowsHtml = rows.map(r => `
-      <div class="roster-row" data-goto-individual="${escapeHtml(r.id)}">
-        <span>${isFollowed(r.id) ? '<span class="oshi-star">★</span>' : ''}${escapeHtml(r.display_name || r.id)}</span>
-        <span class="roster-right">${danLabel(r.dan)}　Elo ${Math.round(r.elo_rating)}</span>
-      </div>`).join('');
-    return `<div class="roster-league-group">
-      <h3>${lg}リーグ（${rows.length}名）</h3>
-      ${rowsHtml || '<div class="empty">在籍者なし</div>'}
+  const groupChipsHtml = `<div class="chip-row">
+      <button class="chip-btn ${_rosterGroupBy === 'league' ? 'active' : ''}" data-roster-group="league">リーグ別</button>
+      <button class="chip-btn ${_rosterGroupBy === 'dan' ? 'active' : ''}" data-roster-group="dan">段位別</button>
     </div>`;
-  }).join('');
 
-  el.innerHTML = `<div class="empty" style="padding:0 0 16px; text-align:left; color:var(--text-dim); font-size:0.8rem;">
+  const leagues = data.leagues;
+  let groupsHtml;
+  if (_rosterGroupBy === 'dan') {
+    const all = ['A', 'B', 'C', 'D'].flatMap(lg => leagues[lg] || []);
+    const byDan = {};
+    all.forEach(r => { (byDan[r.dan] = byDan[r.dan] || []).push(r); });
+    const dans = Object.keys(byDan).map(Number).sort((a, b) => b - a);
+    groupsHtml = dans.map(dan => {
+      const rows = byDan[dan].slice().sort((a, b) => b.elo_rating - a.elo_rating)
+        .map(r => ({ ...r, eloLabel: `Elo ${Math.round(r.elo_rating)}` }));
+      return `<div class="roster-league-group">
+        <h3>${danLabel(dan)}（${rows.length}名）</h3>
+        ${rows.map(r => rosterRowHtml(r)).join('') || '<div class="empty">在籍者なし</div>'}
+      </div>`;
+    }).join('');
+  } else {
+    groupsHtml = ['A', 'B', 'C', 'D'].map(lg => {
+      const rows = (leagues[lg] || []).map(r => ({ ...r, eloLabel: `Elo ${Math.round(r.elo_rating)}` }));
+      return `<div class="roster-league-group">
+        <h3>${lg}リーグ（${rows.length}名）</h3>
+        ${rows.map(r => rosterRowHtml(r)).join('') || '<div class="empty">在籍者なし</div>'}
+      </div>`;
+    }).join('');
+  }
+
+  el.innerHTML = `${rosterViewChipsHtml()}${groupChipsHtml}
+    <div class="empty" style="padding:0 0 10px; text-align:left; color:var(--text-dim); font-size:0.8rem;">
       現役選手の名鑑です。名前をクリックすると選手ファンページへ移動します。
-    </div>${groupsHtml}`;
+    </div>
+    <div class="roster-link-out" data-goto-clans="true">→ 一門系統図を見る</div>
+    ${groupsHtml}`;
+
+  wireRosterCommon(el);
+  const clansLink = el.querySelector('[data-goto-clans]');
+  if (clansLink) clansLink.addEventListener('click', () => navigateTo('clans'));
+}
+
+// 一門系統図：将棋連盟の「棋士系統図」を参考に、師弟関係の木構造を表示する。
+// データサイトのaction=clans/action=clan（フロント側でparent_a_idを辿ってツリーを組み立てる
+// 設計）をそのまま再利用し、こちら側で新たにツリー構築ロジックを持たない
+async function renderClanList() {
+  setActiveNav('individuals');
+  const el = document.getElementById('content');
+  el.innerHTML = '<div class="empty">読み込み中…</div>';
+
+  let data;
+  try {
+    const res = await fetch(`${RESULTS_SITE_BASE}api.php?action=clans`);
+    data = await res.json();
+    if (!data.clans) throw new Error('not found');
+  } catch (e) {
+    el.innerHTML = '<div class="empty">一門系統図の読み込みに失敗しました</div>';
+    return;
+  }
+
+  const rows = data.clans || [];
+  const active = rows.filter(c => c.active_count > 0);
+  const extinct = rows.filter(c => c.active_count === 0);
+
+  const rowHtml = c => `<div class="clan-row" data-goto-clan="${escapeHtml(c.clan_root_id)}">
+      <span>${escapeHtml(c.founder_name)}${c.founder_retired ? '<span class="clan-right">（引退）</span>' : ''}</span>
+      <span class="clan-right">${c.active_count}名（総${c.member_count}名）　最高Elo ${Math.round(c.best_peak_elo)}</span>
+    </div>`;
+
+  let html = `
+    <a class="back-link" href="#" onclick="navigateTo('individuals');return false;">← 選手名鑑へ戻る</a>
+    <div class="empty" style="padding:0 0 10px; text-align:left; color:var(--text-dim); font-size:0.8rem;">
+      師弟関係でつながる一門（歴代最高Elo順）です。開祖の名前をクリックすると系統図を見られます。
+    </div>
+    <div class="roster-league-group"><h3>一門一覧（${active.length}件）</h3>
+      ${active.map(rowHtml).join('') || '<div class="empty">まだ一門がありません</div>'}
+    </div>`;
+  if (extinct.length > 0) {
+    html += `<div class="roster-league-group"><h3>消滅した一門（${extinct.length}件）</h3>
+      ${extinct.map(rowHtml).join('')}
+    </div>`;
+  }
+  el.innerHTML = html;
+
+  el.querySelectorAll('[data-goto-clan]').forEach(elm => {
+    elm.addEventListener('click', () => navigateTo('clans/' + encodeURIComponent(elm.dataset.gotoClan)));
+  });
+}
+
+// 系統図の各ノードを、師匠→弟子の階層でインデント表示する（データサイト側と同じ考え方）
+function renderClanTreeNode(node, childrenByParent, branchesByUnder, depth) {
+  const kids = childrenByParent[node.id] || [];
+  const branches = branchesByUnder[node.id] || [];
+  const statusLabel = node.retired ? '（引退）' : node.league + 'リーグ';
+  const eloLabel = node.retired ? `最高Elo ${Math.round(node.peak_elo)}` : `Elo ${Math.round(node.elo_rating)}`;
+  let html = `<div class="clan-tree-row" style="padding-left:${depth * 18}px;" data-goto-individual="${escapeHtml(node.id)}">
+      <span class="clan-tree-name">${isFollowed(node.id) ? '★ ' : ''}${escapeHtml(node.display_name || node.id)}</span>
+      <span class="clan-tree-meta">${statusLabel}・${eloLabel}</span>
+    </div>`;
+  branches.forEach(b => {
+    html += `<div class="clan-branch-row" style="padding-left:${(depth + 1) * 18}px;" data-goto-clan="${escapeHtml(b.branch_clan_root_id)}">
+        └ ${escapeHtml(b.branch_name)}${b.branch_retired ? '（引退）' : ''}の一門へ分岐 →
+      </div>`;
+  });
+  kids.forEach(k => { html += renderClanTreeNode(k, childrenByParent, branchesByUnder, depth + 1); });
+  return html;
+}
+
+async function renderClanDetail(clanId) {
+  setActiveNav('individuals');
+  const el = document.getElementById('content');
+  el.innerHTML = '<div class="empty">読み込み中…</div>';
+
+  let data;
+  try {
+    const res = await fetch(`${RESULTS_SITE_BASE}api.php?action=clan&id=${encodeURIComponent(clanId)}`);
+    data = await res.json();
+    if (!data.members) throw new Error('not found');
+  } catch (e) {
+    el.innerHTML = '<div class="empty">一門の読み込みに失敗しました</div>';
+    return;
+  }
+
+  const members = data.members || [];
+  const membersById = {};
+  members.forEach(m => { membersById[m.id] = m; });
+  const childrenByParent = {};
+  members.forEach(m => {
+    if (m.parent_a_id && membersById[m.parent_a_id]) {
+      (childrenByParent[m.parent_a_id] = childrenByParent[m.parent_a_id] || []).push(m);
+    }
+  });
+  const root = membersById[clanId] || members.find(m => !m.parent_a_id || !membersById[m.parent_a_id]);
+  const branchesByUnder = {};
+  (data.branches_out || []).forEach(b => {
+    (branchesByUnder[b.under_id] = branchesByUnder[b.under_id] || []).push(b);
+  });
+
+  const bf = data.branched_from;
+  const branchedFromHtml = bf ? `<div class="clan-branched-from" data-goto-clan="${escapeHtml(bf.origin_clan_root_id)}">
+      ${escapeHtml(bf.master_name)}${bf.master_retired ? '（引退）' : ''}の一門から独立 →
+    </div>` : '';
+
+  el.innerHTML = `
+    <a class="back-link" href="#" onclick="navigateTo('clans');return false;">← 一門一覧へ戻る</a>
+    <h1 class="profile-name" style="font-size:1.1rem;">${escapeHtml(root ? (root.display_name || root.id) : clanId)}の一門</h1>
+    <div class="profile-sub" style="margin-bottom:10px;">総勢${members.length}名（現役${members.filter(m => !m.retired).length}名）</div>
+    ${branchedFromHtml}
+    <div class="profile-section" style="margin-top:0; padding-top:0; border-top:none;">
+      ${root ? renderClanTreeNode(root, childrenByParent, branchesByUnder, 0) : ''}
+    </div>`;
 
   el.querySelectorAll('[data-goto-individual]').forEach(elm => {
     elm.addEventListener('click', () => navigateTo('individual/' + encodeURIComponent(elm.dataset.gotoIndividual)));
+  });
+  el.querySelectorAll('[data-goto-clan]').forEach(elm => {
+    elm.addEventListener('click', () => navigateTo('clans/' + encodeURIComponent(elm.dataset.gotoClan)));
   });
 }
 
@@ -1125,6 +1339,10 @@ function route() {
     renderRules();
   } else if (hash === 'individuals') {
     renderIndividualList();
+  } else if (hash === 'clans') {
+    renderClanList();
+  } else if (hash.startsWith('clans/')) {
+    renderClanDetail(decodeURIComponent(hash.slice('clans/'.length)));
   } else if (hash.startsWith('article/')) {
     renderArticle(decodeURIComponent(hash.slice('article/'.length)));
   } else if (hash.startsWith('individual/')) {
