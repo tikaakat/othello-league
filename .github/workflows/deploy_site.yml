@@ -153,9 +153,13 @@ jobs:
             # base64はシェルのメタ文字を含まないため、そのままリモートコマンド文字列に
             # 埋め込んでも引用符崩れの心配がない（複数文をNUL区切りで1回のSSH呼び出しに渡す）
             SQL_B64="$(printf '%s\0' "${SQL_LIST[@]}" | base64 -w0)"
+            # SSH経由の既定の`php`（CLI用の古いバージョンのことが多い）はdb_config.phpの
+            # 構文（戻り値型宣言など）を解釈できずPHP Parse errorになることがあるため、
+            # Webサイト提供に使われているであろう新しめのバージョン別バイナリを順に探して使う
+            # （xserverでは `php81`/`php82`のようにドット無しで提供されるのが一般的）
             retry_cmd ssh -i /tmp/deploy_key -p "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
               "$XSERVER_USER@$XSERVER_HOST" \
-              "php -r '
+              "PHP_BIN=\$(command -v php84 || command -v php83 || command -v php82 || command -v php81 || command -v php80 || command -v php74 || command -v php8.4 || command -v php8.3 || command -v php8.2 || command -v php8.1 || command -v php8.0 || command -v php7.4 || command -v php); \"\$PHP_BIN\" -r '
                 require \"${XSERVER_SITE_DIR}db_config.php\";
                 \$pdo = league_db_connect();
                 \$list = array_filter(array_map(\"trim\", explode(\"\\0\", base64_decode(\"${SQL_B64}\"))));
