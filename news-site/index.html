@@ -80,6 +80,8 @@
     white-space: nowrap; cursor: pointer;
   }
   .card-time { color: var(--text-dim); font-size: 0.7rem; }
+  .byline { color: var(--text-dim); font-size: 0.7rem; }
+  .byline b { color: var(--accent-dark); font-weight: 700; }
   .card-title { font-size: 1rem; margin: 0 0 6px; line-height: 1.4; }
   .card-summary { font-size: 0.82rem; color: #5B5349; line-height: 1.6; margin: 0 0 6px; }
   .card-individuals { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -100,16 +102,10 @@
   .related-row {
     display: flex; align-items: center; justify-content: space-between; gap: 10px;
     background: var(--card); border: 1px solid var(--border); border-radius: 10px;
-    padding: 8px 12px; margin-bottom: 6px; font-size: 0.82rem;
+    padding: 8px 12px; margin-bottom: 6px; font-size: 0.82rem; cursor: pointer;
   }
-  .related-row .ext-link { font-size: 0.72rem; white-space: nowrap; }
-  .related-row .row-actions { display: flex; align-items: center; gap: 8px; }
-  .cheer-btn {
-    font-size: 0.72rem; font-weight: 700; color: var(--accent-dark); background: #FFF6EE;
-    border: 1px solid #F3DCC9; border-radius: 10px; padding: 3px 10px; cursor: pointer; white-space: nowrap;
-  }
-  .cheer-btn.cheered { color: #fff; background: #FF6B8A; border-color: #FF6B8A; cursor: default; }
-
+  .related-row:hover { box-shadow: 0 2px 8px rgba(58,51,46,0.08); }
+  .ext-link { font-size: 0.78rem; white-space: nowrap; }
   .like-btn {
     font-size: 0.74rem; font-weight: 700; color: var(--accent-dark); background: #fff;
     border: 1px solid var(--border); border-radius: 10px; padding: 4px 11px; cursor: pointer; white-space: nowrap;
@@ -117,26 +113,6 @@
   .like-btn.liked { color: #fff; background: var(--accent); border-color: var(--accent); cursor: default; }
   .card-actions { display: flex; justify-content: flex-end; margin-top: 8px; }
   .article-actions { display: flex; justify-content: flex-end; margin: 10px 0 0; }
-
-  .info-btn {
-    font-size: 0.6rem; width: 16px; height: 16px; line-height: 1; border-radius: 50%;
-    border: 1px solid var(--border); color: var(--text-dim); background: #fff; cursor: pointer;
-    display: inline-flex; align-items: center; justify-content: center; margin-left: 3px; padding: 0; vertical-align: middle;
-  }
-  .modal-overlay {
-    position: fixed; inset: 0; background: rgba(58,51,46,0.45); display: flex;
-    align-items: center; justify-content: center; z-index: 1000; padding: 18px;
-  }
-  .modal-card {
-    background: #fff; border-radius: 16px; padding: 20px; max-width: 320px; width: 100%;
-    position: relative; box-shadow: 0 8px 30px rgba(0,0,0,0.2);
-  }
-  .modal-card h3 { margin: 0 14px 10px 0; font-size: 1rem; }
-  .modal-close {
-    position: absolute; top: 12px; right: 14px; background: none; border: none;
-    font-size: 1rem; color: var(--text-dim); cursor: pointer; line-height: 1;
-  }
-  .modal-body { font-size: 0.82rem; line-height: 1.8; color: #5B5349; }
 
   .related-articles-box { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--border); }
   .related-articles-box h4 { font-size: 0.78rem; color: var(--text-dim); margin: 0 0 8px; }
@@ -147,22 +123,34 @@
   .related-article-link:last-child { border-bottom: none; }
   .related-article-link:hover { color: var(--accent-dark); }
 
-  .supporter-form { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
-  .supporter-form input, .supporter-form textarea {
-    font-family: inherit; font-size: 0.86rem; padding: 9px 12px; border-radius: 10px;
-    border: 1px solid var(--border); background: #fff; resize: vertical;
+  /* 個体ファンページ */
+  .profile-header { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+  .profile-header .avatar { width: 56px; height: 56px; font-size: 1.3rem; }
+  .profile-name { font-size: 1.25rem; margin: 0 0 4px; }
+  .profile-sub { font-size: 0.8rem; color: var(--text-dim); }
+  .profile-section { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--border); }
+  .profile-section h4 { font-size: 0.78rem; color: var(--text-dim); margin: 0 0 8px; }
+  .profile-title-row { font-size: 0.86rem; padding: 4px 0; }
+  .profile-footer { margin-top: 24px; font-size: 0.8rem; }
+
+  .cheer-box {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 14px 16px; margin-bottom: 4px;
   }
-  .supporter-form button {
-    align-self: flex-start; font-size: 0.82rem; font-weight: 700; color: #fff;
-    background: var(--accent); border: none; border-radius: 10px; padding: 8px 18px; cursor: pointer;
+  .cheer-comment-form { display: flex; gap: 8px; }
+  .cheer-comment-form input {
+    flex: 1; font-family: inherit; font-size: 0.84rem; padding: 8px 12px;
+    border-radius: 10px; border: 1px solid var(--border); background: #fff;
   }
-  .supporter-form-msg { font-size: 0.78rem; color: var(--accent-dark); min-height: 1.2em; }
-  .supporter-item {
-    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
-    padding: 8px 12px; margin-bottom: 6px; font-size: 0.84rem;
+  .cheer-comment-form button {
+    font-size: 0.82rem; font-weight: 700; color: #fff; background: var(--accent);
+    border: none; border-radius: 10px; padding: 8px 16px; cursor: pointer; white-space: nowrap;
   }
-  .supporter-name { font-weight: 700; margin-right: 8px; }
-  .supporter-message { color: var(--text-dim); }
+  .cheer-comment-form button.cheered { background: #FF6B8A; cursor: default; }
+  .cheer-comment-list { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+  .cheer-comment-item {
+    font-size: 0.8rem; color: #5B5349; background: #FFF6EE; border-radius: 8px; padding: 6px 10px;
+  }
 
   .rules h3 { font-size: 0.88rem; color: var(--accent-dark); margin: 22px 0 8px; }
   .rules h3:first-child { margin-top: 0; }
@@ -188,8 +176,7 @@
     <nav>
       <a class="nav-tab" id="nav-feed" href="#" onclick="navigateTo('');return false;">フィード</a>
       <a class="nav-tab" id="nav-rules" href="#" onclick="navigateTo('rules');return false;">ルール</a>
-      <a class="nav-tab" id="nav-supporters" href="#" onclick="navigateTo('supporters');return false;">応援</a>
-      <a class="nav-external" href="https://lab.spia-net.com/othello-league/" target="_blank" rel="noopener">結果サイトへ ↗</a>
+      <a class="nav-external" href="https://lab.spia-net.com/othello-league/" target="_blank" rel="noopener">データサイトへ ↗</a>
     </nav>
   </header>
   <div id="holders"></div>
@@ -311,7 +298,6 @@ async function renderHolders() {
 
 function parseFilter(hash) {
   if (hash.startsWith('tag/')) return { type: 'tag', value: decodeURIComponent(hash.slice(4)) };
-  if (hash.startsWith('individual/')) return { type: 'individual', value: decodeURIComponent(hash.slice(11)) };
   if (hash.startsWith('season/')) return { type: 'season', value: Number(hash.slice(7)) };
   return null;
 }
@@ -319,7 +305,6 @@ function parseFilter(hash) {
 function applyFilter(articles, filter) {
   if (!filter) return articles;
   if (filter.type === 'tag') return articles.filter(a => (a.tags || []).includes(filter.value));
-  if (filter.type === 'individual') return articles.filter(a => (a.related_individual_ids || []).includes(filter.value));
   if (filter.type === 'season') return articles.filter(a => a.season === filter.value);
   return articles;
 }
@@ -327,18 +312,12 @@ function applyFilter(articles, filter) {
 function filterLabel(articles, filter) {
   if (filter.type === 'tag') return `タグ「${filter.value}」の記事`;
   if (filter.type === 'season') return `第${filter.value}季の記事`;
-  if (filter.type === 'individual') {
-    const hit = articles.find(a => (a.related_individual_ids || []).includes(filter.value));
-    const name = hit ? (hit.related_individual_names || [])[(hit.related_individual_ids || []).indexOf(filter.value)] : filter.value;
-    return `「${name || filter.value}」関連の記事`;
-  }
   return '';
 }
 
 function setActiveNav(tab) {
   document.getElementById('nav-feed').classList.toggle('active', tab === 'feed');
   document.getElementById('nav-rules').classList.toggle('active', tab === 'rules');
-  document.getElementById('nav-supporters').classList.toggle('active', tab === 'supporters');
 }
 
 async function renderFeed(filter) {
@@ -368,7 +347,7 @@ async function renderFeed(filter) {
     : articles.map(a => {
         const pairs = relatedPairs(a);
         const individualsHtml = pairs.length ? `<div class="card-individuals">
-            ${pairs.map(p => `<span class="ind-chip" data-filter-individual="${escapeHtml(p.id)}">${escapeHtml(p.name)}</span><button class="info-btn" data-info-id="${escapeHtml(p.id)}" data-info-name="${escapeHtml(p.name)}" title="個体情報">ⓘ</button>`).join('')}
+            ${pairs.map(p => `<span class="ind-chip" data-goto-individual="${escapeHtml(p.id)}">${escapeHtml(p.name)}</span>`).join('')}
           </div>` : '';
         return `
         <article class="card" data-article-id="${escapeHtml(a.id)}">
@@ -380,6 +359,7 @@ async function renderFeed(filter) {
             </div>
             <h2 class="card-title">${escapeHtml(a.title)}</h2>
             <p class="card-summary">${escapeHtml(a.summary)}</p>
+            ${a.author ? `<div class="byline">by <b>${escapeHtml(a.author)}</b></div>` : ''}
             ${individualsHtml}
             <div class="card-actions">
               <button class="like-btn" data-like-id="${escapeHtml(a.id)}">♥ いいね<span class="like-count"></span></button>
@@ -392,7 +372,7 @@ async function renderFeed(filter) {
 
   el.querySelectorAll('.card').forEach(card => {
     card.addEventListener('click', (ev) => {
-      if (ev.target.closest('[data-filter-tag],[data-filter-individual],[data-info-id],[data-like-id]')) return;
+      if (ev.target.closest('[data-filter-tag],[data-goto-individual],[data-like-id]')) return;
       navigateTo('article/' + encodeURIComponent(card.dataset.articleId));
     });
   });
@@ -402,16 +382,10 @@ async function renderFeed(filter) {
       navigateTo('tag/' + encodeURIComponent(elm.dataset.filterTag));
     });
   });
-  el.querySelectorAll('[data-filter-individual]').forEach(elm => {
+  el.querySelectorAll('[data-goto-individual]').forEach(elm => {
     elm.addEventListener('click', (ev) => {
       ev.stopPropagation();
-      navigateTo('individual/' + encodeURIComponent(elm.dataset.filterIndividual));
-    });
-  });
-  el.querySelectorAll('[data-info-id]').forEach(elm => {
-    elm.addEventListener('click', (ev) => {
-      ev.stopPropagation();
-      showIndividualInfoModal(elm.dataset.infoId, elm.dataset.infoName);
+      navigateTo('individual/' + encodeURIComponent(elm.dataset.gotoIndividual));
     });
   });
   el.querySelectorAll('[data-like-id]').forEach(setupLikeButton);
@@ -429,12 +403,9 @@ async function renderArticle(id) {
   const pairs = relatedPairs(a);
   const relatedHtml = pairs.length ? `<div class="related-box">
       <h4>関連個体</h4>
-      ${pairs.map(p => `<div class="related-row" data-individual-row="${escapeHtml(p.id)}">
-          <span class="ind-chip" data-filter-individual="${escapeHtml(p.id)}">${escapeHtml(p.name)}</span><button class="info-btn" data-info-id="${escapeHtml(p.id)}" data-info-name="${escapeHtml(p.name)}" title="個体情報">ⓘ</button>
-          <div class="row-actions">
-            <button class="cheer-btn" data-cheer-id="${escapeHtml(p.id)}">♡ 応援する<span class="cheer-count"></span></button>
-            <a class="ext-link" href="${resultsSiteIndividualUrl(p.id)}" target="_blank" rel="noopener">結果サイトで成績を見る ↗</a>
-          </div>
+      ${pairs.map(p => `<div class="related-row" data-goto-individual="${escapeHtml(p.id)}">
+          <span class="ind-chip">${escapeHtml(p.name)}</span>
+          <span style="color:var(--text-dim); font-size:0.78rem;">個体ページへ →</span>
         </div>`).join('')}
     </div>` : '';
 
@@ -450,6 +421,7 @@ async function renderArticle(id) {
     <div class="article-header">
       <div class="card-meta">${(a.tags || []).map(tagChip).join('')}<span class="card-time">${timeAgo(a.published_at)}</span></div>
       <h1 class="article-title">${escapeHtml(a.title)}</h1>
+      ${a.author ? `<div class="byline">by <b>${escapeHtml(a.author)}</b></div>` : ''}
     </div>
     <div class="article-body">${escapeHtml(a.body)}</div>
     <div class="article-actions">
@@ -461,16 +433,12 @@ async function renderArticle(id) {
   el.querySelectorAll('[data-filter-tag]').forEach(elm => {
     elm.addEventListener('click', () => navigateTo('tag/' + encodeURIComponent(elm.dataset.filterTag)));
   });
-  el.querySelectorAll('[data-filter-individual]').forEach(elm => {
-    elm.addEventListener('click', () => navigateTo('individual/' + encodeURIComponent(elm.dataset.filterIndividual)));
-  });
-  el.querySelectorAll('[data-info-id]').forEach(elm => {
-    elm.addEventListener('click', () => showIndividualInfoModal(elm.dataset.infoId, elm.dataset.infoName));
+  el.querySelectorAll('[data-goto-individual]').forEach(elm => {
+    elm.addEventListener('click', () => navigateTo('individual/' + encodeURIComponent(elm.dataset.gotoIndividual)));
   });
   el.querySelectorAll('[data-article-link]').forEach(elm => {
     elm.addEventListener('click', () => navigateTo('article/' + encodeURIComponent(elm.dataset.articleLink)));
   });
-  el.querySelectorAll('[data-cheer-id]').forEach(setupCheerButton);
   el.querySelectorAll('[data-like-id]').forEach(setupLikeButton);
 }
 
@@ -492,7 +460,7 @@ function relatedArticlesFor(article, allArticles) {
 }
 
 // 応援ボタン：実際の金銭のやり取りは発生しない、閲覧専用のカウンタ（いいね的な機能）。
-// cheer.php・api.phpは結果サイト（RESULTS_SITE_BASE）側にあるため、絶対URLで呼び出す
+// cheer.php・api.phpはデータサイト（RESULTS_SITE_BASE）側にあるため、絶対URLで呼び出す
 // （同一オリジンのパス違いなのでCORS上の問題は無い）
 function cheeredTodayKey(id) {
   return `cheered:${id}:${new Date().toISOString().slice(0, 10)}`;
@@ -506,39 +474,6 @@ async function loadCheerCount(id) {
     return null;
   }
 }
-async function setupCheerButton(btn) {
-  const id = btn.dataset.cheerId;
-  const countEl = btn.querySelector('.cheer-count');
-  const count = await loadCheerCount(id);
-  if (count !== null && countEl) countEl.textContent = `（${count}）`;
-
-  let alreadyCheeredLocally = false;
-  try { alreadyCheeredLocally = localStorage.getItem(cheeredTodayKey(id)) === '1'; } catch (e) { /* 無視 */ }
-  if (alreadyCheeredLocally) {
-    btn.classList.add('cheered');
-    btn.childNodes[0].textContent = '♡ 応援済み';
-  }
-
-  btn.addEventListener('click', async () => {
-    if (btn.classList.contains('cheered')) return;
-    btn.disabled = true;
-    try {
-      const res = await fetch(`${RESULTS_SITE_BASE}cheer.php`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ individual_id: id }),
-      });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      if (countEl) countEl.textContent = `（${data.cheer_count}）`;
-      btn.classList.add('cheered');
-      btn.childNodes[0].textContent = '♡ 応援済み';
-      try { localStorage.setItem(cheeredTodayKey(id), '1'); } catch (e) { /* 無視 */ }
-    } catch (e) {
-      btn.disabled = false;
-    }
-  });
-}
-
 // 記事への「いいね」：cheer.phpと同じ考え方（閲覧専用カウンタ、実際の金銭のやり取りは無い）
 function likedTodayKey(articleId) {
   return `liked:${articleId}:${new Date().toISOString().slice(0, 10)}`;
@@ -586,103 +521,133 @@ async function setupLikeButton(btn) {
   });
 }
 
-// 個体の簡易情報カード（モーダル）。詳しく見たい人は結果サイトへのリンクから飛ぶ
-async function showIndividualInfoModal(id, name) {
-  const overlay = document.createElement('div');
-  overlay.className = 'modal-overlay';
-  overlay.innerHTML = `<div class="modal-card">
-      <button class="modal-close" aria-label="閉じる">✕</button>
-      <h3>${escapeHtml(name)}</h3>
-      <div class="modal-body">読み込み中…</div>
-    </div>`;
-  document.body.appendChild(overlay);
-  const close = () => overlay.remove();
-  overlay.addEventListener('click', (ev) => { if (ev.target === overlay) close(); });
-  overlay.querySelector('.modal-close').addEventListener('click', close);
+// 個体ファンページ：このサイトでの「応援」はあくまで個体単位のものなので、
+// 応援（コメント付き）・基本情報・関連記事をここに集約し、メインの導線にする。
+// 詳しいデータ（対局履歴・系譜・Elo推移等）を見たい人だけがデータサイトへ進む
+async function renderIndividualProfile(id) {
+  setActiveNav('feed');
+  const el = document.getElementById('content');
+  el.innerHTML = '<div class="empty">読み込み中…</div>';
 
-  const bodyEl = overlay.querySelector('.modal-body');
+  let data;
   try {
     const res = await fetch(`${RESULTS_SITE_BASE}api.php?action=individual&id=${encodeURIComponent(id)}`);
-    const data = await res.json();
-    const ind = data.individual;
-    if (!ind) throw new Error('not found');
-    const statusLine = ind.retired ? '引退済み' : `現在：${escapeHtml(ind.league || '-')}リーグ`;
-    bodyEl.innerHTML = `
-      ${statusLine}<br>
-      Elo：${Math.round(ind.elo_rating)}（歴代最高 ${Math.round(ind.peak_elo ?? ind.elo_rating)}）<br>
-      応援数：${ind.cheer_count ?? 0}
-      <div style="margin-top:12px;">
-        <a class="ext-link" href="${resultsSiteIndividualUrl(id)}" target="_blank" rel="noopener">結果サイトで詳しく見る ↗</a>
-      </div>
-    `;
+    data = await res.json();
+    if (!data.individual) throw new Error('not found');
   } catch (e) {
-    bodyEl.innerHTML = `読み込みに失敗しました<div style="margin-top:12px;"><a class="ext-link" href="${resultsSiteIndividualUrl(id)}" target="_blank" rel="noopener">結果サイトで見る ↗</a></div>`;
+    el.innerHTML = `<div class="empty">個体情報の読み込みに失敗しました</div><a class="back-link" href="#" onclick="navigateTo('');return false;">← フィードへ戻る</a>`;
+    return;
   }
+
+  const ind = data.individual;
+  const name = ind.display_name || id;
+  const statusLine = ind.retired ? '引退済み' : `現在：${escapeHtml(ind.league || '-')}リーグ`;
+  const titleRanges = data.title_ranges || [];
+  const titleHtml = titleRanges.length
+    ? titleRanges.map(t => `<div class="profile-title-row">${escapeHtml(t.title)}：${t.total}期（${escapeHtml(t.ranges)}）</div>`).join('')
+    : '<div class="profile-title-row" style="color:var(--text-dim);">タイトル獲得歴なし</div>';
+
+  const allArticles = await loadArticles();
+  const mentions = allArticles
+    .filter(a => (a.related_individual_ids || []).includes(id))
+    .sort((x, y) => new Date(y.published_at) - new Date(x.published_at));
+  const mentionsHtml = mentions.length
+    ? mentions.map(a => `<div class="related-article-link" data-article-link="${escapeHtml(a.id)}">${escapeHtml(a.title)}</div>`).join('')
+    : '<div style="color:var(--text-dim); font-size:0.84rem;">まだ関連記事がありません</div>';
+
+  el.innerHTML = `
+    <a class="back-link" href="#" onclick="navigateTo('');return false;">← フィードへ戻る</a>
+    <div class="profile-header">
+      ${avatarFor(name, id)}
+      <div>
+        <h1 class="profile-name">${escapeHtml(name)}</h1>
+        <div class="profile-sub">${statusLine}　Elo ${Math.round(ind.elo_rating)}（最高 ${Math.round(ind.peak_elo ?? ind.elo_rating)}）</div>
+      </div>
+    </div>
+
+    <div class="cheer-box">
+      <form id="profile-cheer-form" class="cheer-comment-form">
+        <input type="text" id="profile-cheer-message" placeholder="一言応援コメント（任意・140文字まで）" maxlength="140">
+        <button type="submit" id="profile-cheer-btn">♡ 応援する<span class="cheer-count"></span></button>
+      </form>
+      <div class="cheer-comment-list" id="profile-cheer-comments"></div>
+    </div>
+
+    <div class="profile-section">
+      <h4>タイトル獲得歴</h4>
+      ${titleHtml}
+    </div>
+
+    <div class="profile-section">
+      <h4>関連記事</h4>
+      ${mentionsHtml}
+    </div>
+
+    <div class="profile-footer">
+      <a class="ext-link" href="${resultsSiteIndividualUrl(id)}" target="_blank" rel="noopener">もっと詳しいデータを見る（対局履歴・系譜・Elo推移など） ↗</a>
+    </div>
+  `;
+
+  el.querySelectorAll('[data-article-link]').forEach(elm => {
+    elm.addEventListener('click', () => navigateTo('article/' + encodeURIComponent(elm.dataset.articleLink)));
+  });
+
+  setupProfileCheer(id);
 }
 
-// 応援ページ（無料・名前リスト版）。実際の金銭のやり取りは発生しない
-async function renderSupporters() {
-  setActiveNav('supporters');
-  const el = document.getElementById('content');
-  el.innerHTML = `
-    <div class="supporter-intro">
-      <p style="font-size:0.84rem; color:#5B5349; line-height:1.7;">
-        オセロ界タイムズを応援してくれる方は、お名前（ニックネーム可）と一言メッセージを登録してください。
-        実際の金銭のやり取りは発生しません。
-      </p>
-      <form id="supporter-form" class="supporter-form">
-        <input type="text" id="supporter-name" placeholder="お名前（必須・30文字まで）" maxlength="30">
-        <textarea id="supporter-message" placeholder="一言メッセージ（任意・100文字まで）" maxlength="100" rows="2"></textarea>
-        <button type="submit">応援する</button>
-        <div class="supporter-form-msg" id="supporter-form-msg"></div>
-      </form>
-    </div>
-    <h4 style="margin-top:12px; font-size:0.8rem; color:var(--text-dim);">応援してくれた皆さん</h4>
-    <div id="supporter-list">読み込み中…</div>
-  `;
-  loadSupporterList();
+async function setupProfileCheer(id) {
+  const form = document.getElementById('profile-cheer-form');
+  const btn = document.getElementById('profile-cheer-btn');
+  const messageInput = document.getElementById('profile-cheer-message');
+  const countEl = btn.querySelector('.cheer-count');
 
-  document.getElementById('supporter-form').addEventListener('submit', async (ev) => {
+  const count = await loadCheerCount(id);
+  if (count !== null && countEl) countEl.textContent = `（${count}）`;
+
+  let alreadyCheeredLocally = false;
+  try { alreadyCheeredLocally = localStorage.getItem(cheeredTodayKey(id)) === '1'; } catch (e) { /* 無視 */ }
+  if (alreadyCheeredLocally) {
+    btn.classList.add('cheered');
+    btn.childNodes[0].textContent = '♡ 応援済み';
+    messageInput.disabled = true;
+    messageInput.placeholder = '今日はもう応援済みです。また明日！';
+  }
+
+  form.addEventListener('submit', async (ev) => {
     ev.preventDefault();
-    const name = document.getElementById('supporter-name').value.trim();
-    const message = document.getElementById('supporter-message').value.trim();
-    const msgEl = document.getElementById('supporter-form-msg');
-    if (!name) { msgEl.textContent = '名前を入力してください'; return; }
-    msgEl.textContent = '送信中…';
+    if (btn.classList.contains('cheered')) return;
+    btn.disabled = true;
     try {
-      const res = await fetch(`${RESULTS_SITE_BASE}supporter.php`, {
+      const res = await fetch(`${RESULTS_SITE_BASE}cheer.php`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ display_name: name, message }),
+        body: JSON.stringify({ individual_id: id, message: messageInput.value.trim() }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      msgEl.textContent = '応援ありがとうございます！';
-      document.getElementById('supporter-form').reset();
-      loadSupporterList();
+      if (countEl) countEl.textContent = `（${data.cheer_count}）`;
+      btn.classList.add('cheered');
+      btn.childNodes[0].textContent = '♡ 応援済み';
+      messageInput.disabled = true;
+      try { localStorage.setItem(cheeredTodayKey(id), '1'); } catch (e) { /* 無視 */ }
+      loadProfileComments(id);
     } catch (e) {
-      msgEl.textContent = e.message || '送信に失敗しました';
+      btn.disabled = false;
     }
   });
+
+  loadProfileComments(id);
 }
-async function loadSupporterList() {
-  const el = document.getElementById('supporter-list');
+
+async function loadProfileComments(id) {
+  const el = document.getElementById('profile-cheer-comments');
   if (!el) return;
   try {
-    const res = await fetch(`${RESULTS_SITE_BASE}supporter.php?limit=100`);
+    const res = await fetch(`${RESULTS_SITE_BASE}cheer.php?action=comments&individual_id=${encodeURIComponent(id)}`);
     const data = await res.json();
-    const list = data.supporters || [];
-    if (list.length === 0) {
-      el.innerHTML = '<div class="empty">まだ応援がありません。最初の応援者になってみませんか？</div>';
-      return;
-    }
-    el.innerHTML = list.map(s => `
-      <div class="supporter-item">
-        <span class="supporter-name">${escapeHtml(s.display_name)}</span>
-        ${s.message ? `<span class="supporter-message">${escapeHtml(s.message)}</span>` : ''}
-      </div>
-    `).join('');
+    const list = data.comments || [];
+    el.innerHTML = list.map(c => `<div class="cheer-comment-item">${escapeHtml(c.message)}</div>`).join('');
   } catch (e) {
-    el.innerHTML = '<div class="empty">読み込みに失敗しました</div>';
+    el.innerHTML = '';
   }
 }
 
@@ -747,7 +712,7 @@ function renderRules() {
     <h3>段位</h3>
     <div class="sec">
       対局結果・リーグ経験・タイトル実績から算出する表示専用の指標。新人は4段スタートし、勝数・昇格・
-      タイトル挑戦・タイトル獲得・永世称号などに応じて段位が上がる（詳細な昇段条件は結果サイトのルール説明を参照）。
+      タイトル挑戦・タイトル獲得・永世称号などに応じて段位が上がる（詳細な昇段条件はデータサイトのルール説明を参照）。
     </div>
 
     <h3>Eloレーティング</h3>
@@ -767,10 +732,10 @@ function route() {
   const hash = location.hash.replace(/^#/, '');
   if (hash === 'rules') {
     renderRules();
-  } else if (hash === 'supporters') {
-    renderSupporters();
   } else if (hash.startsWith('article/')) {
     renderArticle(decodeURIComponent(hash.slice('article/'.length)));
+  } else if (hash.startsWith('individual/')) {
+    renderIndividualProfile(decodeURIComponent(hash.slice('individual/'.length)));
   } else {
     renderFeed(parseFilter(hash));
   }
