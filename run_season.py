@@ -5,7 +5,7 @@ import random
 
 from othello_league.individual import LeagueIndividual
 from othello_league.league import (
-    relegate_and_retire, recruit_d_league, LEAGUE_CAPACITY, RETIREMENT_AGE, D_NEWCOMER_GUARANTEE_FLOOR,
+    relegate_and_retire, recruit_d_league, LEAGUE_CAPACITY, RETIREMENT_AGE, D_INITIAL_ROSTER_SIZE,
 )
 from othello_league.buffs import effective_params, roll_age_multipliers
 from othello_league.round_robin import run_round_robin
@@ -74,11 +74,10 @@ def bootstrap_rosters(registry):
         for ind in rosters[league]:
             ind.volatility = _random_volatility()
 
-    # Dリーグは定員（LEAGUE_CAPACITY["D"]）より少なめの人数でスタートし、新人リーグ経由で
-    # 徐々に定員まで育てる（D_NEWCOMER_GUARANTEE_FLOORは新人受け入れの最低保証ロジックと
-    # 同じ基準人数を流用している）
+    # Dリーグは、毎季固定2名（D_NEWCOMER_INTAKE）の新人受け入れを前提に、
+    # 初年度はD_INITIAL_ROSTER_SIZE名の少人数スタートとする
     d_members = []
-    for i in range(D_NEWCOMER_GUARANTEE_FLOOR):
+    for i in range(D_INITIAL_ROSTER_SIZE):
         ind = LeagueIndividual(
             f"D0-{i:03d}", "D",
             params=_random_params_with_cap(INITIAL_SUM_CAP["D"]),
@@ -277,7 +276,7 @@ def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_b
             row["elo"] = round(final_elo_by_id[iid], 1)
 
     print(f"  引退: {len(retired)}名（{', '.join(i.display_name for i in retired)}）" if retired else "  引退: なし")
-    print(f"  Dリーグ欠員（来季開始前に補充）: {vacancy}名")
+    print(f"  Dリーグ新人受け入れ枠（来季開始前に補充・固定）: {vacancy}名")
 
     # 歴代最高Elo（peak_elo）は、対局のたびにLeagueIndividual.elo setterが自動追跡するため、
     # ここでシーズン終了時の値を改めて比較する必要はない
@@ -816,10 +815,11 @@ def main():
     for i in range(args.seasons):
         season = state["current_season"] + 1
 
-        # 前季末に確定した欠員（state["pending_newcomer_slots"]）を、今季の対局が
-        # 始まる前に補充する。新人リーグはこの欠員数をそのまま募集人数として使っているため、
-        # ここで対局前に補充することで「新人リーグが対象とした季」＝「実際に出走する季」に
-        # 揃う（以前は対局後に補充していたため、実際の出走は1季後にずれていた）
+        # 新人受け入れ（毎季固定D_NEWCOMER_INTAKE名。state["pending_newcomer_slots"]に
+        # 記録済み）を、今季の対局が始まる前に行う。新人リーグもこの固定枠数を
+        # そのまま募集人数として使っているため、ここで対局前に補充することで
+        # 「新人リーグが対象とした季」＝「実際に出走する季」に揃う
+        # （以前は対局後に補充していたため、実際の出走は1季後にずれていた）
         registry = NameRegistry.from_dict(state.get("name_registry", {}))
         suzaku_league_ids = set(state.get("suzaku_league", {}).get("red", [])) | \
             set(state.get("suzaku_league", {}).get("white", []))
@@ -828,10 +828,9 @@ def main():
             pending_characters=(pending_characters if i == 0 else None),
             titleholders=state.get("titleholders"),
             suzaku_league_ids=suzaku_league_ids,
-            # 第1季（ブートストラップ直後）のみ、自動生成の新弟子での定員までの穴埋めを止める。
-            # 通常はここで即座に定員まで埋めてしまい、少人数スタートの意図が無効になった上、
-            # その季の対局後に「新人受け入れ最低保証」により埋めたばかりの個体が
-            # 強制的に引退させられてしまっていたため
+            # 第1季（ブートストラップ直後）のみ、自動生成の新弟子での穴埋めを止める。
+            # 通常はここで固定枠（D_NEWCOMER_INTAKE）まで即座に埋めてしまい、
+            # 少人数スタートの意図が無効になるため
             auto_fill_vacancy=(season != 1),
         )
         state["name_registry"] = registry.to_dict()
@@ -859,7 +858,7 @@ def main():
         state.setdefault("title_history", [])
         state["title_history"] += title_results
         # 新人リーグ（次回AM/PM実行）で何名を昇格させるかの目安として、今季確定した
-        # Dリーグの欠員数を記録しておく（次シーズン開始前にrecruit_d_league()で補充される）
+        # 新人受け入れ枠数（毎季固定）を記録しておく（次シーズン開始前にrecruit_d_league()で補充される）
         state["pending_newcomer_slots"] = vacancy
 
         save_rosters(args.data_dir, rosters)

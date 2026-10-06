@@ -89,3 +89,49 @@ def play_league_match(ind_a, ind_b, depth=4, allow_rematch=True):
 
     # 規定回数まで引き分けが続いた場合は、引き分けとして確定する
     return "draw", all_games
+
+
+def play_decisive_match(ind_a, ind_b, depth=4, max_attempts=100):
+    """
+    play_league_matchと同じ要領で対局するが、引き分けを許さず、決着がつくまで
+    先後を入れ替えて打ち直す（タイトル戦の予選と同じ考え方。title._play_until_decided()を
+    個体単位で呼べるようにしたもの）。新人リーグの昇格プレーオフなど、必ず勝者を
+    1人に絞る必要がある場面で使う。戻り値: (outcome_a（"win"/"loss"。理論上は
+    max_attempts回尽きた場合のみ"draw"もあり得るが、実質起こらない）, all_games)
+    """
+    params_a = effective_params(ind_a)
+    params_b = effective_params(ind_b)
+
+    if ind_a.black_count < ind_b.black_count:
+        a_is_black = True
+    elif ind_a.black_count > ind_b.black_count:
+        a_is_black = False
+    else:
+        a_is_black = random.choice([True, False])
+
+    all_games = []
+    for _ in range(max_attempts):
+        if a_is_black:
+            black, white, moves = _play(params_a, params_b, depth, depth,
+                                         noise_scale_black=ind_a.volatility, noise_scale_white=ind_b.volatility)
+            ind_a.black_count += 1; ind_b.white_count += 1
+        else:
+            black, white, moves = _play(params_b, params_a, depth, depth,
+                                         noise_scale_black=ind_b.volatility, noise_scale_white=ind_a.volatility)
+            ind_b.black_count += 1; ind_a.white_count += 1
+
+        my_score = black if a_is_black else white
+        opp_score = white if a_is_black else black
+        outcome_a = _outcome_from_score(my_score, opp_score)
+
+        all_games.append({
+            "outcome_a": outcome_a, "moves": moves, "black": black, "white": white,
+            "a_was_black": a_is_black,
+        })
+
+        if outcome_a != "draw":
+            return outcome_a, all_games
+
+        a_is_black = not a_is_black
+
+    return "draw", all_games

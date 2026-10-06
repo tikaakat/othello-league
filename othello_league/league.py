@@ -4,8 +4,10 @@ from .individual import LeagueIndividual
 from .buffs import maybe_awaken
 from .names import NameRegistry
 
-# リーグの定員
-LEAGUE_CAPACITY = {"A": 9, "B": 12, "C": 16, "D": 20}
+# リーグの定員（Dリーグは「定員」ではなく、強制引退を起こさないための大きめのバッファ。
+# 下記D_NEWCOMER_INTAKEによる固定枠の受け入れを人数に関わらず続けられるよう、
+# 実際の在籍者数より十分大きい値にしてある）
+LEAGUE_CAPACITY = {"A": 9, "B": 12, "C": 16, "D": 60}
 
 # 昇降格の定員設定
 A_TO_B_RELEGATE = 2  # A→B降格人数（＝B→A昇格人数）
@@ -16,11 +18,14 @@ RETIREMENT_AGE = 60
 D_DEMOTION_POINT_LIMIT = 2  # Dリーグでの降級点がこの数に達すると強制引退（連続でなくてもよい）
 C_TO_D_RELEGATE = 3  # C→D降格人数（B→Cと同数）
 
-# Dリーグの新人受け入れに関する最低保証設定。
-# 自然な引退（年齢・連続負け越し）だけに頼ると欠員が長期間0のままになりがちなため、
-# 定員に近い人数が在籍している場合でも毎季一定数の新人受け入れ枠を確保する
-D_MIN_NEWCOMER_SLOTS = 2          # 最低保証する新人受け入れ枠数
-D_NEWCOMER_GUARANTEE_FLOOR = 16   # 在籍者数がこれを下回る場合、不足分をさらに上乗せする
+# Dリーグの新人受け入れ枠（新人リーグの募集人数）。
+# 以前は「定員に対する欠員数」から算出しており、在籍者が増えて欠員が無くなると
+# 既存メンバーをElo下位から強制引退させてまで枠を確保していた。これだと一季の間に
+# まとまった人数が不自然に引退してしまう上、在籍者数が増え続けると引退者も増え続ける
+# 歪な構造になるため、在籍者数に関わらず毎季必ずこの人数だけを固定で受け入れる方式に変更した
+# （在籍者数は増減してよく、それ自体で強制引退を発生させることはない）
+D_NEWCOMER_INTAKE = 2
+D_INITIAL_ROSTER_SIZE = 16  # ブートストラップ（初年度）時点でのDリーグ初期人数
 
 PARAM_KEYS = [
     "corner_weight", "danger_zone_weight", "mobility_weight", "edge_stability_weight",
@@ -35,15 +40,13 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
     recruit_d_league()が別関数として、次シーズンの対局が始まる前に行う）。
 
     以前はこの関数の中でDリーグの新規補充（新人リーグの勝者・自動生成の新弟子）まで
-    一括で行っており、その季の対局後に新弟子が参入する形だった。そのため新人リーグの
-    募集人数は「1つ前の季で確定した欠員数」という1サイクル遅れの推定値を使わざるを
-    得ず、実際に出走するのは新人リーグが対象とした季の1つ後になっていた。
-    補充処理を次シーズン開始前（対局前）に切り出すことで、新人リーグは「直前の季で
-    ちょうど確定した欠員数」を正確な人数として使え、その勝者は新人リーグが対象とした
-    季からそのまま出走できるようになる。
+    一括で行っており、その季の対局後に新弟子が参入する形だった。
+    補充処理を次シーズン開始前（対局前）に切り出すことで、新人リーグの勝者は
+    新人リーグが対象とした季からそのまま出走できるようになる
+    （募集人数自体はD_NEWCOMER_INTAKEの固定値で、在籍者数や欠員には左右されない）。
 
     suzaku_league_idsが与えられた場合、朱雀紅白リーグに在籍中の個体は、タイトル保持者と
-    同様に強制引退（年齢・Dリーグ降級点・Dリーグ定員超過カット）の対象から除外する。
+    同様に強制引退（年齢・Dリーグ降級点）の対象から除外する。
     予選を勝ち抜いて来季から紅白リーグに加入する個体も、その加入前の季にこれらの条件で
     引退させてしまうと来季の紅白リーグに欠員が生じるため、同様に保護する
     （C〜Aリーグの定員超過による「降格」は引退ではなく在籍リーグが変わるだけなので対象外）。
@@ -58,8 +61,8 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
     優勝者（8名）が対象。挑戦者ほどの重みではないため、強制引退からの完全な免除
     （extra_protected_ids）ではなく、勝ち越しと同じ「減点」による救済にとどめる。
 
-    戻り値: (更新後のrosters dict（Dリーグは欠員分だけ定員割れのことがある）,
-             引退者リスト, Dリーグの欠員数)
+    戻り値: (更新後のrosters dict, 引退者リスト, 来季のDリーグ新人受け入れ枠数
+             （D_NEWCOMER_INTAKEの固定値）)
     """
     A = list(rosters["A"])
     B = list(rosters["B"])
@@ -70,8 +73,8 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
     #     タイトルを1つでも持っていれば、全て失冠するまで猶予が続く。
     #     朱雀紅白リーグ在籍者（来季から加入予定の予選通過者も含む）・この季のタイトル戦
     #     挑戦者・白虎トーナメント出場者・玄武ブロック優勝者（extra_protected_ids）も、
-    #     在籍中（または対象になった季）は年齢引退に加えて、Dリーグ降級点・Dリーグ定員超過
-    #     カットも免除する（でないと紅白リーグ加入前や、挑戦するところまで勝ち上がった
+    #     在籍中（または対象になった季）は年齢引退に加えて、Dリーグ降級点による引退も
+    #     免除する（でないと紅白リーグ加入前や、挑戦するところまで勝ち上がった
     #     直後に引退させてしまうため） ---
     titleholder_ids = set()
     if titleholders:
@@ -247,65 +250,34 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
                 ind.seasons_in_league += 1
             ind.total_seasons += 1
 
-    # Dリーグが定員を超えている場合（D_TO_C_PROMOTEとC_TO_D_RELEGATEの数が想定通りで
-    # あれば通常は起きないが、初期ロスターが定員通りでない場合などへの保険）は、
-    # 新規補充を待たずにここでElo下位をカットする（この時点では新規参入者がまだ
-    # いないため、保護対象はタイトル保持者・朱雀紅白リーグ在籍者のみでよい）
-    def _cut_d_overflow(members, capacity):
-        if len(members) <= capacity:
-            return members, []
-        protected = [ind for ind in members if ind.id in protected_ids]
-        cuttable = sorted(
-            (ind for ind in members if ind.id not in protected_ids),
-            key=lambda ind: ind.elo, reverse=True,
-        )
-        shortage = len(members) - capacity
-        keep_cuttable = cuttable[:max(0, len(cuttable) - shortage)]
-        over = cuttable[max(0, len(cuttable) - shortage):]
-        for ind in over:
-            ind.retired = True
-        return protected + keep_cuttable, over
-
-    # Dリーグ最低保証枠：年齢・連続負け越しによる引退は稀にしか起きないため、
-    # 自然な欠員だけに頼ると新人リーグの募集人数が0の季が何季も続いてしまう。
-    # 在籍者数がD_NEWCOMER_GUARANTEE_FLOOR以上の場合は毎季必ずD_MIN_NEWCOMER_SLOTS名分の
-    # 昇格枠を確保する（自然な欠員がこれに満たなければ、既存メンバーのElo下位を
-    # 追加で強制引退させて枠を作る）。在籍者数がフロアを下回っている場合は、
-    # フロアまでの不足分をさらに上乗せする（この場合は定員（20名）に対してまだ余裕が
-    # あるため、通常は追加の強制引退なしに自然な欠員だけで賄える）
-    guaranteed_slots = D_MIN_NEWCOMER_SLOTS + max(0, D_NEWCOMER_GUARANTEE_FLOOR - len(D))
-    natural_vacancy = LEAGUE_CAPACITY["D"] - len(D)
-    target_capacity = LEAGUE_CAPACITY["D"]
-    if guaranteed_slots > natural_vacancy:
-        target_capacity = len(D) - (guaranteed_slots - natural_vacancy)
-
-    D, d_over_retired = _cut_d_overflow(D, target_capacity)
-    all_retired.extend(d_over_retired)
-
-    vacancy = LEAGUE_CAPACITY["D"] - len(D)
+    # Dリーグの新人受け入れ枠は在籍者数や定員に関わらず毎季固定（D_NEWCOMER_INTAKE）。
+    # 以前はここで在籍者数が定員（旧20名）に近づくとElo下位を強制引退させて枠を
+    # 確保していたが、一季でまとまった引退者が出てしまう・在籍者が増えるほど
+    # 引退者も増えるという歪みがあったため撤廃した。在籍者数は自然な引退
+    # （年齢・降級点up-or-out）の分だけ増減し、それ以上の強制調整は行わない
+    new_recruit_slots = D_NEWCOMER_INTAKE
 
     new_rosters = {"A": A, "B": B, "C": C, "D": D}
-    return new_rosters, all_retired, vacancy
+    return new_rosters, all_retired, new_recruit_slots
 
 
 def recruit_d_league(rosters, season, name_registry=None, pending_characters=None, titleholders=None,
                       suzaku_league_ids=None, auto_fill_vacancy=True):
     """
-    Dリーグの欠員（relegate_and_retire()が確定させたもの。rosters["D"]が定員割れの
-    状態で渡ってくる）を、次シーズンの対局が始まる前に補充する。
-    まずキャラクリエイト・新人リーグ経由のリクエスト（pending_characters）を優先的に
-    参入させ、残り枠のみ通常の新弟子生成で埋める。
+    Dリーグの新人受け入れ（D_NEWCOMER_INTAKEの固定枠数）を、次シーズンの対局が
+    始まる前に行う。まずキャラクリエイト・新人リーグ経由のリクエスト
+    （pending_characters）を優先的に参入させ、残り枠のみ通常の新弟子生成で埋める。
     キャラクリエイト個体も通常の新弟子と同様、必ず既存個体の中から師匠が自動選出される
     （本人が選ぶわけではない。新規開祖にはならないが、分岐で新しい一門の開祖になることはある）。
-    pending_charactersの人数が実際の欠員数を上回る場合（新人リーグの募集人数の推定と
-    実際の欠員がズレた場合の保険）は、既存メンバーのElo下位をカットして枠を確保する
-    （新人リーグ勝者自身・タイトル保持者・朱雀紅白リーグ在籍者はカット対象から除外）。
+    pending_charactersの人数が固定枠数を上回っても（新人リーグの募集人数のズレなど）、
+    全員そのまま参入させる（既存メンバーを強制引退させて枠を確保することはしない）。
 
     auto_fill_vacancy=Falseの場合、pending_charactersで埋まらない残り枠は
-    自動生成の新弟子で埋めず、Dリーグを定員割れのまま残す（ブートストラップ第1季用。
-    少人数スタートのつもりが対局前に定員まで自動で埋められてしまい、その後すぐ
-    「新人受け入れ最低保証」による強制カットの対象になってしまうのを防ぐため）。
-    戻り値: (更新後のrosters dict, 新規参入者リスト, 更新後のname_registry, 引退者リスト)
+    自動生成の新弟子で埋めない（ブートストラップ第1季用。少人数スタートの意図を
+    対局前に自動で埋めてしまわないため）。
+    戻り値: (更新後のrosters dict, 新規参入者リスト, 更新後のname_registry, 引退者リスト
+             （常に空リスト。新人受け入れ自体による強制引退は発生しないため、
+              呼び出し側との互換のためだけに残している）)
     """
     if name_registry is None:
         name_registry = NameRegistry()
@@ -321,11 +293,7 @@ def recruit_d_league(rosters, season, name_registry=None, pending_characters=Non
             if info and info.get("id"):
                 titleholder_ids.add(info["id"])
 
-    protected_ids = set(titleholder_ids)
-    if suzaku_league_ids:
-        protected_ids.update(suzaku_league_ids)
-
-    d_departures = LEAGUE_CAPACITY["D"] - len(D)
+    d_departures = D_NEWCOMER_INTAKE
     created_characters = []
     if pending_characters:
         creation_pool = [ind for ind in (A + B + C + D) if not ind.retired]
@@ -356,31 +324,8 @@ def recruit_d_league(rosters, season, name_registry=None, pending_characters=Non
         D.extend(new_disciples)
     new_disciples = created_characters + new_disciples
 
-    # Dリーグの定員超過調整（Elo下位をカットして引退扱い。タイトル保持者・朱雀紅白リーグ
-    # 在籍者・今季参入したキャラクリ個体はカット対象から除外。
-    # Dより下のリーグはないため、ここだけは引退させるしかない）
-    created_character_ids = {ind.id for ind in created_characters}
-    d_cut_exempt_ids = protected_ids | created_character_ids
-
-    def _cut_overflow(members, capacity):
-        if len(members) <= capacity:
-            return members, []
-        protected = [ind for ind in members if ind.id in d_cut_exempt_ids]
-        cuttable = sorted(
-            (ind for ind in members if ind.id not in d_cut_exempt_ids),
-            key=lambda ind: ind.elo, reverse=True,
-        )
-        shortage = len(members) - capacity
-        keep_cuttable = cuttable[:max(0, len(cuttable) - shortage)]
-        over = cuttable[max(0, len(cuttable) - shortage):]
-        for ind in over:
-            ind.retired = True
-        return protected + keep_cuttable, over
-
-    D, d_over_retired = _cut_overflow(D, LEAGUE_CAPACITY["D"])
-
     new_rosters = {"A": A, "B": B, "C": C, "D": D}
-    return new_rosters, new_disciples, name_registry, d_over_retired
+    return new_rosters, new_disciples, name_registry, []
 
 
 MASTER_MIN_AGE = 30  # 師匠になれる最低年齢（師匠より年下の弟子が生まれないようにするため）
