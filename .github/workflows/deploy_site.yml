@@ -52,6 +52,7 @@ on:
           - "add_supporter_feature"
           - "add_cheer_message"
           - "add_sponsor_feature"
+          - "add_permanent_sponsor_feature"
         default: ""
       create_dir:
         description: "デプロイの代わりに、lab.spia-net.com直下（othello-league/の1つ上）に相対パスでディレクトリを作成する（例: othello-news）。「..」や先頭「/」は不可"
@@ -186,6 +187,16 @@ jobs:
                 # スポンサー表記に使う）。logo_urlは将来の顔写真/ロゴ表示用に先に確保しておく
                 SQL_LIST=(
                   'CREATE TABLE IF NOT EXISTS sponsors (id INT AUTO_INCREMENT PRIMARY KEY, individual_id VARCHAR(32) NOT NULL, display_name VARCHAR(30) NOT NULL, message VARCHAR(100) NULL, amount_jpy INT NOT NULL, currency VARCHAR(8) NOT NULL DEFAULT "jpy", stripe_session_id VARCHAR(255) NOT NULL, season INT NULL, logo_url VARCHAR(255) NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY uniq_stripe_session (stripe_session_id), INDEX idx_individual (individual_id));'
+                )
+                ;;
+              add_permanent_sponsor_feature)
+                # 永久スポンサー枠：1個体につき先着1名のみという希少性を、
+                # individual_idをPRIMARY KEYにすることでDB側で保証する
+                # （2人目の支払いが先着者と同じ個体に対して確定しても、INSERTが
+                # 一意制約違反になるため、アプリ側の競合制御に頼らず済む）。
+                # この枠はその個体が引退しても表示され続ける想定（永続的な記録として扱う）
+                SQL_LIST=(
+                  'CREATE TABLE IF NOT EXISTS permanent_sponsors (individual_id VARCHAR(32) PRIMARY KEY, display_name VARCHAR(30) NOT NULL, message VARCHAR(100) NULL, amount_jpy INT NOT NULL, stripe_session_id VARCHAR(255) NOT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY uniq_stripe_session (stripe_session_id));'
                 )
                 ;;
               *)
