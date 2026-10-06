@@ -541,13 +541,14 @@ switch ($action) {
 
         $indStmt = $pdo->query(
             "SELECT id, display_name, league, elo_rating, generation,
-                    seasons_in_league, total_seasons, initial_age
+                    seasons_in_league, total_seasons, initial_age, demotion_points
              FROM individuals WHERE retired = 0"
         );
         $individualsById = [];
         foreach ($indStmt->fetchAll() as $row) {
             $row['elo_rating'] = round((float)$row['elo_rating'], 1);
             $row['age'] = compute_age($row['initial_age'], $row['total_seasons']);
+            $row['demotion_points'] = (int)$row['demotion_points'];
             $individualsById[$row['id']] = $row;
         }
 
@@ -1466,7 +1467,8 @@ switch ($action) {
         if (isset($_GET['season'])) {
             $season = (int)$_GET['season'];
             $stmt = $pdo->prepare(
-                "SELECT league, `rank`, individual_id, display_name, win, loss, draw, movement, no_roundrobin
+                "SELECT league, `rank`, individual_id, display_name, win, loss, draw, movement, no_roundrobin,
+                        demotion_point_event
                  FROM standings WHERE season = :season
                  ORDER BY FIELD(league,'A','B','C','D'), `rank` ASC"
             );

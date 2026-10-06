@@ -228,7 +228,7 @@ def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_b
     suzaku_league_ids_after = set(state.get("suzaku_league", {}).get("red", [])) | \
         set(state.get("suzaku_league", {}).get("white", []))
     suzaku_league_ids = suzaku_league_ids_before | suzaku_league_ids_after
-    rosters, retired, vacancy = relegate_and_retire(
+    rosters, retired, vacancy, demotion_events = relegate_and_retire(
         rosters, season, titleholders=titleholders, suzaku_league_ids=suzaku_league_ids,
         extra_protected_ids=title_extra_protected_ids, demotion_relief_ids=title_demotion_relief_ids,
     )
@@ -251,6 +251,9 @@ def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_b
         if not tags:
             tags = ["stay"]
         row["movement"] = ",".join(tags)
+        # Dリーグの降級点：この季に増えた（gained）／0に戻った（cleared）場合のみセットする
+        # （結果タブ・リーグタブで「点」「消」の簡易表示に使う）
+        row["demotion_point_event"] = demotion_events.get(iid, "")
 
     # 朱雀紅白リーグの順位・残留/陥落は、上のA〜D用ロジック（movementの上書き）の対象外として、
     # _run_title_matchesで既に確定した正しい値のまま追加する

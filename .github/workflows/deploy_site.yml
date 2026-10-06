@@ -53,6 +53,7 @@ on:
           - "add_cheer_message"
           - "add_sponsor_feature"
           - "add_permanent_sponsor_feature"
+          - "add_demotion_point_columns"
         default: ""
       create_dir:
         description: "デプロイの代わりに、lab.spia-net.com直下（othello-league/の1つ上）に相対パスでディレクトリを作成する（例: othello-news）。「..」や先頭「/」は不可"
@@ -197,6 +198,20 @@ jobs:
                 # この枠はその個体が引退しても表示され続ける想定（永続的な記録として扱う）
                 SQL_LIST=(
                   'CREATE TABLE IF NOT EXISTS permanent_sponsors (individual_id VARCHAR(32) PRIMARY KEY, display_name VARCHAR(30) NOT NULL, message VARCHAR(100) NULL, amount_jpy INT NOT NULL, stripe_session_id VARCHAR(255) NOT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY uniq_stripe_session (stripe_session_id));'
+                )
+                ;;
+              add_demotion_point_columns)
+                # Dリーグ降級点（individuals.demotion_points）は既にPythonの個体state
+                # （rosters.json経由のインポート）で管理されている値だが、現時点では
+                # individuals/retired_archiveテーブルに列が無いとSELECTできないため、
+                # 保険的に追加する（既に列がある場合はDuplicate columnとして正常終了する）。
+                # standings.demotion_point_eventは、run_season.py側で「この季に降級点が
+                # 増えた(gained)／0に戻った(cleared)」をその季の行にだけ記録する新列
+                # （結果タブ・リーグタブの「点」「消」簡易表示用）
+                SQL_LIST=(
+                  'ALTER TABLE individuals ADD COLUMN demotion_points INT NOT NULL DEFAULT 0;'
+                  'ALTER TABLE retired_archive ADD COLUMN demotion_points INT NOT NULL DEFAULT 0;'
+                  'ALTER TABLE standings ADD COLUMN demotion_point_event VARCHAR(16) NULL;'
                 )
                 ;;
               *)
