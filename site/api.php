@@ -1918,6 +1918,22 @@ switch ($action) {
         $rows = $stmt->fetchAll();
 
         $ids = array_column($rows, 'id');
+        // 在籍季範囲（debut_season/last_season）は、standingsテーブル（Python側が毎季必ず
+        // 書き込む実際の出走記録）からMIN/MAXを直接求める。retired_archive.retired_seasonは
+        // インポート処理側で付与される値で、そこから逆算する方式（retired_season-total_seasons+1）
+        // だと実際の出走記録とズレる場合があったため、standingsの実データを正とする
+        $seasonRangeById = [];
+        if ($ids) {
+            $placeholders0 = implode(',', array_fill(0, count($ids), '?'));
+            $rangeStmt = $pdo->prepare(
+                "SELECT individual_id, MIN(season) AS debut_season, MAX(season) AS last_season
+                 FROM standings WHERE individual_id IN ($placeholders0) GROUP BY individual_id"
+            );
+            $rangeStmt->execute($ids);
+            foreach ($rangeStmt->fetchAll() as $row6) {
+                $seasonRangeById[$row6['individual_id']] = $row6;
+            }
+        }
         $records = [];
         if ($ids) {
             $placeholders = implode(',', array_fill(0, count($ids), '?'));
@@ -2002,8 +2018,15 @@ switch ($action) {
             $r['title_count_by_title'] = $titleCountsByTitle[$r['id']] ?? [];
             $r['eternal_titles'] = $eternalIds2[$r['id']] ?? [];
             $r['dan'] = $danById2[$r['id']] ?? 4;
-            // 在籍シーズン範囲（例：2-16）。継続参加を前提に、引退季と通算季数から逆算する
-            $r['debut_season'] = (int)$r['retired_season'] - (int)$r['total_seasons'] + 1;
+            // 在籍シーズン範囲（例：2-16）。standingsの実際の出走記録（MIN/MAX season）を正とする
+            $range = $seasonRangeById[$r['id']] ?? null;
+            if ($range) {
+                $r['debut_season'] = (int)$range['debut_season'];
+                $r['retired_season'] = (int)$range['last_season'];
+            } else {
+                // standingsに記録が無い個体（通常は起きないはずの保険）のみ、従来の逆算式で代用する
+                $r['debut_season'] = (int)$r['retired_season'] - (int)$r['total_seasons'] + 1;
+            }
             // 引退時点の年齢
             $r['retired_age'] = compute_age($r['initial_age'], $r['total_seasons']);
         }
