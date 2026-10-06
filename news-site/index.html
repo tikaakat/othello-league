@@ -162,6 +162,24 @@
   .ranking-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .ranking-likes { color: var(--text-dim); font-size: 0.76rem; flex-shrink: 0; }
 
+  /* 推し個体フォロー */
+  .follow-btn {
+    font-size: 0.78rem; font-weight: 700; padding: 6px 14px; border-radius: 10px;
+    border: 1px solid var(--accent); background: #fff; color: var(--accent-dark); cursor: pointer;
+    margin-top: 6px;
+  }
+  .follow-btn.following { background: var(--accent); color: #fff; }
+  .follow-box { margin-bottom: 16px; padding: 10px 14px; background: #FFF6EE; border: 1px solid var(--border); border-radius: 10px; }
+  .follow-box h4 { font-size: 0.78rem; color: var(--text-dim); margin: 0 0 6px; }
+  .follow-chip-row { display: flex; gap: 6px; flex-wrap: wrap; }
+  .follow-chip {
+    font-size: 0.78rem; padding: 4px 10px; border-radius: 10px; background: #fff;
+    border: 1px solid var(--border); color: var(--text-main); cursor: pointer;
+  }
+  .card.followed { border-left: 3px solid var(--accent); }
+  .oshi-badge { font-size: 0.68rem; font-weight: 700; color: var(--accent-dark); background: #FFF1E0; border-radius: 8px; padding: 2px 8px; margin-right: 4px; }
+  .oshi-star { color: var(--accent-dark); margin-right: 2px; }
+
   .cheer-box {
     background: var(--card); border: 1px solid var(--border); border-radius: 14px;
     padding: 14px 16px; margin-bottom: 4px;
@@ -336,6 +354,34 @@ function resultsSiteIndividualUrl(id) {
   return `${RESULTS_SITE_BASE}#individual/${encodeURIComponent(id)}`;
 }
 
+// 推し個体フォロー：サーバー側には何も送らず、この端末のlocalStorageだけで管理する
+// （「推し」を登録しておくと、フィードでその個体が関係する記事が目立つようになる）
+const FOLLOW_STORAGE_KEY = 'othello_news_follows';
+
+function getFollowedIndividuals() {
+  try {
+    const raw = localStorage.getItem(FOLLOW_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function isFollowed(id) {
+  return getFollowedIndividuals().some(f => f.id === id);
+}
+
+function toggleFollow(id, name) {
+  let list = getFollowedIndividuals();
+  if (list.some(f => f.id === id)) {
+    list = list.filter(f => f.id !== id);
+  } else {
+    list.push({ id, name });
+  }
+  try { localStorage.setItem(FOLLOW_STORAGE_KEY, JSON.stringify(list)); } catch (e) { /* 無視 */ }
+  return isFollowed(id);
+}
+
 // 段位表示（データサイト側のDAN_KANJI/danLabelと同じもの。api.phpがdan/dan_historyとして返す）
 const DAN_KANJI = { 1: '一', 2: '二', 3: '三', 4: '四', 5: '五', 6: '六', 7: '七', 8: '八', 9: '九' };
 function danLabel(dan) {
@@ -450,8 +496,16 @@ async function renderFeed(filter) {
         onclick="navigateTo('season/${s}')">第${s}季</button>`).join('')}
     </div>` : '';
 
-  // 絞り込みなしのトップでのみ、人気記事ランキング（いいね数上位）を表示する
+  // 絞り込みなしのトップでのみ、人気記事ランキング（いいね数上位）とフォロー中の個体を表示する
   const rankingHtml = filter ? '' : await renderPopularRanking(allArticles);
+  const followed = getFollowedIndividuals();
+  const followedIds = new Set(followed.map(f => f.id));
+  const followBoxHtml = (!filter && followed.length) ? `<div class="follow-box">
+      <h4>★ フォロー中の個体</h4>
+      <div class="follow-chip-row">
+        ${followed.map(f => `<span class="follow-chip" data-goto-individual="${escapeHtml(f.id)}">${escapeHtml(f.name)}</span>`).join('')}
+      </div>
+    </div>` : '';
 
   const articles = applyFilter(allArticles, filter);
   const banner = filter ? `<div class="filter-banner">
@@ -463,14 +517,16 @@ async function renderFeed(filter) {
     ? '<div class="empty">該当する記事がありません</div>'
     : articles.map(a => {
         const pairs = relatedPairs(a);
+        const isOshi = (a.related_individual_ids || []).some(id => followedIds.has(id));
         const individualsHtml = pairs.length ? `<div class="card-individuals">
             ${pairs.map(p => `<span class="ind-chip" data-goto-individual="${escapeHtml(p.id)}">${escapeHtml(p.name)}</span>`).join('')}
           </div>` : '';
         return `
-        <article class="card" data-article-id="${escapeHtml(a.id)}">
+        <article class="card${isOshi ? ' followed' : ''}" data-article-id="${escapeHtml(a.id)}">
           ${avatarFor(primaryName(a), a.related_individual_ids && a.related_individual_ids[0])}
           <div class="card-body">
             <div class="card-meta">
+              ${isOshi ? '<span class="oshi-badge">★推し</span>' : ''}
               ${(a.tags || []).slice(0, 2).map(tagChip).join('')}
               <span class="card-time">${timeAgo(a.published_at)}</span>
             </div>
@@ -485,7 +541,7 @@ async function renderFeed(filter) {
         </article>`;
       }).join('');
 
-  el.innerHTML = rankingHtml + seasonChips + banner + list;
+  el.innerHTML = rankingHtml + followBoxHtml + seasonChips + banner + list;
 
   el.querySelectorAll('.card').forEach(card => {
     card.addEventListener('click', (ev) => {
@@ -711,6 +767,7 @@ async function renderIndividualProfile(id) {
       <div>
         <h1 class="profile-name">${escapeHtml(name)}</h1>
         <div class="profile-sub">${statusLine}　Elo ${Math.round(ind.elo_rating)}（最高 ${Math.round(ind.peak_elo ?? ind.elo_rating)}）<span class="dan-badge">${danLabel(ind.dan)}</span></div>
+        <div><button class="follow-btn" id="follow-btn"></button></div>
       </div>
     </div>
 
@@ -756,6 +813,19 @@ async function renderIndividualProfile(id) {
   setupProfileCheer(id);
   setupSponsorUI(id);
   loadSponsorList(id);
+  setupFollowButton(id, name);
+}
+
+function setupFollowButton(id, name) {
+  const btn = document.getElementById('follow-btn');
+  if (!btn) return;
+  const render = () => {
+    const following = isFollowed(id);
+    btn.textContent = following ? '★ フォロー中' : '☆ フォローする';
+    btn.classList.toggle('following', following);
+  };
+  render();
+  btn.onclick = () => { toggleFollow(id, name); render(); };
 }
 
 async function setupProfileCheer(id) {
@@ -902,7 +972,7 @@ async function renderIndividualList() {
     const rows = leagues[lg] || [];
     const rowsHtml = rows.map(r => `
       <div class="roster-row" data-goto-individual="${escapeHtml(r.id)}">
-        <span>${escapeHtml(r.display_name || r.id)}</span>
+        <span>${isFollowed(r.id) ? '<span class="oshi-star">★</span>' : ''}${escapeHtml(r.display_name || r.id)}</span>
         <span class="roster-right">${danLabel(r.dan)}　Elo ${Math.round(r.elo_rating)}</span>
       </div>`).join('');
     return `<div class="roster-league-group">
