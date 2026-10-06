@@ -5,7 +5,7 @@ from .buffs import maybe_awaken
 from .names import NameRegistry
 
 # リーグの定員
-LEAGUE_CAPACITY = {"A": 8, "B": 12, "C": 16, "D": 20}
+LEAGUE_CAPACITY = {"A": 9, "B": 12, "C": 16, "D": 20}
 
 # 昇降格の定員設定
 A_TO_B_RELEGATE = 2  # A→B降格人数（＝B→A昇格人数）
@@ -84,6 +84,15 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
         protected_ids.update(suzaku_league_ids)
     if extra_protected_ids:
         protected_ids.update(extra_protected_ids)
+
+    # Aリーグ所属による年齢引退免除：ただし「今季Aから降格する個体」はこの免除を受けない
+    # （降格が決まった季に60歳以上かつ他の免除条件も無ければ、その季に引退する）。
+    # ab_nの本来の算出（109行目）は年齢引退フィルタ後のA/B人数を使うが、ここでは
+    # フィルタ前の人数で仮に算出する（A_TO_B_RELEGATEはA・Bの人数に対して十分小さく、
+    # 年齢引退で後から人数が減っても降格人数が変わることは実質無い）
+    ab_n_for_protection = min(A_TO_B_RELEGATE, len(A), len(rosters["B"]))
+    a_relegating_ids = {ind.id for ind in A[-ab_n_for_protection:]} if ab_n_for_protection > 0 else set()
+    protected_ids.update(ind.id for ind in A if ind.id not in a_relegating_ids)
 
     age_retired = []
     def _filter_aged_out(members):
@@ -321,13 +330,19 @@ def recruit_d_league(rosters, season, name_registry=None, pending_characters=Non
     if pending_characters:
         creation_pool = [ind for ind in (A + B + C + D) if not ind.retired]
         eligible_creation_masters = [ind for ind in creation_pool if ind.age >= MASTER_MIN_AGE] or creation_pool
-        created_characters = [
-            _build_character_creation_individual(
-                req, season, i,
-                master=_pick_master(eligible_creation_masters, titleholder_ids, allow_new_founder=False),
+        disciple_counts = count_existing_disciples(creation_pool)
+        created_characters = []
+        for i, req in enumerate(pending_characters):
+            # 通常は新人リーグのロスターを組む時点で師弟関係が既に決まっている
+            # （reqに"parent_a_id"が入っている）。入っていない場合（新人リーグを
+            # 経由しないpending_characters.json経由の直接登録など）のみ、ここで初めて師匠を選ぶ
+            if "parent_a_id" in req:
+                master = None
+            else:
+                master = _pick_master(eligible_creation_masters, titleholder_ids, allow_new_founder=False)
+            created_characters.append(
+                _build_character_creation_individual(req, season, i, master=master, disciple_counts=disciple_counts)
             )
-            for i, req in enumerate(pending_characters)
-        ]
         D.extend(created_characters)
 
     new_disciples = []
@@ -371,12 +386,35 @@ def recruit_d_league(rosters, season, name_registry=None, pending_characters=Non
 MASTER_MIN_AGE = 30  # 師匠になれる最低年齢（師匠より年下の弟子が生まれないようにするため）
 AWAKENED_INITIAL_AGE_RANGE = (14, 16)  # 覚醒個体の参入年齢（通常は18〜24歳）
 
-# 一門イベントの確率（新弟子1人あたり）。
-# 旧数値（0.03/0.01）だと一門がほぼ集約されてしまったため、分岐・新規開祖とも頻度を上げた。
-# 新規開祖はさらに0.03→0.08に再度引き上げ（強い一門の弟子ばかりが生き残る展開を防ぎ、
+# 一門イベントの確率・基準（新弟子1人あたり）。
+# 新規開祖は0.03→0.08に引き上げ（強い一門の弟子ばかりが生き残る展開を防ぎ、
 # 新規参入の血統がもっと混ざるようにするため）
-CLAN_BRANCH_CHANCE = 0.08       # 師匠の弟子になるが、本人が新しい一門の開祖として分岐する
 CLAN_NEW_FOUNDER_CHANCE = 0.08  # 師匠を持たず、完全ランダムな能力の新規開祖として参入する
+# 一門の分岐は確率ではなく、師匠の弟子人数で決める：弟子がこの人数を超えたら
+# （6人目以降）、本人が新しい一門の開祖として分岐する
+CLAN_BRANCH_DISCIPLE_THRESHOLD = 5
+
+
+def count_existing_disciples(pool):
+    """poolに含まれる個体について、師匠ID（parent_a_id）ごとの現在の弟子数を数える。
+    一門分岐判定（_resolve_clan_root）の初期値として使う"""
+    counts = {}
+    for ind in pool:
+        if ind.parent_a_id:
+            counts[ind.parent_a_id] = counts.get(ind.parent_a_id, 0) + 1
+    return counts
+
+
+def _resolve_clan_root(master, ind_id, disciple_counts):
+    """新弟子の一門を決める：disciple_counts（{師匠ID: 弟子人数}、呼び出し元が
+    バッチ生成全体で使い回す可変dict）を見て、師匠の弟子が既にCLAN_BRANCH_DISCIPLE_THRESHOLD
+    人を超えていれば、本人を新しい一門の開祖にする（新弟子をdisciple_countsに加算するのも
+    この関数の責務。同じバッチ内で同じ師匠に複数の新弟子が割り当たる場合も正しく積算される）"""
+    count = disciple_counts.get(master.id, 0)
+    disciple_counts[master.id] = count + 1
+    if count >= CLAN_BRANCH_DISCIPLE_THRESHOLD:
+        return ind_id
+    return master.clan_root_id
 
 
 def _master_weight(ind, titleholder_ids):
@@ -443,37 +481,49 @@ def _character_creation_params_from_custom(custom_params):
     return {k: round(v, 3) for k, v in values.items()}
 
 
-def _build_character_creation_individual(request, season, index, master=None):
+def _build_character_creation_individual(request, season, index, master=None, disciple_counts=None):
     """キャラクリエイトのリクエスト（{"name":, "type":, "params":, "awakened_param":}）から
     1体生成する。paramsが指定されていればそれを優先し、無ければtypeに応じたランダム
     生成にフォールバックする。
 
-    この関数は新人リーグ参入時（新人リーグの対局に使う仮の個体を作る時）と、本戦での
-    実際のDリーグ参入時（新人リーグの勝者を正式な個体にする時）の2回呼ばれ得る。
-    params・awakened_paramは初回（新人リーグ参入時）にのみ決定し、requestに
-    "awakened_param"キーが無い場合だけ抽選する。2回目の呼び出し時はrequest側に
-    その時決定した値がそのまま入っているため再抽選せず、新人リーグで戦った個体と
-    実際にDリーグへ参入する個体が食い違わないようにする。
+    この関数は新人リーグのロスターを組む時点（新人リーグの対局に使う個体を作る時）と、
+    本戦での実際のDリーグ参入時（新人リーグの勝者を正式な個体にする時）の2回呼ばれ得る。
+    師弟関係（parent_a_id・clan_root_id・generation）とparams・awakened_param・initial_age・
+    volatilityは初回（新人リーグのロスターを組む時点）にのみ決定する。requestに既に
+    "parent_a_id"キーがある場合はその時決定した値をそのまま使い、再抽選しない
+    （新人リーグで戦った個体と実際にDリーグへ参入する個体が食い違わないようにする。
+    なお新人リーグを経由しないpending_characters.json経由の直接登録など、師弟関係が
+    まだ決まっていないリクエストに対しては、ここで初めてmasterから決定する）。
 
     masterが指定された場合、通常の新弟子生成と同様にその個体の弟子として参入する
     （parent_a_id）。paramsは師匠から継承せず、あくまで本人の指定/抽選値を使う
-    （キャラクリエイトの趣旨は本人の狙った性能で参戦することのため）。分岐
-    （CLAN_BRANCH_CHANCEの確率で自分が新しい一門の開祖になる）は通常の新弟子と同じ"""
+    （キャラクリエイトの趣旨は本人の狙った性能で参戦することのため）。一門分岐は
+    disciple_countsを渡せば_resolve_clan_root()（弟子人数ベース）で判定し、
+    渡さない場合は分岐しない（常にmaster.clan_root_idに参加する）"""
     ind_id = f"CC{season}-{index:03d}"
-    custom_params = request.get("params")
-    params = (_character_creation_params_from_custom(custom_params) if isinstance(custom_params, dict) else None) \
-        or _character_creation_params(request.get("type", "balanced"))
 
-    if "awakened_param" in request:
-        awakened_key = request["awakened_param"]
+    if "parent_a_id" in request:
+        # 新人リーグのロスターを組む時点で既に師弟関係・パラメータ等が決まっている
+        params = request["params"]
+        master_id = request.get("parent_a_id")
+        clan_root_id = request.get("clan_root_id") or ind_id
+        generation = request.get("generation", 0)
+        volatility = request.get("volatility")
+        awakened_key = request.get("awakened_param")
     else:
+        custom_params = request.get("params")
+        params = (_character_creation_params_from_custom(custom_params) if isinstance(custom_params, dict) else None) \
+            or _character_creation_params(request.get("type", "balanced"))
         params, awakened_key = maybe_awaken(params, individual_id=ind_id, chance=CHARACTER_CREATION_AWAKENING_CHANCE)
 
-    master_id = master.id if master is not None else None
-    if master is not None:
-        clan_root_id = ind_id if random.random() < CLAN_BRANCH_CHANCE else master.clan_root_id
-    else:
-        clan_root_id = ind_id
+        master_id = master.id if master is not None else None
+        if master is not None:
+            clan_root_id = _resolve_clan_root(master, ind_id, disciple_counts) if disciple_counts is not None \
+                else master.clan_root_id
+        else:
+            clan_root_id = ind_id
+        generation = 0
+        volatility = round(max(0.1, min(3.0, random.uniform(0.3, 2.0))), 2)
 
     # initial_ageが明示されていれば最優先で使う（新人リーグで持ち越し中の候補が、
     # 前回までの挑戦で重ねた年齢のまま再挑戦・参入する場合）。無指定なら従来通り、
@@ -486,13 +536,13 @@ def _build_character_creation_individual(request, season, index, master=None):
         resolved_initial_age = None
 
     ind = LeagueIndividual(
-        ind_id, "D", params=params, generation=0,
+        ind_id, "D", params=params, generation=generation,
         parent_a_id=master_id, parent_b_id=None,
         display_name=request.get("name") or ind_id, clan_root_id=clan_root_id,
         initial_age=resolved_initial_age,
     )
     ind.awakened_param = awakened_key
-    ind.volatility = round(max(0.1, min(3.0, random.uniform(0.3, 2.0))), 2)
+    ind.volatility = volatility if volatility is not None else round(max(0.1, min(3.0, random.uniform(0.3, 2.0))), 2)
     return ind
 
 
@@ -500,14 +550,16 @@ def generate_disciples(count, season, pool, name_registry, titleholder_ids=froze
     """
     新弟子（Dリーグ参入個体）を生成する。師弟関係のため、親（師匠）は常に1人。
     師匠はElo・タイトル保持で重み付けした抽選で選ばれる（強い一門ほど子孫を残しやすい）。
-    稀に「分岐」（弟子ではあるが新しい一門の開祖になる）や「新規開祖」
-    （師匠を持たず完全ランダムな能力で参入する）が起きる。
+    師匠の弟子がCLAN_BRANCH_DISCIPLE_THRESHOLD人を超えると「分岐」（弟子ではあるが
+    新しい一門の開祖になる）が起き、稀に「新規開祖」（師匠を持たず完全ランダムな
+    能力で参入する）も起きる。
     """
     disciples = []
 
     active_pool_all = [ind for ind in pool if not ind.retired]
     # 師匠になれるのは一定年齢以上の個体のみ（該当者が誰もいない序盤などは制限なしにフォールバック）
     eligible_masters = [ind for ind in active_pool_all if ind.age >= MASTER_MIN_AGE] or active_pool_all
+    disciple_counts = count_existing_disciples(active_pool_all)
 
     for i in range(count):
         ind_id = f"D{season}-{i:03d}"
@@ -518,7 +570,7 @@ def generate_disciples(count, season, pool, name_registry, titleholder_ids=froze
         if master:
             params, gen = mutate_params(master)
             master_id = master.id
-            clan_root_id = ind_id if random.random() < CLAN_BRANCH_CHANCE else master.clan_root_id
+            clan_root_id = _resolve_clan_root(master, ind_id, disciple_counts)
         else:
             # 新規開祖は、既存の一門（世代を重ねて強化されてきた血統）に対抗できるよう、
             # 旧レンジ（0.5〜5.0、平均2.75）よりやや強めのベースラインで生成する

@@ -69,12 +69,15 @@ def swiss_pairing(ranked_ids, played_pairs, scores):
     return pairs
 
 
-def run_swiss_league(members, rounds=4, depth=4, league_name="B", seed_order=None):
+def run_swiss_league(members, rounds=4, depth=4, league_name="B", seed_order=None, allow_rematch=True):
     """
     B/C/Dリーグのスイス方式トーナメント。
     seed_order: 初期シード順（同点時のタイブレークにも使う）のID列。
     「直近シーズンの順位を継承」した順で渡されることを想定（Eloではなく実績ベース）。
     指定が無い場合は、後方互換のためElo順にフォールバックする。
+    allow_rematch: Falseの場合、引き分けの打ち直しをせず、その場で0.5-0.5の引き分けとして
+    確定する（対局数を増やした代わりに、引き分け時の追加対局を省く運用向け）。
+    同着は上記のseed_order（前季順位継承）でタイブレークされる。
     戻り値: (順位確定済みリスト, 対局ログ, 勝ち点, 個体ごとの勝敗分dict)
     """
     by_id = {ind.id: ind for ind in members}
@@ -98,7 +101,7 @@ def run_swiss_league(members, rounds=4, depth=4, league_name="B", seed_order=Non
             played_pairs.add(frozenset((a_id, b_id)))
             ind_a, ind_b = by_id[a_id], by_id[b_id]
 
-            outcome_a, games = play_league_match(ind_a, ind_b, depth=depth, allow_rematch=True)
+            outcome_a, games = play_league_match(ind_a, ind_b, depth=depth, allow_rematch=allow_rematch)
             ind_a.elo, ind_b.elo = update_elo(
                 ind_a.elo, ind_b.elo, outcome_a,
                 total_seasons_a=ind_a.total_seasons, total_seasons_b=ind_b.total_seasons,

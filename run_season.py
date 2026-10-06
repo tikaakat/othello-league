@@ -154,6 +154,7 @@ def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_b
     ranked_B, log_B, _, record_B = run_swiss_league(
         rosters["B"], rounds=swiss_rounds, depth=depth, league_name="B",
         seed_order=_build_seed_order(rosters["B"], "B", prev_standings_by_id),
+        allow_rematch=False,
     )
     match_log += log_B
 
@@ -161,6 +162,7 @@ def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_b
     ranked_C, log_C, _, record_C = run_swiss_league(
         rosters["C"], rounds=swiss_rounds, depth=depth, league_name="C",
         seed_order=_build_seed_order(rosters["C"], "C", prev_standings_by_id),
+        allow_rematch=False,
     )
     match_log += log_C
 
@@ -168,6 +170,7 @@ def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_b
     ranked_D, log_D, _, record_D = run_swiss_league(
         rosters["D"], rounds=swiss_rounds, depth=depth, league_name="D",
         seed_order=_build_seed_order(rosters["D"], "D", prev_standings_by_id),
+        allow_rematch=False,
     )
     match_log += log_D
 
@@ -774,7 +777,7 @@ def main():
     # B〜Dリーグも昇格を通じて最終的にAリーグ・青龍戦に繋がるため、
     # 青龍関連の深さ（SEIRYUU_LEAGUE_DEPTH）をデフォルトにする
     parser.add_argument("--depth", type=int, default=SEIRYUU_LEAGUE_DEPTH)
-    parser.add_argument("--swiss-rounds", type=int, default=4)
+    parser.add_argument("--swiss-rounds", type=int, default=6)
     args = parser.parse_args()
     print(f"[DEBUG] パース済み引数: data_dir={args.data_dir}, seasons={args.seasons}, depth={args.depth}, swiss_rounds={args.swiss_rounds}", flush=True)
 
