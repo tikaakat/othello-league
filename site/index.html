@@ -973,18 +973,7 @@ function renderLineage(ancestors, children) {
     parentHtml = '<div style="padding:4px 0; color:var(--text-dim);">師匠：なし（開祖 または 無流派の新規参入）</div>';
   } else {
     const master = ancestors[0];
-    const rest = ancestors.slice(1);
-    const masterLine = `<div style="padding:4px 0;">師匠：${ancestorItem(master).replace('padding:3px 0;', '')}</div>`;
-    if (rest.length === 0) {
-      parentHtml = masterLine;
-    } else {
-      const uid = 'lineage' + (_collapsibleSeq++);
-      parentHtml = masterLine + `
-        <div class="collapsible-toggle" data-target="${uid}" style="margin:4px 0; cursor:pointer; color:var(--text-dim); font-size:0.74rem; display:flex; align-items:center; gap:6px;">
-          <span class="collapsible-arrow">▶</span><span data-show-text="さらに遡る（${rest.length}代前まで）">さらに遡る（${rest.length}代前まで）</span>
-        </div>
-        <div id="${uid}" class="hidden" style="padding-left:10px; border-left:1px solid var(--navy-700);">${rest.map(ancestorItem).join('')}</div>`;
-    }
+    parentHtml = `<div style="padding:4px 0;">師匠：${ancestorItem(master).replace('padding:3px 0;', '')}</div>`;
   }
 
   let childrenHtml;
