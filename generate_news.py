@@ -22,7 +22,10 @@ import subprocess
 
 DEFAULT_MODEL = "sonnet"
 TITLE_NAMES = ["青龍", "朱雀", "白虎", "玄武"]
-PERSONA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "news-site", "persona.md")
+_NEWS_SITE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "news-site")
+PERSONA_PATH = os.path.join(_NEWS_SITE_DIR, "persona.md")
+# コラム・特集は、ダイジェスト（犬飼）とは別の記者（東堂）が書く
+COLUMN_PERSONA_PATH = os.path.join(_NEWS_SITE_DIR, "persona-column.md")
 
 
 def load_json(path, default):
@@ -221,8 +224,87 @@ def build_column_prompt(facts):
     return "\n".join(lines)
 
 
-def run_claude(prompt, model=DEFAULT_MODEL):
-    with open(PERSONA_PATH, "r", encoding="utf-8") as f:
+def is_eternal_title(title, total, consec):
+    """site/api.phpのis_eternal_title()と同じ基準（Python側に実データ・スキーマの
+    複製は無いため、season_state.json（title_history）から都度計算する）"""
+    if title == "青龍":
+        return total >= 5
+    if title == "朱雀":
+        return consec >= 5 or total >= 10
+    if title == "玄武":
+        return total >= 10
+    return consec >= 5  # 白虎
+
+
+def _title_holder_name(entry):
+    # 第1季の「初代襲名」行はholder_nameを持たずnew_holderのみを持つ
+    return entry.get("holder_name") or entry.get("new_holder")
+
+
+def compute_title_stats_up_to(title_history, title, holder_name, season):
+    """指定タイトル・保持者名について、season以前（含む）の保持記録から
+    通算保持季数と最大連続保持季数を求める（holder_name一致で集計する簡易版）"""
+    seasons_held = sorted(
+        e["season"] for e in title_history
+        if e.get("title") == title and _title_holder_name(e) == holder_name and e.get("season", 0) <= season
+    )
+    total = len(seasons_held)
+    best_streak = 0
+    cur_streak = 0
+    prev = None
+    for s in seasons_held:
+        cur_streak = cur_streak + 1 if prev is not None and s == prev + 1 else 1
+        best_streak = max(best_streak, cur_streak)
+        prev = s
+    return total, best_streak
+
+
+def gather_milestone_facts(data_dir, season):
+    """この季に、誰かが初めて永世称号の基準を新たに満たしたかを検出する
+    （既に前季までに達成済みなら対象外）。最初に見つかった1件のみをネタとする"""
+    state = load_json(os.path.join(data_dir, "season_state.json"), {})
+    title_history = state.get("title_history", [])
+    this_season_entries = [e for e in title_history if e.get("season") == season]
+
+    for e in this_season_entries:
+        title = e.get("title")
+        holder_name = _title_holder_name(e)
+        if not title or not holder_name:
+            continue
+        total_after, streak_after = compute_title_stats_up_to(title_history, title, holder_name, season)
+        if not is_eternal_title(title, total_after, streak_after):
+            continue
+        total_before, streak_before = compute_title_stats_up_to(title_history, title, holder_name, season - 1)
+        if is_eternal_title(title, total_before, streak_before):
+            continue  # 前季までに既に達成済み（新規達成ではない）
+
+        return {
+            "season": season, "title": title, "name": holder_name,
+            "total": total_after, "streak": streak_after,
+            "related_individual_ids": [e["holder_id"]] if e.get("holder_id") else [],
+            "related_individual_names": [holder_name],
+        }
+    return None
+
+
+def build_milestone_prompt(facts):
+    lines = [
+        f"第{facts['season']}季の事実データ（これ以外の出来事は起きていない）:", "",
+        f"・{facts['name']}が、{facts['title']}位で「永世{facts['title']}」の称号基準を満たした"
+        f"（通算保持{facts['total']}期、最大連続保持{facts['streak']}期）。",
+        "",
+        f"以上の事実だけをもとに、{facts['name']}の永世{facts['title']}達成を主題にした、"
+        "特集記事（コラムより少し丁寧な読み物）を書いてください。"
+        "データに無い出来事・数字は書かないこと。"
+        "出力は次のJSON形式のみ（説明文やコードフェンスなど、他のテキストは一切含めない）：\n"
+        '{"title": "見出し", "summary": "1〜2文の要約", "body": "本文（250〜400字程度）", '
+        '"tags": ["特集", "永世称号", "関係するタイトル名"]}'
+    ]
+    return "\n".join(lines)
+
+
+def run_claude(prompt, model=DEFAULT_MODEL, persona_path=PERSONA_PATH):
+    with open(persona_path, "r", encoding="utf-8") as f:
         persona = f.read()
 
     result = subprocess.run(
@@ -300,7 +382,7 @@ def try_generate_column(args, season, articles_path, articles):
         return
 
     print(f"[DEBUG] 第{season}季のコラムを生成します（{facts['name']}の{facts['streak']}連勝、model={args.model}）", flush=True)
-    generated = run_claude(build_column_prompt(facts), model=args.model)
+    generated = run_claude(build_column_prompt(facts), model=args.model, persona_path=COLUMN_PERSONA_PATH)
 
     save_article(articles_path, articles, {
         "id": article_id, "type": "column", "season": season,
@@ -309,6 +391,31 @@ def try_generate_column(args, season, articles_path, articles):
         "related_individual_ids": facts["related_individual_ids"],
         "related_individual_names": facts["related_individual_names"],
         "tags": generated.get("tags") or ["コラム"],
+        "generated_by": args.model,
+    })
+
+
+def try_generate_milestone(args, season, articles_path, articles):
+    facts = gather_milestone_facts(args.data_dir, season)
+    if facts is None:
+        print(f"[DEBUG] 第{season}季は永世称号の新規達成が見つかりません。特集をスキップします", flush=True)
+        return
+
+    article_id = f"s{season}-{facts['title']}-eternal"
+    if any(a.get("id") == article_id for a in articles):
+        print(f"[DEBUG] 第{season}季の永世{facts['title']}特集は既に生成済みです（{article_id}）。スキップします", flush=True)
+        return
+
+    print(f"[DEBUG] 第{season}季の特集を生成します（{facts['name']}が永世{facts['title']}達成、model={args.model}）", flush=True)
+    generated = run_claude(build_milestone_prompt(facts), model=args.model, persona_path=COLUMN_PERSONA_PATH)
+
+    save_article(articles_path, articles, {
+        "id": article_id, "type": "feature", "season": season,
+        "title": generated["title"], "summary": generated["summary"], "body": generated["body"],
+        "published_at": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
+        "related_individual_ids": facts["related_individual_ids"],
+        "related_individual_names": facts["related_individual_names"],
+        "tags": generated.get("tags") or ["特集", "永世称号"],
         "generated_by": args.model,
     })
 
@@ -331,6 +438,7 @@ def main():
 
     try_generate_digest(args, season, articles_path, articles)
     try_generate_column(args, season, articles_path, articles)
+    try_generate_milestone(args, season, articles_path, articles)
 
 
 if __name__ == "__main__":
