@@ -586,7 +586,7 @@ async function loadLeagues() {
         const rankDisplay = r.is_new ? '<span style="color:var(--text-dim); font-size:0.68rem;">新</span>' : (i+1);
         const rTitles = (r.id && CURRENT_TITLEHOLDERS.by_id[r.id]) || [];
         html += `<tr data-id="${escapeHtml(r.id)}"><td class="rank-num">${rankDisplay}</td>
-          <td>${escapeHtml(r.display_name || r.id)}${titleOrDanBadge(rTitles, r.dan)}</td>
+          <td>${escapeHtml(r.display_name || r.id)}${titleOrDanBadge(rTitles, r.dan)}${demotionPointsBadge(r.demotion_points)}</td>
           <td>${ageCell(r.age)}</td>
           <td class="elo-val">${Math.round(r.elo_rating)}</td></tr>`;
       });
@@ -1287,6 +1287,23 @@ function movementMarks(movement) {
   return movement.split(',').map(tag => MOVEMENT_MARKS[tag.trim()] || '').join('');
 }
 
+// Dリーグの降級点：その季に「点」が増えた（gained）／0に戻った（cleared）場合のみ、
+// 結果タブの行に簡易表示する（通常時は何も出さない）
+const DEMOTION_EVENT_MARKS = {
+  gained: '<span class="movement-mark" style="color:#ff5f5f; font-size:0.7rem;" title="降級点が増えた">点</span>',
+  cleared: '<span class="movement-mark" style="color:var(--cyan); font-size:0.7rem;" title="降級点が0に戻った">消</span>',
+};
+
+function demotionEventMark(event) {
+  return DEMOTION_EVENT_MARKS[event] || '';
+}
+
+// リーグタブ：現在降級点を持っている個体に、名前の横へ簡易表示する
+function demotionPointsBadge(points) {
+  if (!points) return '';
+  return ` <span class="movement-mark" style="color:#ff5f5f; font-size:0.7rem;" title="降級点">降級点${points}</span>`;
+}
+
 // 昇格・降格した行を、テーブル左端の色付きボーダーでも強調する（movement-markの文字だけだと
 // 目立ちにくいため）。昇格・降格が同時に発生することはないので、promoted優先で判定する
 function zoneClass(movement) {
@@ -1831,7 +1848,7 @@ async function loadSeiryuuPanel(season) {
           const rTitles = (r.individual_id && seasonTitleholders.by_id[r.individual_id]) || [];
           html += `<tr class="${zoneClass(r.movement)}" data-id="${escapeHtml(r.individual_id)}">
             <td class="rank-num">${displayRank}</td>
-            <td>${movementMarks(r.movement)}${escapeHtml(r.display_name || r.individual_id)}${titleOrDanBadge(rTitles, seasonDan[r.individual_id])}</td>
+            <td>${movementMarks(r.movement)}${demotionEventMark(r.demotion_point_event)}${escapeHtml(r.display_name || r.individual_id)}${titleOrDanBadge(rTitles, seasonDan[r.individual_id])}</td>
             <td>${record}</td>
           </tr>`;
         });

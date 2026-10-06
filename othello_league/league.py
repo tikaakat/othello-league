@@ -62,7 +62,7 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
     （extra_protected_ids）ではなく、勝ち越しと同じ「減点」による救済にとどめる。
 
     戻り値: (更新後のrosters dict, 引退者リスト, 来季のDリーグ新人受け入れ枠数
-             （D_NEWCOMER_INTAKEの固定値）)
+             （D_NEWCOMER_INTAKEの固定値）, 降級点イベント（individual_id => "gained"/"cleared"）)
     """
     A = list(rosters["A"])
     B = list(rosters["B"])
@@ -135,11 +135,18 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
     d_promote_to_c = D[:D_TO_C_PROMOTE]
     d_remain = D[D_TO_C_PROMOTE:]
 
+    # 降級点の増減（結果タブ・リーグタブへの「点」「消」表示用）。
+    # individual_id => "gained"（この季に降級点が1つ増えた） / "cleared"（0に戻った。
+    # Dを卒業した際のリセット・減点が貯まり分を相殺しきった場合のいずれでも「消」扱いにする）
+    demotion_events = {}
+
     # Dリーグを卒業（Cへ昇格）する個体は、降級点をリセットする。
     # 降級点はDリーグ在籍中の成績のみを反映すべきものなので、
     # リセットしないと「昔Dにいた時の降級点」が残ったまま何季も引き継がれ、
     # 何季も後にDへ舞い戻った際に、既に引退間際の状態で再出発することになってしまう。
     for ind in d_promote_to_c:
+        if ind.demotion_points > 0:
+            demotion_events[ind.id] = "cleared"
         ind.demotion_points = 0
 
     A = a_remain + b_promote_to_a
@@ -182,6 +189,7 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
     d_up_or_out_retired = []
     d_keep = []
     for ind in d_remain:
+        before = ind.demotion_points
         delta = 0
         if ind.loss_this_season > ind.win_this_season:
             delta += 1
@@ -189,7 +197,11 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
             delta -= 1
         if ind.id in demotion_relief_ids:
             delta -= 1
-        ind.demotion_points = max(0, ind.demotion_points + delta)
+        ind.demotion_points = max(0, before + delta)
+        if ind.demotion_points > before:
+            demotion_events[ind.id] = "gained"
+        elif ind.demotion_points == 0 and before > 0:
+            demotion_events[ind.id] = "cleared"
         if ind.demotion_points >= D_DEMOTION_POINT_LIMIT and ind.id not in protected_ids:
             ind.retired = True
             ind.total_seasons += 1  # age_retiredと同様、引退する今季分も在籍シーズン数に数える
@@ -258,7 +270,7 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
     new_recruit_slots = D_NEWCOMER_INTAKE
 
     new_rosters = {"A": A, "B": B, "C": C, "D": D}
-    return new_rosters, all_retired, new_recruit_slots
+    return new_rosters, all_retired, new_recruit_slots, demotion_events
 
 
 def recruit_d_league(rosters, season, name_registry=None, pending_characters=None, titleholders=None,
