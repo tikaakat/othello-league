@@ -4,8 +4,10 @@
 // 記事そのものはdata/news/articles.json側で管理しており、このDBには
 // 記事の行が無いため、cheer.php（個体への応援）と違ってカウンタ列は持たず、
 // article_likesのログ行数（COUNT(*)）をそのままいいね数として扱う。
-// GET：件数取得のみ（書き込みなし）。POST：いいねを1件記録する。
-// 乱用防止のため、同一IP・同一記事では1日1回までに制限する。
+// GET（article_id指定）：1記事の件数取得のみ（書き込みなし）。
+// GET（action=counts）：いいねが1件以上ついている全記事分の件数を一括取得する
+// （news-siteの人気記事ランキング表示用。記事ごとに個別リクエストしなくて済むようにする）。
+// POST：いいねを1件記録する。乱用防止のため、同一IP・同一記事では1日1回までに制限する。
 // ============================================================
 
 ini_set('display_errors', '0');
@@ -24,6 +26,16 @@ function fetch_like_count($pdo, $articleId) {
     $stmt = $pdo->prepare("SELECT COUNT(*) FROM article_likes WHERE article_id = :id");
     $stmt->execute(['id' => $articleId]);
     return (int)$stmt->fetchColumn();
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'counts') {
+    $stmt = $pdo->query("SELECT article_id, COUNT(*) AS like_count FROM article_likes GROUP BY article_id");
+    $counts = [];
+    foreach ($stmt->fetchAll() as $row) {
+        $counts[$row['article_id']] = (int)$row['like_count'];
+    }
+    echo json_encode(['counts' => $counts], JSON_UNESCAPED_UNICODE);
+    exit;
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
