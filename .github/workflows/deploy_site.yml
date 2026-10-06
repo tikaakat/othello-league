@@ -42,6 +42,7 @@ on:
         options:
           - ""
           - "add_submitter_name_column"
+          - "add_cheer_feature"
         default: ""
       create_dir:
         description: "デプロイの代わりに、lab.spia-net.com直下（othello-league/の1つ上）に相対パスでディレクトリを作成する（例: othello-news）。「..」や先頭「/」は不可"
@@ -122,12 +123,25 @@ jobs:
 
           if [ -n "$RUN_MIGRATION" ]; then
             echo "=== マイグレーション実行: ${RUN_MIGRATION} ==="
+            # SQL_LIST：このマイグレーションで実行する文（複数可。1文ずつ順に適用し、
+            # 「既に存在する」系のエラー（列の重複・テーブルの重複）は成功扱いにして
+            # 再実行できるようにする）。db_config.phpの認証情報はサーバー上で完結させ、
+            # GitHub Actionsのログには一切出さない
             case "$RUN_MIGRATION" in
               add_submitter_name_column)
-                # character_requestsに投稿者名（任意・表示専用）の列を追加する。
-                # 既に存在する場合（エラー1060）は成功扱いにして再実行できるようにする。
-                # db_config.phpの認証情報はサーバー上で完結させ、GitHub Actionsのログには一切出さない
-                SQL='ALTER TABLE character_requests ADD COLUMN submitter_name VARCHAR(20) NULL AFTER display_name;'
+                # character_requestsに投稿者名（任意・表示専用）の列を追加する
+                SQL_LIST=(
+                  'ALTER TABLE character_requests ADD COLUMN submitter_name VARCHAR(20) NULL AFTER display_name;'
+                )
+                ;;
+              add_cheer_feature)
+                # 個体への「応援」機能：individuals/retired_archiveにcheer_count列を追加し、
+                # IPハッシュ単位で1個体1日1回に制限するcheer_logテーブルを作る
+                SQL_LIST=(
+                  'ALTER TABLE individuals ADD COLUMN cheer_count INT NOT NULL DEFAULT 0;'
+                  'ALTER TABLE retired_archive ADD COLUMN cheer_count INT NOT NULL DEFAULT 0;'
+                  'CREATE TABLE IF NOT EXISTS cheer_log (individual_id VARCHAR(32) NOT NULL, ip_hash CHAR(64) NOT NULL, cheered_date DATE NOT NULL, PRIMARY KEY (individual_id, ip_hash, cheered_date));'
+                )
                 ;;
               *)
                 echo "::error::未知のマイグレーション: ${RUN_MIGRATION}"
@@ -135,19 +149,25 @@ jobs:
                 exit 1
                 ;;
             esac
+            # base64はシェルのメタ文字を含まないため、そのままリモートコマンド文字列に
+            # 埋め込んでも引用符崩れの心配がない（複数文をNUL区切りで1回のSSH呼び出しに渡す）
+            SQL_B64="$(printf '%s\0' "${SQL_LIST[@]}" | base64 -w0)"
             retry_cmd ssh -i /tmp/deploy_key -p "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
               "$XSERVER_USER@$XSERVER_HOST" \
               "php -r '
                 require \"${XSERVER_SITE_DIR}db_config.php\";
                 \$pdo = league_db_connect();
-                try {
-                  \$pdo->exec(\"${SQL}\");
-                  echo \"OK: 適用しました\n\";
-                } catch (\PDOException \$e) {
-                  if (\$e->getCode() === \"42S21\" || str_contains(\$e->getMessage(), \"Duplicate column\")) {
-                    echo \"OK: 既に適用済みでした\n\";
-                  } else {
-                    throw \$e;
+                \$list = array_filter(explode(\"\\0\", base64_decode(\"${SQL_B64}\")), fn(\$s) => trim(\$s) !== \"\");
+                foreach (\$list as \$sql) {
+                  try {
+                    \$pdo->exec(\$sql);
+                    echo \"OK: \" . substr(\$sql, 0, 60) . PHP_EOL;
+                  } catch (\PDOException \$e) {
+                    if (str_contains(\$e->getMessage(), \"Duplicate column\") || str_contains(\$e->getMessage(), \"already exists\")) {
+                      echo \"OK(既に適用済み): \" . substr(\$sql, 0, 60) . PHP_EOL;
+                    } else {
+                      throw \$e;
+                    }
                   }
                 }
               '"

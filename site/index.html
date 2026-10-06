@@ -114,6 +114,11 @@
     border: 1px solid var(--navy-700); padding: 4px 10px; cursor: pointer;
   }
   .fav-toggle.is-fav { color: var(--amber); border-color: var(--amber); }
+  .cheer-btn {
+    font-family: 'Orbitron', sans-serif; font-size: 0.75rem; background: var(--navy-800); color: var(--text-dim);
+    border: 1px solid var(--navy-700); padding: 4px 10px; cursor: pointer; margin-left: 6px;
+  }
+  .cheer-btn.cheered { color: #FF6B8A; border-color: #FF6B8A; cursor: default; }
   .sliders { display: grid; gap: 6px; }
   .slider { display: grid; grid-template-columns: 6.5em 1fr 2.5em; align-items: center; gap: 8px; font-size: 0.78rem; color: var(--text-dim); }
   .slider input[type="range"] { width: 100%; accent-color: var(--cyan); }
@@ -335,6 +340,42 @@ function toggleFavorite(id) {
   if (ids.has(id)) ids.delete(id); else ids.add(id);
   saveFavoriteIds(ids);
   applyFavoriteHighlights();
+}
+
+// 応援ボタン：実際の金銭のやり取りは発生しない、閲覧専用のカウンタ（いいね的な機能）。
+// サーバー側（cheer.php）が1個体1日1回に制限するが、ここでのlocalStorageチェックは
+// 「今日は応援済み」をページ再読込後もすぐ見せるための表示上のヒントに過ぎない
+function cheeredTodayKey(id) {
+  return `cheered:${id}:${new Date().toISOString().slice(0, 10)}`;
+}
+function setupCheerButton(btn) {
+  if (!btn) return;
+  const id = btn.dataset.id;
+  let alreadyCheeredLocally = false;
+  try { alreadyCheeredLocally = localStorage.getItem(cheeredTodayKey(id)) === '1'; } catch (e) { /* 無視 */ }
+  if (alreadyCheeredLocally) {
+    btn.classList.add('cheered');
+    btn.firstChild.textContent = '♡ 応援済み';
+  }
+  btn.addEventListener('click', async () => {
+    if (btn.classList.contains('cheered')) return;
+    btn.disabled = true;
+    try {
+      const res = await fetch('cheer.php', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ individual_id: id }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      const countEl = document.getElementById('ind-cheer-count');
+      if (countEl) countEl.textContent = `（${data.cheer_count}）`;
+      btn.classList.add('cheered');
+      btn.firstChild.textContent = '♡ 応援済み';
+      try { localStorage.setItem(cheeredTodayKey(id), '1'); } catch (e) { /* 無視 */ }
+    } catch (e) {
+      btn.disabled = false;
+    }
+  });
 }
 
 function applyFavoriteHighlights() {
@@ -855,6 +896,7 @@ async function loadIndividualDetail(id) {
         <span style="font-size:0.72rem; color:var(--amber); margin-left:8px;">最高 ${Math.round(ind.peak_elo ?? ind.elo_rating)}</span></div>
       <div style="margin-top:8px;">
         <button id="ind-fav-toggle" class="fav-toggle" data-id="${escapeHtml(ind.id)}">☆ お気に入りに追加</button>
+        <button id="ind-cheer-btn" class="cheer-btn" data-id="${escapeHtml(ind.id)}">♡ 応援する<span id="ind-cheer-count">（${ind.cheer_count ?? 0}）</span></button>
       </div>
       ${ind.clan_established ? `<div style="margin-top:6px;"><span class="back-link" id="ind-clan-link" style="margin-bottom:0;">一門を見る →</span></div>` : ''}
       ${ind.awakened_param ? `<div style="margin-top:8px; display:inline-block; background:rgba(255,182,72,0.15); border:1px solid var(--amber); color:var(--amber); font-size:0.72rem; padding:3px 10px; border-radius:2px;">★ 覚醒：「${escapeHtml(paramLabel(ind.awakened_param))}」突破</div>` : ''}
@@ -897,6 +939,7 @@ async function loadIndividualDetail(id) {
     document.getElementById('ind-back').addEventListener('click', () => navigateTo('leagues'));
     document.getElementById('ind-fav-toggle').addEventListener('click', () => toggleFavorite(ind.id));
     applyFavoriteHighlights();
+    setupCheerButton(document.getElementById('ind-cheer-btn'));
     const clanLink = document.getElementById('ind-clan-link');
     if (clanLink) clanLink.addEventListener('click', () => navigateTo('clans/' + ind.clan_root_id));
     el.querySelectorAll('.lineage-link').forEach(span => span.addEventListener('click', () => navigateTo('individual/' + span.dataset.id)));
@@ -2267,10 +2310,12 @@ function rulesHtml() {
   return `
     <h3 style="font-size:0.85rem; color:var(--cyan); margin-top:0;">リーグ制度</h3>
     <div style="font-size:0.8rem; line-height:1.7; margin-bottom:16px;">
-      A（8名・総当たり）／B（12名）・C（16名）・D（20名）（スイス方式）の4部制。<br>
+      A（9名・総当たり）／B（12名）・C（16名）・D（20名）（スイス方式・6回戦）の4部制。<br>
       A⇄B：下位2名⇄上位2名を毎季入れ替え。B⇄C：下位3名⇄上位3名を毎季入れ替え。<br>
       C⇄D：下位3名⇄上位3名を毎季入れ替え。<br>
-      引き分けは先後を入れ替えて再戦、決着がつくまで繰り返す（実質上限あり。決着した最後の1局だけが結果になる）。<br>
+      本戦（A総当たり・B/C/Dスイス方式）は引き分けを引き分けのまま確定し、再戦は行わない
+      （例外：Aリーグの1位が複数名並んだ場合のみ、その同率者同士で順位決定戦を行う。
+      これは引き分けなら先後を入れ替えて再戦し、決着がつくまで最大3回まで繰り返す）。<br>
       表示上の並び順は「直近シーズンの順位を継承」：残留者はその順位のまま、昇格者は昇格先の最下位、降格者は降格先の最上位から始まる。
     </div>
 
@@ -2278,32 +2323,38 @@ function rulesHtml() {
     <div style="font-size:0.8rem; line-height:1.7; margin-bottom:16px;">
       新弟子は師弟制：Dリーグの空き枠数ぶん、現役個体から選ばれた「師匠」1人ごとに、
       そのパラメータを変異（±15%程度）させた弟子が1人入門する（2個体の交配ではない）。
-      師匠になれるのは30歳以上の個体のみ。<br>
+      師匠になれるのは30歳以上の個体のみ。師弟関係は新人リーグの出走時点で決定し、
+      その後Dリーグに昇格しても変わらない。<br>
       師匠選びはランダムだが、Elo・タイトル保持で重み付けされており、実力のある個体ほど
       弟子を持ちやすい（強い一門ほど自然と勢力を伸ばしやすい）。<br>
       一門は、最も遡った開祖を根とする師弟の系譜のまとまり。通常は弟子も師匠と同じ一門に属するが、
-      稀（8%）に弟子自身が新しい一門の開祖として分岐することがあり、そこから新たな一門が生まれる。
-      さらに稀（3%）に、師匠を持たず完全にランダムな能力の新規開祖が参入することもある
+      同じ師匠につく弟子が5人を超えた時点で、6人目以降の弟子は新しい一門の開祖として分岐し、
+      そこから新たな一門が生まれる。<br>
+      さらに稀（8%）に、師匠を持たず完全にランダムな能力の新規開祖が参入することもある
       （既存の血統に対抗できるよう、通常の新弟子よりやや高めの能力値で生成される）。<br>
       稀（3%）に、新弟子の誰かが「覚醒」し、1パラメータが通常の変異幅を超えて大きく伸びることがある。
       覚醒した個体は「神童」の扱いとして、通常（18〜24歳）より若い14〜16歳で参入する。<br>
       新人タブの「キャラクリエイト」から、名前とタイプ傾向を指定して新規開祖を1体リクエストできる
       （1回あたり最大40名まで）。本戦・新人リーグとも<b>1日2回、本戦→新人リーグの順</b>で
       実行しており、締め切りと反映は以下の通り。<br>
-      ・<b>7:00(JST)までのエントリー</b> → 7:00の新人リーグで選抜（朝6:00の本戦で確定した欠員を募集） →
+      ・<b>6:00(JST)までのエントリー</b> → 7:00の新人リーグで選抜（朝6:00の本戦で確定した欠員を募集） →
       <b>夜18:00の本戦から</b>Dリーグ入り・実際に対局を始める<br>
-      ・<b>7:00〜19:00(JST)のエントリー</b> → 19:00の新人リーグで選抜（夜18:00の本戦で確定した欠員を募集） →
+      ・<b>6:00〜18:00(JST)のエントリー</b> → 19:00の新人リーグで選抜（夜18:00の本戦で確定した欠員を募集） →
       <b>翌朝6:00の本戦から</b>Dリーグ入り・実際に対局を始める<br>
       （新人リーグは、直前の本戦で確定したばかりのDリーグの欠員数をそのまま募集人数として使い、
-      次の本戦でその欠員へそのまま入って対局するため、選抜と初対局の間にズレはない）
+      次の本戦でその欠員へそのまま入って対局するため、選抜と初対局の間にズレはない）<br>
+      新人リーグで昇格しなかった個体のうち、順位上位5名（キャラクリエイトからの投稿も含む）は、
+      師弟関係を保ったまま次回の新人リーグへそのまま持ち越される。
     </div>
 
     <h3 style="font-size:0.85rem; color:var(--cyan);">引退</h3>
     <div style="font-size:0.8rem; line-height:1.7; margin-bottom:16px;">
       年齢（初期年齢＋通算シーズン数）が60歳に達すると、リーグを問わず強制引退する。<br>
-      Dリーグは「2シーズン連続で負け越すと、実力・在籍年数に関わらず即引退」というup-or-out制。<br>
+      Dリーグは「降級点」制：負け越した季ごとに1点積み重なり（連続していなくてもよい）、
+      2点に達すると実力・在籍年数に関わらず即引退するup-or-out制（勝ち越した季は1点減る）。<br>
       C・Dリーグで定員を超えた場合、Eloが低い順に引退となる。<br>
-      いずれの引退条件も、タイトルを1つでも保持している間は猶予され、全て失冠するまで引退しない。
+      いずれの引退条件も、タイトル保持者・朱雀紅白リーグ在籍者・Aリーグ所属者
+      （うち今季A→B降格が決まった者を除く）の間は猶予され、その対象から外れるまで引退しない。
     </div>
 
     <h3 style="font-size:0.85rem; color:var(--cyan);">タイトル戦</h3>
@@ -2326,8 +2377,21 @@ function rulesHtml() {
       　表示上は64枠を8ブロック（各8名）に分け、各ブロックの優勝者8名がさらに挑戦者決定トーナメントを行って最終的な挑戦者を1名決める（対局・抽選の仕組み自体は従来通りで、見せ方を分けているだけ）。<br><br>
       各タイトルとも、初代不在の場合は挑戦者がそのまま無条件で襲名する。在位者が予選のどのスロットに入っても、
       自己対戦にならないよう自動的に不戦勝扱いになる。朱雀在位者は紅白リーグの総当たりを免除される防衛専念枠で、
-      挑戦者決定戦で敗れた側の元1位は通常通り残留扱いとなる。<br><br>
-      なお、探索深さは順位戦・タイトル戦を問わず、運用上すべて1に統一している。
+      挑戦者決定戦で敗れた側の元1位は通常通り残留扱いとなる。<br>
+      タイトル戦の本戦・挑戦者決定戦は、引き分けなら先後を入れ替えて決着がつくまで再戦する
+      （実質上限あり。決着した最後の1局だけが結果になる）。これはA総当たり・B/C/Dスイス方式には適用されない。<br><br>
+      探索深さは本戦・タイトル戦で以下のように異なる（運用上固定。手動実行時にも変更不可）：<br>
+      ・A/B/C/D本戦：4　・青龍タイトル戦：5<br>
+      ・朱雀紅白予選・挑戦者決定戦：3　・朱雀タイトル戦：5<br>
+      ・白虎予選トーナメント：3　・白虎タイトル戦：4<br>
+      ・玄武予選トーナメント：2　・玄武タイトル戦：3
+    </div>
+
+    <h3 style="font-size:0.85rem; color:var(--cyan);">Eloレーティング</h3>
+    <div style="font-size:0.8rem; line-height:1.7; margin-bottom:16px;">
+      標準的なEloレーティングを対局ごとに更新する。変動の大きさを決めるK値は在籍季数に応じて
+      段階的に下げる：在籍3季未満はK=18、8季未満はK=13、それ以上はK=10
+      （過去の全対局データ（約9200局）を用いたブライアスコア最小化により2026年に再調整）。
     </div>
 
     <h3 style="font-size:0.85rem; color:var(--cyan);">永世称号</h3>
