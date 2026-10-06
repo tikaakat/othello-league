@@ -50,6 +50,7 @@ on:
           - "add_article_like_feature"
           - "add_supporter_feature"
           - "add_cheer_message"
+          - "add_sponsor_feature"
         default: ""
       create_dir:
         description: "デプロイの代わりに、lab.spia-net.com直下（othello-league/の1つ上）に相対パスでディレクトリを作成する（例: othello-news）。「..」や先頭「/」は不可"
@@ -172,6 +173,18 @@ jobs:
                 SQL_LIST=(
                   'ALTER TABLE cheer_log ADD COLUMN message VARCHAR(140) NULL;'
                   'ALTER TABLE cheer_log ADD COLUMN created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP;'
+                )
+                ;;
+              add_sponsor_feature)
+                # 個体への有料支援（スポンサー）機能。決済自体はStripe側で行い、
+                # Webhookで支払い成立を受け取った時点でこのテーブルに1行追加する想定
+                # （このマイグレーションはテーブル作成のみで、決済連携は別途追加する）。
+                # stripe_session_idはWebhookの重複配信に対する冪等キー（UNIQUE）。
+                # amount_jpyは内部記録用（画面には金額は表示しない想定）。
+                # seasonは支援が行われた時点のシーズン番号（将来、タイトル獲得時の
+                # スポンサー表記に使う）。logo_urlは将来の顔写真/ロゴ表示用に先に確保しておく
+                SQL_LIST=(
+                  'CREATE TABLE IF NOT EXISTS sponsors (id INT AUTO_INCREMENT PRIMARY KEY, individual_id VARCHAR(32) NOT NULL, display_name VARCHAR(30) NOT NULL, message VARCHAR(100) NULL, amount_jpy INT NOT NULL, currency VARCHAR(8) NOT NULL DEFAULT "jpy", stripe_session_id VARCHAR(255) NOT NULL, season INT NULL, logo_url VARCHAR(255) NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY uniq_stripe_session (stripe_session_id), INDEX idx_individual (individual_id));'
                 )
                 ;;
               *)

@@ -131,7 +131,36 @@
   .profile-section { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--border); }
   .profile-section h4 { font-size: 0.78rem; color: var(--text-dim); margin: 0 0 8px; }
   .profile-title-row { font-size: 0.86rem; padding: 4px 0; }
+  .dan-history-row { font-size: 0.82rem; padding: 3px 0; color: var(--text-dim); }
+  .dan-history-row b { color: var(--text-main); font-weight: 700; }
+  .dan-badge {
+    display: inline-block; font-size: 0.72rem; font-weight: 700; color: var(--accent-dark);
+    background: #FFF6EE; border-radius: 8px; padding: 2px 9px; margin-left: 6px;
+  }
   .profile-footer { margin-top: 24px; font-size: 0.8rem; }
+
+  /* 個体一覧ページ */
+  .roster-league-group { margin-top: 20px; }
+  .roster-league-group:first-child { margin-top: 0; }
+  .roster-league-group h3 { font-size: 0.85rem; color: var(--accent-dark); margin: 0 0 6px; }
+  .roster-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 8px 0; font-size: 0.85rem; border-bottom: 1px solid var(--border); cursor: pointer;
+  }
+  .roster-row:last-child { border-bottom: none; }
+  .roster-row:hover { color: var(--accent-dark); }
+  .roster-row .roster-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; color: var(--text-dim); font-size: 0.78rem; }
+
+  /* 人気記事ランキング */
+  .ranking-box { margin-bottom: 16px; padding: 10px 14px; background: #FFFBF6; border: 1px solid var(--border); border-radius: 10px; }
+  .ranking-box h4 { font-size: 0.78rem; color: var(--text-dim); margin: 0 0 6px; }
+  .ranking-row {
+    display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 0.82rem; cursor: pointer;
+  }
+  .ranking-row:hover { color: var(--accent-dark); }
+  .ranking-rank { color: var(--accent-dark); font-weight: 700; width: 1.4em; flex-shrink: 0; }
+  .ranking-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ranking-likes { color: var(--text-dim); font-size: 0.76rem; flex-shrink: 0; }
 
   .cheer-box {
     background: var(--card); border: 1px solid var(--border); border-radius: 14px;
@@ -175,6 +204,7 @@
     </div>
     <nav>
       <a class="nav-tab" id="nav-feed" href="#" onclick="navigateTo('');return false;">フィード</a>
+      <a class="nav-tab" id="nav-individuals" href="#" onclick="navigateTo('individuals');return false;">個体一覧</a>
       <a class="nav-tab" id="nav-rules" href="#" onclick="navigateTo('rules');return false;">ルール</a>
       <a class="nav-external" href="https://lab.spia-net.com/othello-league/" target="_blank" rel="noopener">データサイトへ ↗</a>
     </nav>
@@ -233,6 +263,18 @@ function tagChip(tag) {
 
 function resultsSiteIndividualUrl(id) {
   return `${RESULTS_SITE_BASE}#individual/${encodeURIComponent(id)}`;
+}
+
+// 段位表示（データサイト側のDAN_KANJI/danLabelと同じもの。api.phpがdan/dan_historyとして返す）
+const DAN_KANJI = { 1: '一', 2: '二', 3: '三', 4: '四', 5: '五', 6: '六', 7: '七', 8: '八', 9: '九' };
+function danLabel(dan) {
+  return (dan === null || dan === undefined) ? '-' : `${DAN_KANJI[dan] ?? dan}段`;
+}
+function renderDanHistory(history) {
+  if (!history || !history.length) return '<div style="color:var(--text-dim); font-size:0.84rem;">段位履歴なし</div>';
+  return history.slice().reverse().map(h =>
+    `<div class="dan-history-row">第${h.season}季：<b>${danLabel(h.dan)}</b>　${escapeHtml(h.reason)}</div>`
+  ).join('');
 }
 
 function timeAgo(iso) {
@@ -317,6 +359,7 @@ function filterLabel(articles, filter) {
 
 function setActiveNav(tab) {
   document.getElementById('nav-feed').classList.toggle('active', tab === 'feed');
+  document.getElementById('nav-individuals').classList.toggle('active', tab === 'individuals');
   document.getElementById('nav-rules').classList.toggle('active', tab === 'rules');
 }
 
@@ -335,6 +378,9 @@ async function renderFeed(filter) {
       ${seasons.map(s => `<button class="chip-btn ${filter && filter.type === 'season' && filter.value === s ? 'active' : ''}"
         onclick="navigateTo('season/${s}')">第${s}季</button>`).join('')}
     </div>` : '';
+
+  // 絞り込みなしのトップでのみ、人気記事ランキング（いいね数上位）を表示する
+  const rankingHtml = filter ? '' : await renderPopularRanking(allArticles);
 
   const articles = applyFilter(allArticles, filter);
   const banner = filter ? `<div class="filter-banner">
@@ -368,7 +414,7 @@ async function renderFeed(filter) {
         </article>`;
       }).join('');
 
-  el.innerHTML = seasonChips + banner + list;
+  el.innerHTML = rankingHtml + seasonChips + banner + list;
 
   el.querySelectorAll('.card').forEach(card => {
     card.addEventListener('click', (ev) => {
@@ -389,6 +435,38 @@ async function renderFeed(filter) {
     });
   });
   el.querySelectorAll('[data-like-id]').forEach(setupLikeButton);
+  el.querySelectorAll('[data-ranking-article]').forEach(elm => {
+    elm.addEventListener('click', () => navigateTo('article/' + encodeURIComponent(elm.dataset.rankingArticle)));
+  });
+}
+
+// 人気記事ランキング：article_like.phpのaction=counts（全記事いいね数の一括取得）を使い、
+// いいね数上位5件をフィードの先頭に表示する（記事ごとに個別フェッチしない）
+async function renderPopularRanking(allArticles) {
+  let counts;
+  try {
+    const res = await fetch(`${RESULTS_SITE_BASE}article_like.php?action=counts`);
+    const data = await res.json();
+    counts = data.counts || {};
+  } catch (e) {
+    return '';
+  }
+  const ranked = allArticles
+    .map(a => ({ id: a.id, title: a.title, count: counts[a.id] || 0 }))
+    .filter(a => a.count > 0)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5);
+  if (ranked.length === 0) return '';
+
+  return `<div class="ranking-box">
+    <h4>人気記事ランキング（いいね数）</h4>
+    ${ranked.map((a, i) => `
+      <div class="ranking-row" data-ranking-article="${escapeHtml(a.id)}">
+        <span class="ranking-rank">${i + 1}</span>
+        <span class="ranking-title">${escapeHtml(a.title)}</span>
+        <span class="ranking-likes">♥ ${a.count}</span>
+      </div>`).join('')}
+  </div>`;
 }
 
 async function renderArticle(id) {
@@ -561,7 +639,7 @@ async function renderIndividualProfile(id) {
       ${avatarFor(name, id)}
       <div>
         <h1 class="profile-name">${escapeHtml(name)}</h1>
-        <div class="profile-sub">${statusLine}　Elo ${Math.round(ind.elo_rating)}（最高 ${Math.round(ind.peak_elo ?? ind.elo_rating)}）</div>
+        <div class="profile-sub">${statusLine}　Elo ${Math.round(ind.elo_rating)}（最高 ${Math.round(ind.peak_elo ?? ind.elo_rating)}）<span class="dan-badge">${danLabel(ind.dan)}</span></div>
       </div>
     </div>
 
@@ -576,6 +654,11 @@ async function renderIndividualProfile(id) {
     <div class="profile-section">
       <h4>タイトル獲得歴</h4>
       ${titleHtml}
+    </div>
+
+    <div class="profile-section">
+      <h4>段位履歴</h4>
+      ${renderDanHistory(ind.dan_history)}
     </div>
 
     <div class="profile-section">
@@ -649,6 +732,47 @@ async function loadProfileComments(id) {
   } catch (e) {
     el.innerHTML = '';
   }
+}
+
+// 個体一覧：記事経由以外にも個体ファンページへの導線を用意するためのページ。
+// データサイトのaction=leagues（現役ロスター、直近シーズンの順位を継承した並び順）を
+// そのまま利用する
+async function renderIndividualList() {
+  setActiveNav('individuals');
+  const el = document.getElementById('content');
+  el.innerHTML = '<div class="empty">読み込み中…</div>';
+
+  let data;
+  try {
+    const res = await fetch(`${RESULTS_SITE_BASE}api.php?action=leagues`);
+    data = await res.json();
+    if (!data.leagues) throw new Error('not found');
+  } catch (e) {
+    el.innerHTML = '<div class="empty">個体一覧の読み込みに失敗しました</div>';
+    return;
+  }
+
+  const leagues = data.leagues;
+  const groupsHtml = ['A', 'B', 'C', 'D'].map(lg => {
+    const rows = leagues[lg] || [];
+    const rowsHtml = rows.map(r => `
+      <div class="roster-row" data-goto-individual="${escapeHtml(r.id)}">
+        <span>${escapeHtml(r.display_name || r.id)}</span>
+        <span class="roster-right">${danLabel(r.dan)}　Elo ${Math.round(r.elo_rating)}</span>
+      </div>`).join('');
+    return `<div class="roster-league-group">
+      <h3>${lg}リーグ（${rows.length}名）</h3>
+      ${rowsHtml || '<div class="empty">在籍者なし</div>'}
+    </div>`;
+  }).join('');
+
+  el.innerHTML = `<div class="empty" style="padding:0 0 16px; text-align:left; color:var(--text-dim); font-size:0.8rem;">
+      現役の個体一覧です。名前をクリックすると個体ファンページへ移動します。
+    </div>${groupsHtml}`;
+
+  el.querySelectorAll('[data-goto-individual]').forEach(elm => {
+    elm.addEventListener('click', () => navigateTo('individual/' + encodeURIComponent(elm.dataset.gotoIndividual)));
+  });
 }
 
 function renderRules() {
@@ -735,6 +859,8 @@ function route() {
   const hash = location.hash.replace(/^#/, '');
   if (hash === 'rules') {
     renderRules();
+  } else if (hash === 'individuals') {
+    renderIndividualList();
   } else if (hash.startsWith('article/')) {
     renderArticle(decodeURIComponent(hash.slice('article/'.length)));
   } else if (hash.startsWith('individual/')) {
