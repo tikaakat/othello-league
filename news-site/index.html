@@ -150,11 +150,25 @@
   .roster-row:last-child { border-bottom: none; }
   .roster-row:hover { color: var(--accent-dark); }
   .roster-row .roster-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; color: var(--text-dim); font-size: 0.78rem; }
+  .roster-link-out { display: inline-block; font-size: 0.78rem; margin-bottom: 14px; cursor: pointer; color: var(--accent-dark); }
+  .roster-link-out:hover { text-decoration: underline; }
 
-  /* 一門（師匠・弟子） */
-  .lineage-row { font-size: 0.82rem; padding: 4px 0; cursor: pointer; }
-  .lineage-row:hover { color: var(--accent-dark); }
-  .lineage-label { color: var(--text-dim); font-size: 0.78rem; margin-right: 4px; }
+  /* 一門系統図 */
+  .clan-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 8px 0; font-size: 0.85rem; border-bottom: 1px solid var(--border); cursor: pointer;
+  }
+  .clan-row:last-child { border-bottom: none; }
+  .clan-row:hover { color: var(--accent-dark); }
+  .clan-row .clan-right { color: var(--text-dim); font-size: 0.78rem; flex-shrink: 0; }
+  .clan-tree-row { font-size: 0.82rem; padding: 4px 0; display: flex; align-items: baseline; gap: 6px; cursor: pointer; }
+  .clan-tree-row:hover .clan-tree-name { color: var(--accent-dark); }
+  .clan-tree-name { color: var(--text-main); }
+  .clan-tree-meta { color: var(--text-dim); font-size: 0.72rem; }
+  .clan-branch-row { font-size: 0.76rem; padding: 3px 0; color: #B8692E; cursor: pointer; }
+  .clan-branch-row:hover { text-decoration: underline; }
+  .clan-branched-from { font-size: 0.78rem; color: var(--text-dim); margin-bottom: 10px; cursor: pointer; }
+  .clan-branched-from:hover { color: var(--accent-dark); }
 
   /* 人気記事ランキング */
   .ranking-box { margin-bottom: 16px; padding: 10px 14px; background: #FFFBF6; border: 1px solid var(--border); border-radius: 10px; }
@@ -788,21 +802,6 @@ async function renderIndividualProfile(id) {
     ? mentions.map(a => `<div class="related-article-link" data-article-link="${escapeHtml(a.id)}">${escapeHtml(a.title)}</div>`).join('')
     : '<div style="color:var(--text-dim); font-size:0.84rem;">まだ関連記事がありません</div>';
 
-  // 一門（師匠・弟子）：詳しい系統図はデータサイト側にあるため、ここでは直接の
-  // 師匠・弟子のみを簡易表示する（将棋連盟の棋士系統図のような、より深い系譜は
-  // 下部の「もっと詳しいデータを見る」からデータサイトへ）
-  const lineageRows = [];
-  if (data.parent) {
-    const p = data.parent;
-    lineageRows.push(`<div class="lineage-row" data-goto-individual="${escapeHtml(p.id)}"><span class="lineage-label">師匠</span>${escapeHtml(p.display_name || p.id)}${p.retired ? '（引退）' : ''}</div>`);
-  }
-  (data.children || []).forEach(c => {
-    lineageRows.push(`<div class="lineage-row" data-goto-individual="${escapeHtml(c.id)}"><span class="lineage-label">弟子</span>${escapeHtml(c.display_name || c.id)}${c.retired ? '（引退）' : ''}</div>`);
-  });
-  const lineageSectionHtml = lineageRows.length
-    ? `<div class="profile-section"><h4>一門</h4>${lineageRows.join('')}</div>`
-    : '';
-
   el.innerHTML = `
     <a class="back-link" href="#" onclick="navigateTo('');return false;">← フィードへ戻る</a>
     <div class="profile-header">
@@ -841,8 +840,6 @@ async function renderIndividualProfile(id) {
       ${renderDanHistory(ind.dan_history)}
     </div>
 
-    ${lineageSectionHtml}
-
     <div class="profile-section">
       <h4>関連記事</h4>
       ${mentionsHtml}
@@ -855,9 +852,6 @@ async function renderIndividualProfile(id) {
 
   el.querySelectorAll('[data-article-link]').forEach(elm => {
     elm.addEventListener('click', () => navigateTo('article/' + encodeURIComponent(elm.dataset.articleLink)));
-  });
-  el.querySelectorAll('[data-goto-individual]').forEach(elm => {
-    elm.addEventListener('click', () => navigateTo('individual/' + encodeURIComponent(elm.dataset.gotoIndividual)));
   });
 
   setupProfileCheer(id);
@@ -1145,9 +1139,130 @@ async function renderIndividualList() {
     <div class="empty" style="padding:0 0 10px; text-align:left; color:var(--text-dim); font-size:0.8rem;">
       現役選手の名鑑です。名前をクリックすると選手ファンページへ移動します。
     </div>
+    <div class="roster-link-out" data-goto-clans="true">→ 一門系統図を見る</div>
     ${groupsHtml}`;
 
   wireRosterCommon(el);
+  const clansLink = el.querySelector('[data-goto-clans]');
+  if (clansLink) clansLink.addEventListener('click', () => navigateTo('clans'));
+}
+
+// 一門系統図：将棋連盟の「棋士系統図」を参考に、師弟関係の木構造を表示する。
+// データサイトのaction=clans/action=clan（フロント側でparent_a_idを辿ってツリーを組み立てる
+// 設計）をそのまま再利用し、こちら側で新たにツリー構築ロジックを持たない
+async function renderClanList() {
+  setActiveNav('individuals');
+  const el = document.getElementById('content');
+  el.innerHTML = '<div class="empty">読み込み中…</div>';
+
+  let data;
+  try {
+    const res = await fetch(`${RESULTS_SITE_BASE}api.php?action=clans`);
+    data = await res.json();
+    if (!data.clans) throw new Error('not found');
+  } catch (e) {
+    el.innerHTML = '<div class="empty">一門系統図の読み込みに失敗しました</div>';
+    return;
+  }
+
+  const rows = data.clans || [];
+  const active = rows.filter(c => c.active_count > 0);
+  const extinct = rows.filter(c => c.active_count === 0);
+
+  const rowHtml = c => `<div class="clan-row" data-goto-clan="${escapeHtml(c.clan_root_id)}">
+      <span>${escapeHtml(c.founder_name)}${c.founder_retired ? '<span class="clan-right">（引退）</span>' : ''}</span>
+      <span class="clan-right">${c.active_count}名（総${c.member_count}名）　最高Elo ${Math.round(c.best_peak_elo)}</span>
+    </div>`;
+
+  let html = `
+    <a class="back-link" href="#" onclick="navigateTo('individuals');return false;">← 選手名鑑へ戻る</a>
+    <div class="empty" style="padding:0 0 10px; text-align:left; color:var(--text-dim); font-size:0.8rem;">
+      師弟関係でつながる一門（歴代最高Elo順）です。開祖の名前をクリックすると系統図を見られます。
+    </div>
+    <div class="roster-league-group"><h3>一門一覧（${active.length}件）</h3>
+      ${active.map(rowHtml).join('') || '<div class="empty">まだ一門がありません</div>'}
+    </div>`;
+  if (extinct.length > 0) {
+    html += `<div class="roster-league-group"><h3>消滅した一門（${extinct.length}件）</h3>
+      ${extinct.map(rowHtml).join('')}
+    </div>`;
+  }
+  el.innerHTML = html;
+
+  el.querySelectorAll('[data-goto-clan]').forEach(elm => {
+    elm.addEventListener('click', () => navigateTo('clans/' + encodeURIComponent(elm.dataset.gotoClan)));
+  });
+}
+
+// 系統図の各ノードを、師匠→弟子の階層でインデント表示する（データサイト側と同じ考え方）
+function renderClanTreeNode(node, childrenByParent, branchesByUnder, depth) {
+  const kids = childrenByParent[node.id] || [];
+  const branches = branchesByUnder[node.id] || [];
+  const statusLabel = node.retired ? '（引退）' : node.league + 'リーグ';
+  const eloLabel = node.retired ? `最高Elo ${Math.round(node.peak_elo)}` : `Elo ${Math.round(node.elo_rating)}`;
+  let html = `<div class="clan-tree-row" style="padding-left:${depth * 18}px;" data-goto-individual="${escapeHtml(node.id)}">
+      <span class="clan-tree-name">${isFollowed(node.id) ? '★ ' : ''}${escapeHtml(node.display_name || node.id)}</span>
+      <span class="clan-tree-meta">${statusLabel}・${eloLabel}</span>
+    </div>`;
+  branches.forEach(b => {
+    html += `<div class="clan-branch-row" style="padding-left:${(depth + 1) * 18}px;" data-goto-clan="${escapeHtml(b.branch_clan_root_id)}">
+        └ ${escapeHtml(b.branch_name)}${b.branch_retired ? '（引退）' : ''}の一門へ分岐 →
+      </div>`;
+  });
+  kids.forEach(k => { html += renderClanTreeNode(k, childrenByParent, branchesByUnder, depth + 1); });
+  return html;
+}
+
+async function renderClanDetail(clanId) {
+  setActiveNav('individuals');
+  const el = document.getElementById('content');
+  el.innerHTML = '<div class="empty">読み込み中…</div>';
+
+  let data;
+  try {
+    const res = await fetch(`${RESULTS_SITE_BASE}api.php?action=clan&id=${encodeURIComponent(clanId)}`);
+    data = await res.json();
+    if (!data.members) throw new Error('not found');
+  } catch (e) {
+    el.innerHTML = '<div class="empty">一門の読み込みに失敗しました</div>';
+    return;
+  }
+
+  const members = data.members || [];
+  const membersById = {};
+  members.forEach(m => { membersById[m.id] = m; });
+  const childrenByParent = {};
+  members.forEach(m => {
+    if (m.parent_a_id && membersById[m.parent_a_id]) {
+      (childrenByParent[m.parent_a_id] = childrenByParent[m.parent_a_id] || []).push(m);
+    }
+  });
+  const root = membersById[clanId] || members.find(m => !m.parent_a_id || !membersById[m.parent_a_id]);
+  const branchesByUnder = {};
+  (data.branches_out || []).forEach(b => {
+    (branchesByUnder[b.under_id] = branchesByUnder[b.under_id] || []).push(b);
+  });
+
+  const bf = data.branched_from;
+  const branchedFromHtml = bf ? `<div class="clan-branched-from" data-goto-clan="${escapeHtml(bf.origin_clan_root_id)}">
+      ${escapeHtml(bf.master_name)}${bf.master_retired ? '（引退）' : ''}の一門から独立 →
+    </div>` : '';
+
+  el.innerHTML = `
+    <a class="back-link" href="#" onclick="navigateTo('clans');return false;">← 一門一覧へ戻る</a>
+    <h1 class="profile-name" style="font-size:1.1rem;">${escapeHtml(root ? (root.display_name || root.id) : clanId)}の一門</h1>
+    <div class="profile-sub" style="margin-bottom:10px;">総勢${members.length}名（現役${members.filter(m => !m.retired).length}名）</div>
+    ${branchedFromHtml}
+    <div class="profile-section" style="margin-top:0; padding-top:0; border-top:none;">
+      ${root ? renderClanTreeNode(root, childrenByParent, branchesByUnder, 0) : ''}
+    </div>`;
+
+  el.querySelectorAll('[data-goto-individual]').forEach(elm => {
+    elm.addEventListener('click', () => navigateTo('individual/' + encodeURIComponent(elm.dataset.gotoIndividual)));
+  });
+  el.querySelectorAll('[data-goto-clan]').forEach(elm => {
+    elm.addEventListener('click', () => navigateTo('clans/' + encodeURIComponent(elm.dataset.gotoClan)));
+  });
 }
 
 function renderRules() {
@@ -1236,6 +1351,10 @@ function route() {
     renderRules();
   } else if (hash === 'individuals') {
     renderIndividualList();
+  } else if (hash === 'clans') {
+    renderClanList();
+  } else if (hash.startsWith('clans/')) {
+    renderClanDetail(decodeURIComponent(hash.slice('clans/'.length)));
   } else if (hash.startsWith('article/')) {
     renderArticle(decodeURIComponent(hash.slice('article/'.length)));
   } else if (hash.startsWith('individual/')) {

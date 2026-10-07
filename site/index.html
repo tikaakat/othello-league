@@ -143,9 +143,8 @@
 
 <div class="panel" id="tab-leagues"><div id="leagues-content" class="loading">読み込み中...</div></div>
 <div class="panel hidden" id="tab-suzaku_league"><div id="suzaku_league-content" class="loading">読み込み中...</div></div>
-<div class="panel hidden" id="tab-clans"><div id="clans-content" class="loading">読み込み中...</div></div>
 <div class="panel hidden" id="tab-titles"><div id="titles-content" class="loading">読み込み中...</div></div>
-<div class="panel hidden" id="tab-individual"><div id="individual-content" class="empty">リーグ・一門タブから個体を選択してください</div></div>
+<div class="panel hidden" id="tab-individual"><div id="individual-content" class="empty">リーグタブから個体を選択してください</div></div>
 <div class="panel hidden" id="tab-matches"><div id="matches-content" class="loading">読み込み中...</div></div>
 <div class="panel hidden" id="tab-seiryuu"><div id="seiryuu-content" class="loading">読み込み中...</div></div>
 <div class="panel hidden" id="tab-suzaku"><div id="suzaku-content" class="loading">読み込み中...</div></div>
@@ -176,7 +175,6 @@ const API_BASE = 'api.php';
 const D_NEWCOMER_INTAKE = 2; // othello_league/league.py の D_NEWCOMER_INTAKE（毎季固定の新人受け入れ枠数）と一致させること
 const tabPanels = {
   leagues: document.getElementById('tab-leagues'), suzaku_league: document.getElementById('tab-suzaku_league'),
-  clans: document.getElementById('tab-clans'),
   titles: document.getElementById('tab-titles'), individual: document.getElementById('tab-individual'),
   matches: document.getElementById('tab-matches'),
   seiryuu: document.getElementById('tab-seiryuu'),
@@ -192,8 +190,7 @@ const tabPanels = {
 
 // 上段の主要タブと、その配下にぶら下がるサブタブの対応関係。
 // タブが増えすぎて煩雑になったため、関連の深いものだけをグループ化して2階層にした
-// （表彰は「今季の結果」なので殿堂＝通算記録とは分け、順位とセットにする。対局＝棋譜閲覧も結果の一種として統合。
-//  一門はリーグ＝現行ロスター閲覧の一種としてリーグ配下に統合）
+// （表彰は「今季の結果」なので殿堂＝通算記録とは分け、順位とセットにする。対局＝棋譜閲覧も結果の一種として統合）
 // サブタブには2種類ある：
 //   subLabels方式＝タブごとに別URL（navigateTo）で切り替える（リーグ・結果・新人）
 //   subViews方式＝1つのタブの中で、パネル内部の状態だけを切り替える（タイトル・殿堂）。
@@ -201,8 +198,8 @@ const tabPanels = {
 // （以前はsubViews系だけパネル内部に独自描画しており、タブ直下のsubLabels系と縦位置が揃っていなかった）
 const TAB_GROUPS = {
   leagues: {
-    label: 'リーグ', tabs: ['leagues', 'suzaku_league', 'clans'],
-    subLabels: { leagues: '青龍戦リーグ表', suzaku_league: '朱雀戦紅白リーグ表', clans: '一門' },
+    label: 'リーグ', tabs: ['leagues', 'suzaku_league'],
+    subLabels: { leagues: '青龍戦リーグ表', suzaku_league: '朱雀戦紅白リーグ表' },
   },
   results: {
     label: '結果', tabs: ['seiryuu', 'suzaku', 'byakko', 'genbu', 'awards', 'matches'],
@@ -426,8 +423,6 @@ function render(hash, isPopstate) {
     loadGameBoard(param);
   } else if (base === 'leagues') { showTab('leagues'); loadLeagues(); }
   else if (base === 'suzaku_league') { showTab('suzaku_league'); loadSuzakuLeaguePanel(); }
-  else if (base === 'clans' && param) { showTab('clans'); loadClanDetail(param); }
-  else if (base === 'clans') { showTab('clans'); loadClans(); }
   else if (base === 'titles') { showTab('titles'); loadTitles(); }
   else if (base === 'matches') { showTab('matches'); loadMatches(); }
   else if (base === 'seiryuu') { showTab('seiryuu'); loadSeiryuuPanel(param ? parseInt(param, 10) : null); }
@@ -649,122 +644,6 @@ async function loadSuzakuLeaguePanel() {
   }
 }
 
-// ---------------- 一門 ----------------
-
-async function loadClans() {
-  const el = document.getElementById('clans-content');
-  el.innerHTML = '<div class="loading">読み込み中...</div>';
-  try {
-    const res = await fetch(`${API_BASE}?action=clans`);
-    const data = await res.json();
-    const rows = data.clans || [];
-
-    let html = '';
-
-    if (rows.length === 0) {
-      html += '<div class="empty">まだ一門がありません</div>';
-      el.innerHTML = html;
-      return;
-    }
-
-    const headHtml = '<thead><tr><th>#</th><th>開祖</th><th>人数</th><th>最高Elo</th></tr></thead>';
-    const rowHtml = (c, rank) => `<tr data-clan="${escapeHtml(c.clan_root_id)}"><td class="rank-num">${rank}</td>
-        <td>${escapeHtml(c.founder_name)}${c.founder_retired ? '<span style="color:var(--text-dim); font-size:0.68rem;">（引退）</span>' : ''}</td>
-        <td>${c.active_count}名<span style="color:var(--text-dim); font-size:0.68rem;">（総${c.member_count}名）</span></td>
-        <td class="elo-val">${Math.round(c.best_peak_elo)}</td></tr>`;
-
-    // 現役が1人もいない（＝消滅した）一門は、通常の一覧から分けて末尾に折りたたむ
-    const active = rows.filter(c => c.active_count > 0);
-    const extinct = rows.filter(c => c.active_count === 0);
-
-    html += '<h3 style="font-size:0.8rem; color:var(--amber); margin-top:0;">一門一覧（歴代最高Elo順）</h3>';
-    html += `<table>${headHtml}<tbody>`;
-    active.forEach((c, i) => { html += rowHtml(c, i + 1); });
-    html += '</tbody></table>';
-
-    if (extinct.length > 0) {
-      const uid = 'cq' + (_collapsibleSeq++);
-      html += `<div class="collapsible-toggle" data-target="${uid}" style="margin:10px 0 4px; cursor:pointer; color:var(--text-dim); font-size:0.74rem; display:flex; align-items:center; gap:6px;">
-        <span class="collapsible-arrow">▶</span><span data-show-text="消滅した一門を表示（${extinct.length}件）">消滅した一門を表示（${extinct.length}件）</span>
-      </div>`;
-      html += `<div id="${uid}" class="hidden"><table>${headHtml}<tbody>`;
-      extinct.forEach((c, i) => { html += rowHtml(c, i + 1); });
-      html += '</tbody></table></div>';
-    }
-
-    el.innerHTML = html;
-    el.querySelectorAll('tr[data-clan]').forEach(tr => tr.addEventListener('click', () => navigateTo('clans/' + tr.dataset.clan)));
-  } catch (e) {
-    el.innerHTML = `<div class="empty">読み込み失敗: ${escapeHtml(String(e))}</div>`;
-  }
-}
-
-// 一門の系譜ツリーを、師匠→弟子の階層でインデント表示する（個体ページの系譜と同じ考え方）。
-// branchesByUnderは「このノードの下で他の一門へ分岐した弟子」の一覧（id => [branch, ...]）
-function renderClanTree(node, childrenByParent, branchesByUnder, depth) {
-  const kids = childrenByParent[node.id] || [];
-  const branches = branchesByUnder[node.id] || [];
-  const statusBadge = node.retired
-    ? '<span style="color:var(--text-dim); font-size:0.68rem;">（引退）</span>'
-    : leagueTag(node.league);
-  const eloLabel = node.retired
-    ? `最高Elo ${Math.round(node.peak_elo)}`
-    : `Elo ${Math.round(node.elo_rating)}<span style="color:var(--text-dim); font-size:0.68rem;"> / 最高${Math.round(node.peak_elo)}</span>`;
-  let html = `<div class="lineage-link" data-id="${escapeHtml(node.id)}" style="padding:3px 0 3px ${depth * 16}px; font-size:0.8rem; cursor:pointer; ${depth > 0 ? 'border-left:1px solid var(--navy-700); margin-left:-1px;' : ''}">
-    ${statusBadge}<span style="color:var(--text-main);">${escapeHtml(node.display_name || node.id)}</span>
-    <span style="color:var(--text-dim); font-size:0.72rem; margin-left:6px;">${eloLabel}</span>
-  </div>`;
-  branches.forEach(b => {
-    html += `<div class="lineage-link" data-clan="${escapeHtml(b.branch_clan_root_id)}" style="padding:2px 0 2px ${(depth + 1) * 16}px; font-size:0.74rem; cursor:pointer; color:var(--amber-dim); border-left:1px solid var(--navy-700); margin-left:-1px;">
-      L→ ${escapeHtml(b.branch_name)}${b.branch_retired ? '（引退）' : ''}の一門へ分岐
-    </div>`;
-  });
-  kids.forEach(k => { html += renderClanTree(k, childrenByParent, branchesByUnder, depth + 1); });
-  return html;
-}
-
-async function loadClanDetail(clanId) {
-  const el = document.getElementById('clans-content');
-  el.innerHTML = '<div class="loading">読み込み中...</div>';
-  try {
-    const res = await fetch(`${API_BASE}?action=clan&id=${encodeURIComponent(clanId)}`);
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || '取得に失敗しました');
-    const members = data.members || [];
-    const membersById = {};
-    members.forEach(m => { membersById[m.id] = m; });
-    const childrenByParent = {};
-    members.forEach(m => {
-      if (m.parent_a_id && membersById[m.parent_a_id]) {
-        (childrenByParent[m.parent_a_id] = childrenByParent[m.parent_a_id] || []).push(m);
-      }
-    });
-    const root = membersById[clanId] || members.find(m => !m.parent_a_id || !membersById[m.parent_a_id]);
-
-    const branchesByUnder = {};
-    (data.branches_out || []).forEach(b => {
-      (branchesByUnder[b.under_id] = branchesByUnder[b.under_id] || []).push(b);
-    });
-
-    let html = `<div class="back-link" id="clans-back">← 一門一覧に戻る</div>`;
-    html += `<h3 style="font-size:0.8rem; color:var(--amber); margin-top:0;">${escapeHtml(root ? (root.display_name || root.id) : clanId)}の一門</h3>`;
-    const bf = data.branched_from;
-    if (bf) {
-      html += `<div style="font-size:0.74rem; color:var(--text-dim); margin-bottom:8px;">
-        <span class="lineage-link" data-clan="${escapeHtml(bf.origin_clan_root_id)}" style="color:var(--cyan-dim); cursor:pointer;">${escapeHtml(bf.master_name)}${bf.master_retired ? '（引退）' : ''}の一門から独立 →</span>
-      </div>`;
-    }
-    html += `<div style="font-size:0.76rem; color:var(--text-dim); margin-bottom:10px;">総勢${members.length}名（現役${members.filter(m => !m.retired).length}名）</div>`;
-    html += '<div>' + (root ? renderClanTree(root, childrenByParent, branchesByUnder, 0) : '') + '</div>';
-    el.innerHTML = html;
-    document.getElementById('clans-back').addEventListener('click', () => navigateTo('clans'));
-    el.querySelectorAll('.lineage-link[data-id]').forEach(d => d.addEventListener('click', () => navigateTo('individual/' + d.dataset.id)));
-    el.querySelectorAll('.lineage-link[data-clan]').forEach(d => d.addEventListener('click', () => navigateTo('clans/' + d.dataset.clan)));
-  } catch (e) {
-    el.innerHTML = `<div class="empty">読み込み失敗: ${escapeHtml(String(e))}</div>`;
-  }
-}
-
 // ---------------- タイトル ----------------
 // タイトルタブ内の副タブ（現在の保持者／歴代◯◯）。URLハッシュは変えず、パネル内だけで切り替える
 const TITLES_VIEWS = ['current', ...TITLE_ORDER];
@@ -898,7 +777,6 @@ async function loadIndividualDetail(id) {
         <button id="ind-fav-toggle" class="fav-toggle" data-id="${escapeHtml(ind.id)}">☆ お気に入りに追加</button>
         <button id="ind-cheer-btn" class="cheer-btn" data-id="${escapeHtml(ind.id)}">♡ 応援する<span id="ind-cheer-count">（${ind.cheer_count ?? 0}）</span></button>
       </div>
-      ${ind.clan_established ? `<div style="margin-top:6px;"><span class="back-link" id="ind-clan-link" style="margin-bottom:0;">一門を見る →</span></div>` : ''}
       ${ind.awakened_param ? `<div style="margin-top:8px; display:inline-block; background:rgba(255,182,72,0.15); border:1px solid var(--amber); color:var(--amber); font-size:0.72rem; padding:3px 10px; border-radius:2px;">★ 覚醒：「${escapeHtml(paramLabel(ind.awakened_param))}」突破</div>` : ''}
     </div>`;
 
@@ -940,8 +818,6 @@ async function loadIndividualDetail(id) {
     document.getElementById('ind-fav-toggle').addEventListener('click', () => toggleFavorite(ind.id));
     applyFavoriteHighlights();
     setupCheerButton(document.getElementById('ind-cheer-btn'));
-    const clanLink = document.getElementById('ind-clan-link');
-    if (clanLink) clanLink.addEventListener('click', () => navigateTo('clans/' + ind.clan_root_id));
     el.querySelectorAll('.lineage-link').forEach(span => span.addEventListener('click', () => navigateTo('individual/' + span.dataset.id)));
 
     renderRecord(data.record);
