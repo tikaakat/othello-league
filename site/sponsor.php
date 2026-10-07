@@ -10,8 +10,15 @@
 //
 // GET：個体への支援者一覧（sponsors）と、永久スポンサー枠（permanent_sponsors、
 // 1個体につき先着1名のみ。埋まっていなければpermanentはnull）を取得する。
-// いずれも表示名・一言のみを返し、金額は返さない
+// 金額そのものは返さず、松（500円以上）・竹（300円以上）・梅（それ未満）の
+// 3段階の支援ランクのみを返す（表示側で松竹梅として区分けするため）
 // ============================================================
+
+function sponsor_tier($amountJpy) {
+    if ($amountJpy >= 500) return '松';
+    if ($amountJpy >= 300) return '竹';
+    return '梅';
+}
 
 ini_set('display_errors', '0');
 error_reporting(E_ALL);
@@ -40,15 +47,21 @@ $pdo = league_db_connect();
 $limit = min(50, max(1, (int)($_GET['limit'] ?? 20)));
 
 $stmt = $pdo->prepare(
-    "SELECT display_name, message FROM sponsors
+    "SELECT display_name, message, amount_jpy FROM sponsors
      WHERE individual_id = :id ORDER BY created_at DESC LIMIT :limit"
 );
 $stmt->bindValue(':id', $individualId);
 $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
 $stmt->execute();
+$sponsors = array_map(function ($row) {
+    return [
+        'display_name' => $row['display_name'], 'message' => $row['message'],
+        'tier' => sponsor_tier((int)$row['amount_jpy']),
+    ];
+}, $stmt->fetchAll());
 
 $permStmt = $pdo->prepare("SELECT display_name, message FROM permanent_sponsors WHERE individual_id = :id");
 $permStmt->execute(['id' => $individualId]);
 $permanent = $permStmt->fetch() ?: null;
 
-echo json_encode(['sponsors' => $stmt->fetchAll(), 'permanent' => $permanent], JSON_UNESCAPED_UNICODE);
+echo json_encode(['sponsors' => $sponsors, 'permanent' => $permanent], JSON_UNESCAPED_UNICODE);

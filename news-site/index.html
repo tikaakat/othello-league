@@ -237,6 +237,18 @@
   }
   .sponsor-item .sponsor-name { font-weight: 700; color: #8A6A2E; flex-shrink: 0; }
   .sponsor-item .sponsor-message { overflow: hidden; text-overflow: ellipsis; }
+  /* 松竹梅：支援ランクごとに一覧を区分けして表示する（金額そのものは出さない） */
+  .sponsor-tier-group { margin-top: 10px; }
+  .sponsor-tier-group:first-child { margin-top: 0; }
+  .sponsor-tier-label {
+    font-size: 0.72rem; font-weight: 700; margin-bottom: 4px; display: flex; align-items: center; gap: 4px;
+  }
+  .sponsor-tier-label.tier-matsu { color: #96701A; }
+  .sponsor-tier-label.tier-take { color: #4F7A3D; }
+  .sponsor-tier-label.tier-ume { color: #B8567A; }
+  .sponsor-item.tier-matsu { border-left-color: #D9A24B; }
+  .sponsor-item.tier-take { border-left-color: #7FAE63; background: #F1F7EC; }
+  .sponsor-item.tier-ume { border-left-color: #E08CAE; background: #FDF0F5; }
 
   /* 永久スポンサー枠：1個体につき先着1名のみ。応援・通常サポーターよりも特別な扱いにする */
   .permanent-slot-box {
@@ -983,6 +995,27 @@ function setupSponsorUI(id) {
   };
 }
 
+// 松（500円〜）・竹（300円〜）・梅（それ未満）の順に区分けして表示する。
+// 金額そのものはAPIが返さず、このtierラベルだけを使う
+const SPONSOR_TIERS = [
+  { key: '松', cls: 'tier-matsu', label: '🌲 松' },
+  { key: '竹', cls: 'tier-take', label: '🎍 竹' },
+  { key: '梅', cls: 'tier-ume', label: '🌸 梅' },
+];
+function sponsorTierGroupsHtml(list) {
+  return SPONSOR_TIERS.map(t => {
+    const rows = list.filter(s => (s.tier || '梅') === t.key);
+    if (!rows.length) return '';
+    return `<div class="sponsor-tier-group">
+        <div class="sponsor-tier-label ${t.cls}">${t.label}（${rows.length}名）</div>
+        ${rows.map(s => `<div class="sponsor-item ${t.cls}">
+            <span class="sponsor-name">${escapeHtml(s.display_name)}</span>
+            ${s.message ? `<span class="sponsor-message">${escapeHtml(s.message)}</span>` : ''}
+          </div>`).join('')}
+      </div>`;
+  }).join('');
+}
+
 async function loadSponsorList(id) {
   const el = document.getElementById('sponsor-list');
   const permEl = document.getElementById('permanent-slot-box');
@@ -992,10 +1025,7 @@ async function loadSponsorList(id) {
     const data = await res.json();
     const list = data.sponsors || [];
     el.innerHTML = list.length
-      ? list.map(s => `<div class="sponsor-item">
-          <span class="sponsor-name">${escapeHtml(s.display_name)}</span>
-          ${s.message ? `<span class="sponsor-message">${escapeHtml(s.message)}</span>` : ''}
-        </div>`).join('')
+      ? sponsorTierGroupsHtml(list)
       : '<div style="color:var(--text-dim); font-size:0.78rem;">まだサポーターはいません</div>';
 
     if (permEl) {
