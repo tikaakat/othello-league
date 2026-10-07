@@ -62,6 +62,10 @@ on:
         description: "デプロイの代わりに、lab.spia-net.com直下（othello-league/の1つ上）に相対パスでディレクトリを作成する（例: othello-news）。「..」や先頭「/」は不可"
         required: false
         default: ""
+      run_import:
+        description: "trueにすると、デプロイの代わりにサーバー上のimport_from_github.php（GitHub上のdata/配下→DB取り込み）をCLI実行する（DB列の追加だけでなく既存データの反映漏れを後から取り込みたい場合などに使う）"
+        required: false
+        default: "false"
 
 jobs:
   deploy-site:
@@ -71,7 +75,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Lint PHP before deploying
-        if: ${{ github.event.inputs.list_only != 'true' && github.event.inputs.delete_files == '' && github.event.inputs.read_file == '' && github.event.inputs.run_migration == '' && github.event.inputs.create_dir == '' }}
+        if: ${{ github.event.inputs.list_only != 'true' && github.event.inputs.delete_files == '' && github.event.inputs.read_file == '' && github.event.inputs.run_migration == '' && github.event.inputs.create_dir == '' && github.event.inputs.run_import != 'true' }}
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq php-cli
           php -l site/api.php
@@ -97,6 +101,7 @@ jobs:
           READ_FILE: ${{ github.event.inputs.read_file }}
           RUN_MIGRATION: ${{ github.event.inputs.run_migration }}
           CREATE_DIR: ${{ github.event.inputs.create_dir }}
+          RUN_IMPORT: ${{ github.event.inputs.run_import }}
         run: |
           echo "$XSERVER_SSH_KEY" > /tmp/deploy_key
           chmod 600 /tmp/deploy_key
@@ -268,6 +273,17 @@ jobs:
             echo "=== ${XSERVER_LAB_DIR}${d} を作成 ==="
             retry_cmd ssh -i /tmp/deploy_key -p "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
               "$XSERVER_USER@$XSERVER_HOST" "mkdir -pv -- '${XSERVER_LAB_DIR}${d}'"
+            rm -f /tmp/deploy_key
+            exit 0
+          fi
+
+          if [ "$RUN_IMPORT" = "true" ]; then
+            echo "=== プル型インポート（import_from_github.php）をCLI実行 ==="
+            # CLI実行時（php_sapi_name()==='cli'）はimport_from_github.php側の
+            # ?key=認証チェックがスキップされる仕様（import_from_github.php自身を参照）
+            retry_cmd ssh -i /tmp/deploy_key -p "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=20 \
+              "$XSERVER_USER@$XSERVER_HOST" \
+              "PHP_BIN=\$(command -v php84 || command -v php83 || command -v php82 || command -v php81 || command -v php80 || command -v php74 || command -v php8.4 || command -v php8.3 || command -v php8.2 || command -v php8.1 || command -v php8.0 || command -v php7.4 || command -v php); cd '${XSERVER_SITE_DIR}' && \"\$PHP_BIN\" import_from_github.php"
             rm -f /tmp/deploy_key
             exit 0
           fi
