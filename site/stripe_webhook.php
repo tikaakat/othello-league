@@ -1,11 +1,18 @@
 <?php
 // ============================================================
 // Stripe Webhook受信エンドポイント。checkout.session.completed を受けて
-// sponsors（常に）・permanent_sponsors（500円以上かつ空席の場合のみ）に
-// 1行ずつ記録する。stripe_session_idのUNIQUE制約により、Webhookの重複配信
+// sponsors（100円・300円）またはpermanent_sponsors（500円＝スペシャルサポーター）
+// のどちらか一方に記録する。500円は「1個体につき先着1名限定のスペシャルサポーター」
+// そのものであり、sponsors側の松（500円）tierのような複数人掲載の概念ではないため、
+// sponsorsテーブルには書き込まない。
+// stripe_session_idのUNIQUE制約により、Webhookの重複配信
 // （Stripeは同一イベントを複数回送ることがある）があっても二重計上しない。
 // permanent_sponsorsはindividual_id自体がPRIMARY KEYなので、既に先着者が
-// いる個体への2件目の書き込みも自然に失敗し、先着1名が保証される。
+// いる個体への2件目の書き込みも自然に失敗し、先着1名が保証される
+// （create_checkout.php側で事前チェック済みだが、ほぼ同時に2人が決済を
+// 完了させた場合の最終的な排他制御はここで行う。その場合、後者は代金を
+// 実際に受け取っていても記録されずに終わる想定外のエッジケースだが、
+// 発生確率は極めて低く、返金対応は別途手動で行う前提で許容する）
 //
 // 署名検証はstripe_client.phpのstripe_verify_webhook_signature()で行う
 // （Stripe公式PHP SDKは使わず自前実装。詳細はそちらのコメント参照）
@@ -64,22 +71,8 @@ if ($sessionId === '' || $individualId === '' || $amountJpy <= 0) {
 
 $pdo = league_db_connect();
 
-try {
-    $ins = $pdo->prepare(
-        "INSERT INTO sponsors (individual_id, display_name, message, amount_jpy, currency, stripe_session_id)
-         VALUES (:id, :name, :message, :amount, 'jpy', :sid)"
-    );
-    $ins->execute([
-        'id' => $individualId, 'name' => $displayName,
-        'message' => $message !== '' ? $message : null,
-        'amount' => $amountJpy, 'sid' => $sessionId,
-    ]);
-} catch (\PDOException $e) {
-    // 23000=一意制約違反（Webhookの重複配信）。それ以外は非2xxを返してStripeに再送させる
-    if ($e->getCode() !== '23000') { throw $e; }
-}
-
 if ($amountJpy >= 500) {
+    // スペシャルサポーター（先着1名）。sponsorsには書き込まない
     try {
         $permIns = $pdo->prepare(
             "INSERT INTO permanent_sponsors (individual_id, display_name, message, amount_jpy, stripe_session_id)
@@ -92,6 +85,23 @@ if ($amountJpy >= 500) {
         ]);
     } catch (\PDOException $e) {
         // 23000＝既に別の支援者が先着しているか、Webhookの重複配信。どちらも無視してよい
+        // （先着者がいる場合に実際に代金を受け取ってしまうエッジケースの扱いは
+        // ファイル冒頭のコメント参照）
+        if ($e->getCode() !== '23000') { throw $e; }
+    }
+} else {
+    try {
+        $ins = $pdo->prepare(
+            "INSERT INTO sponsors (individual_id, display_name, message, amount_jpy, currency, stripe_session_id)
+             VALUES (:id, :name, :message, :amount, 'jpy', :sid)"
+        );
+        $ins->execute([
+            'id' => $individualId, 'name' => $displayName,
+            'message' => $message !== '' ? $message : null,
+            'amount' => $amountJpy, 'sid' => $sessionId,
+        ]);
+    } catch (\PDOException $e) {
+        // 23000=一意制約違反（Webhookの重複配信）。それ以外は非2xxを返してStripeに再送させる
         if ($e->getCode() !== '23000') { throw $e; }
     }
 }

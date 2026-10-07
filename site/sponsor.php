@@ -1,21 +1,23 @@
 <?php
 // ============================================================
 // 個体への有料支援（スポンサー）機能。
-// このファイルは現時点ではGET（一覧取得）のみを提供する。
-// 実際の決済（Stripe Checkout）・Webhook受信によるsponsors/permanent_sponsors
-// テーブルへの書き込みは別途追加する（見た目を先行実装している段階のため、
-// 書き込みエンドポイントはまだ無い）。
+// このファイルはGET（一覧取得）のみを提供する。実際の決済はcreate_checkout.php
+// （Stripe Checkout Session作成）・stripe_webhook.php（決済確定の書き込み）側で行う。
 // DBマイグレーションはdeploy_site.ymlのrun_migration=add_sponsor_feature・
 // add_permanent_sponsor_featureで適用済みが前提。
 //
-// GET：個体への支援者一覧（sponsors）と、永久スポンサー枠（permanent_sponsors、
-// 1個体につき先着1名のみ。埋まっていなければpermanentはnull）を取得する。
-// 金額そのものは返さず、松（500円以上）・竹（300円以上）・梅（それ未満）の
-// 3段階の支援ランクのみを返す（表示側で松竹梅として区分けするため）
+// GET：個体への支援者一覧（sponsors）と、スペシャルサポーター枠
+// （permanent_sponsors、1個体につき先着1名のみ。埋まっていなければ
+// permanentはnull）を取得する。
+// スペシャルサポーター（500円）はsponsorsテーブルには記録されず
+// permanent_sponsorsのみに記録される（create_checkout.php・stripe_webhook.php
+// 側で、500円の決済は常にpermanent_sponsors行き、埋まっていれば決済ページの
+// 作成自体を拒否する設計のため）。そのためsponsorsのamount_jpyは実質
+// 100円・300円のいずれかのみで、竹（300円以上）・梅（それ未満）の2段階の
+// 支援ランクのみを返す（金額そのものは返さない）
 // ============================================================
 
 function sponsor_tier($amountJpy) {
-    if ($amountJpy >= 500) return '松';
     if ($amountJpy >= 300) return '竹';
     return '梅';
 }
