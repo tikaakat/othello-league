@@ -942,10 +942,44 @@ function setupSponsorUI(id) {
       statusEl.textContent = '一言メッセージを入力してください';
       return;
     }
-    // Stripe連携は未実装（見た目のみ先行実装中）。連携後はここでCheckout Sessionの
-    // 作成エンドポイントを呼び、返ってきたURLへリダイレクトする想定
-    statusEl.textContent = '決済連携は準備中です。もうしばらくお待ちください🙏';
+    submitBtn.disabled = true;
+    statusEl.textContent = '決済ページを準備しています…';
+    fetch(`${RESULTS_SITE_BASE}create_checkout.php`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        individual_id: _sponsorTargetId,
+        amount: Number(activeChip.dataset.amount),
+        display_name: document.getElementById('sponsor-name').value.trim(),
+        message: messageInput.value.trim(),
+      }),
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.url) { window.location.href = data.url; return; }
+        statusEl.textContent = data.error || '決済ページの作成に失敗しました';
+        submitBtn.disabled = false;
+      })
+      .catch(() => {
+        statusEl.textContent = '通信エラーが発生しました。しばらくしてから再度お試しください';
+        submitBtn.disabled = false;
+      });
   };
+}
+
+// Stripe Checkoutからの戻り（成功／キャンセル）をURLクエリ（?sponsor=...）で受け取る。
+// ハッシュルーティングと干渉しないよう#より前のクエリ文字列を使っているため、
+// ページ読み込み時に一度だけチェックしてURLから消す
+function handleSponsorReturn() {
+  const params = new URLSearchParams(location.search);
+  const sponsor = params.get('sponsor');
+  if (!sponsor) return;
+  if (sponsor === 'success') {
+    alert('ご支援ありがとうございます！反映まで少し時間がかかる場合があります。');
+  } else if (sponsor === 'cancel') {
+    alert('決済がキャンセルされました。');
+  }
+  history.replaceState(null, '', location.pathname + location.hash);
 }
 
 // スペシャルサポーター（松、500円〜）・サポーター（竹300円〜・梅それ未満）を
@@ -1313,6 +1347,7 @@ function route() {
   }
 }
 
+handleSponsorReturn();
 renderHolders();
 window.addEventListener('hashchange', route);
 route();
