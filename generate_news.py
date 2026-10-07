@@ -283,9 +283,13 @@ MIN_UPSET_ELO_GAP = 150  # これ未満のElo差では「波乱」のネタと�
 
 
 def gather_upset_facts(data_dir, season):
-    """「波乱の一局」のネタを1つ選ぶ。今季のA〜Dリーグの対局（引き分けを除く）の中から、
-    勝者より敗者の方が季開始時点のEloが高かった（かつその差がMIN_UPSET_ELO_GAP以上）
-    組み合わせのうち、最もElo差が大きかった1局を選ぶ。
+    """「波乱の一局」のネタを1つ選ぶ。A〜Dリーグの通常の総当たりは対象外とし、
+    タイトル戦（青龍・朱雀・白虎・玄武の本戦）とその予選トーナメント
+    （白虎予選・玄武予選・朱雀予選・朱雀紅白決定戦等）の対局（引き分けを除く）の
+    中から、勝者より敗者の方が季開始時点のEloが高かった（かつその差が
+    MIN_UPSET_ELO_GAP以上）組み合わせのうち、最もElo差が大きかった1局を選ぶ。
+    （同じリーグ内の総当たりでの勝敗は「番狂わせ」と呼ぶには弱く、挑戦者決定戦の
+    ようなトーナメント方式・一発勝負の対局の方が下克上として記事になりやすいため）
     「季開始時点のElo」は前季終了時点のEloをそのまま使う（今季中の対局で変動した
     Eloを使うと、勝った結果そのものでEloが上がった選手を「本来強かった」と
     誤判定してしまい、波乱の度合いを過小評価してしまうため）。
@@ -296,14 +300,13 @@ def gather_upset_facts(data_dir, season):
     if not matches or not standings:
         return None
     names = {r["individual_id"]: r["display_name"] for r in standings}
-    leagues = {r["individual_id"]: r["league"] for r in standings}
 
     prev_standings = load_json(os.path.join(data_dir, "standings", f"season_{season - 1}.json"), [])
     prev_elo = {r["individual_id"]: r["elo"] for r in prev_standings}
 
     best = None
     for m in matches:
-        if m.get("league") not in ("A", "B", "C", "D") or m["result"] == "draw":
+        if m.get("league") in ("A", "B", "C", "D") or m["result"] == "draw":
             continue
         winner_id = m["individual_a_id"] if m["result"] == "win" else m["individual_b_id"]
         loser_id = m["individual_b_id"] if m["result"] == "win" else m["individual_a_id"]
