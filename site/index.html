@@ -114,6 +114,24 @@
     border: 1px solid var(--navy-700); padding: 4px 10px; cursor: pointer; margin-left: 6px;
   }
   .cheer-btn.cheered { color: #FF6B8A; border-color: #FF6B8A; cursor: default; }
+  /* サポーター：個体詳細ページの先頭で大きく目立たせる */
+  .sponsor-highlight-box {
+    margin: 0 0 16px; padding: 14px 16px; border-radius: 10px;
+    border: 1px solid var(--amber); background: rgba(255, 182, 72, 0.08);
+  }
+  .sponsor-highlight-box h3 {
+    margin: 0 0 8px; font-size: 1rem; color: var(--amber); display: flex; align-items: center; gap: 6px;
+  }
+  .sponsor-tier-group { margin-top: 8px; }
+  .sponsor-tier-group:first-child { margin-top: 0; }
+  .sponsor-tier-label { font-size: 0.74rem; font-weight: 700; margin-bottom: 4px; }
+  .sponsor-tier-label.tier-matsu { color: var(--amber); }
+  .sponsor-tier-label.tier-take { color: var(--cyan); }
+  .sponsor-tier-label.tier-ume { color: #FF8FB3; }
+  .sponsor-row { font-size: 0.82rem; padding: 2px 0; }
+  .sponsor-row .sponsor-row-name { font-weight: 700; color: var(--text-main); }
+  .sponsor-row .sponsor-row-message { color: var(--text-dim); margin-left: 6px; }
+  .permanent-sponsor-row { font-size: 0.9rem; margin-bottom: 6px; }
   .sliders { display: grid; gap: 6px; }
   .slider { display: grid; grid-template-columns: 6.5em 1fr 2.5em; align-items: center; gap: 8px; font-size: 0.78rem; color: var(--text-dim); }
   .slider input[type="range"] { width: 100%; accent-color: var(--cyan); }
@@ -763,6 +781,10 @@ async function loadIndividualDetail(id) {
     const ind = data.individual, p = ind.params || {};
 
     let html = `<div class="back-link" id="ind-back">← 一覧に戻る</div>`;
+    html += `<div class="sponsor-highlight-box">
+      <h3>🎗 サポーター</h3>
+      <div id="ind-sponsors">読み込み中...</div>
+    </div>`;
     html += `<div style="text-align:center; margin-bottom:14px;">
       <div style="margin-bottom:6px;">${ind.retired ? '<span style="color:var(--text-dim); font-size:0.7rem;">（引退）</span>' : `${leagueTag(ind.league)}`}</div>
       <h3 style="margin:0; font-size:1.1rem;">${crownLabel(ind.id, ind.display_name)}${escapeHtml(ind.display_name || ind.id)}</h3>
@@ -778,9 +800,6 @@ async function loadIndividualDetail(id) {
     </div>`;
 
     html += `<div style="display:flex; justify-content:center; margin-bottom:16px;">${renderRadarChart(p)}</div>`;
-
-    html += `<h4 style="font-size:0.78rem; color:var(--amber); border-bottom:1px solid var(--navy-700); padding-bottom:4px;">サポーター</h4>`;
-    html += `<div id="ind-sponsors" style="font-size:0.8rem; margin-bottom:16px;">読み込み中...</div>`;
 
     html += `<h4 style="font-size:0.78rem; color:var(--amber); border-bottom:1px solid var(--navy-700); padding-bottom:4px;">系譜</h4>`;
     html += renderLineage(data.ancestors, data.children);
@@ -1093,6 +1112,27 @@ async function loadIndividualAwards(id) {
 
 // サポーター一覧・永久スポンサー枠：結果サイトは一覧表示のみで、登録自体は
 // ファンサイト（news-site）側の選手ファンページで行う（決済導線はそちら側にしかない）
+// 松（500円〜）・竹（300円〜）・梅（それ未満）の順に区分けして表示する。
+// 金額そのものはAPIが返さず、このtierラベルだけを使う（news-siteと同じ区分け）
+const SPONSOR_TIERS = [
+  { key: '松', cls: 'tier-matsu', label: '🌲 松' },
+  { key: '竹', cls: 'tier-take', label: '🎍 竹' },
+  { key: '梅', cls: 'tier-ume', label: '🌸 梅' },
+];
+function sponsorTierGroupsHtml(list) {
+  return SPONSOR_TIERS.map(t => {
+    const rows = list.filter(s => (s.tier || '梅') === t.key);
+    if (!rows.length) return '';
+    return `<div class="sponsor-tier-group">
+        <div class="sponsor-tier-label ${t.cls}">${t.label}（${rows.length}名）</div>
+        ${rows.map(s => `<div class="sponsor-row">
+            <span class="sponsor-row-name">${escapeHtml(s.display_name)}</span>
+            ${s.message ? `<span class="sponsor-row-message">「${escapeHtml(s.message)}」</span>` : ''}
+          </div>`).join('')}
+      </div>`;
+  }).join('');
+}
+
 async function loadIndividualSponsors(id) {
   const el = document.getElementById('ind-sponsors');
   if (!el) return;
@@ -1101,15 +1141,15 @@ async function loadIndividualSponsors(id) {
     const data = await res.json();
     const sponsors = data.sponsors || [];
     const permanentHtml = data.permanent
-      ? `<div style="margin-bottom:8px;">👑 永久スポンサー：<b>${escapeHtml(data.permanent.display_name)}</b>${data.permanent.message ? `「${escapeHtml(data.permanent.message)}」` : ''}</div>`
+      ? `<div class="permanent-sponsor-row">👑 永久スポンサー：<b>${escapeHtml(data.permanent.display_name)}</b>${data.permanent.message ? `「${escapeHtml(data.permanent.message)}」` : ''}</div>`
       : '';
     const listHtml = sponsors.length
-      ? sponsors.map(s => `<div style="padding:2px 0;">${escapeHtml(s.display_name)}${s.message ? `　「${escapeHtml(s.message)}」` : ''}</div>`).join('')
-      : '<div style="color:var(--text-dim);">まだサポーターはいません</div>';
+      ? sponsorTierGroupsHtml(sponsors)
+      : '<div style="color:var(--text-dim); font-size:0.8rem;">まだサポーターはいません</div>';
     el.innerHTML = `${permanentHtml}${listHtml}
-      <div style="margin-top:8px;"><a href="${NEWS_SITE_BASE}#individual/${encodeURIComponent(id)}" target="_blank" rel="noopener" style="color:var(--cyan); font-size:0.76rem;">→ ファンサイトでサポーターになる</a></div>`;
+      <div style="margin-top:10px;"><a href="${NEWS_SITE_BASE}#individual/${encodeURIComponent(id)}" target="_blank" rel="noopener" style="color:var(--cyan); font-size:0.78rem;">→ ファンサイトでサポーターになる</a></div>`;
   } catch (e) {
-    el.innerHTML = '<div style="color:var(--text-dim);">読み込み失敗</div>';
+    el.innerHTML = '<div style="color:var(--text-dim); font-size:0.8rem;">読み込み失敗</div>';
   }
 }
 
