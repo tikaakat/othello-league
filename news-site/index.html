@@ -241,23 +241,6 @@
   .sponsor-item.tier-take { border-left-color: #7FAE63; background: #F1F7EC; }
   .sponsor-item.tier-ume { border-left-color: #E08CAE; background: #FDF0F5; }
 
-  /* 永久スポンサー枠：1個体につき先着1名のみ。応援・通常サポーターよりも特別な扱いにする */
-  .permanent-slot-box {
-    border-radius: 14px; padding: 12px 16px; margin-bottom: 10px;
-    border: 1px solid #E0C080; background: linear-gradient(135deg, #FFF8E8, #FFF1D0);
-  }
-  .permanent-slot-box h4 {
-    font-size: 0.78rem; color: #96701A; margin: 0 0 6px; display: flex; align-items: center; gap: 4px;
-  }
-  .permanent-slot-filled { display: flex; align-items: baseline; gap: 8px; font-size: 0.86rem; }
-  .permanent-slot-filled .sponsor-name { font-weight: 700; color: #96701A; }
-  .permanent-slot-filled .sponsor-message { color: #5B5349; }
-  .permanent-slot-empty { font-size: 0.78rem; color: var(--text-dim); display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
-  .permanent-slot-empty .slot-cta-btn {
-    font-size: 0.78rem; font-weight: 700; color: #fff; background: #96701A;
-    border: none; border-radius: 10px; padding: 6px 12px; cursor: pointer; white-space: nowrap;
-  }
-
   .modal-overlay {
     position: fixed; inset: 0; background: rgba(43, 36, 26, 0.45);
     display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 50;
@@ -817,8 +800,6 @@ async function renderIndividualProfile(id) {
     <div class="cheer-box">
       <button type="button" id="profile-cheer-btn" class="cheer-btn-standalone">♡ 応援する<span class="cheer-count"></span></button>
 
-      <div class="permanent-slot-box" id="permanent-slot-box"></div>
-
       <div class="sponsor-box">
         <h4>サポーター</h4>
         <p class="sponsor-desc">有料でこの選手を支援できます（準備中）。支援者はお名前と一言がここに表示されます。</p>
@@ -951,13 +932,14 @@ function setupSponsorUI(id) {
   };
 }
 
-// 松（500円〜）・竹（300円〜）・梅（それ未満）の順に区分けして表示する。
-// 金額そのものはAPIが返さず、このtierラベルだけを使う。松は「スペシャルサポーター」
-// として表記する（永久スポンサーに次ぐ特別枠という位置づけ）
+// スペシャルサポーター（松、500円〜）・サポーター（竹300円〜・梅それ未満）を
+// 金額の大きい順に1つの欄にまとめて表示する。金額そのものはAPIが返さず、
+// このtierラベルだけを使う。竹・松は名前＋一言コメント、梅は名前のみ表示する
+// （永久スポンサー枠は結果サイト側にのみ表示し、ここには出さない）
 const SPONSOR_TIERS = [
-  { key: '松', cls: 'tier-matsu', label: '⭐ スペシャルサポーター' },
-  { key: '竹', cls: 'tier-take', label: '🎍 竹' },
-  { key: '梅', cls: 'tier-ume', label: '🌸 梅' },
+  { key: '松', cls: 'tier-matsu', label: '⭐ スペシャルサポーター', showMessage: true },
+  { key: '竹', cls: 'tier-take', label: '🎍 サポーター', showMessage: true },
+  { key: '梅', cls: 'tier-ume', label: '🌸 サポーター', showMessage: false },
 ];
 function sponsorTierGroupsHtml(list) {
   return SPONSOR_TIERS.map(t => {
@@ -967,7 +949,7 @@ function sponsorTierGroupsHtml(list) {
         <div class="sponsor-tier-label ${t.cls}">${t.label}（${rows.length}名）</div>
         ${rows.map(s => `<div class="sponsor-item ${t.cls}">
             <span class="sponsor-name">${escapeHtml(s.display_name)}</span>
-            ${s.message ? `<span class="sponsor-message">${escapeHtml(s.message)}</span>` : ''}
+            ${(t.showMessage && s.message) ? `<span class="sponsor-message">${escapeHtml(s.message)}</span>` : ''}
           </div>`).join('')}
       </div>`;
   }).join('');
@@ -975,7 +957,6 @@ function sponsorTierGroupsHtml(list) {
 
 async function loadSponsorList(id) {
   const el = document.getElementById('sponsor-list');
-  const permEl = document.getElementById('permanent-slot-box');
   if (!el) return;
   try {
     const res = await fetch(`${RESULTS_SITE_BASE}sponsor.php?individual_id=${encodeURIComponent(id)}`);
@@ -984,28 +965,8 @@ async function loadSponsorList(id) {
     el.innerHTML = list.length
       ? sponsorTierGroupsHtml(list)
       : '<div style="color:var(--text-dim); font-size:0.78rem;">まだサポーターはいません</div>';
-
-    if (permEl) {
-      permEl.innerHTML = data.permanent
-        ? `<h4>👑 永久スポンサー</h4>
-           <div class="permanent-slot-filled">
-             <span class="sponsor-name">${escapeHtml(data.permanent.display_name)}</span>
-             ${data.permanent.message ? `<span class="sponsor-message">${escapeHtml(data.permanent.message)}</span>` : ''}
-           </div>`
-        : `<h4>👑 永久スポンサー枠</h4>
-           <div class="permanent-slot-empty">
-             <span>先着1名限定。この選手が引退するまで名前が残り続けます。まだ空いています。</span>
-             <button type="button" class="slot-cta-btn" id="permanent-slot-cta-btn">空席を埋める</button>
-           </div>`;
-      const slotBtn = document.getElementById('permanent-slot-cta-btn');
-      if (slotBtn) slotBtn.onclick = () => {
-        document.getElementById('sponsor-cta-btn').click();
-        document.querySelector('#sponsor-amount-chips .amount-chip[data-permanent]').click();
-      };
-    }
   } catch (e) {
     el.innerHTML = '';
-    if (permEl) permEl.innerHTML = '';
   }
 }
 
