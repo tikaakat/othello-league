@@ -316,8 +316,10 @@
       <p class="modal-sub" id="sponsor-amount-hint" style="min-height:1.2em;"></p>
       <label for="sponsor-name">表示名</label>
       <input type="text" id="sponsor-name" maxlength="30" placeholder="名無しの支援者">
-      <label for="sponsor-message">一言（任意・100文字まで）</label>
-      <input type="text" id="sponsor-message" maxlength="100" placeholder="応援しています！">
+      <div id="sponsor-message-row" style="display:none;">
+        <label for="sponsor-message">一言（100文字まで）</label>
+        <input type="text" id="sponsor-message" maxlength="100" placeholder="応援しています！">
+      </div>
       <button class="modal-submit-btn" id="sponsor-submit-btn">この内容でStripeに進む</button>
       <div class="modal-status" id="sponsor-modal-status"></div>
     </div>
@@ -897,11 +899,16 @@ function setupSponsorUI(id) {
   const submitBtn = document.getElementById('sponsor-submit-btn');
   const statusEl = document.getElementById('sponsor-modal-status');
 
+  const messageRow = document.getElementById('sponsor-message-row');
+  const messageInput = document.getElementById('sponsor-message');
+
   ctaBtn.onclick = () => {
     _sponsorTargetId = id;
     chips.forEach(c => c.classList.remove('active'));
     document.getElementById('sponsor-name').value = '';
-    document.getElementById('sponsor-message').value = '';
+    messageInput.value = '';
+    messageRow.style.display = 'none';
+    messageInput.required = false;
     statusEl.textContent = '';
     document.getElementById('sponsor-amount-hint').textContent = '';
     overlay.classList.remove('hidden');
@@ -917,6 +924,11 @@ function setupSponsorUI(id) {
       hintEl.textContent = chip.dataset.permanent
         ? '💡 この金額を選ぶと、空いていればこの選手の永久スポンサー（先着1名）になれます'
         : '';
+      // 100円は名前のみ掲載のため一言入力欄は出さない。300円以上は一言必須で掲載する
+      const hasMessage = chip.dataset.amount !== '100';
+      messageRow.style.display = hasMessage ? '' : 'none';
+      messageInput.required = hasMessage;
+      if (!hasMessage) messageInput.value = '';
     };
   });
 
@@ -924,6 +936,10 @@ function setupSponsorUI(id) {
     const activeChip = document.querySelector('#sponsor-amount-chips .amount-chip.active');
     if (!activeChip) {
       statusEl.textContent = '金額を選択してください';
+      return;
+    }
+    if (messageInput.required && !messageInput.value.trim()) {
+      statusEl.textContent = '一言メッセージを入力してください';
       return;
     }
     // Stripe連携は未実装（見た目のみ先行実装中）。連携後はここでCheckout Sessionの
