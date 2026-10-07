@@ -307,12 +307,13 @@
     <div class="modal-box">
       <button class="modal-close-x" id="sponsor-modal-close">×</button>
       <h3>サポーターになる</h3>
-      <p class="modal-sub">100円：名前を掲載／300円：一言メッセージも掲載／500円：スペシャルサポーターとして掲載（データサイトの選手ページにも表示されます。空いていれば永久スポンサー枠にもなれます）。支援した金額自体は表示されません。</p>
+      <p class="modal-sub">100円：名前を掲載／300円：一言メッセージも掲載／500円：スペシャルサポーターとして掲載（1個体につき先着1名限定。データサイトの選手ページにも表示されます）。支援した金額自体は表示されません。</p>
       <div class="amount-chip-row" id="sponsor-amount-chips">
         <button type="button" class="amount-chip" data-amount="100">100円</button>
         <button type="button" class="amount-chip" data-amount="300">300円</button>
         <button type="button" class="amount-chip" data-amount="500" data-permanent="true">500円（スペシャルサポーター）</button>
       </div>
+      <p class="modal-sub" id="sponsor-special-note" style="display:none; color:#B8567A;">⭐ スペシャルサポーター枠は既に埋まっています</p>
       <p class="modal-sub" id="sponsor-amount-hint" style="min-height:1.2em;"></p>
       <label for="sponsor-name">表示名</label>
       <input type="text" id="sponsor-name" maxlength="30" placeholder="名無しの支援者">
@@ -902,7 +903,10 @@ function setupSponsorUI(id) {
   const messageRow = document.getElementById('sponsor-message-row');
   const messageInput = document.getElementById('sponsor-message');
 
-  ctaBtn.onclick = () => {
+  const specialChip = document.querySelector('#sponsor-amount-chips .amount-chip[data-permanent]');
+  const specialNote = document.getElementById('sponsor-special-note');
+
+  ctaBtn.onclick = async () => {
     _sponsorTargetId = id;
     chips.forEach(c => c.classList.remove('active'));
     document.getElementById('sponsor-name').value = '';
@@ -911,7 +915,20 @@ function setupSponsorUI(id) {
     messageInput.required = false;
     statusEl.textContent = '';
     document.getElementById('sponsor-amount-hint').textContent = '';
+    specialChip.style.display = '';
+    specialNote.style.display = 'none';
     overlay.classList.remove('hidden');
+
+    // 500円＝スペシャルサポーター枠は1個体につき先着1名限定。既に埋まっている
+    // 場合はその選択肢自体を出さない（最終的な排他制御はcreate_checkout.php側）
+    try {
+      const res = await fetch(`${RESULTS_SITE_BASE}sponsor.php?individual_id=${encodeURIComponent(id)}`);
+      const data = await res.json();
+      if (data.permanent) {
+        specialChip.style.display = 'none';
+        specialNote.style.display = '';
+      }
+    } catch (e) { /* 取得失敗時は選べる状態のままにし、サーバー側の最終チェックに委ねる */ }
   };
   closeBtn.onclick = () => overlay.classList.add('hidden');
   overlay.onclick = (ev) => { if (ev.target === overlay) overlay.classList.add('hidden'); };
@@ -922,7 +939,7 @@ function setupSponsorUI(id) {
       chips.forEach(c => c.classList.remove('active'));
       chip.classList.add('active');
       hintEl.textContent = chip.dataset.permanent
-        ? '💡 この金額を選ぶと、空いていればこの選手の永久スポンサー（先着1名）になれます'
+        ? '⭐ この選手のスペシャルサポーター（先着1名）として掲載されます'
         : '';
       // 100円は名前のみ掲載のため一言入力欄は出さない。300円以上は一言必須で掲載する
       const hasMessage = chip.dataset.amount !== '100';
@@ -982,12 +999,11 @@ function handleSponsorReturn() {
   history.replaceState(null, '', location.pathname + location.hash);
 }
 
-// スペシャルサポーター（松、500円〜）・サポーター（竹300円〜・梅それ未満）を
-// 金額の大きい順に1つの欄にまとめて表示する。金額そのものはAPIが返さず、
-// このtierラベルだけを使う。竹・松は名前＋一言コメント、梅は名前のみ表示する
-// （永久スポンサー枠は結果サイト側にのみ表示し、ここには出さない）
+// スペシャルサポーター（500円、1個体につき先着1名限定。permanent_sponsorsで
+// 管理）・サポーター（竹300円〜・梅それ未満。sponsorsで管理）を金額の大きい順に
+// 1つの欄にまとめて表示する。金額そのものはAPIが返さず、tierラベルだけを使う。
+// 竹・スペシャルサポーターは名前＋一言コメント、梅は名前のみ表示する
 const SPONSOR_TIERS = [
-  { key: '松', cls: 'tier-matsu', label: '⭐ スペシャルサポーター', showMessage: true },
   { key: '竹', cls: 'tier-take', label: '🎍 サポーター', showMessage: true },
   { key: '梅', cls: 'tier-ume', label: '🌸 サポーター', showMessage: false },
 ];
@@ -1004,6 +1020,16 @@ function sponsorTierGroupsHtml(list) {
       </div>`;
   }).join('');
 }
+function specialSponsorHtml(permanent) {
+  if (!permanent) return '';
+  return `<div class="sponsor-tier-group">
+      <div class="sponsor-tier-label tier-matsu">⭐ スペシャルサポーター（1名）</div>
+      <div class="sponsor-item tier-matsu">
+        <span class="sponsor-name">${escapeHtml(permanent.display_name)}</span>
+        ${permanent.message ? `<span class="sponsor-message">${escapeHtml(permanent.message)}</span>` : ''}
+      </div>
+    </div>`;
+}
 
 async function loadSponsorList(id) {
   const el = document.getElementById('sponsor-list');
@@ -1012,9 +1038,8 @@ async function loadSponsorList(id) {
     const res = await fetch(`${RESULTS_SITE_BASE}sponsor.php?individual_id=${encodeURIComponent(id)}`);
     const data = await res.json();
     const list = data.sponsors || [];
-    el.innerHTML = list.length
-      ? sponsorTierGroupsHtml(list)
-      : '<div style="color:var(--text-dim); font-size:0.78rem;">まだサポーターはいません</div>';
+    const html = specialSponsorHtml(data.permanent) + sponsorTierGroupsHtml(list);
+    el.innerHTML = html || '<div style="color:var(--text-dim); font-size:0.78rem;">まだサポーターはいません</div>';
   } catch (e) {
     el.innerHTML = '';
   }

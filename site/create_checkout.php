@@ -74,6 +74,20 @@ if (!$checkStmt->fetchColumn()) {
     exit;
 }
 
+// 500円＝スペシャルサポーターは1個体につき先着1名限定（永久スポンサー枠そのもの）。
+// 既に埋まっている個体には、決済ページの作成自体を許可しない（二重販売防止）。
+// 最終的な確定判定はstripe_webhook.php側のpermanent_sponsorsへのINSERT（一意制約）
+// で行うため、ここでのチェックはあくまで無駄な決済ページ作成を防ぐための事前チェック
+if ($amount >= 500) {
+    $permCheckStmt = $pdo->prepare("SELECT 1 FROM permanent_sponsors WHERE individual_id = :id");
+    $permCheckStmt->execute(['id' => $individualId]);
+    if ($permCheckStmt->fetchColumn()) {
+        http_response_code(409);
+        echo json_encode(['error' => 'スペシャルサポーター枠は既に埋まっています']);
+        exit;
+    }
+}
+
 // ファンサイト（news-site）側の個体ページへ、決済結果（成功／キャンセル）を
 // クエリパラメータで付けて戻す。ハッシュルーティングと干渉しないよう、
 // クエリは#より前に置く
