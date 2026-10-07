@@ -964,24 +964,8 @@ switch ($action) {
         $row['elo_rating'] = round((float)$row['elo_rating'], 1);
         $row['age'] = compute_age($row['initial_age'] ?? null, $row['total_seasons'] ?? 0);
 
-        // 所属する一門が「一門」として成立しているか（一門一覧と同じ基準：開祖含め3名以上＝
-        // 弟子2名以上）。成立していない場合、フロント側では「一門を見る」リンクを出さない
-        // （分岐直後でまだ弟子がいない個体を、実態のない一門の開祖であるかのように見せないため）
-        $row['clan_established'] = false;
-        if (!empty($row['clan_root_id'])) {
-            $ccStmt = $pdo->prepare(
-                "SELECT COUNT(*) FROM (
-                    SELECT clan_root_id FROM individuals WHERE clan_root_id = :id1
-                    UNION ALL
-                    SELECT clan_root_id FROM retired_archive WHERE clan_root_id = :id2
-                 ) AS all_members"
-            );
-            $ccStmt->execute(['id1' => $row['clan_root_id'], 'id2' => $row['clan_root_id']]);
-            $row['clan_established'] = ((int)$ccStmt->fetchColumn()) >= 3;
-        }
-
         // 系譜：直接の師匠のみを見る（開祖・新規開祖で親がいなければ空配列）。
-        // 師匠の師匠…とさらに遡った表示は個体情報ページでは行わない（一門タブで見られる）。
+        // 師匠の師匠…とさらに遡った表示は個体情報ページでは行わない（一門系統図はnews-site側で見られる）。
         // elo_ratingは、引退済みならretired_archiveの値（＝引退時点のelo）、現役なら現在のeloになる。
         $ancestors = [];
         $parentId = $row['parent_a_id'] ?? null;
