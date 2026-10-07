@@ -26,6 +26,9 @@ on:
       - "site/article_like.php"
       - "site/supporter.php"
       - "site/sponsor.php"
+      - "site/stripe_client.php"
+      - "site/create_checkout.php"
+      - "site/stripe_webhook.php"
   workflow_dispatch:
     inputs:
       list_only:
@@ -73,6 +76,9 @@ jobs:
           sudo apt-get update -qq && sudo apt-get install -y -qq php-cli
           php -l site/api.php
           php -l site/create_character.php
+          php -l site/stripe_client.php
+          php -l site/create_checkout.php
+          php -l site/stripe_webhook.php
 
       - name: List / Delete / Deploy on xserver
         env:
@@ -290,6 +296,7 @@ jobs:
           retry_cmd scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
             site/index.html site/api.php site/create_character.php site/cheer.php \
             site/article_like.php site/supporter.php site/sponsor.php \
+            site/stripe_client.php site/create_checkout.php site/stripe_webhook.php \
             "$XSERVER_USER@$XSERVER_HOST:${XSERVER_SITE_DIR}"
 
           rm -f /tmp/deploy_key
