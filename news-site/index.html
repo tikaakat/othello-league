@@ -339,7 +339,7 @@
     </div>
   </div>
   <div class="footer-note">
-    「オセロ界タイムズ」は架空のオセロリーグ（CIRCUIT OTHELLO LEAGUE）を題材にした、ファンによる非公式のニュースメディアです。登場する個体・対局結果はすべて自動対局シミュレーションによるものであり、実在の人物・団体とは関係ありません。
+    「オセロ界タイムズ」は架空のオセロリーグ（CIRCUIT OTHELLO LEAGUE）を題材にした、ファンによる非公式のニュースメディアです。登場する選手・対局結果はすべて自動対局シミュレーションによるものであり、実在の人物・団体とは関係ありません。
   </div>
 </div>
 
@@ -539,7 +539,7 @@ async function renderFeed(filter) {
   const followed = getFollowedIndividuals();
   const followedIds = new Set(followed.map(f => f.id));
   const followBoxHtml = (!filter && followed.length) ? `<div class="follow-box">
-      <h4>★ フォロー中の個体</h4>
+      <h4>★ フォロー中の選手</h4>
       <div class="follow-chip-row">
         ${followed.map(f => `<span class="follow-chip" data-goto-individual="${escapeHtml(f.id)}">${escapeHtml(f.name)}</span>`).join('')}
       </div>
@@ -645,10 +645,10 @@ async function renderArticle(id) {
   }
   const pairs = relatedPairs(a);
   const relatedHtml = pairs.length ? `<div class="related-box">
-      <h4>関連個体</h4>
+      <h4>関連選手</h4>
       ${pairs.map(p => `<div class="related-row" data-goto-individual="${escapeHtml(p.id)}">
           <span class="ind-chip">${escapeHtml(p.name)}</span>
-          <span style="color:var(--text-dim); font-size:0.78rem;">個体ページへ →</span>
+          <span style="color:var(--text-dim); font-size:0.78rem;">選手ページへ →</span>
         </div>`).join('')}
     </div>` : '';
 
@@ -824,7 +824,7 @@ async function renderIndividualProfile(id) {
 
       <div class="sponsor-box">
         <h4>サポーター</h4>
-        <p class="sponsor-desc">有料でこの個体を支援できます（準備中）。支援者はお名前と一言がここに表示されます。</p>
+        <p class="sponsor-desc">有料でこの選手を支援できます（準備中）。支援者はお名前と一言がここに表示されます。</p>
         <button class="sponsor-cta-btn" id="sponsor-cta-btn">🎗 サポーターになる</button>
         <div class="sponsor-list" id="sponsor-list"></div>
       </div>
@@ -1111,9 +1111,13 @@ async function renderIndividualList() {
     </div>`;
 
   const leagues = data.leagues;
+  // 青龍在位者は防衛専念枠のため、Aリーグの通常順位リスト（data.leagues.A）には
+  // 含まれず、data.rikuouとして別枠で返ってくる（site/index.htmlのリーグタブと同じ扱い）。
+  // 選手名鑑でもAリーグ・段位別どちらの表示からも漏れないよう、明示的に合流させる
+  const rikuouBadge = r => (data.rikuou && r.id === data.rikuou.id) ? ' <span class="oshi-badge">現青龍</span>' : '';
   let groupsHtml;
   if (_rosterGroupBy === 'dan') {
-    const all = ['A', 'B', 'C', 'D'].flatMap(lg => leagues[lg] || []);
+    const all = ['A', 'B', 'C', 'D'].flatMap(lg => leagues[lg] || []).concat(data.rikuou ? [data.rikuou] : []);
     const byDan = {};
     all.forEach(r => { (byDan[r.dan] = byDan[r.dan] || []).push(r); });
     const dans = Object.keys(byDan).map(Number).sort((a, b) => b - a);
@@ -1122,15 +1126,16 @@ async function renderIndividualList() {
         .map(r => ({ ...r, eloLabel: `Elo ${Math.round(r.elo_rating)}` }));
       return `<div class="roster-league-group">
         <h3>${danLabel(dan)}（${rows.length}名）</h3>
-        ${rows.map(r => rosterRowHtml(r, titleCountBadgeHtml(r))).join('') || '<div class="empty">在籍者なし</div>'}
+        ${rows.map(r => rosterRowHtml(r, titleCountBadgeHtml(r) + rikuouBadge(r))).join('') || '<div class="empty">在籍者なし</div>'}
       </div>`;
     }).join('');
   } else {
     groupsHtml = ['A', 'B', 'C', 'D'].map(lg => {
-      const rows = (leagues[lg] || []).map(r => ({ ...r, eloLabel: `Elo ${Math.round(r.elo_rating)}` }));
+      const baseRows = lg === 'A' && data.rikuou ? [data.rikuou, ...(leagues[lg] || [])] : (leagues[lg] || []);
+      const rows = baseRows.map(r => ({ ...r, eloLabel: `Elo ${Math.round(r.elo_rating)}` }));
       return `<div class="roster-league-group">
         <h3>${lg}リーグ（${rows.length}名）</h3>
-        ${rows.map(r => rosterRowHtml(r, titleCountBadgeHtml(r))).join('') || '<div class="empty">在籍者なし</div>'}
+        ${rows.map(r => rosterRowHtml(r, titleCountBadgeHtml(r) + rikuouBadge(r))).join('') || '<div class="empty">在籍者なし</div>'}
       </div>`;
     }).join('');
   }
@@ -1271,72 +1276,52 @@ function renderRules() {
   el.innerHTML = `<div class="rules">
     <h3>リーグ制度</h3>
     <div class="sec">
-      A（9名・総当たり）／B（12名）・C（16名）・D（人数は変動。毎季固定2名を新人として受け入れる）（スイス方式・6回戦）の4部制。<br>
-      A⇄B：下位2名⇄上位2名を毎季入れ替え。B⇄C：下位3名⇄上位3名。C⇄D：下位3名⇄上位3名を毎季入れ替え。<br>
-      本戦（A総当たり・B/C/Dスイス方式）は引き分けを引き分けのまま確定し、再戦は行わない
-      （例外：Aリーグの1位が複数名並んだ場合のみ、同率者同士で順位決定戦を行う。これは決着まで最大3回まで再戦する）。
+      A・B・C・Dの4部制。シーズンごとに対局を行い、成績に応じて上位・下位リーグと入れ替わる。
+      Dリーグには毎シーズン新人が加わる。
     </div>
 
     <h3>一門と弟子</h3>
     <div class="sec">
-      新弟子は師弟制：Dリーグの新人受け入れ枠（毎季固定2名）ぶん、現役個体から選ばれた「師匠」1人ごとに、そのパラメータを変異（±15%程度）
-      させた弟子が1人入門する（2個体の交配ではない）。師匠になれるのは30歳以上の個体のみ。
-      師弟関係は新人リーグの出走時点で決定し、その後Dリーグへ昇格しても変わらない。<br>
-      師匠選びはランダムだが、Elo・タイトル保持で重み付けされており、実力のある個体ほど弟子を持ちやすい。<br>
-      一門は、最も遡った開祖を根とする師弟の系譜のまとまり。同じ師匠につく弟子が5人を超えた時点で、
-      6人目以降の弟子は新しい一門の開祖として分岐する。さらに稀（8%）に、師匠を持たず完全にランダムな
-      能力の新規開祖が参入することもある。<br>
-      稀（3%）に、新弟子の誰かが「覚醒」し、1パラメータが通常の変異幅を超えて大きく伸びることがある
-      （「神童」として通常より若い14〜16歳で参入）。<br>
-      本戦・新人リーグとも<b>1日2回、本戦→新人リーグの順</b>で実行：<br>
-      ・6:00(JST)までのエントリー → 7:00の新人リーグで選抜（固定2名を募集） → 夜18:00の本戦からDリーグ入り<br>
-      ・6:00〜18:00(JST)のエントリー → 19:00の新人リーグで選抜（固定2名を募集） → 翌朝6:00の本戦からDリーグ入り<br>
-      新人リーグの募集人数は在籍者数に関わらず常に2名。昇格枠の境界で同成績が並んだ場合は、
-      該当者同士で引き分け無しのプレーオフを行い昇格者を決める。<br>
-      新人リーグで昇格しなかった個体のうち、順位上位5名は師弟関係を保ったまま次回へ持ち越される。
+      新しくDリーグに加わる新人の多くは、現役選手の中から選ばれた「師匠」の能力をもとに、
+      少し変化を加えて生まれてくる（師弟関係）。実力のある選手ほど弟子を持ちやすい。<br>
+      一門は、師弟関係をたどった先に同じ開祖（一番最初の祖先）を持つ選手たちのまとまり。
+      一門が大きくなりすぎると、途中から新しい一門に分かれることもある。<br>
+      まれに、師匠を持たずに生まれる新規開祖や、能力が大きく伸びた「神童」が現れることもある。
     </div>
 
     <h3>引退</h3>
     <div class="sec">
-      年齢（初期年齢＋通算シーズン数）が60歳に達すると、リーグを問わず強制引退する。<br>
-      Dリーグは「降級点」制：負け越した季ごとに1点積み重なり、2点で実力・在籍年数に関わらず即引退
-      するup-or-out制（勝ち越した季は1点減る）。<br>
-      Dリーグは新人を毎季固定2名受け入れる一方、在籍者数には大きめのバッファを持たせてあり、
-      在籍者数の増減を理由にした強制引退は発生しない。<br>
-      タイトル保持者・朱雀紅白リーグ在籍者・Aリーグ所属者（今季A→B降格が決まった者を除く）は、
-      これらの条件から猶予される。
+      60歳に達すると、どのリーグに所属していても引退する。<br>
+      Dリーグには「降級点」制度もあり、負け越しが続くと実力や在籍年数に関わらず引退となる
+      （勝ち越すと点は減っていく）。<br>
+      タイトル保持者やAリーグ所属選手など、一部の選手はこれらの引退条件が猶予される。
     </div>
 
     <h3>タイトル戦</h3>
     <div class="sec">
-      <b>青龍</b>（名人モデル）：Aリーグ総当たり優勝者が挑戦。7局制4本先取。在位者はAリーグ総当たりを免除される防衛専念枠。<br><br>
-      <b>朱雀</b>（王位モデル）：紅組・白組（各5名）の永続サブリーグ制。両組1位の挑戦者決定戦（5局制3本先取）を経て、
-      朱雀在位者（5局制3本先取）に挑む。下位2名×2組は外部との入れ替えトーナメントで補充。<br><br>
-      <b>白虎</b>（王将モデル）：Elo上位16名によるシード付きトーナメント。5局制3本先取。在位者は防衛専念枠。<br><br>
-      <b>玄武</b>：ほぼ全所属個体が参加する抽選トーナメント（超早指し戦）。5局制3本先取。ブラケットサイズ64。在位者は防衛専念枠。<br><br>
-      初代不在のタイトルは、挑戦者が無条件で襲名する。タイトル戦・挑戦者決定戦は引き分けなら決着するまで再戦するが、
-      A総当たり・B/C/Dスイス方式には適用されない（上記の通り）。<br><br>
-      探索深さ（運用上固定）：A/B/C/D本戦=4、青龍タイトル戦=5／朱雀予選=3・タイトル戦=5／
-      白虎予選=3・タイトル戦=4／玄武予選=2・タイトル戦=3。
+      青龍・朱雀・白虎・玄武という4つのタイトルがあり、それぞれ異なる方式で挑戦者を決める。<br>
+      ・<b>青龍</b>：Aリーグの優勝者が挑戦する<br>
+      ・<b>朱雀</b>：紅組・白組に分かれた永続メンバーの代表同士が挑戦者決定戦を行う<br>
+      ・<b>白虎</b>：Elo上位の選手によるトーナメントで挑戦者を決める<br>
+      ・<b>玄武</b>：ほぼ全選手が参加する抽選トーナメントで挑戦者を決める<br>
+      在位者はタイトル防衛に専念し、その間は通常のリーグ戦を免除される。
     </div>
 
     <h3>永世称号</h3>
     <div class="sec">
-      タイトルごとに基準が異なる。永世青龍：通算5期保持。永世朱雀：連続5期保持、または通算10期保持。
-      永世白虎：連続5期保持。永世玄武：通算10期保持。一度獲得すると、その後失冠しても称号は残る。
+      タイトルを一定の期間（連続、または通算）保持し続けると「永世」の称号が贈られる。
+      基準はタイトルごとに異なる。一度獲得すると、その後タイトルを失っても称号は残り続ける。
     </div>
 
     <h3>段位</h3>
     <div class="sec">
-      対局結果・リーグ経験・タイトル実績から算出する表示専用の指標。新人は4段スタートし、勝数・昇格・
-      タイトル挑戦・タイトル獲得・永世称号などに応じて段位が上がる（詳細な昇段条件はデータサイトのルール説明を参照）。
+      対局の成績やリーグ・タイトルでの実績に応じて、将棋の段位を模した指標（一段〜九段）が
+      表示される。実力が上がり、実績を重ねるほど段位も上がっていく。
     </div>
 
     <h3>Eloレーティング</h3>
     <div class="sec">
-      標準的なEloレーティングを対局ごとに更新する。K値は在籍季数に応じて段階的に下げる：
-      在籍3季未満はK=18、8季未満はK=13、それ以上はK=10
-      （過去の全対局データを用いたブライアスコア最小化により再調整済み）。
+      対局結果をもとに、標準的なEloレーティングで実力を数値化している。
     </div>
   </div>`;
 }
