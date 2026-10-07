@@ -204,20 +204,11 @@
     background: var(--card); border: 1px solid var(--border); border-radius: 14px;
     padding: 14px 16px; margin-bottom: 4px;
   }
-  .cheer-comment-form { display: flex; gap: 8px; }
-  .cheer-comment-form input {
-    flex: 1; font-family: inherit; font-size: 0.84rem; padding: 8px 12px;
-    border-radius: 10px; border: 1px solid var(--border); background: #fff;
-  }
-  .cheer-comment-form button {
+  .cheer-btn-standalone {
     font-size: 0.82rem; font-weight: 700; color: #fff; background: var(--accent);
     border: none; border-radius: 10px; padding: 8px 16px; cursor: pointer; white-space: nowrap;
   }
-  .cheer-comment-form button.cheered { background: #FF6B8A; cursor: default; }
-  .cheer-comment-list { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
-  .cheer-comment-item {
-    font-size: 0.8rem; color: #5B5349; background: #FFF6EE; border-radius: 8px; padding: 6px 10px;
-  }
+  .cheer-btn-standalone.cheered { background: #FF6B8A; cursor: default; }
 
   /* サポーター（有料支援）：無料の応援とは見た目を分け、少し特別感を出す */
   .sponsor-box {
@@ -333,15 +324,13 @@
     <div class="modal-box">
       <button class="modal-close-x" id="sponsor-modal-close">×</button>
       <h3>サポーターになる</h3>
-      <p class="modal-sub">100円：名前を掲載／300円：一言メッセージも掲載／500円：空いていれば永久スポンサー枠（先着1名）。支援した金額自体は表示されません。</p>
+      <p class="modal-sub">100円：名前を掲載／300円：一言メッセージも掲載／500円：スペシャルサポーターとして掲載（空いていれば永久スポンサー枠にもなれます）。支援した金額自体は表示されません。</p>
       <div class="amount-chip-row" id="sponsor-amount-chips">
         <button type="button" class="amount-chip" data-amount="100">100円</button>
         <button type="button" class="amount-chip" data-amount="300">300円</button>
-        <button type="button" class="amount-chip" data-amount="500" data-permanent="true">500円</button>
+        <button type="button" class="amount-chip" data-amount="500" data-permanent="true">500円（スペシャルサポーター）</button>
       </div>
       <p class="modal-sub" id="sponsor-amount-hint" style="min-height:1.2em;"></p>
-      <label for="sponsor-amount-custom">その他の金額（円）</label>
-      <input type="number" id="sponsor-amount-custom" min="100" step="100" placeholder="例：2000">
       <label for="sponsor-name">表示名</label>
       <input type="text" id="sponsor-name" maxlength="30" placeholder="名無しの支援者">
       <label for="sponsor-message">一言（任意・100文字まで）</label>
@@ -826,11 +815,7 @@ async function renderIndividualProfile(id) {
     </div>
 
     <div class="cheer-box">
-      <form id="profile-cheer-form" class="cheer-comment-form">
-        <input type="text" id="profile-cheer-message" placeholder="一言応援コメント（任意・140文字まで）" maxlength="140">
-        <button type="submit" id="profile-cheer-btn">♡ 応援する<span class="cheer-count"></span></button>
-      </form>
-      <div class="cheer-comment-list" id="profile-cheer-comments"></div>
+      <button type="button" id="profile-cheer-btn" class="cheer-btn-standalone">♡ 応援する<span class="cheer-count"></span></button>
 
       <div class="permanent-slot-box" id="permanent-slot-box"></div>
 
@@ -884,10 +869,10 @@ function setupFollowButton(id, name) {
   btn.onclick = () => { toggleFollow(id, name); render(); };
 }
 
+// 無料の応援はいいね（カウントのみ）に統一する。一言コメントは有料サポーター
+// （竹300円以上）の特典のため、ここには持たせない
 async function setupProfileCheer(id) {
-  const form = document.getElementById('profile-cheer-form');
   const btn = document.getElementById('profile-cheer-btn');
-  const messageInput = document.getElementById('profile-cheer-message');
   const countEl = btn.querySelector('.cheer-count');
 
   const count = await loadCheerCount(id);
@@ -897,47 +882,26 @@ async function setupProfileCheer(id) {
   try { alreadyCheeredLocally = localStorage.getItem(cheeredTodayKey(id)) === '1'; } catch (e) { /* 無視 */ }
   if (alreadyCheeredLocally) {
     btn.classList.add('cheered');
-    btn.childNodes[0].textContent = '♡ 応援済み';
-    messageInput.disabled = true;
-    messageInput.placeholder = '今日はもう応援済みです。また明日！';
+    btn.textContent = count !== null ? `♡ 応援済み（${count}）` : '♡ 応援済み';
   }
 
-  form.addEventListener('submit', async (ev) => {
-    ev.preventDefault();
+  btn.addEventListener('click', async () => {
     if (btn.classList.contains('cheered')) return;
     btn.disabled = true;
     try {
       const res = await fetch(`${RESULTS_SITE_BASE}cheer.php`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ individual_id: id, message: messageInput.value.trim() }),
+        body: JSON.stringify({ individual_id: id }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      if (countEl) countEl.textContent = `（${data.cheer_count}）`;
       btn.classList.add('cheered');
-      btn.childNodes[0].textContent = '♡ 応援済み';
-      messageInput.disabled = true;
+      btn.textContent = `♡ 応援済み（${data.cheer_count}）`;
       try { localStorage.setItem(cheeredTodayKey(id), '1'); } catch (e) { /* 無視 */ }
-      loadProfileComments(id);
     } catch (e) {
       btn.disabled = false;
     }
   });
-
-  loadProfileComments(id);
-}
-
-async function loadProfileComments(id) {
-  const el = document.getElementById('profile-cheer-comments');
-  if (!el) return;
-  try {
-    const res = await fetch(`${RESULTS_SITE_BASE}cheer.php?action=comments&individual_id=${encodeURIComponent(id)}`);
-    const data = await res.json();
-    const list = data.comments || [];
-    el.innerHTML = list.map(c => `<div class="cheer-comment-item">${escapeHtml(c.message)}</div>`).join('');
-  } catch (e) {
-    el.innerHTML = '';
-  }
 }
 
 // サポーター（有料支援）：見た目・モーダルのみ先行実装。実際の決済（Stripe Checkout）
@@ -949,14 +913,12 @@ function setupSponsorUI(id) {
   const overlay = document.getElementById('sponsor-modal-overlay');
   const closeBtn = document.getElementById('sponsor-modal-close');
   const chips = document.querySelectorAll('#sponsor-amount-chips .amount-chip');
-  const customInput = document.getElementById('sponsor-amount-custom');
   const submitBtn = document.getElementById('sponsor-submit-btn');
   const statusEl = document.getElementById('sponsor-modal-status');
 
   ctaBtn.onclick = () => {
     _sponsorTargetId = id;
     chips.forEach(c => c.classList.remove('active'));
-    customInput.value = '';
     document.getElementById('sponsor-name').value = '';
     document.getElementById('sponsor-message').value = '';
     statusEl.textContent = '';
@@ -971,22 +933,16 @@ function setupSponsorUI(id) {
     chip.onclick = () => {
       chips.forEach(c => c.classList.remove('active'));
       chip.classList.add('active');
-      customInput.value = '';
       hintEl.textContent = chip.dataset.permanent
         ? '💡 この金額を選ぶと、空いていればこの選手の永久スポンサー（先着1名）になれます'
         : '';
     };
   });
-  customInput.oninput = () => {
-    if (customInput.value) chips.forEach(c => c.classList.remove('active'));
-    hintEl.textContent = '';
-  };
 
   submitBtn.onclick = () => {
     const activeChip = document.querySelector('#sponsor-amount-chips .amount-chip.active');
-    const amount = activeChip ? Number(activeChip.dataset.amount) : Number(customInput.value || 0);
-    if (!amount || amount < 100) {
-      statusEl.textContent = '金額を選択するか、100円以上を入力してください';
+    if (!activeChip) {
+      statusEl.textContent = '金額を選択してください';
       return;
     }
     // Stripe連携は未実装（見た目のみ先行実装中）。連携後はここでCheckout Sessionの
@@ -996,9 +952,10 @@ function setupSponsorUI(id) {
 }
 
 // 松（500円〜）・竹（300円〜）・梅（それ未満）の順に区分けして表示する。
-// 金額そのものはAPIが返さず、このtierラベルだけを使う
+// 金額そのものはAPIが返さず、このtierラベルだけを使う。松は「スペシャルサポーター」
+// として表記する（永久スポンサーに次ぐ特別枠という位置づけ）
 const SPONSOR_TIERS = [
-  { key: '松', cls: 'tier-matsu', label: '🌲 松' },
+  { key: '松', cls: 'tier-matsu', label: '⭐ スペシャルサポーター' },
   { key: '竹', cls: 'tier-take', label: '🎍 竹' },
   { key: '梅', cls: 'tier-ume', label: '🌸 梅' },
 ];
