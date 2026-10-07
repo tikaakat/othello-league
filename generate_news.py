@@ -22,6 +22,9 @@ import subprocess
 
 DEFAULT_MODEL = "sonnet"
 TITLE_NAMES = ["青龍", "朱雀", "白虎", "玄武"]
+# タイトルの格（青龍＝名人格が最高、玄武が最も格下）。MVP・新人王の評価で
+# タイトル絡みの実績を比較する際の同格内タイブレークに使う（site/api.phpのDAN_*定義と同じ順）
+TITLE_PRESTIGE = {name: len(TITLE_NAMES) - i for i, name in enumerate(TITLE_NAMES)}
 _NEWS_SITE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "news-site")
 PERSONA_PATH = os.path.join(_NEWS_SITE_DIR, "persona.md")
 # コラム・特集は、ダイジェスト（犬飼）とは別の記者（東堂）が書く
@@ -65,21 +68,172 @@ def _pick_best_record(rows):
     )
 
 
+def _pick_mvp(title_results, main_league_rows):
+    """今季のMVPを選ぶ。勝数だけでなく、タイトルを奪取・防衛（初代襲名も含む）した
+    個体を優先する（勝数集計だけでは、防衛専念枠で本戦総当たりを免除され win=0に
+    なる在位者が評価から漏れてしまうため）。該当者が複数いる場合は、タイトルの格
+    （青龍＞朱雀＞白虎＞玄武）が高い方、さらに同格なら本戦の勝数が多い方を選ぶ。
+    今季タイトル絡みの実績が誰にも無ければ、従来通り最多勝の個体にフォールバックする"""
+    win_by_id = {r["individual_id"]: r.get("win", 0) for r in main_league_rows}
+    loss_by_id = {r["individual_id"]: r.get("loss", 0) for r in main_league_rows}
+
+    achievers = {}  # individual_id -> {"name", "score", "titles": [(title, result), ...]}
+    for tr in title_results:
+        wid, wname = tr["winner_id"], tr["winner_name"]
+        entry = achievers.setdefault(wid, {"name": wname, "score": 0, "titles": []})
+        entry["score"] += TITLE_PRESTIGE.get(tr["title"], 0)
+        entry["titles"].append((tr["title"], tr["result"]))
+
+    if achievers:
+        best_id = max(achievers, key=lambda iid: (achievers[iid]["score"], win_by_id.get(iid, 0), iid))
+        chosen = achievers[best_id]
+        return {
+            "individual_id": best_id, "name": chosen["name"], "titles": chosen["titles"],
+            "league": next((r["league"] for r in main_league_rows if r["individual_id"] == best_id), None),
+            "win": win_by_id.get(best_id, 0), "loss": loss_by_id.get(best_id, 0),
+        }
+
+    fallback = _pick_best_record(main_league_rows)
+    if fallback is None:
+        return None
+    return {
+        "individual_id": fallback["individual_id"], "name": fallback["display_name"], "titles": [],
+        "league": fallback["league"], "win": fallback.get("win", 0), "loss": fallback.get("loss", 0),
+    }
+
+
+ROOKIE_MAX_AGE = 26   # 新人王の対象年齢（シーズン開始時点でこれ以下）
+ROOKIE_MAX_DAN = 6    # 新人王の対象段位（シーズン開始時点でこれ以下）
+# タイトル挑戦・獲得による新人王の評価点（勝数・勝率よりはるかに大きく重み付けし、
+# 「タイトル絡みの実績がある方が、単なる勝数より評価されるべき」という方針を徹底する）
+ROOKIE_TITLE_CAPTURE_SCORE = 1000
+ROOKIE_TITLE_CHALLENGE_SCORE = 100
+
+
+def _dan_league_history(data_dir, up_to_season_exclusive):
+    """1〜up_to_season_exclusive-1季のstandingsから、個体ごとの(season, league, win)の
+    履歴（season昇順）を組み立てる。段位（floor＋勝数による昇段のみ。タイトル絡みの
+    昇段条件は、新人王の対象をそもそも「タイトル戦経験が無い個体」に絞るため不要）の
+    簡易シミュレーションに使う"""
+    history = {}
+    for s in range(1, up_to_season_exclusive):
+        rows = load_json(os.path.join(data_dir, "standings", f"season_{s}.json"), [])
+        for r in rows:
+            league = r.get("league")
+            if league not in ("A", "B", "C", "D"):
+                continue
+            history.setdefault(r["individual_id"], []).append((s, league, r.get("win", 0)))
+    return history
+
+
+def _title_experience_ids(data_dir, up_to_season_exclusive):
+    """1〜up_to_season_exclusive-1季の対局から、タイトル戦（本戦。予選トーナメントは
+    対象外＝site/api.phpの段位計算における「タイトル挑戦」の定義と揃える）に挑戦者・
+    保持者として登場した個体のIDの集合を作る"""
+    ids = set()
+    for s in range(1, up_to_season_exclusive):
+        rows = load_json(os.path.join(data_dir, "matches", f"season_{s}.json"), [])
+        for m in rows:
+            if m.get("league") in TITLE_NAMES:
+                ids.add(m["individual_a_id"])
+                ids.add(m["individual_b_id"])
+    return ids
+
+
+def _simplified_dan(history):
+    """タイトル戦経験が無い個体限定の簡易段位シミュレーション（site/api.phpの
+    simulate_dan_progressionのうち、タイトル絡みの昇段条件を省いたもの。
+    対象をタイトル戦経験の無い個体に絞っているため、省いても結果は変わらない）。
+    historyは(season, league, win)のリスト（season昇順）"""
+    dan_league_floor = {"C": 5, "B": 6, "A": 7}
+    dan_win_step = {5: 30, 6: 40, 7: 50, 8: 70, 9: 100}
+    dan = 4  # 新人の初期段位
+    win_baseline = 0
+    cum_win = 0
+    reached = set()
+    for _season, league, win in history:
+        cum_win += win
+        floor = dan_league_floor.get(league)
+        if floor is not None and league not in reached:
+            reached.add(league)
+            if floor > dan:
+                dan = floor
+                win_baseline = cum_win
+        while dan < 9:
+            step = dan_win_step.get(dan + 1)
+            if step is None or (cum_win - win_baseline) < step:
+                break
+            win_baseline += step
+            dan += 1
+    return dan
+
+
+def _pick_rookie_of_year(data_dir, season, rosters, main_league_rows, title_results):
+    """新人王を選ぶ。対象は「今季デビューの新規参入者」ではなく（Dリーグ新人受け入れが
+    毎季固定2名のため、そこだけに絞ると実質二択になってしまう）、シーズン開始時点で
+    ①26歳以下 ②六段以下 ③タイトル戦経験が無い、という条件を満たす個体全員。
+    その中から、今季タイトルを奪取・挑戦した個体を最優先し（新人の年齢・段位で
+    タイトル戦に絡めば十分な実績と言えるため）、それが無ければ勝率→勝数で最も
+    活躍した個体を選ぶ。該当者がいなければNoneを返す"""
+    age_by_id = {
+        ind["id"]: ind.get("initial_age", 0) + ind.get("total_seasons", 0)
+        for league_members in rosters.values() for ind in league_members
+    }
+    title_exp_ids = _title_experience_ids(data_dir, season)
+    league_history = _dan_league_history(data_dir, season)
+
+    eligible_ids = set()
+    for r in main_league_rows:
+        iid = r["individual_id"]
+        age = age_by_id.get(iid)
+        if age is None or age > ROOKIE_MAX_AGE:
+            continue
+        if iid in title_exp_ids:
+            continue
+        if _simplified_dan(league_history.get(iid, [])) > ROOKIE_MAX_DAN:
+            continue
+        eligible_ids.add(iid)
+    if not eligible_ids:
+        return None
+
+    title_score_by_id = {}
+    for tr in title_results:
+        cid = tr.get("challenger_id")
+        if cid not in eligible_ids:
+            continue
+        score = (ROOKIE_TITLE_CAPTURE_SCORE if tr["result"] == "奪取" else ROOKIE_TITLE_CHALLENGE_SCORE) \
+            + TITLE_PRESTIGE.get(tr["title"], 0)
+        if score > title_score_by_id.get(cid, 0):
+            title_score_by_id[cid] = score
+
+    rows_by_id = {r["individual_id"]: r for r in main_league_rows}
+
+    def sort_key(iid):
+        row = rows_by_id.get(iid, {})
+        win, loss = row.get("win", 0), row.get("loss", 0)
+        win_rate = win / (win + loss) if (win + loss) else 0.0
+        return (title_score_by_id.get(iid, 0), win_rate, win, iid)
+
+    best_id = max(eligible_ids, key=sort_key)
+    row = rows_by_id.get(best_id, {})
+    tr = next((t for t in title_results if t.get("challenger_id") == best_id), None)
+    return {
+        "individual_id": best_id, "name": row.get("display_name", best_id),
+        "league": row.get("league"), "win": row.get("win", 0), "loss": row.get("loss", 0),
+        "title": tr["title"] if tr else None, "title_result": tr["result"] if tr else None,
+    }
+
+
 def gather_season_facts(data_dir, season):
     """指定シーズンの対局結果から、記事生成に使う構造化データ（事実）を集める。
     タイトル戦の勝者側（奪取なら挑戦者、防衛ならホルダー）のIDを
     related_individual_idsとしてまとめて返す（記事の「関連個体」表示用）"""
     standings = load_json(os.path.join(data_dir, "standings", f"season_{season}.json"), [])
     matches = load_json(os.path.join(data_dir, "matches", f"season_{season}.json"), [])
+    rosters = load_json(os.path.join(data_dir, "rosters.json"), {})
     names = {r["individual_id"]: r["display_name"] for r in standings}
 
-    # 今季のMVP（A〜Dリーグの中で最多勝）・新人王（今季新規参入者の中で最多勝）。
-    # 青龍在位者のように防衛専念枠で本戦の総当たりを免除されている個体はwin=0になるため、
-    # 自然に対象から外れる（MVPは「本戦でよく勝った個体」を指し、タイトル戦の結果は
-    # title_resultsで別途扱っているため、ここでは意図的に区別しない）
     main_league_rows = [r for r in standings if r.get("league") in ("A", "B", "C", "D")]
-    mvp_row = _pick_best_record(main_league_rows)
-    rookie_row = _pick_best_record([r for r in main_league_rows if "new" in r.get("movement", "")])
 
     title_results = []
     related = []  # [(id, name), ...]（勝者のみ、重複は後で除去）
@@ -93,31 +247,24 @@ def gather_season_facts(data_dir, season):
         challenger_won = win_a > loss_a
         winner_id = a_id if challenger_won else b_id
         title_results.append({
-            "title": t,
+            "title": t, "challenger_id": a_id, "holder_id": b_id,
+            "winner_id": winner_id, "winner_name": names.get(winner_id, winner_id),
             "challenger_name": names.get(a_id, a_id), "holder_name": names.get(b_id, b_id),
             "challenger_wins": win_a, "holder_wins": loss_a,
             "result": "奪取" if challenger_won else "防衛",
         })
         related.append((winner_id, names.get(winner_id, winner_id)))
 
-    mvp = None
-    if mvp_row is not None:
-        mvp = {
-            "individual_id": mvp_row["individual_id"], "name": mvp_row["display_name"],
-            "league": mvp_row["league"], "win": mvp_row.get("win", 0), "loss": mvp_row.get("loss", 0),
-        }
-        related.append((mvp_row["individual_id"], mvp_row["display_name"]))
+    mvp = _pick_mvp(title_results, main_league_rows)
+    if mvp is not None:
+        related.append((mvp["individual_id"], mvp["name"]))
 
-    rookie = None
-    # MVPと同一人物であれば、新人王は重複して取り上げない（今季デビューの新人が
-    # 即座に主力級の成績を出した場合に限りMVPと同一になりうるが、記事としては
-    # MVPの文脈で触れれば十分で、新人王として改めて取り上げる必要は無い）
-    if rookie_row is not None and (mvp_row is None or rookie_row["individual_id"] != mvp_row["individual_id"]):
-        rookie = {
-            "individual_id": rookie_row["individual_id"], "name": rookie_row["display_name"],
-            "league": rookie_row["league"], "win": rookie_row.get("win", 0), "loss": rookie_row.get("loss", 0),
-        }
-        related.append((rookie_row["individual_id"], rookie_row["display_name"]))
+    rookie = _pick_rookie_of_year(data_dir, season, rosters, main_league_rows, title_results)
+    # MVPと同一人物であれば、新人王は重複して取り上げない
+    if rookie is not None and (mvp is None or rookie["individual_id"] != mvp["individual_id"]):
+        related.append((rookie["individual_id"], rookie["name"]))
+    elif rookie is not None:
+        rookie = None
 
     # 昇格・降格は、Aリーグが絡むもの（B→A・A→B）だけ個別に名前を残す。
     # B〜D間の入れ替えは人数が多く記事が名前の列挙だけで埋まってしまうため、件数のみ集計する
@@ -188,9 +335,21 @@ def build_prompt(facts):
         lines.append("")
         lines.append("■今季の活躍")
         if mvp:
-            lines.append(f"・今季MVP（{mvp['league']}リーグで最多勝）：{mvp['name']}（{mvp['win']}勝{mvp['loss']}敗）")
+            if mvp["titles"]:
+                titles_text = "・".join(f"{t}{r}" for t, r in mvp["titles"])
+                lines.append(
+                    f"・今季MVP：{mvp['name']}（{titles_text}。{mvp['league']}リーグ{mvp['win']}勝{mvp['loss']}敗）"
+                )
+            else:
+                lines.append(f"・今季MVP（{mvp['league']}リーグで最多勝）：{mvp['name']}（{mvp['win']}勝{mvp['loss']}敗）")
         if rookie:
-            lines.append(f"・新人王（今季デビューの新規参入者の中で最多勝）：{rookie['name']}（{rookie['league']}リーグ、{rookie['win']}勝{rookie['loss']}敗）")
+            if rookie["title"]:
+                lines.append(
+                    f"・新人王：{rookie['name']}（{rookie['league']}リーグ、{rookie['win']}勝{rookie['loss']}敗。"
+                    f"今季{rookie['title']}に挑戦し{rookie['title_result']}）"
+                )
+            else:
+                lines.append(f"・新人王：{rookie['name']}（{rookie['league']}リーグ、{rookie['win']}勝{rookie['loss']}敗）")
 
     lines.append("")
     lines.append(
@@ -283,9 +442,13 @@ MIN_UPSET_ELO_GAP = 150  # これ未満のElo差では「波乱」のネタと�
 
 
 def gather_upset_facts(data_dir, season):
-    """「波乱の一局」のネタを1つ選ぶ。今季のA〜Dリーグの対局（引き分けを除く）の中から、
-    勝者より敗者の方が季開始時点のEloが高かった（かつその差がMIN_UPSET_ELO_GAP以上）
-    組み合わせのうち、最もElo差が大きかった1局を選ぶ。
+    """「波乱の一局」のネタを1つ選ぶ。A〜Dリーグの通常の総当たりは対象外とし、
+    タイトル戦（青龍・朱雀・白虎・玄武の本戦）とその予選トーナメント
+    （白虎予選・玄武予選・朱雀予選・朱雀紅白決定戦等）の対局（引き分けを除く）の
+    中から、勝者より敗者の方が季開始時点のEloが高かった（かつその差が
+    MIN_UPSET_ELO_GAP以上）組み合わせのうち、最もElo差が大きかった1局を選ぶ。
+    （同じリーグ内の総当たりでの勝敗は「番狂わせ」と呼ぶには弱く、挑戦者決定戦の
+    ようなトーナメント方式・一発勝負の対局の方が下克上として記事になりやすいため）
     「季開始時点のElo」は前季終了時点のEloをそのまま使う（今季中の対局で変動した
     Eloを使うと、勝った結果そのものでEloが上がった選手を「本来強かった」と
     誤判定してしまい、波乱の度合いを過小評価してしまうため）。
@@ -296,14 +459,13 @@ def gather_upset_facts(data_dir, season):
     if not matches or not standings:
         return None
     names = {r["individual_id"]: r["display_name"] for r in standings}
-    leagues = {r["individual_id"]: r["league"] for r in standings}
 
     prev_standings = load_json(os.path.join(data_dir, "standings", f"season_{season - 1}.json"), [])
     prev_elo = {r["individual_id"]: r["elo"] for r in prev_standings}
 
     best = None
     for m in matches:
-        if m.get("league") not in ("A", "B", "C", "D") or m["result"] == "draw":
+        if m.get("league") in ("A", "B", "C", "D") or m["result"] == "draw":
             continue
         winner_id = m["individual_a_id"] if m["result"] == "win" else m["individual_b_id"]
         loser_id = m["individual_b_id"] if m["result"] == "win" else m["individual_a_id"]
