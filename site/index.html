@@ -124,7 +124,7 @@
 
 <div class="header">
   <h1>CIRCUIT OTHELLO LEAGUE</h1>
-  <p>個体たちがリーグ戦・タイトル戦を戦い抜き、青龍・朱雀・白虎・玄武の座を目指す</p>
+  <p>選手たちがリーグ戦・タイトル戦を戦い抜き、青龍・朱雀・白虎・玄武の座を目指す</p>
 </div>
 
 <div class="tabs" id="primary-tabs">
@@ -167,6 +167,9 @@
 
 <script>
 const API_BASE = 'api.php';
+// ファンサイト（news-site）側へのサポーター登録導線用。結果サイト自体にはサポーター
+// 登録のUIは無く、一覧表示のみを行う
+const NEWS_SITE_BASE = 'https://lab.spia-net.com/othello-news/';
 const D_NEWCOMER_INTAKE = 2; // othello_league/league.py の D_NEWCOMER_INTAKE（毎季固定の新人受け入れ枠数）と一致させること
 const tabPanels = {
   leagues: document.getElementById('tab-leagues'), suzaku_league: document.getElementById('tab-suzaku_league'),
@@ -776,6 +779,9 @@ async function loadIndividualDetail(id) {
 
     html += `<div style="display:flex; justify-content:center; margin-bottom:16px;">${renderRadarChart(p)}</div>`;
 
+    html += `<h4 style="font-size:0.78rem; color:var(--amber); border-bottom:1px solid var(--navy-700); padding-bottom:4px;">サポーター</h4>`;
+    html += `<div id="ind-sponsors" style="font-size:0.8rem; margin-bottom:16px;">読み込み中...</div>`;
+
     html += `<h4 style="font-size:0.78rem; color:var(--amber); border-bottom:1px solid var(--navy-700); padding-bottom:4px;">系譜</h4>`;
     html += renderLineage(data.ancestors, data.children);
 
@@ -821,6 +827,7 @@ async function loadIndividualDetail(id) {
     renderRecentMatches(data.matches, ind.id);
     loadIndividualStandingsHistory(id);
     loadIndividualAwards(id);
+    loadIndividualSponsors(id);
   } catch (e) {
     el.innerHTML = `<div class="empty">読み込み失敗: ${escapeHtml(String(e))}</div>`;
   }
@@ -1079,6 +1086,28 @@ async function loadIndividualAwards(id) {
     });
     html += '</tbody></table>';
     el.innerHTML = html;
+  } catch (e) {
+    el.innerHTML = '<div style="color:var(--text-dim);">読み込み失敗</div>';
+  }
+}
+
+// サポーター一覧・永久スポンサー枠：結果サイトは一覧表示のみで、登録自体は
+// ファンサイト（news-site）側の選手ファンページで行う（決済導線はそちら側にしかない）
+async function loadIndividualSponsors(id) {
+  const el = document.getElementById('ind-sponsors');
+  if (!el) return;
+  try {
+    const res = await fetch(`${API_BASE.replace('api.php', 'sponsor.php')}?individual_id=${encodeURIComponent(id)}`);
+    const data = await res.json();
+    const sponsors = data.sponsors || [];
+    const permanentHtml = data.permanent
+      ? `<div style="margin-bottom:8px;">👑 永久スポンサー：<b>${escapeHtml(data.permanent.display_name)}</b>${data.permanent.message ? `「${escapeHtml(data.permanent.message)}」` : ''}</div>`
+      : '';
+    const listHtml = sponsors.length
+      ? sponsors.map(s => `<div style="padding:2px 0;">${escapeHtml(s.display_name)}${s.message ? `　「${escapeHtml(s.message)}」` : ''}</div>`).join('')
+      : '<div style="color:var(--text-dim);">まだサポーターはいません</div>';
+    el.innerHTML = `${permanentHtml}${listHtml}
+      <div style="margin-top:8px;"><a href="${NEWS_SITE_BASE}#individual/${encodeURIComponent(id)}" target="_blank" rel="noopener" style="color:var(--cyan); font-size:0.76rem;">→ ファンサイトでサポーターになる</a></div>`;
   } catch (e) {
     el.innerHTML = '<div style="color:var(--text-dim);">読み込み失敗</div>';
   }
