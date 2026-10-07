@@ -289,7 +289,7 @@ jobs:
 
           retry_cmd scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
             site/index.html site/api.php site/create_character.php site/cheer.php \
-            site/article_like.php site/supporter.php \
+            site/article_like.php site/supporter.php site/sponsor.php \
             "$XSERVER_USER@$XSERVER_HOST:${XSERVER_SITE_DIR}"
 
           rm -f /tmp/deploy_key
