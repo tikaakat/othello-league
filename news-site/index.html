@@ -310,6 +310,7 @@
     <nav>
       <a class="nav-tab" id="nav-feed" href="#" onclick="navigateTo('');return false;">フィード</a>
       <a class="nav-tab" id="nav-individuals" href="#" onclick="navigateTo('individuals');return false;">選手名鑑</a>
+      <a class="nav-tab" id="nav-hof" href="#" onclick="navigateTo('hof');return false;">殿堂</a>
       <a class="nav-tab" id="nav-rules" href="#" onclick="navigateTo('rules');return false;">ルール</a>
       <a class="nav-tab" id="nav-about" href="#" onclick="navigateTo('about');return false;">このメディアについて</a>
       <a class="nav-tab" id="nav-contact" href="#" onclick="navigateTo('contact');return false;">お問い合わせ</a>
@@ -517,6 +518,7 @@ function filterLabel(articles, filter) {
 function setActiveNav(tab) {
   document.getElementById('nav-feed').classList.toggle('active', tab === 'feed');
   document.getElementById('nav-individuals').classList.toggle('active', tab === 'individuals');
+  document.getElementById('nav-hof').classList.toggle('active', tab === 'hof');
   document.getElementById('nav-rules').classList.toggle('active', tab === 'rules');
   document.getElementById('nav-about').classList.toggle('active', tab === 'about');
   document.getElementById('nav-contact').classList.toggle('active', tab === 'contact');
@@ -1127,6 +1129,68 @@ function wireRosterCommon(el) {
   });
 }
 
+// 殿堂タブ：データサイト側の殿堂（Elo・タイトル数・対局数・勝率など多数の指標を
+// 列ソートできる本格的な表）よりも、ファンサイトでは見やすさを優先して
+// 「最高Elo」「タイトル獲得数」の2つの単純なTOP10ランキングだけに絞って見せる。
+// APIは1回だけ取得し、指標の切り替えはクライアント側の再ソートで行う
+let _hofData = null;
+let _hofMetric = 'peak_elo';
+const HOF_METRICS = {
+  peak_elo: { label: '最高Elo', value: p => p.peak_elo, format: v => Math.round(v) },
+  title_count: { label: 'タイトル獲得数', value: p => p.title_count, format: v => `${v}期` },
+};
+
+async function renderHallOfFame() {
+  setActiveNav('hof');
+  setPageMeta('殿堂', '歴代最高Elo・タイトル獲得数でランキングする、サーキットオセロリーグの殿堂。現役・引退を問わず歴代の全選手が対象。');
+  const el = document.getElementById('content');
+  el.innerHTML = '<div class="empty">読み込み中…</div>';
+  if (!_hofData) {
+    try {
+      const res = await fetch(`${RESULTS_SITE_BASE}api.php?action=hall_of_fame`);
+      const data = await res.json();
+      if (!data.ranking) throw new Error('not found');
+      _hofData = data.ranking;
+    } catch (e) {
+      el.innerHTML = '<div class="empty">殿堂の読み込みに失敗しました</div>';
+      return;
+    }
+  }
+  renderHallOfFameBody();
+}
+
+function renderHallOfFameBody() {
+  const el = document.getElementById('content');
+  const metric = HOF_METRICS[_hofMetric];
+  let top = _hofData.slice().sort((a, b) => metric.value(b) - metric.value(a));
+  if (_hofMetric === 'title_count') top = top.filter(p => metric.value(p) > 0);
+  top = top.slice(0, 10);
+
+  el.innerHTML = `
+    <h1 class="profile-name" style="font-size:1.1rem;">殿堂</h1>
+    <div class="profile-sub" style="margin-bottom:10px;">現役・引退を問わず、歴代の選手をランキング</div>
+    <div class="chip-row" style="margin-bottom:10px;">
+      ${Object.entries(HOF_METRICS).map(([key, m]) => `
+        <button class="chip-btn ${key === _hofMetric ? 'active' : ''}" data-hof-metric="${key}">${escapeHtml(m.label)}</button>
+      `).join('')}
+    </div>
+    <div class="ranking-box">
+      ${top.length === 0 ? '<div style="color:var(--text-dim); font-size:0.85rem; padding:4px 0;">該当する選手がいません</div>' : top.map((p, i) => `
+        <div class="ranking-row" data-goto-individual="${escapeHtml(p.id)}">
+          <span class="ranking-rank">${i + 1}</span>
+          <span class="ranking-title">${escapeHtml(p.display_name)}${p.retired ? '<span style="color:var(--text-dim); font-size:0.72rem;">（引退）</span>' : ''}${(p.eternal_titles || []).length ? ' <span style="color:var(--accent-dark); font-size:0.72rem;">永世</span>' : ''}</span>
+          <span class="ranking-likes">${escapeHtml(String(metric.format(metric.value(p))))}</span>
+        </div>`).join('')}
+    </div>`;
+
+  el.querySelectorAll('[data-hof-metric]').forEach(btn => {
+    btn.addEventListener('click', () => { _hofMetric = btn.dataset.hofMetric; renderHallOfFameBody(); });
+  });
+  el.querySelectorAll('[data-goto-individual]').forEach(elm => {
+    elm.addEventListener('click', () => navigateTo('individual/' + encodeURIComponent(elm.dataset.gotoIndividual)));
+  });
+}
+
 async function renderIndividualList() {
   setActiveNav('individuals');
   setPageMeta('選手名鑑', '現役選手をリーグ別・段位別に、引退選手をタイトル獲得数・在籍期間とともに一覧できる選手名鑑。');
@@ -1507,6 +1571,8 @@ function route() {
     renderContact();
   } else if (hash === 'individuals') {
     renderIndividualList();
+  } else if (hash === 'hof') {
+    renderHallOfFame();
   } else if (hash === 'clans') {
     renderClanList();
   } else if (hash.startsWith('clans/')) {
