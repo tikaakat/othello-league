@@ -967,19 +967,21 @@ switch ($action) {
         // 系譜：直接の師匠のみを見る（開祖・新規開祖で親がいなければ空配列）。
         // 師匠の師匠…とさらに遡った表示は個体情報ページでは行わない（一門系統図はnews-site側で見られる）。
         // elo_ratingは、引退済みならretired_archiveの値（＝引退時点のelo）、現役なら現在のeloになる。
+        // peak_eloは弟子一覧の表示（最高Elo）と揃えるために取得する。
         $ancestors = [];
         $parentId = $row['parent_a_id'] ?? null;
         if (!empty($parentId)) {
             $ancStmt = $pdo->prepare(
-                "SELECT id, display_name, elo_rating, 0 AS retired FROM individuals WHERE id = :id
+                "SELECT id, display_name, elo_rating, peak_elo, 0 AS retired FROM individuals WHERE id = :id
                  UNION ALL
-                 SELECT id, display_name, elo_rating, 1 AS retired FROM retired_archive WHERE id = :id2
+                 SELECT id, display_name, elo_rating, peak_elo, 1 AS retired FROM retired_archive WHERE id = :id2
                  LIMIT 1"
             );
             $ancStmt->execute(['id' => $parentId, 'id2' => $parentId]);
             $anc = $ancStmt->fetch();
             if ($anc) {
                 $anc['elo_rating'] = round((float)$anc['elo_rating'], 1);
+                $anc['peak_elo'] = round((float)($anc['peak_elo'] ?? $anc['elo_rating']), 1);
                 $ancestors[] = $anc;
             }
         }
@@ -1188,7 +1190,17 @@ switch ($action) {
 
         $danResult = simulate_dan_progression($debutSeason, $debutLeague, $nonWinCandidates, $titleWinEvents, $challengeEvents, $cumWinBySeason);
         $row['dan'] = $danResult['dan'];
-        $row['dan_history'] = $danResult['history'];
+        $history = $danResult['history'];
+        // 引退済みであれば、引退理由（年齢規定／降級点）を履歴の最後に追加する。
+        // retirement_reasonが無い（マイグレーション前に引退した旧データ）場合は追加しない
+        if (!empty($row['retired']) && !empty($row['retirement_reason'])) {
+            $history[] = [
+                'season' => $row['retired_season'] ?? $debutSeason,
+                'dan' => $danResult['dan'],
+                'reason' => "引退：{$row['retirement_reason']}",
+            ];
+        }
+        $row['dan_history'] = $history;
 
         // タイトル挑戦記録：本戦に「挑戦者」または「防衛側（前季保持者）」として登場したシーズンをまとめる
         // （防衛戦も"登場"に含まれるため、登場回数は獲得合計以上になる）
