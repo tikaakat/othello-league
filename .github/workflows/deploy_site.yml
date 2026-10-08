@@ -29,6 +29,7 @@ on:
       - "site/stripe_client.php"
       - "site/create_checkout.php"
       - "site/stripe_webhook.php"
+      - "site/inquiry.php"
   workflow_dispatch:
     inputs:
       list_only:
@@ -58,6 +59,7 @@ on:
           - "add_permanent_sponsor_feature"
           - "add_demotion_point_columns"
           - "add_retirement_reason_columns"
+          - "add_inquiry_feature"
         default: ""
       create_dir:
         description: "デプロイの代わりに、lab.spia-net.com直下（othello-league/の1つ上）に相対パスでディレクトリを作成する（例: othello-news）。「..」や先頭「/」は不可"
@@ -92,6 +94,7 @@ jobs:
           php -l site/stripe_client.php
           php -l site/create_checkout.php
           php -l site/stripe_webhook.php
+          php -l site/inquiry.php
 
       - name: List / Delete / Deploy on xserver
         env:
@@ -243,6 +246,14 @@ jobs:
                   'ALTER TABLE retired_archive ADD COLUMN retirement_reason VARCHAR(64) NULL;'
                 )
                 ;;
+              add_inquiry_feature)
+                # ファンサイトの「問い合わせ」タブ用。新規棋戦（NHK杯・JT杯のような、
+                # 段位・タイトル保持・降級点免除に影響しない単発の冠スポンサー杯）の
+                # 協賛ニーズ等、自由記述の要望をここに溜め、必要に応じて手動で対応する
+                SQL_LIST=(
+                  'CREATE TABLE IF NOT EXISTS inquiries (id INT AUTO_INCREMENT PRIMARY KEY, category VARCHAR(32) NOT NULL, message VARCHAR(1000) NOT NULL, contact VARCHAR(100) NULL, ip_hash CHAR(64) NOT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP);'
+                )
+                ;;
               *)
                 echo "::error::未知のマイグレーション: ${RUN_MIGRATION}"
                 rm -f /tmp/deploy_key
@@ -362,6 +373,7 @@ jobs:
             site/index.html site/api.php site/create_character.php site/cheer.php \
             site/article_like.php site/supporter.php site/sponsor.php \
             site/stripe_client.php site/create_checkout.php site/stripe_webhook.php \
+            site/inquiry.php \
             "$XSERVER_USER@$XSERVER_HOST:${XSERVER_SITE_DIR}"
 
           rm -f /tmp/deploy_key

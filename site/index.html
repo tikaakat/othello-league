@@ -1194,27 +1194,30 @@ function movementMarks(movement) {
   return movement.split(',').map(tag => MOVEMENT_MARKS[tag.trim()] || '').join('');
 }
 
-// Dリーグの降級点：青龍戦リーグ（A〜Dの本戦）で負け越した（gained、+1）／
-// 玄武ブロック優勝等で軽減された（relief、-1）／0に戻った（cleared{N}、Nはクリア直前の
-// 点数）場合に、結果タブの行へ簡易表示する（通常時は何も出さない）。gained・reliefは
-// 同じ季に両方起きて相殺され見た目の点数が変わらないこともあるため、
-// 「+点1」「-点1」を両方出して状況が分かるようにする。
+// Dリーグの降級点：青龍戦リーグ（A〜Dの本戦）で負け越した（gained{N}、Nは今季開始時点
+// で既に持っていた点数。+1される）／玄武ブロック優勝等で軽減された（relief、-1）／
+// 0に戻った（cleared{N}、Nはクリア直前の点数）場合に、結果タブの行へ簡易表示する
+// （通常時は何も出さない）。gained・reliefは同じ季に両方起きて相殺され見た目の点数が
+// 変わらないこともあるため、「+点1」「-点1」を両方出して状況が分かるようにする。
 // clearedは「それまで溜まっていた点数」を取り消し線付きの「点N」として見せる
 // （旧データに残る接尾辞なしの"cleared"は「点1」扱いにフォールバックする）。
-// gainedのみ（reliefを伴わない）で2点に達した個体はこの季のうちに強制引退するため、
-// 既にmovementMarksで「退」が表示される。「+点1」を別途出す必要は無いので、
-// 引退する場合はgained単体の表示を省く（gained_relief相殺時は2点に達することが
-// 無いため、この省略の対象外）
-function demotionEventMark(event, movement) {
+// gainedで既に点を持っていた場合（N>0）は、その「点N」も併記してから「+点1」を出す
+// （以前は2点に達して引退する場合は「+点1」自体を省いていたが、「点1を持っていた
+// ところへ+1点で引退した」という経緯が分かるよう、引退時も省略せず表示する）
+function demotionEventMark(event) {
   const clearedMatch = /^cleared(\d*)$/.exec(event || '');
   if (clearedMatch) {
     const prevPoints = clearedMatch[1] || '1';
     return `<span class="movement-mark" style="font-size:0.7rem;" title="降級点が0に戻った"><s style="color:#ff5f5f;">点${prevPoints}</s><span style="color:var(--cyan);">消</span></span>`;
   }
   const parts = (event || '').split('_').filter(Boolean);
-  const retired = (movement || '').split(',').map(t => t.trim()).includes('retired');
   let html = '';
-  if (parts.includes('gained') && !retired) {
+  const gainedPart = parts.find(p => /^gained\d*$/.test(p));
+  if (gainedPart) {
+    const before = parseInt(gainedPart.slice('gained'.length) || '0', 10);
+    if (before > 0) {
+      html += `<span class="movement-mark" style="color:#ff5f5f; font-size:0.7rem;" title="今季開始時点で持っていた降級点">点${before}</span>`;
+    }
     html += '<span class="movement-mark" style="color:#ff5f5f; font-size:0.7rem;" title="青龍戦リーグで負け越して降級点+1">+点1</span>';
   }
   if (parts.includes('relief')) {
@@ -1231,7 +1234,7 @@ function resultMovementMarks(movement, demotionEvent) {
   if (tags.includes('promoted')) html += MOVEMENT_MARKS.promoted;
   else if (tags.includes('relegated')) html += MOVEMENT_MARKS.relegated;
   if (tags.includes('retired')) html += MOVEMENT_MARKS.retired;
-  html += demotionEventMark(demotionEvent, movement);
+  html += demotionEventMark(demotionEvent);
   if (tags.includes('new')) html += MOVEMENT_MARKS.new;
   return html;
 }
