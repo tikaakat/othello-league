@@ -147,7 +147,9 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
     # 何季も後にDへ舞い戻った際に、既に引退間際の状態で再出発することになってしまう。
     for ind in d_promote_to_c:
         if ind.demotion_points > 0:
-            demotion_events[ind.id] = "cleared"
+            # 結果タブで「それまで何点あったか」を取り消し線付きで表示できるよう、
+            # クリア直前の点数をイベント文字列に埋め込む（例: "cleared1"）
+            demotion_events[ind.id] = f"cleared{ind.demotion_points}"
         ind.demotion_points = 0
 
     A = a_remain + b_promote_to_a
@@ -222,7 +224,9 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
         # 片方だけでなく両方が起きたことを別々に結果タブへ出せるよう、
         # "gained_relief"のように複合で記録する（0に戻った場合はclearedを優先する）
         if ind.demotion_points == 0 and before > 0:
-            demotion_events[ind.id] = "cleared"
+            # クリア直前の点数を埋め込む（例: "cleared1"）。結果タブで取り消し線付きの
+            # 「点N」として表示するために使う
+            demotion_events[ind.id] = f"cleared{before}"
         else:
             parts = []
             if lost_more:
