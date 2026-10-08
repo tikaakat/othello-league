@@ -60,6 +60,7 @@ on:
           - "add_demotion_point_columns"
           - "add_retirement_reason_columns"
           - "add_inquiry_feature"
+          - "cleanup_test_sponsor_data_20261008"
         default: ""
       create_dir:
         description: "デプロイの代わりに、lab.spia-net.com直下（othello-league/の1つ上）に相対パスでディレクトリを作成する（例: othello-news）。「..」や先頭「/」は不可"
@@ -254,6 +255,15 @@ jobs:
                 # 協賛ニーズ等、自由記述の要望をここに溜め、必要に応じて手動で対応する
                 SQL_LIST=(
                   'CREATE TABLE IF NOT EXISTS inquiries (id INT AUTO_INCREMENT PRIMARY KEY, category VARCHAR(32) NOT NULL, message VARCHAR(1000) NOT NULL, contact VARCHAR(100) NULL, ip_hash CHAR(64) NOT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP);'
+                )
+                ;;
+              cleanup_test_sponsor_data_20261008)
+                # Stripe本番移行前に、debug_query=sponsorsで洗い出したテスト投稿2件を削除する
+                # 一回限りのクリーンアップ（該当行をid・個体ID・内容・日時まで特定した
+                # 固定条件のため、以降に入る本物のデータを誤って消す心配はない）
+                SQL_LIST=(
+                  "DELETE FROM sponsors WHERE id = 1 AND individual_id = 'D0-006' AND display_name = 'てすと';"
+                  "DELETE FROM cheer_log WHERE individual_id = 'CC33-000' AND message = 'がんばれ！' AND created_at = '2026-10-07 19:19:02';"
                 )
                 ;;
               *)
