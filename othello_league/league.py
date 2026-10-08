@@ -135,9 +135,10 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
     d_promote_to_c = D[:D_TO_C_PROMOTE]
     d_remain = D[D_TO_C_PROMOTE:]
 
-    # 降級点の増減（結果タブ・リーグタブへの「点」「消」表示用）。
-    # individual_id => "gained"（この季に降級点が1つ増えた） / "cleared"（0に戻った。
-    # Dを卒業した際のリセット・減点が貯まり分を相殺しきった場合のいずれでも「消」扱いにする）
+    # 降級点の増減（結果タブへの「+点1」「-点1」「消」表示用）。
+    # individual_id => "gained"（青龍戦リーグで負け越し、+1）/ "relief"（玄武ブロック優勝等で-1）/
+    # "gained_relief"（同じ季に両方発生。相殺されて見た目の点数が変わらないこともある）/
+    # "cleared"（0に戻った。Dを卒業した際のリセット・減点が貯まり分を相殺しきった場合のいずれでも）
     demotion_events = {}
 
     # Dリーグを卒業（Cへ昇格）する個体は、降級点をリセットする。
@@ -190,18 +191,36 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
     d_keep = []
     for ind in d_remain:
         before = ind.demotion_points
+        # 「青龍戦リーグ（D所属個体のA〜D総当たり・スイス方式本戦）」の勝敗のみで+1/-1を
+        # 判定する（win_this_season/loss_this_seasonはタイトル戦の前にA〜Dの結果だけで
+        # セットされるため、玄武予選・玄武本戦等のタイトル戦の勝敗はここに混ざらない）
+        lost_more = ind.loss_this_season > ind.win_this_season
+        won_more = ind.win_this_season > ind.loss_this_season
+        relief = ind.id in demotion_relief_ids
         delta = 0
-        if ind.loss_this_season > ind.win_this_season:
+        if lost_more:
             delta += 1
-        elif ind.win_this_season > ind.loss_this_season:
+        elif won_more:
             delta -= 1
-        if ind.id in demotion_relief_ids:
+        if relief:
             delta -= 1
         ind.demotion_points = max(0, before + delta)
-        if ind.demotion_points > before:
-            demotion_events[ind.id] = "gained"
-        elif ind.demotion_points == 0 and before > 0:
+        # gained（青龍戦リーグで負け越して+1）・relief（玄武ブロック優勝等で-1）は、
+        # 同じ季に両方起きて相殺され見た目の点数が変わらないこともあるため、
+        # 片方だけでなく両方が起きたことを別々に結果タブへ出せるよう、
+        # "gained_relief"のように複合で記録する（0に戻った場合はclearedを優先する）
+        if ind.demotion_points == 0 and before > 0:
             demotion_events[ind.id] = "cleared"
+        else:
+            parts = []
+            if lost_more:
+                parts.append("gained")
+            # relief単独（今季負け越していない）で既に0点だった場合は、実質的に
+            # 何も変化していないため表示しない（relieveする対象の点が無かった）
+            if relief and (before > 0 or lost_more):
+                parts.append("relief")
+            if parts:
+                demotion_events[ind.id] = "_".join(parts)
         if ind.demotion_points >= D_DEMOTION_POINT_LIMIT and ind.id not in protected_ids:
             ind.retired = True
             ind.total_seasons += 1  # age_retiredと同様、引退する今季分も在籍シーズン数に数える

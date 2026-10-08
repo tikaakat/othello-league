@@ -1194,19 +1194,42 @@ function movementMarks(movement) {
   return movement.split(',').map(tag => MOVEMENT_MARKS[tag.trim()] || '').join('');
 }
 
-// Dリーグの降級点：その季に「点」が増えた（gained）／0に戻った（cleared）場合のみ、
-// 結果タブの行に簡易表示する（通常時は何も出さない）。
-// gainedで2点に達した個体はこの季のうちに強制引退するため、movementMarksの「退」が
-// 既に表示される。「点2」を別途出す必要は無いので、引退しない場合（＝1点になった場合）
-// のみ「点1」を表示する
+// Dリーグの降級点：青龍戦リーグ（A〜Dの本戦）で負け越した（gained、+1）／
+// 玄武ブロック優勝等で軽減された（relief、-1）／0に戻った（cleared）場合に、
+// 結果タブの行へ簡易表示する（通常時は何も出さない）。gained・reliefは同じ季に
+// 両方起きて相殺され見た目の点数が変わらないこともあるため、
+// 「+点1」「-点1」を両方出して状況が分かるようにする。
+// gainedのみ（reliefを伴わない）で2点に達した個体はこの季のうちに強制引退するため、
+// 既にmovementMarksで「退」が表示される。「+点1」を別途出す必要は無いので、
+// 引退する場合はgained単体の表示を省く（gained_relief相殺時は2点に達することが
+// 無いため、この省略の対象外）
 function demotionEventMark(event, movement) {
   if (event === 'cleared') {
     return '<span class="movement-mark" style="color:var(--cyan); font-size:0.7rem;" title="降級点が0に戻った">消</span>';
   }
-  if (event === 'gained' && !(movement || '').includes('retired')) {
-    return '<span class="movement-mark" style="color:#ff5f5f; font-size:0.7rem;" title="降級点が増えた">点1</span>';
+  const parts = (event || '').split('_').filter(Boolean);
+  const retired = (movement || '').split(',').map(t => t.trim()).includes('retired');
+  let html = '';
+  if (parts.includes('gained') && !retired) {
+    html += '<span class="movement-mark" style="color:#ff5f5f; font-size:0.7rem;" title="青龍戦リーグで負け越して降級点+1">+点1</span>';
   }
-  return '';
+  if (parts.includes('relief')) {
+    html += '<span class="movement-mark" style="color:var(--cyan); font-size:0.7rem;" title="玄武ブロック優勝等で降級点-1">-点1</span>';
+  }
+  return html;
+}
+
+// 結果タブの行：表記の優先順位（左から）昇降 → 引退 → 降級点 → 新人、の順に固定する
+// （movementの文字列中のタグ順はデータ側の都合でまちまちなため、ここで並びを揃える）
+function resultMovementMarks(movement, demotionEvent) {
+  const tags = (movement || '').split(',').map(t => t.trim());
+  let html = '';
+  if (tags.includes('promoted')) html += MOVEMENT_MARKS.promoted;
+  else if (tags.includes('relegated')) html += MOVEMENT_MARKS.relegated;
+  if (tags.includes('retired')) html += MOVEMENT_MARKS.retired;
+  html += demotionEventMark(demotionEvent, movement);
+  if (tags.includes('new')) html += MOVEMENT_MARKS.new;
+  return html;
 }
 
 // リーグタブ：現在降級点を持っている個体に、名前の左へ簡易表示する
@@ -1759,7 +1782,7 @@ async function loadSeiryuuPanel(season) {
           const rTitles = (r.individual_id && seasonTitleholders.by_id[r.individual_id]) || [];
           html += `<tr class="${zoneClass(r.movement)}" data-id="${escapeHtml(r.individual_id)}">
             <td class="rank-num">${displayRank}</td>
-            <td>${movementMarks(r.movement)}${demotionEventMark(r.demotion_point_event, r.movement)}${escapeHtml(r.display_name || r.individual_id)}${titleOrDanBadge(rTitles, seasonDan[r.individual_id])}</td>
+            <td>${resultMovementMarks(r.movement, r.demotion_point_event)}${escapeHtml(r.display_name || r.individual_id)}${titleOrDanBadge(rTitles, seasonDan[r.individual_id])}</td>
             <td>${record}</td>
           </tr>`;
         });
