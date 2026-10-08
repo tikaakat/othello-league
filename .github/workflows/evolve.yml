@@ -47,6 +47,10 @@ on:
     - cron: "5 21 * * *"
     - cron: "5 9 * * *"
 
+permissions:
+  contents: write  # data/配下の季進行結果をpushするため
+  actions: write   # 季が確定するたびにgenerate_news.ymlをworkflow_dispatchで起動するため
+
 jobs:
   run-season:
     runs-on: ubuntu-latest
@@ -79,6 +83,7 @@ jobs:
           PULL_IMPORT_URL: "https://lab.spia-net.com/othello-league/import_from_github.php?key=${{ secrets.IMPORT_SECRET_KEY }}"
           RESET_DB_URL: "https://lab.spia-net.com/othello-league/reset_database.php?key=${{ secrets.IMPORT_SECRET_KEY }}"
           MIGRATIONS_URL: "https://lab.spia-net.com/othello-league/run_migrations.php?key=${{ secrets.IMPORT_SECRET_KEY }}"
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git config user.name "othello-league-bot"
           git config user.email "actions@users.noreply.github.com"
@@ -215,6 +220,26 @@ jobs:
               if [ "$PUSHED" != "1" ]; then
                 echo "::warning::git pushに複数回失敗しました（バッチ $i）。コミットはローカルに残り、次のバッチでまとめて再pushを試みます"
               fi
+            fi
+
+            # 記事生成（generate_news.yml）をこの季番号を明示して起動する。
+            # 以前はgenerate_news.yml側のworkflow_runトリガー（本戦completedイベント）に
+            # 任せていたが、本戦・記事生成は同じ排他グループ（concurrency: othello-league）を
+            # 共有するため、本戦を連続で手動実行する等で複数バッチが詰まっていると、
+            # 記事生成側が実際に走り出す頃にはmainがさらに後の季まで進んでしまっており、
+            # generate_news.py側の「季省略時は最新」のデフォルトでは、トリガー元の季とは
+            # 違う（より新しい）季の記事が生成され、トリガー元の季がスキップされてしまう
+            # 不具合があった。季番号をこちら側から明示的に渡すことで、キュー待ちが
+            # 何季分重なってもそれぞれの季の記事が正しく生成されるようにする
+            if [ "$PUSHED" = "1" ]; then
+              CURRENT_SEASON=$(python -c "import json; print(json.load(open('data/season_state.json'))['current_season'])")
+              echo "--- 記事生成（季${CURRENT_SEASON}）をworkflow_dispatchで起動 ---"
+              curl -sS -f -X POST \
+                -H "Authorization: Bearer ${GH_TOKEN}" \
+                -H "Accept: application/vnd.github+json" \
+                "https://api.github.com/repos/${{ github.repository }}/actions/workflows/generate_news.yml/dispatches" \
+                -d "{\"ref\":\"main\",\"inputs\":{\"season\":\"${CURRENT_SEASON}\"}}" \
+                || echo "::warning::記事生成（季${CURRENT_SEASON}）の起動に失敗しました。後で手動実行してください（workflow_dispatchのseason入力に${CURRENT_SEASON}を指定）"
             fi
 
             if [ "$XSERVER_LIKELY_DOWN" -eq 1 ]; then
