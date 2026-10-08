@@ -231,7 +231,12 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
         else:
             parts = []
             if lost_more:
-                parts.append("gained")
+                # 既に降級点を持っていた場合（before > 0）は、その「持っていた点数」も
+                # 結果タブで分かるように埋め込む（例: "gained1"）。引退（降級点2点に
+                # 達した）場合も、以前は「+点1」の表示自体を省いていたが、「点1を
+                # 持っていたところへ+1点で引退」という経緯が分かるよう、省略をやめて
+                # 常に表示するようにした
+                parts.append(f"gained{before}")
             # relief単独（今季負け越していない）で既に0点だった場合は、実質的に
             # 何も変化していないため表示しない（relieveする対象の点が無かった）
             if relief and (before > 0 or lost_more):
