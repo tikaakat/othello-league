@@ -76,6 +76,8 @@ on:
         options:
           - ""
           - "demotion_points"
+          - "sponsors"
+          - "inquiries"
         default: ""
 
 jobs:
@@ -316,6 +318,43 @@ jobs:
                   if (!$rows) { echo "demotion_points > 0 の個体はいません" . PHP_EOL; }
                   foreach ($rows as $r) {
                     echo $r["league"] . " " . $r["id"] . " " . $r["display_name"] . " demotion_points=" . $r["demotion_points"] . PHP_EOL;
+                  }
+                '
+                ;;
+              sponsors)
+                # サポーター機能のテスト投稿を洗い出すための確認用（sponsors・
+                # permanent_sponsors・cheer_logのmessage付き行を全件ダンプする）
+                PHP_QUERY='
+                  echo "--- sponsors ---" . PHP_EOL;
+                  $rows = $pdo->query("SELECT id, individual_id, display_name, message, amount_jpy, created_at FROM sponsors ORDER BY id")->fetchAll();
+                  if (!$rows) { echo "(0件)" . PHP_EOL; }
+                  foreach ($rows as $r) {
+                    echo "id=" . $r["id"] . " individual_id=" . $r["individual_id"] . " display_name=" . $r["display_name"]
+                      . " message=" . ($r["message"] ?? "") . " amount_jpy=" . $r["amount_jpy"] . " created_at=" . $r["created_at"] . PHP_EOL;
+                  }
+                  echo "--- permanent_sponsors ---" . PHP_EOL;
+                  $rows = $pdo->query("SELECT individual_id, display_name, message, amount_jpy, created_at FROM permanent_sponsors ORDER BY created_at")->fetchAll();
+                  if (!$rows) { echo "(0件)" . PHP_EOL; }
+                  foreach ($rows as $r) {
+                    echo "individual_id=" . $r["individual_id"] . " display_name=" . $r["display_name"]
+                      . " message=" . ($r["message"] ?? "") . " amount_jpy=" . $r["amount_jpy"] . " created_at=" . $r["created_at"] . PHP_EOL;
+                  }
+                  echo "--- cheer_log（messageがある行のみ） ---" . PHP_EOL;
+                  $rows = $pdo->query("SELECT individual_id, message, created_at FROM cheer_log WHERE message IS NOT NULL AND CHAR_LENGTH(message) > 0 ORDER BY created_at")->fetchAll();
+                  if (!$rows) { echo "(0件)" . PHP_EOL; }
+                  foreach ($rows as $r) {
+                    echo "individual_id=" . $r["individual_id"] . " message=" . $r["message"] . " created_at=" . $r["created_at"] . PHP_EOL;
+                  }
+                '
+                ;;
+              inquiries)
+                PHP_QUERY='
+                  $rows = $pdo->query("SELECT id, category, message, contact, created_at FROM inquiries ORDER BY id DESC")->fetchAll();
+                  if (!$rows) { echo "お問い合わせはまだありません" . PHP_EOL; }
+                  foreach ($rows as $r) {
+                    echo "#" . $r["id"] . " [" . $r["category"] . "] " . $r["created_at"] . PHP_EOL
+                      . "  " . $r["message"] . PHP_EOL
+                      . "  返信先: " . ($r["contact"] ?? "(なし)") . PHP_EOL;
                   }
                 '
                 ;;

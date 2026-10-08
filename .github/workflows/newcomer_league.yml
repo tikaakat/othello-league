@@ -1,5 +1,10 @@
 name: Run Newcomer League (新人リーグ)
 
+permissions:
+  contents: write  # data/newcomer_league等の結果をpushするため
+  actions: write   # 実行の最後にgenerate_news.ymlをworkflow_dispatchで起動するため
+                    # （news-site/index.html等の変更を、季が進むまで待たず確実に反映させる）
+
 concurrency:
   group: othello-league
   cancel-in-progress: false
@@ -51,6 +56,7 @@ jobs:
         env:
           PENDING_CHAR_URL: "https://lab.spia-net.com/othello-league/export_pending_characters.php?key=${{ secrets.IMPORT_SECRET_KEY }}"
           PULL_IMPORT_URL: "https://lab.spia-net.com/othello-league/import_from_github.php?key=${{ secrets.IMPORT_SECRET_KEY }}"
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git config user.name "othello-league-bot"
           git config user.email "actions@users.noreply.github.com"
@@ -144,3 +150,17 @@ jobs:
           else
             echo "変更なし（コミット不要）"
           fi
+
+          # news-site（ファンサイト）のデプロイは、本戦（evolve.yml）側が季を進めた際にのみ
+          # generate_news.ymlをworkflow_dispatchで起動する仕組みになっているため、
+          # news-site/index.html等をmainにマージしただけでは次の本戦実行まで反映されない。
+          # 新人リーグの実行タイミングでも同様に起動しておくことで、本戦の間隔が空いても
+          # news-site側の変更を取りこぼさず反映できるようにする（季番号は指定しない＝
+          # 既存の最新記事をそのまま使い、news-siteファイル一式の再デプロイだけが目的）
+          echo "=== news-siteの再デプロイをworkflow_dispatchで起動 ==="
+          curl -sS -f -X POST \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/generate_news.yml/dispatches" \
+            -d '{"ref":"main","inputs":{}}' \
+            || echo "::warning::news-siteの再デプロイ起動に失敗しました。後で手動実行してください"
