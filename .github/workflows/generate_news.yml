@@ -11,9 +11,17 @@ name: Generate News Article (オセロ界タイムズ)
 # Enterpriseサブスクリプションの利用枠（CLAUDE_CODE_OAUTH_TOKEN、
 # `claude setup-token`で発行したものをGitHub Secretsに登録）を使う
 #
-# workflow_runトリガーは、トリガー元ワークフローファイル（このファイル自体）が
-# デフォルトブランチ（main）に存在しないと発火しない仕様のため、このブランチ上では
-# 動作確認できず、mainへマージされて初めて有効になる。
+# 起動はevolve.yml（本戦）側がワークフロー終了直前に、確定した季番号を明示して
+# workflow_dispatchで直接呼び出す（このファイル自体はworkflow_dispatch入力の
+# season以外に起動条件を持たない）。
+#
+# 以前はworkflow_run（本戦のcompletedイベント）トリガーで起動し、season省略時は
+# 「最新」をデフォルトにしていたが、本戦・記事生成は同じ排他グループ
+# （concurrency: othello-league）を共有するため、本戦を連続実行する等でキューが
+# 詰まっていると、記事生成が実際に走り出す頃にはmainがさらに後の季まで進んでおり、
+# 「最新」の季を取り違えて生成してしまう（トリガー元の季の記事が欠落する）不具合が
+# あった。evolve.yml側から季番号を明示して起動することで、キュー待ちがどれだけ
+# 重なってもこの不具合は起きない。
 #
 # 本戦・新人リーグと同じ排他グループ（othello-league）を使うことで、
 # data/standings・data/matchesの読み込み中に次の本戦バッチが書き込みを始めて
@@ -26,16 +34,12 @@ on:
   workflow_dispatch:
     inputs:
       season:
-        description: "対象シーズン番号（省略時は最新）"
+        description: "対象シーズン番号（省略時は最新。通常はevolve.yml側が確定した季番号を指定して自動起動する）"
         required: false
         default: ""
-  workflow_run:
-    workflows: ["Run Othello League Season"]
-    types: [completed]
 
 jobs:
   generate-news:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
