@@ -185,8 +185,20 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
     #     この判定は「今季も引き続きDに在籍していた個体（d_remain）」のみを対象にする。
     #     今季Cから降格してきた個体（c_relegate_to_d・c_relegate_overflow）は、
     #     まだDでの対局実績が無い（直前の成績はC所属時のもの）ため対象外とし、
-    #     降級点を0にリセットして「Dでの降級点」を来季以降ゼロから数え直す。 ---
-    demotion_relief_ids = demotion_relief_ids or set()
+    #     降級点を0にリセットして「Dでの降級点」を来季以降ゼロから数え直す。
+    #
+    #     protected_ids（タイトル保持者・朱雀紅白リーグ在籍者・この季の挑戦者）は
+    #     強制引退そのものは免除されるが、以前はその間も負け越すたびに降級点が
+    #     上限なく積み上がり続けてしまい、(a) 白虎トーナメント出場者等
+    #     （demotion_relief_idsのみ対象で-1点止まり）と比べて不公平、
+    #     (b) 保護が外れた季に「点3」のような想定外の点数から再出発する、という
+    #     2つの問題があった。これを解消するため、protected_idsもdemotion_relief_idsと
+    #     同じ「-1点」救済の対象に合流させる（＝保護中は負け越しても実質ネット0で
+    #     増えない）。これにより白虎出場者と保持者・挑戦者は同じルールで扱われ、
+    #     保護が外れた時点の点数も従来の最大値（D_DEMOTION_POINT_LIMIT）を超えない。
+    #     さらに保険として、計算結果そのものもD_DEMOTION_POINT_LIMITで上限キャップし、
+    #     どのような経路でも「点3」以上の表示が出ないようにする。 ---
+    demotion_relief_ids = set(demotion_relief_ids or set()) | protected_ids
     d_up_or_out_retired = []
     d_keep = []
     for ind in d_remain:
@@ -204,7 +216,7 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
             delta -= 1
         if relief:
             delta -= 1
-        ind.demotion_points = max(0, before + delta)
+        ind.demotion_points = min(max(0, before + delta), D_DEMOTION_POINT_LIMIT)
         # gained（青龍戦リーグで負け越して+1）・relief（玄武ブロック優勝等で-1）は、
         # 同じ季に両方起きて相殺され見た目の点数が変わらないこともあるため、
         # 片方だけでなく両方が起きたことを別々に結果タブへ出せるよう、
