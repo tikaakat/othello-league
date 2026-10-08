@@ -3,7 +3,20 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>オセロ界タイムズ</title>
+<title>オセロ界タイムズ｜AIオセロリーグ「サーキットオセロリーグ」の非公式ファンメディア</title>
+<meta name="description" content="AI同士が戦う架空のオセロリーグ「サーキットオセロリーグ」を追いかける非公式ファンメディア。昇降格・タイトル戦・引退制度のある選手たちの対局結果をニュース記事と選手名鑑でお届けします。">
+<link rel="canonical" href="https://lab.spia-net.com/othello-news/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="オセロ界タイムズ">
+<meta property="og:title" content="オセロ界タイムズ｜AIオセロリーグの非公式ファンメディア">
+<meta property="og:description" content="AI同士が戦う架空のオセロリーグ「サーキットオセロリーグ」を追いかける非公式ファンメディア。昇降格・タイトル戦・引退制度のある選手たちの対局結果をニュース記事と選手名鑑でお届けします。">
+<meta property="og:url" content="https://lab.spia-net.com/othello-news/">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="オセロ界タイムズ">
+<meta name="twitter:description" content="AI同士が戦う架空のオセロリーグを追いかける非公式ファンメディア。">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebSite","name":"オセロ界タイムズ","url":"https://lab.spia-net.com/othello-news/","description":"AI同士が戦う架空のオセロリーグ「サーキットオセロリーグ」を追いかける非公式ファンメディア"}
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
@@ -297,7 +310,9 @@
     <nav>
       <a class="nav-tab" id="nav-feed" href="#" onclick="navigateTo('');return false;">フィード</a>
       <a class="nav-tab" id="nav-individuals" href="#" onclick="navigateTo('individuals');return false;">選手名鑑</a>
+      <a class="nav-tab" id="nav-hof" href="#" onclick="navigateTo('hof');return false;">殿堂</a>
       <a class="nav-tab" id="nav-rules" href="#" onclick="navigateTo('rules');return false;">ルール</a>
+      <a class="nav-tab" id="nav-about" href="#" onclick="navigateTo('about');return false;">このメディアについて</a>
       <a class="nav-tab" id="nav-contact" href="#" onclick="navigateTo('contact');return false;">お問い合わせ</a>
       <a class="nav-external" href="https://lab.spia-net.com/othello-league/" target="_blank" rel="noopener">データサイトへ ↗</a>
     </nav>
@@ -503,12 +518,31 @@ function filterLabel(articles, filter) {
 function setActiveNav(tab) {
   document.getElementById('nav-feed').classList.toggle('active', tab === 'feed');
   document.getElementById('nav-individuals').classList.toggle('active', tab === 'individuals');
+  document.getElementById('nav-hof').classList.toggle('active', tab === 'hof');
   document.getElementById('nav-rules').classList.toggle('active', tab === 'rules');
+  document.getElementById('nav-about').classList.toggle('active', tab === 'about');
   document.getElementById('nav-contact').classList.toggle('active', tab === 'contact');
+}
+
+// SEO対策：ルーティングのたびに<title>・meta descriptionをそのページ内容に合わせて
+// 書き換える。ハッシュルーティング（#article/xxx等）はURL自体が検索エンジンに
+// 別ページとして認識されにくい弱点があるが、JSレンダリング後のDOM（title・meta）は
+// クローラーが評価対象にできるため、せめてページごとに内容が合った状態にしておく
+function setPageMeta(title, description) {
+  const fullTitle = title ? `${title}｜オセロ界タイムズ` : 'オセロ界タイムズ｜AIオセロリーグ「サーキットオセロリーグ」の非公式ファンメディア';
+  document.title = fullTitle;
+  const desc = description || 'AI同士が戦う架空のオセロリーグ「サーキットオセロリーグ」を追いかける非公式ファンメディア。昇降格・タイトル戦・引退制度のある選手たちの対局結果をニュース記事と選手名鑑でお届けします。';
+  const descEl = document.querySelector('meta[name="description"]');
+  if (descEl) descEl.setAttribute('content', desc);
+  const ogTitleEl = document.querySelector('meta[property="og:title"]');
+  if (ogTitleEl) ogTitleEl.setAttribute('content', fullTitle);
+  const ogDescEl = document.querySelector('meta[property="og:description"]');
+  if (ogDescEl) ogDescEl.setAttribute('content', desc);
 }
 
 async function renderFeed(filter) {
   setActiveNav('feed');
+  setPageMeta(null, null);
   const el = document.getElementById('content');
   const allArticles = await loadArticles();
   if (allArticles.length === 0) {
@@ -629,9 +663,11 @@ async function renderArticle(id) {
   const articles = await loadArticles();
   const a = articles.find(x => x.id === id);
   if (!a) {
+    setPageMeta('記事が見つかりません', null);
     el.innerHTML = '<div class="empty">記事が見つかりませんでした</div><a class="back-link" href="#" onclick="navigateTo(\'\');return false;">← フィードへ戻る</a>';
     return;
   }
+  setPageMeta(a.title, a.summary || null);
   const pairs = relatedPairs(a);
   const relatedHtml = pairs.length ? `<div class="related-box">
       <h4>関連選手</h4>
@@ -776,6 +812,10 @@ async function renderIndividualProfile(id) {
   const statusLine = ind.retired ? '引退済み' : `現在：${escapeHtml(ind.league || '-')}リーグ`;
   const titleRanges = data.title_ranges || [];
   const eternalTitles = data.eternal_titles || [];
+  setPageMeta(
+    `${name}選手ページ`,
+    `${name}（${ind.retired ? '引退済み' : `${ind.league || '-'}リーグ`}）の対局成績・タイトル獲得歴・段位履歴をオセロ界タイムズでチェック。`
+  );
   const titleHtml = titleRanges.length
     ? titleRanges.map(t => {
         const eternalNote = eternalTitles.includes(t.title) ? '　<b>永世称号</b>' : '';
@@ -1089,8 +1129,71 @@ function wireRosterCommon(el) {
   });
 }
 
+// 殿堂タブ：データサイト側の殿堂（Elo・タイトル数・対局数・勝率など多数の指標を
+// 列ソートできる本格的な表）よりも、ファンサイトでは見やすさを優先して
+// 「最高Elo」「タイトル獲得数」の2つの単純なTOP10ランキングだけに絞って見せる。
+// APIは1回だけ取得し、指標の切り替えはクライアント側の再ソートで行う
+let _hofData = null;
+let _hofMetric = 'peak_elo';
+const HOF_METRICS = {
+  peak_elo: { label: '最高Elo', value: p => p.peak_elo, format: v => Math.round(v) },
+  title_count: { label: 'タイトル獲得数', value: p => p.title_count, format: v => `${v}期` },
+};
+
+async function renderHallOfFame() {
+  setActiveNav('hof');
+  setPageMeta('殿堂', '歴代最高Elo・タイトル獲得数でランキングする、サーキットオセロリーグの殿堂。現役・引退を問わず歴代の全選手が対象。');
+  const el = document.getElementById('content');
+  el.innerHTML = '<div class="empty">読み込み中…</div>';
+  if (!_hofData) {
+    try {
+      const res = await fetch(`${RESULTS_SITE_BASE}api.php?action=hall_of_fame`);
+      const data = await res.json();
+      if (!data.ranking) throw new Error('not found');
+      _hofData = data.ranking;
+    } catch (e) {
+      el.innerHTML = '<div class="empty">殿堂の読み込みに失敗しました</div>';
+      return;
+    }
+  }
+  renderHallOfFameBody();
+}
+
+function renderHallOfFameBody() {
+  const el = document.getElementById('content');
+  const metric = HOF_METRICS[_hofMetric];
+  let top = _hofData.slice().sort((a, b) => metric.value(b) - metric.value(a));
+  if (_hofMetric === 'title_count') top = top.filter(p => metric.value(p) > 0);
+  top = top.slice(0, 10);
+
+  el.innerHTML = `
+    <h1 class="profile-name" style="font-size:1.1rem;">殿堂</h1>
+    <div class="profile-sub" style="margin-bottom:10px;">現役・引退を問わず、歴代の選手をランキング</div>
+    <div class="chip-row" style="margin-bottom:10px;">
+      ${Object.entries(HOF_METRICS).map(([key, m]) => `
+        <button class="chip-btn ${key === _hofMetric ? 'active' : ''}" data-hof-metric="${key}">${escapeHtml(m.label)}</button>
+      `).join('')}
+    </div>
+    <div class="ranking-box">
+      ${top.length === 0 ? '<div style="color:var(--text-dim); font-size:0.85rem; padding:4px 0;">該当する選手がいません</div>' : top.map((p, i) => `
+        <div class="ranking-row" data-goto-individual="${escapeHtml(p.id)}">
+          <span class="ranking-rank">${i + 1}</span>
+          <span class="ranking-title">${escapeHtml(p.display_name)}${p.retired ? '<span style="color:var(--text-dim); font-size:0.72rem;">（引退）</span>' : ''}${(p.eternal_titles || []).length ? ' <span style="color:var(--accent-dark); font-size:0.72rem;">永世</span>' : ''}</span>
+          <span class="ranking-likes">${escapeHtml(String(metric.format(metric.value(p))))}</span>
+        </div>`).join('')}
+    </div>`;
+
+  el.querySelectorAll('[data-hof-metric]').forEach(btn => {
+    btn.addEventListener('click', () => { _hofMetric = btn.dataset.hofMetric; renderHallOfFameBody(); });
+  });
+  el.querySelectorAll('[data-goto-individual]').forEach(elm => {
+    elm.addEventListener('click', () => navigateTo('individual/' + encodeURIComponent(elm.dataset.gotoIndividual)));
+  });
+}
+
 async function renderIndividualList() {
   setActiveNav('individuals');
+  setPageMeta('選手名鑑', '現役選手をリーグ別・段位別に、引退選手をタイトル獲得数・在籍期間とともに一覧できる選手名鑑。');
   const el = document.getElementById('content');
   el.innerHTML = '<div class="empty">読み込み中…</div>';
 
@@ -1182,6 +1285,7 @@ async function renderIndividualList() {
 // 設計）をそのまま再利用し、こちら側で新たにツリー構築ロジックを持たない
 async function renderClanList() {
   setActiveNav('individuals');
+  setPageMeta('一門系統図', '師弟関係でつながった選手たちの一門を、開祖から辿れる系統図で一覧。');
   const el = document.getElementById('content');
   el.innerHTML = '<div class="empty">読み込み中…</div>';
 
@@ -1268,6 +1372,8 @@ async function renderClanDetail(clanId) {
     }
   });
   const root = membersById[clanId] || members.find(m => !m.parent_a_id || !membersById[m.parent_a_id]);
+  const rootName = root ? (root.display_name || root.id) : clanId;
+  setPageMeta(`${rootName}の一門`, `${rootName}を開祖とする一門（総勢${members.length}名）の師弟関係を系統図で紹介。`);
   const branchesByUnder = {};
   (data.branches_out || []).forEach(b => {
     (branchesByUnder[b.under_id] = branchesByUnder[b.under_id] || []).push(b);
@@ -1297,6 +1403,7 @@ async function renderClanDetail(clanId) {
 
 function renderRules() {
   setActiveNav('rules');
+  setPageMeta('ルール', 'リーグ制度・一門と弟子・引退（降級点制）・タイトル戦・永世称号・段位・Eloレーティングなど、サーキットオセロリーグの仕組みを解説。');
   const el = document.getElementById('content');
   el.innerHTML = `<div class="rules">
     <h3>リーグ制度</h3>
@@ -1351,12 +1458,51 @@ function renderRules() {
   </div>`;
 }
 
+// 「このメディアについて」タブ：架空リーグ・AI自動運営という性質を明示する
+// 透明性のためのページ（SEO・検索エンジンからの信頼性評価の観点でも、運営者情報や
+// サイトの目的を明記したページがあることが望ましい）
+function renderAbout() {
+  setActiveNav('about');
+  setPageMeta('このメディアについて', 'オセロ界タイムズは、AI同士が戦う架空のオセロリーグ「サーキットオセロリーグ」を追いかける非公式ファンメディアです。運営方法や注意事項について説明します。');
+  const el = document.getElementById('content');
+  el.innerHTML = `<div class="rules">
+    <h3>オセロ界タイムズとは</h3>
+    <div class="sec">
+      「サーキットオセロリーグ」という<b>架空のリーグ</b>を追いかける非公式ファンメディアです。
+      実在の棋士・団体・大会とは一切関係ありません。
+    </div>
+
+    <h3>仕組み</h3>
+    <div class="sec">
+      選手（個体）・対局・リーグ運営はすべてプログラムとAIによって自動で進行しています。
+      対局はAI同士の思考アルゴリズムに基づいて行われ、結果に応じて昇降格・タイトル戦・
+      引退（降級点制度）などが自動的に処理されます。ニュース記事もAIが対局データから
+      自動生成しています。人間が個々の勝敗や記事内容に介入することはありません。
+    </div>
+
+    <h3>データの見方</h3>
+    <div class="sec">
+      このサイトは読みやすい記事・選手名鑑を中心にお届けしています。
+      対局結果・順位表・段位履歴などの詳しいデータは
+      <a href="https://lab.spia-net.com/othello-league/" target="_blank" rel="noopener">データサイト</a>
+      で確認できます。
+    </div>
+
+    <h3>運営・お問い合わせ</h3>
+    <div class="sec">
+      個人が趣味で運営しています。ご意見・ご感想・バグ報告・新規棋戦のご提案などは
+      <a href="#" onclick="navigateTo('contact');return false;">お問い合わせ</a>フォームからお送りください。
+    </div>
+  </div>`;
+}
+
 // お問い合わせタブ：新規棋戦（NHK杯・JT杯のような、段位・タイトル保持・降級点免除に
 // 一切影響しない単発の冠スポンサー杯）を設置したい等の要望を自由記述で受け付ける。
 // 実際に新設するかどうかは需要を見て手動で判断する運用のため、送信後に即座に何かが
 // 起こるわけではない旨を案内する
 function renderContact() {
   setActiveNav('contact');
+  setPageMeta('お問い合わせ', 'ご意見・ご感想、バグ報告、新規棋戦の協賛提案など、オセロ界タイムズへのお問い合わせはこちらから。');
   const el = document.getElementById('content');
   el.innerHTML = `<div class="rules">
     <h3>お問い合わせ</h3>
@@ -1419,10 +1565,14 @@ function route() {
   const hash = location.hash.replace(/^#/, '');
   if (hash === 'rules') {
     renderRules();
+  } else if (hash === 'about') {
+    renderAbout();
   } else if (hash === 'contact') {
     renderContact();
   } else if (hash === 'individuals') {
     renderIndividualList();
+  } else if (hash === 'hof') {
+    renderHallOfFame();
   } else if (hash === 'clans') {
     renderClanList();
   } else if (hash.startsWith('clans/')) {
