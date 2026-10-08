@@ -773,7 +773,7 @@ async function loadIndividualDetail(id) {
 
     let html = `<div class="back-link" id="ind-back">← 一覧に戻る</div>`;
     html += `<div class="sponsor-highlight-box">
-      <h3>🎗 サポーター</h3>
+      <h3>⭐ スペシャルサポーター</h3>
       <div id="ind-sponsors">読み込み中...</div>
     </div>`;
     html += `<div style="text-align:center; margin-bottom:14px;">
@@ -896,7 +896,7 @@ function renderLineage(ancestors, children) {
   ancestors = ancestors || [];
   const ancestorItem = (a) =>
     `<div style="padding:3px 0;"><span class="lineage-link" data-id="${escapeHtml(a.id)}" style="color:var(--text-main); cursor:pointer;">${escapeHtml(a.display_name || a.id)}</span>${a.retired ? '<span style="color:var(--text-dim); font-size:0.68rem;">（引退）</span>' : ''}
-      <span style="color:var(--text-dim); font-size:0.72rem; margin-left:6px;">Elo ${Math.round(a.elo_rating)}${a.retired ? '（引退時）' : ''}</span></div>`;
+      <span style="color:var(--text-dim); font-size:0.72rem; margin-left:6px;">最高Elo ${Math.round(a.peak_elo ?? a.elo_rating)}</span></div>`;
 
   let parentHtml;
   if (ancestors.length === 0) {
@@ -1209,7 +1209,7 @@ function demotionEventMark(event, movement) {
   const clearedMatch = /^cleared(\d*)$/.exec(event || '');
   if (clearedMatch) {
     const prevPoints = clearedMatch[1] || '1';
-    return `<span class="movement-mark" style="color:var(--cyan); font-size:0.7rem;" title="降級点が0に戻った"><s>点${prevPoints}</s></span>`;
+    return `<span class="movement-mark" style="color:var(--cyan); font-size:0.7rem;" title="降級点が0に戻った"><s>点${prevPoints}</s>消</span>`;
   }
   const parts = (event || '').split('_').filter(Boolean);
   const retired = (movement || '').split(',').map(t => t.trim()).includes('retired');

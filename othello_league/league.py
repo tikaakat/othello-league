@@ -103,6 +103,7 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
         for ind in members:
             if ind.age >= RETIREMENT_AGE and ind.id not in protected_ids:
                 ind.retired = True
+                ind.retirement_reason = f"{RETIREMENT_AGE}歳の年齢規定により引退"
                 # 引退する個体も今季は実際に対局しているので、在籍シーズン数に数える
                 # （数えないと、対局実績があるのに引退季の1つ手前までしか通算しておらず、
                 #  在籍期間の表示が実際より1季ずれてしまう）
@@ -239,6 +240,7 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
                 demotion_events[ind.id] = "_".join(parts)
         if ind.demotion_points >= D_DEMOTION_POINT_LIMIT and ind.id not in protected_ids:
             ind.retired = True
+            ind.retirement_reason = f"降級点{D_DEMOTION_POINT_LIMIT}点により強制引退"
             ind.total_seasons += 1  # age_retiredと同様、引退する今季分も在籍シーズン数に数える
             d_up_or_out_retired.append(ind)
         else:

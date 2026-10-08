@@ -57,6 +57,7 @@ on:
           - "add_sponsor_feature"
           - "add_permanent_sponsor_feature"
           - "add_demotion_point_columns"
+          - "add_retirement_reason_columns"
         default: ""
       create_dir:
         description: "デプロイの代わりに、lab.spia-net.com直下（othello-league/の1つ上）に相対パスでディレクトリを作成する（例: othello-news）。「..」や先頭「/」は不可"
@@ -232,6 +233,14 @@ jobs:
                   'ALTER TABLE individuals ADD COLUMN demotion_points INT NOT NULL DEFAULT 0;'
                   'ALTER TABLE retired_archive ADD COLUMN demotion_points INT NOT NULL DEFAULT 0;'
                   'ALTER TABLE standings ADD COLUMN demotion_point_event VARCHAR(16) NULL;'
+                )
+                ;;
+              add_retirement_reason_columns)
+                # 引退理由（年齢規定／降級点）を個体情報ページの段位履歴に表示するための列。
+                # 引退した季は既存のretired_season列をそのまま使うので、ここでは追加しない。
+                # 現役のindividualsには引退理由が無いのでretired_archiveのみに追加する
+                SQL_LIST=(
+                  'ALTER TABLE retired_archive ADD COLUMN retirement_reason VARCHAR(64) NULL;'
                 )
                 ;;
               *)

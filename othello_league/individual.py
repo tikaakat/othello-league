@@ -32,6 +32,7 @@ class LeagueIndividual:
         self.seasons_in_league = 0        # 現在のリーグに在籍しているシーズン数
         self.total_seasons = 0            # 通算在籍シーズン数（引退判定用）
         self.retired = False
+        self.retirement_reason = None     # 引退理由（league.pyが引退させる際に設定する表示用テキスト）
         self.match_history = []
 
         # このシーズンの成績（league.pyの引退判定用に、シーズンごとに上書きされる一時的な値。
@@ -80,6 +81,7 @@ class LeagueIndividual:
             "seasons_in_league": self.seasons_in_league,
             "total_seasons": self.total_seasons,
             "retired": self.retired,
+            "retirement_reason": self.retirement_reason,
             "match_history": self.match_history,
         }
 
@@ -111,5 +113,6 @@ class LeagueIndividual:
         ind.seasons_in_league = d.get("seasons_in_league", 0)
         ind.total_seasons = d.get("total_seasons", 0)
         ind.retired = d.get("retired", False)
+        ind.retirement_reason = d.get("retirement_reason")
         ind.match_history = d.get("match_history", [])
         return ind
