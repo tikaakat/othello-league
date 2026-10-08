@@ -251,8 +251,7 @@ def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_b
         if not tags:
             tags = ["stay"]
         row["movement"] = ",".join(tags)
-        # Dリーグの降級点：この季に増えた（gained）／0に戻った（cleared）場合のみセットする
-        # （結果タブ・リーグタブで「点」「消」の簡易表示に使う）
+        # Dリーグの降級点：この季に何か動きがあった場合のみセットする（値はleague.py参照）
         row["demotion_point_event"] = demotion_events.get(iid, "")
 
     # 朱雀紅白リーグの順位・残留/陥落は、上のA〜D用ロジック（movementの上書き）の対象外として、
