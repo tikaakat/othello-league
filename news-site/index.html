@@ -298,6 +298,7 @@
       <a class="nav-tab" id="nav-feed" href="#" onclick="navigateTo('');return false;">フィード</a>
       <a class="nav-tab" id="nav-individuals" href="#" onclick="navigateTo('individuals');return false;">選手名鑑</a>
       <a class="nav-tab" id="nav-rules" href="#" onclick="navigateTo('rules');return false;">ルール</a>
+      <a class="nav-tab" id="nav-contact" href="#" onclick="navigateTo('contact');return false;">お問い合わせ</a>
       <a class="nav-external" href="https://lab.spia-net.com/othello-league/" target="_blank" rel="noopener">データサイトへ ↗</a>
     </nav>
   </header>
@@ -503,6 +504,7 @@ function setActiveNav(tab) {
   document.getElementById('nav-feed').classList.toggle('active', tab === 'feed');
   document.getElementById('nav-individuals').classList.toggle('active', tab === 'individuals');
   document.getElementById('nav-rules').classList.toggle('active', tab === 'rules');
+  document.getElementById('nav-contact').classList.toggle('active', tab === 'contact');
 }
 
 async function renderFeed(filter) {
@@ -1349,6 +1351,66 @@ function renderRules() {
   </div>`;
 }
 
+// お問い合わせタブ：新規棋戦（NHK杯・JT杯のような、段位・タイトル保持・降級点免除に
+// 一切影響しない単発の冠スポンサー杯）を設置したい等の要望を自由記述で受け付ける。
+// 実際に新設するかどうかは需要を見て手動で判断する運用のため、送信後に即座に何かが
+// 起こるわけではない旨を案内する
+function renderContact() {
+  setActiveNav('contact');
+  const el = document.getElementById('content');
+  el.innerHTML = `<div class="rules">
+    <h3>お問い合わせ</h3>
+    <div class="sec">
+      ご意見・ご感想のほか、「こういう棋戦（NHK杯・JT杯のような、段位や引退条件に
+      影響しない単発のお楽しみ棋戦）を協賛したい」といったご提案も歓迎します。
+      内容によっては返信できない場合があります。
+    </div>
+    <div class="sec" style="margin-top:12px;">
+      <select id="contact-category" style="display:block; width:100%; max-width:320px; margin-bottom:8px; padding:6px;">
+        <option value="新規棋戦の提案">新規棋戦の提案</option>
+        <option value="バグ報告">バグ報告</option>
+        <option value="ご意見・ご感想">ご意見・ご感想</option>
+        <option value="その他">その他</option>
+      </select>
+      <textarea id="contact-message" rows="5" maxlength="1000" placeholder="内容を入力してください（1000文字以内）"
+        style="display:block; width:100%; max-width:480px; padding:8px; margin-bottom:8px;"></textarea>
+      <input id="contact-contact" type="text" maxlength="100" placeholder="返信先（任意。メール・SNS等）"
+        style="display:block; width:100%; max-width:320px; padding:6px; margin-bottom:8px;">
+      <button id="contact-submit" class="chip-btn">送信する</button>
+      <div id="contact-result" style="margin-top:8px; font-size:0.85rem;"></div>
+    </div>
+  </div>`;
+
+  document.getElementById('contact-submit').addEventListener('click', async () => {
+    const category = document.getElementById('contact-category').value;
+    const message = document.getElementById('contact-message').value.trim();
+    const contact = document.getElementById('contact-contact').value.trim();
+    const resultEl = document.getElementById('contact-result');
+    if (!message) {
+      resultEl.textContent = '内容を入力してください。';
+      return;
+    }
+    resultEl.textContent = '送信中...';
+    try {
+      const res = await fetch(`${RESULTS_SITE_BASE}inquiry.php`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category, message, contact }),
+      });
+      const data = await res.json();
+      if (data.error) {
+        resultEl.textContent = data.error;
+        return;
+      }
+      resultEl.textContent = data.message || '送信しました。';
+      document.getElementById('contact-message').value = '';
+      document.getElementById('contact-contact').value = '';
+    } catch (e) {
+      resultEl.textContent = '送信に失敗しました。時間をおいて再度お試しください。';
+    }
+  });
+}
+
 function navigateTo(path) {
   location.hash = path ? `#${path}` : '';
 }
@@ -1357,6 +1419,8 @@ function route() {
   const hash = location.hash.replace(/^#/, '');
   if (hash === 'rules') {
     renderRules();
+  } else if (hash === 'contact') {
+    renderContact();
   } else if (hash === 'individuals') {
     renderIndividualList();
   } else if (hash === 'clans') {
