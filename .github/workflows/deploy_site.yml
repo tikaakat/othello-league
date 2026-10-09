@@ -79,6 +79,7 @@ on:
           - "demotion_points"
           - "sponsors"
           - "inquiries"
+          - "retirement_reasons"
         default: ""
 
 jobs:
@@ -365,6 +366,17 @@ jobs:
                     echo "#" . $r["id"] . " [" . $r["category"] . "] " . $r["created_at"] . PHP_EOL
                       . "  " . $r["message"] . PHP_EOL
                       . "  返信先: " . ($r["contact"] ?? "(なし)") . PHP_EOL;
+                  }
+                '
+                ;;
+              retirement_reasons)
+                # 引退理由（retirement_reason）が記録されていない引退者を洗い出すための確認用
+                PHP_QUERY='
+                  $rows = $pdo->query("SELECT id, display_name, retired_season, retirement_reason FROM retired_archive ORDER BY retired_season DESC LIMIT 40")->fetchAll();
+                  if (!$rows) { echo "retired_archiveにデータがありません" . PHP_EOL; }
+                  foreach ($rows as $r) {
+                    echo "season=" . ($r["retired_season"] ?? "?") . " id=" . $r["id"] . " display_name=" . $r["display_name"]
+                      . " retirement_reason=" . ($r["retirement_reason"] ?? "(NULL)") . PHP_EOL;
                   }
                 '
                 ;;
