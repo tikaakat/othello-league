@@ -728,6 +728,102 @@ def try_generate_milestone(args, season, articles_path, articles):
     })
 
 
+def gather_newcomer_facts(data_dir, season):
+    """
+    その季からDリーグへ出走する新人リーグ結果（data/newcomer_league/for_season_{season}.json）
+    から、記事生成に使う構造化データを集める。ファイルが無い（新人リーグ未実施・
+    応募ゼロ等）場合はNoneを返す。
+    """
+    nl = load_json(os.path.join(data_dir, "newcomer_league", f"for_season_{season}.json"), None)
+    if not nl or not nl.get("standings"):
+        return None
+
+    # 昇格者の実IDは "CC{for_season}-{rank-1:03d}" になる（run_newcomer_league.pyの
+    # winner_entries→league.py:_build_character_creation_individualの命名規則と同じ）。
+    # rosters.jsonに同名の個体が実在することを確認してから使う（site/api.phpの
+    # resolve_newcomer_real_idsと同じ安全策）
+    rosters = load_json(os.path.join(data_dir, "rosters.json"), {})
+    by_id = {ind["id"]: ind for league in ("A", "B", "C", "D") for ind in rosters.get(league, [])}
+
+    promoted = []
+    related = []
+    for row in nl["standings"]:
+        if not row.get("promoted"):
+            continue
+        real_id = f"CC{season}-{row['rank'] - 1:03d}"
+        real_ind = by_id.get(real_id)
+        resolved_id = real_id if (real_ind and real_ind.get("display_name") == row["display_name"]) else None
+        promoted.append({
+            "name": row["display_name"], "win": row["win"], "loss": row["loss"], "draw": row.get("draw", 0),
+            "auto_generated": bool(row.get("auto_generated")), "master_name": row.get("master_name"),
+        })
+        if resolved_id:
+            related.append((resolved_id, row["display_name"]))
+
+    return {
+        "season": season,
+        "submission_count": nl.get("submission_count", 0),
+        "slots_needed": nl.get("slots_needed", len(promoted)),
+        "participant_count": len(nl["standings"]),
+        "promoted": promoted,
+        "had_playoff": bool(nl.get("promotion_playoff")),
+        "related_individual_ids": [iid for iid, _ in related],
+        "related_individual_names": [name for _, name in related],
+    }
+
+
+def build_newcomer_prompt(facts):
+    lines = [
+        f"第{facts['season']}季から出走する新人リーグ結果データ（事実のみ。これ以外の出来事は起きていない）:", "",
+        f"・参加者数：{facts['participant_count']}名（うち読者からの投稿：{facts['submission_count']}名、残りは自動生成）",
+        f"・Dリーグ昇格枠：{facts['slots_needed']}名",
+    ]
+    for p in facts["promoted"]:
+        master_part = f"（師匠：{p['master_name']}）" if p.get("master_name") else "（新規開祖）"
+        origin = "読者投稿" if not p["auto_generated"] else "自動生成"
+        lines.append(f"・昇格：{p['name']}{master_part}　{p['win']}勝{p['loss']}敗{p['draw']}分　{origin}")
+    if facts["had_playoff"]:
+        lines.append("・昇格枠の境界で同成績が並び、プレーオフで昇格者を決定した。")
+    lines.append("")
+    lines.append(
+        "以上の事実だけをもとに、今回の新人リーグ結果を紹介する短い記事を書いてください。"
+        "新たにDリーグへ参入する顔ぶれを紹介する、記者（犬飼）の速報記事という位置づけです。"
+        "データに無い出来事・数字は書かないこと。"
+        "出力は次のJSON形式のみ（説明文やコードフェンスなど、他のテキストは一切含めない）：\n"
+        '{"title": "見出し", "summary": "1〜2文の要約", "body": "本文（200〜350字程度）", '
+        '"tags": ["新人リーグ", "結果"]}'
+    )
+    return "\n".join(lines)
+
+
+def try_generate_newcomer(args, season, articles_path, articles):
+    article_id = f"s{season}-newcomer"
+    if any(a.get("id") == article_id for a in articles):
+        print(f"[DEBUG] 第{season}季の新人リーグ記事は既に生成済みです（{article_id}）。スキップします", flush=True)
+        return
+
+    facts = gather_newcomer_facts(args.data_dir, season)
+    if facts is None:
+        print(f"[DEBUG] 第{season}季の新人リーグ結果データが見つかりません。記事生成をスキップします", flush=True)
+        return
+    if not facts["promoted"]:
+        print(f"[DEBUG] 第{season}季は新人リーグの昇格者がいません。記事生成をスキップします", flush=True)
+        return
+
+    print(f"[DEBUG] 第{season}季の新人リーグ記事を生成します（model={args.model}）", flush=True)
+    generated = run_claude(build_newcomer_prompt(facts), model=args.model, persona_path=PERSONA_PATH)
+
+    save_article(articles_path, articles, {
+        "id": article_id, "type": "result", "season": season, "author": AUTHOR_DIGEST,
+        "title": generated["title"], "summary": generated["summary"], "body": generated["body"],
+        "published_at": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
+        "related_individual_ids": facts["related_individual_ids"],
+        "related_individual_names": facts["related_individual_names"],
+        "tags": generated.get("tags") or ["新人リーグ", "結果"],
+        "generated_by": args.model,
+    })
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-dir", default="data")
@@ -745,6 +841,7 @@ def main():
     articles = load_json(articles_path, [])
 
     try_generate_digest(args, season, articles_path, articles)
+    try_generate_newcomer(args, season, articles_path, articles)
     try_generate_column(args, season, articles_path, articles)
     try_generate_upset(args, season, articles_path, articles)
     try_generate_milestone(args, season, articles_path, articles)

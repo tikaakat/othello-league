@@ -797,7 +797,7 @@ def main():
     # B〜Dリーグも昇格を通じて最終的にAリーグ・青龍戦に繋がるため、
     # 青龍関連の深さ（SEIRYUU_LEAGUE_DEPTH）をデフォルトにする
     parser.add_argument("--depth", type=int, default=SEIRYUU_LEAGUE_DEPTH)
-    parser.add_argument("--swiss-rounds", type=int, default=6)
+    parser.add_argument("--swiss-rounds", type=int, default=8)
     args = parser.parse_args()
     print(f"[DEBUG] パース済み引数: data_dir={args.data_dir}, seasons={args.seasons}, depth={args.depth}, swiss_rounds={args.swiss_rounds}", flush=True)
 
