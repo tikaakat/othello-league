@@ -80,6 +80,7 @@ on:
           - "sponsors"
           - "inquiries"
           - "retirement_reasons"
+          - "dup_check"
         default: ""
 
 jobs:
@@ -377,6 +378,22 @@ jobs:
                   foreach ($rows as $r) {
                     echo "season=" . ($r["retired_season"] ?? "?") . " id=" . $r["id"] . " display_name=" . $r["display_name"]
                       . " retirement_reason=" . ($r["retirement_reason"] ?? "(NULL)") . PHP_EOL;
+                  }
+                '
+                ;;
+              dup_check)
+                # retired_archiveに移動済みの個体が、individualsテーブルにも古い行として
+                # 残っていないか確認する（残っていると、api.phpのSELECT * FROM individuals側が
+                # 先にヒットしてしまい、retired_archiveの情報（retirement_reason等）が一切
+                # 返らなくなる不具合になる）
+                PHP_QUERY='
+                  $rows = $pdo->query(
+                    "SELECT i.id, i.display_name FROM individuals i
+                     INNER JOIN retired_archive r ON r.id = i.id"
+                  )->fetchAll();
+                  if (!$rows) { echo "individuals/retired_archiveの重複はありません" . PHP_EOL; }
+                  foreach ($rows as $r) {
+                    echo "id=" . $r["id"] . " display_name=" . $r["display_name"] . PHP_EOL;
                   }
                 '
                 ;;
