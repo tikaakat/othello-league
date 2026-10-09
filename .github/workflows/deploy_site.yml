@@ -61,6 +61,7 @@ on:
           - "add_retirement_reason_columns"
           - "add_inquiry_feature"
           - "cleanup_test_sponsor_data_20261008"
+          - "cleanup_stale_retired_individuals_rows_20261009"
         default: ""
       create_dir:
         description: "デプロイの代わりに、lab.spia-net.com直下（othello-league/の1つ上）に相対パスでディレクトリを作成する（例: othello-news）。「..」や先頭「/」は不可"
@@ -266,6 +267,18 @@ jobs:
                 SQL_LIST=(
                   "DELETE FROM sponsors WHERE id = 1 AND individual_id = 'D0-006' AND display_name = 'てすと';"
                   "DELETE FROM cheer_log WHERE individual_id = 'CC33-000' AND message = 'がんばれ！' AND created_at = '2026-10-07 19:19:02';"
+                )
+                ;;
+              cleanup_stale_retired_individuals_rows_20261009)
+                # 根本原因：import_from_github.php/import_from_colab.phpが引退個体を
+                # retired_archiveへ移す際、individuals側は「UPDATE ... SET retired = 1」で
+                # 済ませており行自体を削除していなかった。api.phpのSELECT * FROM individuals
+                # WHERE id = :idはretired列を見ずに先にヒットしてしまうため、retired_archive側
+                # の情報（retirement_reason等）が個体ページに一切表示されない不具合になっていた
+                # （上田杏・北村深美含め約100件が該当）。該当スクリプトは修正済みのものを
+                # 別途サーバーへ配置するが、既存の重複行はこのマイグレーションで一括削除する
+                SQL_LIST=(
+                  'DELETE FROM individuals WHERE id IN (SELECT id FROM retired_archive);'
                 )
                 ;;
               *)
