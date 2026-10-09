@@ -23,6 +23,25 @@
   :root {
     --bg: #FFFBF4; --card: #FFFFFF; --text-main: #3A332E; --text-dim: #8C8378;
     --accent: #D9704F; --accent-dark: #B8573A; --border: #EEE6DB;
+    --shadow: rgba(58,51,46,0.07); --shadow-hover: rgba(58,51,46,0.12);
+    --hover-bg: #FFF6EE; --filter-border: #F3DCC9; --skeleton-shimmer: #F7F0E6;
+  }
+  /* ダークモード：OSの設定に自動追従（prefers-color-scheme）。
+     data-theme属性での手動切り替え（ヘッダーのボタン、localStorageに保存）が
+     優先されるよう、自動追従側は[data-theme="light"]が付いていない場合のみ効かせる */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #18120D; --card: #251D17; --text-main: #F0E4D7; --text-dim: #A8988A;
+      --accent: #E8956D; --accent-dark: #F2B290; --border: #3D322A;
+      --shadow: rgba(0,0,0,0.35); --shadow-hover: rgba(0,0,0,0.45);
+      --hover-bg: #2E2419; --filter-border: #4A3A2C; --skeleton-shimmer: #3A2F27;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #18120D; --card: #251D17; --text-main: #F0E4D7; --text-dim: #A8988A;
+    --accent: #E8956D; --accent-dark: #F2B290; --border: #3D322A;
+    --shadow: rgba(0,0,0,0.35); --shadow-hover: rgba(0,0,0,0.45);
+    --hover-bg: #2E2419; --filter-border: #4A3A2C; --skeleton-shimmer: #3A2F27;
   }
   * { box-sizing: border-box; }
   body {
@@ -46,14 +65,19 @@
   nav a.nav-tab { color: var(--text-dim); padding-bottom: 2px; border-bottom: 2px solid transparent; }
   nav a.nav-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
   nav a.nav-external { color: var(--text-dim); font-weight: 500; }
+  .theme-toggle-btn {
+    font-size: 0.9rem; background: var(--card); border: 1px solid var(--border);
+    border-radius: 50%; width: 28px; height: 28px; line-height: 1; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center; padding: 0;
+  }
 
   .holders-card {
     display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
     background: var(--card); border-radius: 16px; padding: 12px 10px;
-    margin-bottom: 18px; box-shadow: 0 2px 10px rgba(58,51,46,0.07);
+    margin-bottom: 18px; box-shadow: 0 2px 10px var(--shadow);
   }
   .holder-slot { text-align: center; cursor: pointer; padding: 4px 2px; border-radius: 10px; }
-  .holder-slot:hover { background: #FFF6EE; }
+  .holder-slot:hover { background: var(--hover-bg); }
   .holder-title { font-size: 0.66rem; font-weight: 700; color: var(--text-dim); margin-bottom: 3px; }
   .holder-name { font-size: 0.78rem; font-weight: 700; color: var(--text-main); line-height: 1.3; word-break: break-word; }
   .holders-season { font-size: 0.68rem; color: var(--text-dim); text-align: center; margin: -8px 0 16px; }
@@ -67,7 +91,7 @@
 
   .filter-banner {
     display: flex; align-items: center; justify-content: space-between; gap: 10px;
-    background: #FFF6EE; border: 1px solid #F3DCC9; border-radius: 12px;
+    background: var(--hover-bg); border: 1px solid var(--filter-border); border-radius: 12px;
     padding: 8px 14px; margin-bottom: 14px; font-size: 0.78rem; color: var(--accent-dark);
   }
   .filter-banner button {
@@ -77,10 +101,10 @@
 
   .card {
     background: var(--card); border-radius: 18px; padding: 18px;
-    margin-bottom: 16px; box-shadow: 0 2px 10px rgba(58,51,46,0.07);
+    margin-bottom: 16px; box-shadow: 0 2px 10px var(--shadow);
     display: flex; gap: 14px; cursor: pointer;
   }
-  .card:hover { box-shadow: 0 3px 14px rgba(58,51,46,0.12); }
+  .card:hover { box-shadow: 0 3px 14px var(--shadow-hover); }
   .avatar {
     flex: 0 0 auto; width: 48px; height: 48px; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
@@ -99,7 +123,7 @@
   .card-summary { font-size: 0.82rem; color: #5B5349; line-height: 1.6; margin: 0 0 6px; }
   .card-individuals { display: flex; gap: 6px; flex-wrap: wrap; }
   .ind-chip {
-    font-size: 0.68rem; color: var(--accent-dark); background: #FFF6EE; border-radius: 8px;
+    font-size: 0.68rem; color: var(--accent-dark); background: var(--hover-bg); border-radius: 8px;
     padding: 2px 8px; cursor: pointer;
   }
   .ind-chip:hover { text-decoration: underline; }
@@ -117,7 +141,7 @@
     background: var(--card); border: 1px solid var(--border); border-radius: 10px;
     padding: 8px 12px; margin-bottom: 6px; font-size: 0.82rem; cursor: pointer;
   }
-  .related-row:hover { box-shadow: 0 2px 8px rgba(58,51,46,0.08); }
+  .related-row:hover { box-shadow: 0 2px 8px var(--shadow-hover); }
   .ext-link { font-size: 0.78rem; white-space: nowrap; }
   .like-btn {
     font-size: 0.74rem; font-weight: 700; color: var(--accent-dark); background: #fff;
@@ -148,9 +172,14 @@
   .dan-history-row b { color: var(--text-main); font-weight: 700; }
   .dan-badge {
     display: inline-block; font-size: 0.72rem; font-weight: 700; color: var(--accent-dark);
-    background: #FFF6EE; border-radius: 8px; padding: 2px 9px; margin-left: 6px;
+    background: var(--hover-bg); border-radius: 8px; padding: 2px 9px; margin-left: 6px;
   }
-  .profile-footer { margin-top: 24px; font-size: 0.8rem; }
+  .profile-footer { margin-top: 24px; font-size: 0.8rem; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+  .card-save-btn {
+    font-size: 0.78rem; font-weight: 700; color: var(--accent-dark); background: var(--hover-bg);
+    border: 1px solid var(--filter-border); border-radius: 10px; padding: 7px 14px; cursor: pointer;
+  }
+  .card-save-btn:hover { background: var(--border); }
 
   /* 選手名鑑ページ */
   .roster-league-group { margin-top: 20px; }
@@ -201,7 +230,7 @@
     margin-top: 6px;
   }
   .follow-btn.following { background: var(--accent); color: #fff; }
-  .follow-box { margin-bottom: 16px; padding: 10px 14px; background: #FFF6EE; border: 1px solid var(--border); border-radius: 10px; }
+  .follow-box { margin-bottom: 16px; padding: 10px 14px; background: var(--hover-bg); border: 1px solid var(--border); border-radius: 10px; }
   .follow-box h4 { font-size: 0.78rem; color: var(--text-dim); margin: 0 0 6px; }
   .follow-chip-row { display: flex; gap: 6px; flex-wrap: wrap; }
   .follow-chip {
@@ -298,7 +327,7 @@
   .skeleton-block { padding: 4px 0; }
   .skeleton-row {
     height: 14px; border-radius: 6px; margin: 10px 0;
-    background: linear-gradient(90deg, var(--border) 25%, #F7F0E6 37%, var(--border) 63%);
+    background: linear-gradient(90deg, var(--border) 25%, var(--skeleton-shimmer) 37%, var(--border) 63%);
     background-size: 400% 100%; animation: skeleton-shimmer 1.4s ease infinite;
   }
   @keyframes skeleton-shimmer { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
@@ -326,6 +355,7 @@
       <a class="nav-tab" id="nav-about" href="#" onclick="navigateTo('about');return false;">このメディアについて</a>
       <a class="nav-tab" id="nav-contact" href="#" onclick="navigateTo('contact');return false;">お問い合わせ</a>
       <a class="nav-external" href="https://lab.spia-net.com/othello-league/" target="_blank" rel="noopener">データサイトへ ↗</a>
+      <button id="theme-toggle" class="theme-toggle-btn" title="表示テーマを切り替え" aria-label="表示テーマを切り替え">🌙</button>
     </nav>
   </header>
   <div id="holders"></div>
@@ -891,6 +921,7 @@ async function renderIndividualProfile(id) {
 
     <div class="profile-footer">
       <a class="ext-link" href="${resultsSiteIndividualUrl(id)}" target="_blank" rel="noopener">もっと詳しいデータを見る（対局履歴・系譜・Elo推移など） ↗</a>
+      <button type="button" class="card-save-btn" id="profile-card-save-btn">🖼 選手カード画像を保存</button>
     </div>
   `;
 
@@ -902,6 +933,115 @@ async function renderIndividualProfile(id) {
   setupSponsorUI(id);
   loadSponsorList(id);
   setupFollowButton(id, name);
+  setupProfileCardSave(id, name, ind, titleRanges, eternalTitles);
+}
+
+// 選手カード画像（SNS等での手動シェア用）：ハッシュルーティングのSPAなのでOGP画像を
+// クローラー向けに出し分けることはできない（crawlerはJSを実行せず、常に同じ静的
+// index.htmlしか見えない）。代わりにブラウザ側のCanvasでその場にカード画像を描画し、
+// PNGとしてダウンロードできるようにする（SNS投稿に手動で添付する想定）
+function setupProfileCardSave(id, name, ind, titleRanges, eternalTitles) {
+  const btn = document.getElementById('profile-card-save-btn');
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    try {
+      const url = renderProfileCardDataUrl(id, name, ind, titleRanges, eternalTitles);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${name}_選手カード.png`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch (e) {
+      alert('カード画像の生成に失敗しました');
+    }
+  });
+}
+
+function renderProfileCardDataUrl(id, name, ind, titleRanges, eternalTitles) {
+  const W = 1200, H = 630; // 主要SNSのOGP推奨サイズに合わせた横長カード
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+
+  const palette = AVATAR_PALETTE[hashString(id || name || '?') % AVATAR_PALETTE.length];
+
+  // 背景（うっすら対角グラデーション。サイトのクリーム系トーンに合わせる）
+  const bgGrad = ctx.createLinearGradient(0, 0, W, H);
+  bgGrad.addColorStop(0, '#FFFBF4');
+  bgGrad.addColorStop(1, '#FFF1E6');
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(0, 0, W, H);
+
+  // カード枠
+  ctx.fillStyle = '#FFFFFF';
+  ctx.strokeStyle = '#EEE6DB';
+  ctx.lineWidth = 2;
+  const pad = 40;
+  ctx.beginPath();
+  ctx.roundRect(pad, pad, W - pad * 2, H - pad * 2, 28);
+  ctx.fill();
+  ctx.stroke();
+
+  // アバター円
+  const avatarCx = pad + 140, avatarCy = pad + 150, avatarR = 90;
+  ctx.fillStyle = palette.bg;
+  ctx.beginPath();
+  ctx.arc(avatarCx, avatarCy, avatarR, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = palette.fg;
+  ctx.font = "700 86px 'Zen Maru Gothic', sans-serif";
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText((name || '?').charAt(0), avatarCx, avatarCy + 6);
+
+  // 名前
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#3A332E';
+  ctx.font = "900 64px 'Zen Maru Gothic', sans-serif";
+  ctx.fillText(name, pad + 250, pad + 110);
+
+  // ステータス行（リーグ/段位・Elo）
+  const statusText = ind.retired ? '引退済み' : `${ind.league || '-'}リーグ　${danLabel(ind.dan)}`;
+  ctx.fillStyle = '#8C8378';
+  ctx.font = "500 30px 'Noto Sans JP', sans-serif";
+  ctx.fillText(statusText, pad + 250, pad + 160);
+  ctx.fillStyle = '#D9704F';
+  ctx.font = "700 30px 'Noto Sans JP', sans-serif";
+  ctx.fillText(`Elo ${Math.round(ind.elo_rating)}（最高 ${Math.round(ind.peak_elo ?? ind.elo_rating)}）`, pad + 250, pad + 205);
+
+  // タイトル獲得歴（最大3件、永世称号には★を付ける）
+  let ty = pad + 290;
+  ctx.fillStyle = '#3A332E';
+  ctx.font = "700 28px 'Noto Sans JP', sans-serif";
+  ctx.fillText('タイトル獲得歴', pad + 40, ty);
+  ty += 44;
+  ctx.font = "500 26px 'Noto Sans JP', sans-serif";
+  if (titleRanges.length === 0) {
+    ctx.fillStyle = '#8C8378';
+    ctx.fillText('なし', pad + 40, ty);
+  } else {
+    titleRanges.slice(0, 3).forEach(t => {
+      const star = eternalTitles.includes(t.title) ? '★永世　' : '';
+      ctx.fillStyle = '#3A332E';
+      ctx.fillText(`${star}${t.title}：${t.total}期（${t.ranges}）`, pad + 40, ty);
+      ty += 40;
+    });
+    if (titleRanges.length > 3) {
+      ctx.fillStyle = '#8C8378';
+      ctx.fillText(`他${titleRanges.length - 3}タイトル`, pad + 40, ty);
+    }
+  }
+
+  // フッター（ブランド表記）
+  ctx.fillStyle = '#D9704F';
+  ctx.font = "900 26px 'Zen Maru Gothic', sans-serif";
+  ctx.fillText('オセロ界タイムズ', pad + 40, H - pad - 30);
+  ctx.fillStyle = '#8C8378';
+  ctx.font = "400 20px 'Noto Sans JP', sans-serif";
+  ctx.fillText('lab.spia-net.com/othello-news/', pad + 40, H - pad - 2);
+
+  return canvas.toDataURL('image/png');
 }
 
 function setupFollowButton(id, name) {
@@ -1648,6 +1788,43 @@ function route() {
   } else {
     renderFeed(parseFilter(hash));
   }
+}
+
+// テーマ切り替え：localStorageに保存した選択（"light"/"dark"）があればそれを使い、
+// 無ければOS設定（prefers-color-scheme、CSS側の@media追従）に任せる（data-theme属性を付けない）
+function applyStoredTheme() {
+  let saved = null;
+  try { saved = localStorage.getItem('theme'); } catch (e) { /* プライベートモード等で読めなくても無視 */ }
+  if (saved === 'light' || saved === 'dark') {
+    document.documentElement.setAttribute('data-theme', saved);
+  }
+  updateThemeToggleIcon();
+}
+
+function updateThemeToggleIcon() {
+  const btn = document.getElementById('theme-toggle');
+  if (!btn) return;
+  const explicit = document.documentElement.getAttribute('data-theme');
+  const systemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const isDark = explicit ? explicit === 'dark' : systemDark;
+  btn.textContent = isDark ? '☀️' : '🌙';
+}
+
+function toggleTheme() {
+  const explicit = document.documentElement.getAttribute('data-theme');
+  const systemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const currentlyDark = explicit ? explicit === 'dark' : systemDark;
+  const next = currentlyDark ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  try { localStorage.setItem('theme', next); } catch (e) { /* 保存できなくても今回の表示切り替え自体は効く */ }
+  updateThemeToggleIcon();
+}
+
+applyStoredTheme();
+const themeToggleBtn = document.getElementById('theme-toggle');
+if (themeToggleBtn) themeToggleBtn.addEventListener('click', toggleTheme);
+if (window.matchMedia) {
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', updateThemeToggleIcon);
 }
 
 handleSponsorReturn();
