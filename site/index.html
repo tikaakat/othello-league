@@ -504,6 +504,16 @@ function crownLabel(id, name) {
   return `<span style="display:inline-block; font-family:'Orbitron',sans-serif; font-size:0.62rem; font-weight:700; color:var(--navy-950); background:linear-gradient(135deg,#ffd24f,#ff9d4f); padding:1px 6px; border-radius:2px; margin-right:6px;">${escapeHtml(label)}</span>`;
 }
 
+// 季送りナビゲーション用：前季/次季ボタンに加え、プルダウンでも直接季を選べるようにする
+// （季数が増えるほど、1つずつ送るのが手間になるため）
+function seasonSelectHtml(id, current, latest) {
+  let options = '';
+  for (let s = latest; s >= 1; s--) {
+    options += `<option value="${s}" ${s === current ? 'selected' : ''}>第${s}季</option>`;
+  }
+  return `<select id="${id}" style="background:var(--navy-800); color:var(--cyan); border:1px solid var(--navy-700); padding:4px 8px; font-size:0.8rem; border-radius:3px;">${options}</select>`;
+}
+
 // 段位の表示ラベル（将棋・囲碁の段位表記に合わせ、算用数字ではなく漢数字にする）
 const DAN_KANJI = { 1: '一', 2: '二', 3: '三', 4: '四', 5: '五', 6: '六', 7: '七', 8: '八', 9: '九' };
 function danLabel(dan) {
@@ -1748,12 +1758,13 @@ async function loadSeiryuuPanel(season) {
     // （段位はシーズンをまたいで振り返る指標ではなく、現在の到達点を示す指標のため）
     const seasonTitleholders = data.titleholders || { by_id: {}, by_name: {} };
     const seasonDan = data.dan || {};
+    const latestSeason = data.latest_season || season;
     document.getElementById('tab-seiryuu').dataset.season = season;
 
     let html = `<div class="season-nav">
       <button id="season-prev" ${season <= 1 ? 'disabled' : ''}>◀ 前季</button>
-      <span style="color:var(--amber); font-size:0.85rem;">第${season}季</span>
-      <button id="season-next">次季 ▶</button>
+      ${seasonSelectHtml('season-select', season, latestSeason)}
+      <button id="season-next" ${season >= latestSeason ? 'disabled' : ''}>次季 ▶</button>
     </div>
     <h3 style="font-size:0.8rem; color:var(--amber); margin-top:0;">青龍戦リーグ表（A〜D）</h3>`;
 
@@ -1801,6 +1812,8 @@ async function loadSeiryuuPanel(season) {
 
     document.getElementById('season-prev').addEventListener('click', () => navigateTo('seiryuu/' + (season - 1)));
     document.getElementById('season-next').addEventListener('click', () => navigateTo('seiryuu/' + (season + 1)));
+    const seasonSelect = document.getElementById('season-select');
+    if (seasonSelect) seasonSelect.addEventListener('change', () => navigateTo('seiryuu/' + seasonSelect.value));
 
     const bracketWrap = document.createElement('div');
     bracketWrap.innerHTML = '<div id="seiryuu-bracket-view" style="margin-top:16px;"></div>';

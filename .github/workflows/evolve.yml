@@ -14,7 +14,7 @@ on:
       swiss_rounds:
         description: "B/C/Dリーグのスイスラウンド数"
         required: false
-        default: "6"
+        default: "8"
       reset:
         description: "trueにすると、既存データ（ロスター・対局ログ・順位表・タイトル保持者など）を全て削除し、シーズン1から最初にやり直します"
         required: false
@@ -154,7 +154,7 @@ jobs:
           fi
 
           TOTAL="${{ github.event.inputs.seasons || '1' }}"
-          SWISS_ROUNDS="${{ github.event.inputs.swiss_rounds || '6' }}"
+          SWISS_ROUNDS="${{ github.event.inputs.swiss_rounds || '8' }}"
 
           # キャラクリエイトの投稿は、朝の新人リーグ（newcomer_league.yml）が先に処理し、
           # 勝者をdata/newcomer_winners.jsonとしてこのリポジトリにpush済みのはず。

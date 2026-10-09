@@ -1497,9 +1497,13 @@ switch ($action) {
             if ($rikuou_entry) $danIds[] = $rikuou_entry['individual_id'];
             $danById = calc_dan_bulk($pdo, array_values(array_unique($danIds)));
 
+            // プルダウンでの季選択用（フロント側で1〜latest_seasonの選択肢を作る）
+            $latestSeason = (int)$pdo->query("SELECT MAX(season) FROM standings")->fetchColumn();
+
             json_out([
                 'standings' => $rows, 'season' => $season, 'rikuou' => $rikuou_entry,
                 'titleholders' => $seasonTitleholders, 'dan' => $danById,
+                'latest_season' => $latestSeason,
             ]);
         } elseif (isset($_GET['individual_id'])) {
             $iid = $_GET['individual_id'];
