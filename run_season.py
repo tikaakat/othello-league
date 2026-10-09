@@ -62,15 +62,16 @@ def bootstrap_rosters(registry):
     rosters = {}
     for league in ("A", "B", "C"):
         cap = LEAGUE_CAPACITY[league]
-        rosters[league] = [
-            LeagueIndividual(
+        members = []
+        for i in range(cap):
+            display_name, gender = registry.generate()
+            members.append(LeagueIndividual(
                 f"{league}0-{i:03d}", league,
                 params=_random_params_with_cap(INITIAL_SUM_CAP[league]),
-                display_name=registry.generate(),
+                display_name=display_name, gender=gender,
                 initial_age=_random_initial_age(),
-            )
-            for i in range(cap)
-        ]
+            ))
+        rosters[league] = members
         for ind in rosters[league]:
             ind.volatility = _random_volatility()
 
@@ -78,10 +79,11 @@ def bootstrap_rosters(registry):
     # 初年度はD_INITIAL_ROSTER_SIZE名の少人数スタートとする
     d_members = []
     for i in range(D_INITIAL_ROSTER_SIZE):
+        display_name, gender = registry.generate()
         ind = LeagueIndividual(
             f"D0-{i:03d}", "D",
             params=_random_params_with_cap(INITIAL_SUM_CAP["D"]),
-            display_name=registry.generate(),
+            display_name=display_name, gender=gender,
             initial_age=_random_initial_age(),
         )
         ind.volatility = _random_volatility()
@@ -396,6 +398,10 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
     titleholder_params = state.setdefault("titleholder_params", {"青龍": None, "白虎": None, "玄武": None, "朱雀": None})
     all_members_by_id = {ind.id: ind for ind in all_members}
 
+    # 前季このタイトルを失冠した個体のid（白虎・玄武のみ対応）。前季失冠が無かった、
+    # または1季前のため既に使い切った場合はNoneになる（優遇は失冠した直後の1季限り）
+    last_dethroned = state.setdefault("last_dethroned", {"白虎": None, "玄武": None})
+
     # 引退免除対象の拡大用：この季の各タイトル戦の挑戦者（青龍・朱雀・白虎・玄武）を集める
     # （在位者と同様、年齢・Dリーグ降級点による強制引退から一時的に保護する。
     # 挑戦するところまで勝ち上がったのに、同じ季のうちに引退させてしまうのを防ぐため）
@@ -642,9 +648,15 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
     # 白虎：Elo上位16名（前年白虎在位者は防衛専念枠として除外）による正式シードトーナメント
     # ============================================================
     byakko_holder_id = (titleholders.get("白虎") or {}).get("id")
-    challenger, bracket_log, byakko_entrants = determine_byakko_challenger(all_members, exclude_id=byakko_holder_id, depth=BYAKKO_LEAGUE_DEPTH, top_n=16)
+    challenger, bracket_log, byakko_entrants = determine_byakko_challenger(
+        all_members, exclude_id=byakko_holder_id, depth=BYAKKO_LEAGUE_DEPTH, top_n=16,
+        guaranteed_id=last_dethroned.get("白虎"),
+    )
     extra_protected_ids.add(challenger.id)
     demotion_relief_ids.update(ind.id for ind in byakko_entrants)
+    # 失冠優遇は1季限りなので、使ったかどうかに関わらずここでリセットする
+    # （このあと、この季に新たに失冠が発生すればその個体のidで上書きされる）
+    last_dethroned["白虎"] = None
 
     for matchup in bracket_log:
         ind_a, ind_b = all_members_by_id.get(matchup["a"]), all_members_by_id.get(matchup["b"])
@@ -687,6 +699,9 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
             titleholders["白虎"] = {"id": challenger.id, "name": challenger.display_name}
             titleholder_params["白虎"] = effective_params(challenger)
             holder_name, holder_id = challenger.display_name, challenger.id
+            # 奪取された旧保持者は、来季の白虎トーナメントにEloに関わらず無条件で
+            # 出場できる（他タイトルと同様、優遇なしで母集団に戻るだけでは酷なため）
+            last_dethroned["白虎"] = defending_holder["id"]
         else:
             holder_name, holder_id = defending_holder["name"], defending_holder["id"]
         results.append({
@@ -702,13 +717,14 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
     # ============================================================
     genbu_holder_id = (titleholders.get("玄武") or {}).get("id")
     genbu_seed_titleholder_ids = {info["id"] for info in titleholders.values() if info and info.get("id")}
-    genbu_seed_a_order = [ind.id for ind in ranked_A]
     challenger, bracket_log, genbu_block_champions = determine_genbu_challenger(
         all_members, exclude_id=genbu_holder_id, depth=GENBU_LEAGUE_DEPTH, bracket_size=64,
-        titleholder_ids=genbu_seed_titleholder_ids, a_league_order=genbu_seed_a_order,
+        titleholder_ids=genbu_seed_titleholder_ids, guaranteed_final_id=last_dethroned.get("玄武"),
     )
     extra_protected_ids.add(challenger.id)
     demotion_relief_ids.update(ind.id for ind in genbu_block_champions)
+    # 失冠優遇は1季限りなので、使ったかどうかに関わらずここでリセットする
+    last_dethroned["玄武"] = None
 
     for matchup in bracket_log:
         ind_a, ind_b = all_members_by_id.get(matchup["a"]), all_members_by_id.get(matchup["b"])
@@ -751,6 +767,9 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
             titleholders["玄武"] = {"id": challenger.id, "name": challenger.display_name}
             titleholder_params["玄武"] = effective_params(challenger)
             holder_name, holder_id = challenger.display_name, challenger.id
+            # 奪取された旧保持者は、来季の玄武戦で予選ブロックを経ずに本戦（挑戦者決定
+            # トーナメント）へ直接合流できる
+            last_dethroned["玄武"] = defending_holder["id"]
         else:
             holder_name, holder_id = defending_holder["name"], defending_holder["id"]
         results.append({

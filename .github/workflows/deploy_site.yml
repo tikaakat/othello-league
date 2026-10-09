@@ -62,6 +62,7 @@ on:
           - "add_inquiry_feature"
           - "cleanup_test_sponsor_data_20261008"
           - "cleanup_stale_retired_individuals_rows_20261009"
+          - "add_newcomer_master_columns"
         default: ""
       create_dir:
         description: "デプロイの代わりに、lab.spia-net.com直下（othello-league/の1つ上）に相対パスでディレクトリを作成する（例: othello-news）。「..」や先頭「/」は不可"
@@ -279,6 +280,15 @@ jobs:
                 # 別途サーバーへ配置するが、既存の重複行はこのマイグレーションで一括削除する
                 SQL_LIST=(
                   'DELETE FROM individuals WHERE id IN (SELECT id FROM retired_archive);'
+                )
+                ;;
+              add_newcomer_master_columns)
+                # 新人リーグ結果タブに師匠表示を追加するための列。
+                # 新人リーグの参加者には出場時点で既に師匠が決まっている（parent_a_id）が、
+                # これまでnewcomer_league_standingsには保存していなかったため追加する
+                SQL_LIST=(
+                  'ALTER TABLE newcomer_league_standings ADD COLUMN master_id VARCHAR(32) NULL;'
+                  'ALTER TABLE newcomer_league_standings ADD COLUMN master_name VARCHAR(30) NULL;'
                 )
                 ;;
               *)

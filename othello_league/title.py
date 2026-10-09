@@ -307,13 +307,21 @@ def _bracket_seed_order(n):
     return result
 
 
-def determine_byakko_challenger(all_members, exclude_id=None, depth=1, top_n=16):
+def determine_byakko_challenger(all_members, exclude_id=None, depth=1, top_n=16, guaranteed_id=None):
     """
     Elo上位top_n名（既定16名）による正式シードトーナメント。
     前年白虎在位者（exclude_id）は防衛専念枠のため、この母集団からは除外する。
+    guaranteed_idが与えられた場合（前季このタイトルを失冠した個体のid）、その個体は
+    現在のEloに関わらず無条件でトーナメント入りする（Elo下位からtop_n-1名のみをElo選抜し、
+    guaranteed_id分の1枠を確保する）。
     """
     pool = [ind for ind in all_members if ind.id != exclude_id]
-    ranked = sorted(pool, key=lambda ind: -ind.elo)[:top_n]
+    guaranteed_ind = next((ind for ind in pool if ind.id == guaranteed_id), None) if guaranteed_id else None
+    elo_pool = [ind for ind in pool if guaranteed_ind is None or ind.id != guaranteed_ind.id]
+    elo_quota = top_n - 1 if guaranteed_ind is not None else top_n
+    ranked = sorted(elo_pool, key=lambda ind: -ind.elo)[:elo_quota]
+    if guaranteed_ind is not None:
+        ranked.append(guaranteed_ind)
 
     n = len(ranked)
     bracket_size = 1
@@ -373,19 +381,24 @@ def run_byakko_challenge(challenger, titleholder_params, depth=1, titleholder_vo
 # 超早指し戦
 # ============================================================
 def determine_genbu_challenger(all_members, exclude_id=None, depth=1, bracket_size=64, num_blocks=4,
-                                titleholder_ids=frozenset(), a_league_order=()):
+                                titleholder_ids=frozenset(), guaranteed_final_id=None):
     """
     全所属個体が参加する、ほぼ完全ランダムの抽選トーナメント。
     バイ（1回戦不戦勝＝2回戦から登場）の人数は bracket_size - 参加人数 で自動算出し、
     優先度の高い順にその人数分を割り当てる（上位シード同士が早期に当たらないよう分散配置）。
-    優先度：①タイトル保持者（青龍・朱雀・白虎・玄武のいずれか） ②Aリーグ順位（今季、上位ほど優先）
-    ③どちらにも該当しない個体はElo順（最後のタイブレークとしてのみ使用）。
+    優先度：①タイトル保持者（青龍・朱雀・白虎・玄武のいずれか） ②所属リーグとその季の順位
+    （Elo順ではなく、A→B→C→Dの順に、各リーグ内はその季の成績順）。
+    all_membersはrun_season.py側でranked_A+ranked_B+ranked_C+ranked_Dの順（各リーグ内は
+    その季の成績順）で渡されるため、そのインデックスがそのまま優先度になる。
     バイに入らない残り全員は、完全ランダムに1回戦を組む。
     前年玄武在位者（exclude_id）は防衛専念枠のため、この母集団からは除外する。
 
     表示のため、bracket_size枠全体をnum_blocks個のブロック（既定4ブロック、各16名）に
-    分割し、各ブロック内の抽選トーナメントで1名ずつ勝ち上がらせたのち、その
-    num_blocks名で改めて「挑戦者決定トーナメント」を行い最終的な挑戦者を1名決める。
+    分割し、各ブロック内の抽選トーナメントで1名ずつ勝ち上がらせる（ここまでが「予選」）。
+    guaranteed_final_idが与えられた場合（前季このタイトルを失冠した個体のid）、その個体は
+    予選ブロックを経ずに、ブロック優勝者たちによる「挑戦者決定トーナメント（本戦）」へ
+    直接合流する（all_membersに実在し、exclude_id・既にブロック優勝者本人でない場合のみ）。
+    本戦の人数が2の累乗でない場合は、標準シード順で並べた上で不足分をバイで埋める。
     ブロック分けは生成済みブラケット（bracket_size枠）を等分した連続区間で行う。
     トーナメント表は各段階で必ず再帰的に閉じた部分木になる性質上、ブロック内の対戦は
     そのブロックの参加者だけで完結する。bracket_logの各要素にはstage（"block"または
@@ -400,13 +413,13 @@ def determine_genbu_challenger(all_members, exclude_id=None, depth=1, bracket_si
         n = bracket_size
 
     bye_count = bracket_size - n
-    a_rank_by_id = {iid: rank for rank, iid in enumerate(a_league_order)}
-    not_in_a = len(a_league_order)  # Aリーグに所属していない個体は最下位扱い
+    # 所属リーグとその季の順位（A→B→C→D、リーグ内は成績順）をタイブレークに使う
+    rank_by_id = {ind.id: i for i, ind in enumerate(all_members)}
+    not_ranked = len(all_members)
 
     def seed_priority(ind):
         is_titleholder = ind.id in titleholder_ids
-        a_rank = a_rank_by_id.get(ind.id, not_in_a)
-        return (0 if is_titleholder else 1, a_rank, -ind.elo)
+        return (0 if is_titleholder else 1, rank_by_id.get(ind.id, not_ranked))
 
     priority_ranked = sorted(pool, key=seed_priority)
     seeded = priority_ranked[:bye_count]   # 優先度上位bye_count名：1回戦バイ（2回戦から登場）
@@ -437,33 +450,54 @@ def determine_genbu_challenger(all_members, exclude_id=None, depth=1, bracket_si
         bracket_log.append(entry)
         return winner_ind
 
+    # --- ブロック段階（予選）：num_blocks名に絞られるまで ---
     round_members = bracketed
-    block_champions = None
-    while len(round_members) > 1:
+    while len(round_members) > num_blocks:
         num_pairs = len(round_members) // 2
-        # ブロックの勝者がnum_blocks名に絞られるまでは各ブロック内の対戦（block段階）、
-        # それ以降はその勝者同士の挑戦者決定トーナメント（final段階）
-        is_block_stage = len(round_members) > num_blocks
-        pairs_per_block = max(1, num_pairs // num_blocks) if is_block_stage else None
+        pairs_per_block = max(1, num_pairs // num_blocks)
         next_round = []
         for i in range(0, len(round_members), 2):
             pair_i = i // 2
-            if is_block_stage:
-                winner = single_game(round_members[i], round_members[i + 1], "block", pair_i // pairs_per_block)
-            else:
-                winner = single_game(round_members[i], round_members[i + 1], "final")
+            winner = single_game(round_members[i], round_members[i + 1], "block", pair_i // pairs_per_block)
             next_round.append(winner)
         round_members = next_round
-        # ブロック段階からfinal段階に移った直後（＝ブロックの勝者がちょうどnum_blocks名に
-        # 絞られた瞬間）の面々が「ブロック優勝者」。bracket_logから復元すると、バイで
-        # ブロック内の対局が1回も記録されなかった個体を見逃す恐れがあるため、ここで直接控える
-        if block_champions is None and len(round_members) == num_blocks:
-            block_champions = list(round_members)
+    block_champions = list(round_members)
+
+    # --- 前季失冠者の本戦合流（予選スキップ） ---
+    final_pool = list(block_champions)
+    guaranteed_ind = None
+    if guaranteed_final_id is not None:
+        guaranteed_ind = next(
+            (ind for ind in all_members
+             if ind.id == guaranteed_final_id and ind.id != exclude_id
+             and ind.id not in {c.id for c in final_pool}),
+            None,
+        )
+        if guaranteed_ind is not None:
+            final_pool.append(guaranteed_ind)
+
+    # --- 挑戦者決定トーナメント（本戦） ---
+    # 通常（前季失冠者の合流が無い場合）はブロック優勝者の人数がそのままnum_blocks
+    # （2の累乗）になるため、ブロック段階からの並び順のままシャッフルも再シードもせず
+    # 進める（従来の挙動を保つ）。前季失冠者が合流した場合のみ、人数が2の累乗で
+    # なくなるため、標準シード順で並べ直した上で不足分をバイで埋める
+    if guaranteed_ind is None:
+        round_members = final_pool
+    else:
+        final_size = 1
+        while final_size < len(final_pool):
+            final_size *= 2
+        random.shuffle(final_pool)
+        final_slots = final_pool + [None] * (final_size - len(final_pool))
+        final_order = _bracket_seed_order(final_size)
+        round_members = [final_slots[i] for i in final_order]
+    while len(round_members) > 1:
+        next_round = []
+        for i in range(0, len(round_members), 2):
+            next_round.append(single_game(round_members[i], round_members[i + 1], "final"))
+        round_members = next_round
 
     challenger = round_members[0]
-    # num_blocks<=1等でブロック段階が存在しなかった場合の保険
-    if block_champions is None:
-        block_champions = [challenger]
     return challenger, bracket_log, block_champions
 
 

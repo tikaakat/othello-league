@@ -8,7 +8,7 @@ class LeagueIndividual:
     """
     def __init__(self, ind_id, league, params=None, generation=0,
                  parent_a_id=None, parent_b_id=None, display_name=None, initial_age=None,
-                 clan_root_id=None):
+                 clan_root_id=None, gender=None):
         self.id = ind_id
         self.league = league              # 'A' / 'B' / 'C' / 'D'
         self.params = params or {}
@@ -16,6 +16,10 @@ class LeagueIndividual:
         # 稀に本人がここで新しい一門の開祖になる（分岐）。未指定時は自分自身が開祖（＝新規開祖）
         self.clan_root_id = clan_root_id if clan_root_id is not None else ind_id
         self.display_name = display_name  # 人名（例：「佐藤2」）
+        # "male"/"female"のいずれか。NameRegistry.generate()経由で生成された個体のみ
+        # 設定される（キャラクリエイト経由の個体や、この機能追加前からの既存個体はNoneのまま）。
+        # ファンサイトの顔画像パーツ選択に使う想定
+        self.gender = gender
         self.awakened_param = None        # 覚醒で突破したパラメータ名（あれば）
         self.black_count = 0              # 通算で黒番を持った回数（先後を均等にするための管理用。シーズンをまたいで累積）
         self.white_count = 0               # 通算で白番を持った回数
@@ -66,6 +70,7 @@ class LeagueIndividual:
             "params": self.params,
             "clan_root_id": self.clan_root_id,
             "display_name": self.display_name,
+            "gender": self.gender,
             "awakened_param": self.awakened_param,
             "black_count": self.black_count,
             "white_count": self.white_count,
@@ -94,6 +99,7 @@ class LeagueIndividual:
             # 一門制導入前の既存個体はclan_root_idを持たないため、移行時のみ自分自身を開祖として扱う
             # （過去の血統を遡っての一門再構築はしない、という割り切り）
             clan_root_id=d.get("clan_root_id"),
+            gender=d.get("gender"),
         )
         ind.initial_age = d.get("initial_age", random.randint(18, 24))  # 既存個体は移行時のみランダム付与
         ind.age_multipliers = d.get("age_multipliers", {})

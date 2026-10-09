@@ -1417,7 +1417,7 @@ switch ($action) {
         $meta = $metaStmt->fetch();
 
         $standStmt = $pdo->prepare(
-            "SELECT `rank`, individual_id, display_name, win, loss, draw, auto_generated, promoted
+            "SELECT `rank`, individual_id, display_name, win, loss, draw, auto_generated, promoted, master_id, master_name
              FROM newcomer_league_standings WHERE for_season = :s ORDER BY `rank` ASC"
         );
         $standStmt->execute(['s' => $forSeason]);
@@ -1435,7 +1435,7 @@ switch ($action) {
     case 'newcomer_league_history':
         // 新人リーグ経由でDリーグへ新規参入した個体の、全季分の一覧（歴代記録）
         $rows = $pdo->query(
-            "SELECT for_season, `rank`, individual_id, display_name, win, loss, draw, auto_generated, promoted
+            "SELECT for_season, `rank`, individual_id, display_name, win, loss, draw, auto_generated, promoted, master_id, master_name
              FROM newcomer_league_standings WHERE promoted = 1 ORDER BY for_season DESC, `rank` ASC"
         )->fetchAll();
         json_out(['history' => resolve_newcomer_real_ids($pdo, $rows)]);
