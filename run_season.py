@@ -401,7 +401,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
     # 挑戦するところまで勝ち上がったのに、同じ季のうちに引退させてしまうのを防ぐため）
     extra_protected_ids = set()
     # Dリーグ降級点の「減点」対象用：この季の白虎トーナメント出場者（16名）・
-    # 玄武ブロック優勝者（8名）を集める。挑戦者ほどの重みではないので強制引退からの
+    # 玄武ブロック優勝者（4名）を集める。挑戦者ほどの重みではないので強制引退からの
     # 完全な免除ではなく、降級点を1点減らす救済にとどめる
     demotion_relief_ids = set()
 
