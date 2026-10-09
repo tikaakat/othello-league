@@ -372,7 +372,7 @@ def run_byakko_challenge(challenger, titleholder_params, depth=1, titleholder_vo
 # 玄武戦：完全ランダム抽選トーナメント（ブラケットサイズ64、Elo上位者は1回戦バイ）。
 # 超早指し戦
 # ============================================================
-def determine_genbu_challenger(all_members, exclude_id=None, depth=1, bracket_size=64, num_blocks=8,
+def determine_genbu_challenger(all_members, exclude_id=None, depth=1, bracket_size=64, num_blocks=4,
                                 titleholder_ids=frozenset(), a_league_order=()):
     """
     全所属個体が参加する、ほぼ完全ランダムの抽選トーナメント。
@@ -383,7 +383,7 @@ def determine_genbu_challenger(all_members, exclude_id=None, depth=1, bracket_si
     バイに入らない残り全員は、完全ランダムに1回戦を組む。
     前年玄武在位者（exclude_id）は防衛専念枠のため、この母集団からは除外する。
 
-    表示のため、bracket_size枠全体をnum_blocks個のブロック（既定8ブロック、各8名）に
+    表示のため、bracket_size枠全体をnum_blocks個のブロック（既定4ブロック、各16名）に
     分割し、各ブロック内の抽選トーナメントで1名ずつ勝ち上がらせたのち、その
     num_blocks名で改めて「挑戦者決定トーナメント」を行い最終的な挑戦者を1名決める。
     ブロック分けは生成済みブラケット（bracket_size枠）を等分した連続区間で行う。
