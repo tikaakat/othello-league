@@ -404,7 +404,11 @@ def determine_genbu_challenger(all_members, exclude_id=None, depth=1, bracket_si
     そのブロックの参加者だけで完結する。bracket_logの各要素にはstage（"block"または
     "final"）を、block段階ではさらにそのブロック番号（0始まり）を付与する。
     """
-    pool = [ind for ind in all_members if ind.id != exclude_id]
+    # guaranteed_final_idは予選ブロックを経ずに本戦へ直接合流させるため、ここで
+    # pool自体から除く（exclude_idと同様）。除かずにいると予選ブロックの通常参加者として
+    # 対局させてしまい、負けて敗退したにもかかわらずfinal_poolへ合流時に二重に扱われる上、
+    # bye_count・シード優先度の算出も他の参加者分だけずれてしまう
+    pool = [ind for ind in all_members if ind.id != exclude_id and ind.id != guaranteed_final_id]
     n = len(pool)
     if n > bracket_size:
         # 参加人数がbracket_sizeを超えることは通常想定していないが、

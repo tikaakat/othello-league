@@ -168,7 +168,7 @@ def _determine_promotion(ranked, score, slots_needed, by_id, depth):
 def run_newcomer_league(submissions, slots_needed, registry, retry_pool=None,
                          depth=NEWCOMER_LEAGUE_DEPTH,
                          rounds=NEWCOMER_LEAGUE_ROUNDS, target_pool=NEWCOMER_TARGET_POOL,
-                         pool=None, titleholder_ids=frozenset()):
+                         pool=None, titleholder_ids=frozenset(), retired_master_names=None):
     """
     submissions: [{"name":, "type":, "params":}, ...]（当日投稿分、上限は呼び出し側で適用済み想定）
     slots_needed: 今夜のDリーグ新規参入枠（前回シーズンの新規参入人数）
@@ -245,8 +245,15 @@ def run_newcomer_league(submissions, slots_needed, registry, retry_pool=None,
     )
 
     # 師匠の表示名（新人リーグ結果タブで「師匠：〜」を表示するため）。
-    # 師匠は既存個体（pool）の中から選ばれているので、名前解決にはpoolを使う
+    # 師匠は既存個体（pool）の中から選ばれているので、名前解決には基本的にpoolを使う。
+    # ただし持ち越し候補（retry_pool）のparent_a_idは数回前の新人リーグ実行時点で
+    # 決まったものなので、その間に師匠が引退してpoolから抜けている場合がある
+    # （poolは現役ロスターのみ）。retired_master_namesで引退済み個体の名前も
+    # 補完できるようにする（省略時はNoneのまま＝そのidを表示）
     master_name_by_id = {ind.id: ind.display_name for ind in (pool or [])}
+    if retired_master_names:
+        for mid, mname in retired_master_names.items():
+            master_name_by_id.setdefault(mid, mname)
 
     standings = []
     for rank, iid in enumerate(display_order, 1):
@@ -262,7 +269,14 @@ def run_newcomer_league(submissions, slots_needed, registry, retry_pool=None,
             "master_name": master_name_by_id.get(ind.parent_a_id) if ind.parent_a_id else None,
         })
 
-    winners = [ind for ind in ranked if ind.id in promoted_ids]
+    # display_order（プレーオフ反映済みの最終順位）の順を使う。rankedのまま（プレーオフ前の
+    # スイス結果順）でwinner_entriesを作ると、昇格枠の境界に3名以上が並んでプレーオフで
+    # 入れ替わった場合、ここでの並び順とstandings（displayed_orderベースのrank）の並び順が
+    # ずれる。この並び順がそのまま次季のDリーグ参入時の実ID（CC{season}-{index:03d}）の
+    # 割り当て順になるため、ずれるとstandingsのrankから実IDを逆算する側（site/api.phpの
+    # resolve_newcomer_real_ids・generate_news.pyのgather_newcomer_facts）が
+    # 誤った個体を指してしまう
+    winners = [by_id[iid] for iid in display_order if iid in promoted_ids]
     winner_entries = [entries_by_id[w.id] for w in winners]
 
     # 非昇格者のうち、成績上位5名（投稿・自動生成を問わない）だけを次回へ持ち越す。
@@ -390,11 +404,12 @@ def main():
     titleholder_ids = {
         info["id"] for info in (state.get("titleholders") or {}).values() if info and info.get("id")
     }
+    retired_master_names = {r["id"]: r["display_name"] for r in (state.get("retired_archive") or [])}
 
     registry = NameRegistry()
     winner_entries, standings, match_log, next_retry_pool, playoff_log = run_newcomer_league(
         submissions, slots_needed, registry, retry_pool=retry_pool,
-        pool=pool, titleholder_ids=titleholder_ids,
+        pool=pool, titleholder_ids=titleholder_ids, retired_master_names=retired_master_names,
     )
     if playoff_log:
         print(f"[DEBUG] 昇格枠の境界で同成績が発生したため、プレーオフを{len(playoff_log)}ラウンド実施しました", flush=True)
