@@ -538,7 +538,7 @@ def _build_character_creation_individual(request, season, index, master=None, di
         ind_id, "D", params=params, generation=generation,
         parent_a_id=master_id, parent_b_id=None,
         display_name=request.get("name") or ind_id, clan_root_id=clan_root_id,
-        initial_age=resolved_initial_age,
+        initial_age=resolved_initial_age, gender=request.get("gender"),
     )
     ind.awakened_param = awakened_key
     ind.volatility = volatility if volatility is not None else round(max(0.1, min(3.0, random.uniform(0.3, 2.0))), 2)
@@ -562,7 +562,7 @@ def generate_disciples(count, season, pool, name_registry, titleholder_ids=froze
 
     for i in range(count):
         ind_id = f"D{season}-{i:03d}"
-        display_name = name_registry.generate()
+        display_name, gender = name_registry.generate()
 
         master = _pick_master(eligible_masters, titleholder_ids, allow_new_founder=True)
 
@@ -585,7 +585,7 @@ def generate_disciples(count, season, pool, name_registry, titleholder_ids=froze
         ind = LeagueIndividual(
             ind_id, "D", params=params, generation=gen,
             parent_a_id=master_id, parent_b_id=None, display_name=display_name,
-            clan_root_id=clan_root_id, initial_age=initial_age,
+            clan_root_id=clan_root_id, initial_age=initial_age, gender=gender,
         )
         ind.awakened_param = awakened
 

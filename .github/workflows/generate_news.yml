@@ -145,7 +145,7 @@ jobs:
             "$XSERVER_USER@$XSERVER_HOST" "mkdir -p ${XSERVER_NEWS_DIR}"
 
           retry_cmd scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
-            news-site/index.html news-site/robots.txt data/news/articles.json data/season_state.json \
+            news-site/index.html news-site/robots.txt news-site/sitemap.xml data/news/articles.json data/season_state.json \
             "$XSERVER_USER@$XSERVER_HOST:${XSERVER_NEWS_DIR}"
 
           rm -f /tmp/deploy_key

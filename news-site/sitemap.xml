@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  このサイトはハッシュルーティング（#feed、#individuals等）を使っているため、
+  記事・選手ページ単位のURLは検索エンジンに個別インデックスされない（#以降は
+  クライアント側だけのルーティングで、サーバーが返すHTMLは常に同じトップページ）。
+  そのため、ここではインデックス可能なトップページ（ルート）のみを記載する。
+  記事・選手名鑑などを個別URLとして正しくインデックスさせるには、ハッシュルーティングを
+  History API（pushState）ベースの通常URLに移行する必要がある（別途の大きめの対応）。
+-->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://lab.spia-net.com/othello-news/</loc>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>
+</urlset>

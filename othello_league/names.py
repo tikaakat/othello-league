@@ -25,24 +25,34 @@ SURNAMES = [
     "田端", "田代",
 ]
 
-# 名前リスト（男女混合、対局者の個性として使うだけなので厳密な性別分けはしない、150種）
-GIVEN_NAMES = [
+# 名前リスト（男性用・女性用に分割。個体のgender決定にそのまま使うため、
+# 既存の混合リストとは違い厳密に性別で分けている）
+GIVEN_NAMES_MALE = [
     "聡太", "大輔", "翔太", "健太", "拓也", "直人", "和也", "祐介", "真司", "隆",
     "誠", "淳", "亮", "隼人", "陽介", "海斗", "颯太", "悠斗", "蓮", "陸",
-    "美咲", "陽子", "由美", "彩", "愛", "麻衣", "結衣", "さくら", "花子", "優子",
     "健二", "秀樹", "浩二", "義明", "康弘", "正人", "英樹", "貴之", "俊介", "雄大",
-    "千尋", "沙織", "真奈美", "恵美", "久美子", "智子", "裕子", "香織", "美穂", "亜紀",
     "翔", "大和", "颯", "陽太", "湊", "蒼", "樹", "悠真", "陽向", "朝陽",
-    "新", "遥", "光", "碧", "澪", "凛", "葵", "楓", "結愛", "美月",
+    "新", "光",
     "貴弘", "直樹", "浩之", "和彦", "武史", "克己", "勝也", "剛", "力", "豪",
-    "真理", "由紀", "礼子", "順子", "陽菜", "美優", "紗英", "萌", "亜美", "美緒",
     "浩太", "健一", "俊一", "正義", "義隆", "隆之", "信一", "秀一", "昌弘", "重樹",
     "純一", "真一", "浩明", "康之", "利明", "泰史", "祐一", "祐輝", "友和", "友紀",
     "光一", "光輝", "尚樹", "尚人", "尚弘", "尚志", "尚哉", "俊輝", "俊哉", "俊之",
+]
+
+GIVEN_NAMES_FEMALE = [
+    "美咲", "陽子", "由美", "彩", "愛", "麻衣", "結衣", "さくら", "花子", "優子",
+    "千尋", "沙織", "真奈美", "恵美", "久美子", "智子", "裕子", "香織", "美穂", "亜紀",
+    "遥", "碧", "澪", "凛", "葵", "楓", "結愛", "美月",
+    "真理", "由紀", "礼子", "順子", "陽菜", "美優", "紗英", "萌", "亜美", "美緒",
     "亜由美", "亜矢", "亜希子", "亜紀子", "章子", "彩香", "彩乃", "彩花", "綾", "綾香",
     "杏", "杏奈", "杏子", "泉", "泉美", "泉子", "一葉", "一美", "詩織", "詩乃",
     "美紀", "美咲子", "美奈", "美奈子", "美和", "美和子", "深雪", "深美", "真央", "真希",
 ]
+
+# 後方互換用（既存データの移行チェック等で男女混合リストを参照したい場合に使う）
+GIVEN_NAMES = GIVEN_NAMES_MALE + GIVEN_NAMES_FEMALE
+
+GENDERS = ("male", "female")
 
 
 class NameRegistry:
@@ -55,10 +65,17 @@ class NameRegistry:
         self.counts = dict(counts) if counts else {}
 
     def generate(self):
-        full_name = random.choice(SURNAMES) + random.choice(GIVEN_NAMES)
+        """
+        戻り値: (display_name, gender)。genderは"male"/"female"を半々の確率で決め、
+        対応する名前リストから名前を選ぶ（顔画像パーツの選択等に使う）。
+        """
+        gender = random.choice(GENDERS)
+        given_pool = GIVEN_NAMES_MALE if gender == "male" else GIVEN_NAMES_FEMALE
+        full_name = random.choice(SURNAMES) + random.choice(given_pool)
         self.counts[full_name] = self.counts.get(full_name, 0) + 1
         n = self.counts[full_name]
-        return full_name if n == 1 else f"{full_name}{n}"
+        display_name = full_name if n == 1 else f"{full_name}{n}"
+        return display_name, gender
 
     def to_dict(self):
         return dict(self.counts)

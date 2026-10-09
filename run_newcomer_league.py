@@ -62,8 +62,10 @@ def _build_entry_pool(submissions, retry_pool, target, registry):
             break
         filled.append({**c, "source": "retry", "initial_age": c.get("age")})
     while len(filled) < target:
+        name, gender = registry.generate()
         filled.append({
-            "name": registry.generate(),
+            "name": name,
+            "gender": gender,
             "type": random.choice(CHARACTER_TYPES),
             "auto_generated": True,
             "source": "fresh_auto",
@@ -242,6 +244,10 @@ def run_newcomer_league(submissions, slots_needed, registry, retry_pool=None,
         ranked, score, slots_needed, by_id, depth,
     )
 
+    # 師匠の表示名（新人リーグ結果タブで「師匠：〜」を表示するため）。
+    # 師匠は既存個体（pool）の中から選ばれているので、名前解決にはpoolを使う
+    master_name_by_id = {ind.id: ind.display_name for ind in (pool or [])}
+
     standings = []
     for rank, iid in enumerate(display_order, 1):
         ind = by_id[iid]
@@ -252,6 +258,8 @@ def run_newcomer_league(submissions, slots_needed, registry, retry_pool=None,
             "win": rec["win"], "loss": rec["loss"], "draw": rec["draw"],
             "auto_generated": bool(entry.get("auto_generated")),
             "promoted": iid in promoted_ids,
+            "master_id": ind.parent_a_id,
+            "master_name": master_name_by_id.get(ind.parent_a_id) if ind.parent_a_id else None,
         })
 
     winners = [ind for ind in ranked if ind.id in promoted_ids]

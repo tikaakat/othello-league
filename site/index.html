@@ -2306,7 +2306,7 @@ async function loadNewcomerLeague(forSeason) {
     if (resData.standings.length === 0) {
       html += '<div class="empty">出走者データがありません</div>';
     } else {
-      html += `<table><thead><tr><th>#</th><th>名前</th><th>成績</th><th></th></tr></thead><tbody>`;
+      html += `<table><thead><tr><th>#</th><th>名前</th><th>師匠</th><th>成績</th><th></th></tr></thead><tbody>`;
       resData.standings.forEach(s => {
         const tags = [];
         if (s.promoted) tags.push('<span style="display:inline-block; font-size:0.62rem; color:var(--navy-950); background:var(--cyan); border-radius:2px; padding:1px 5px; margin-right:4px; font-weight:700;">昇格</span>');
@@ -2315,9 +2315,14 @@ async function loadNewcomerLeague(forSeason) {
         // 場合（real_individual_id）のみクリック可能にする。落選者・未昇格の間はリンクしない
         const idAttr = s.real_individual_id ? ` data-id="${escapeHtml(s.real_individual_id)}"` : '';
         const rowStyle = s.promoted ? 'background:rgba(79,240,255,0.06);' : '';
+        // 師匠は既存個体のため常にリンク可能（新規開祖の場合はmaster_idが無く「なし」表示）
+        const masterCell = s.master_id
+          ? `<a href="#" data-master-id="${escapeHtml(s.master_id)}" style="color:var(--cyan);">${escapeHtml(s.master_name || s.master_id)}</a>`
+          : '<span style="color:var(--text-dim);">なし</span>';
         html += `<tr${idAttr} style="${rowStyle}${s.real_individual_id ? '' : ' cursor:default;'}">
           <td class="rank-num">${s.rank ?? '-'}</td>
           <td>${escapeHtml(s.display_name || s.individual_id)}</td>
+          <td style="font-size:0.78rem;">${masterCell}</td>
           <td>${s.win}勝${s.loss}敗${s.draw}分</td>
           <td>${tags.join('')}</td>
         </tr>`;
@@ -2327,6 +2332,10 @@ async function loadNewcomerLeague(forSeason) {
 
     el.innerHTML = html;
     el.querySelectorAll('tr[data-id]').forEach(tr => tr.addEventListener('click', () => navigateTo('individual/' + tr.dataset.id)));
+    el.querySelectorAll('a[data-master-id]').forEach(a => a.addEventListener('click', (e) => {
+      e.preventDefault(); e.stopPropagation();
+      navigateTo('individual/' + a.dataset.masterId);
+    }));
     if (prevSeason) document.getElementById('newcomer-prev').addEventListener('click', () => navigateTo('newcomer/' + prevSeason));
     if (nextSeason) document.getElementById('newcomer-next').addEventListener('click', () => navigateTo('newcomer/' + nextSeason));
   } catch (e) {
@@ -2527,14 +2536,18 @@ async function loadNewcomerHistory() {
       return;
     }
     let html = `<h3 style="font-size:0.8rem; color:var(--amber); border-bottom:1px solid var(--navy-700); padding-bottom:4px; margin-bottom:8px;">新人リーグ経由 新規参入者（歴代）</h3>`;
-    html += `<table><thead><tr><th>季</th><th>名前</th><th>成績</th><th></th></tr></thead><tbody>`;
+    html += `<table><thead><tr><th>季</th><th>名前</th><th>師匠</th><th>成績</th><th></th></tr></thead><tbody>`;
     rows.forEach(r => {
       const tag = r.auto_generated ? '<span style="display:inline-block; font-size:0.62rem; color:var(--text-dim); border:1px solid var(--navy-700); border-radius:2px; padding:1px 5px;">自動生成</span>' : '';
       // real_individual_idが確認できた場合のみクリック可能にする（詳細はloadNewcomerLeague参照）
       const idAttr = r.real_individual_id ? ` data-id="${escapeHtml(r.real_individual_id)}"` : '';
+      const masterCell = r.master_id
+        ? `<a href="#" data-master-id="${escapeHtml(r.master_id)}" style="color:var(--cyan);">${escapeHtml(r.master_name || r.master_id)}</a>`
+        : '<span style="color:var(--text-dim);">なし</span>';
       html += `<tr${idAttr}${r.real_individual_id ? '' : ' style="cursor:default;"'}>
         <td class="rank-num" style="cursor:default;">第${r.for_season}季</td>
         <td>${escapeHtml(r.display_name || r.individual_id)}</td>
+        <td style="font-size:0.78rem;">${masterCell}</td>
         <td>${r.win}勝${r.loss}敗${r.draw}分</td>
         <td>${tag}</td>
       </tr>`;
@@ -2542,6 +2555,10 @@ async function loadNewcomerHistory() {
     html += '</tbody></table>';
     el.innerHTML = html;
     el.querySelectorAll('tr[data-id]').forEach(tr => tr.addEventListener('click', () => navigateTo('individual/' + tr.dataset.id)));
+    el.querySelectorAll('a[data-master-id]').forEach(a => a.addEventListener('click', (e) => {
+      e.preventDefault(); e.stopPropagation();
+      navigateTo('individual/' + a.dataset.masterId);
+    }));
   } catch (e) {
     el.innerHTML = `<div class="empty">読み込み失敗: ${escapeHtml(String(e))}</div>`;
   }
