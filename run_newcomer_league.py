@@ -1,6 +1,6 @@
 """
 新人リーグ（AM実行）：その日投稿されたキャラクリエイトのリクエストを集めて、
-ランダム対戦のミニリーグ（1人あたり15局）で競わせる。上位者（前回のシーズンで
+ランダム対戦のミニリーグ（1人あたり12局）で競わせる。上位者（前回のシーズンで
 Dリーグに新規参入した人数分）だけが、この日の夜に実行される本戦でDリーグへ
 新規参入する。
 
@@ -34,7 +34,7 @@ from othello_league.io_utils import (
 )
 
 NEWCOMER_LEAGUE_DEPTH = 3
-NEWCOMER_LEAGUE_ROUNDS = 15
+NEWCOMER_LEAGUE_ROUNDS = 12
 NEWCOMER_TARGET_POOL = 30
 NEWCOMER_SUBMISSION_CAP = 40
 NEWCOMER_RETRY_KEEP_TOP_N = 5  # 非昇格者のうち、次回へ持ち越すのは上位何名まで
