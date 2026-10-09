@@ -1226,7 +1226,9 @@ function demotionEventMark(event) {
   if (gainedPart) {
     const before = parseInt(gainedPart.slice('gained'.length) || '0', 10);
     if (before > 0) {
-      html += `<span class="movement-mark" style="color:#ff5f5f; font-size:0.7rem;" title="今季開始時点で持っていた降級点">点${before}</span>`;
+      // 「今季開始時点で既に持っていた点数」と「今季+1された分」が同じ赤文字だと
+      // 見分けづらいため、既に持っていた点数の方は赤背景の抜き文字（チップ）にして区別する
+      html += `<span class="movement-mark" style="background:#ff5f5f; color:var(--navy-950); font-weight:700; padding:0 4px; border-radius:3px; font-size:0.7rem;" title="今季開始時点で持っていた降級点">点${before}</span>`;
     }
     html += '<span class="movement-mark" style="color:#ff5f5f; font-size:0.7rem;" title="青龍戦リーグで負け越して降級点+1">+点1</span>';
   }
@@ -1252,7 +1254,8 @@ function resultMovementMarks(movement, demotionEvent) {
 // リーグタブ：現在降級点を持っている個体に、名前の左へ簡易表示する
 function demotionPointsBadge(points) {
   if (!points) return '';
-  return `<span class="movement-mark" style="color:#ff5f5f; font-size:0.7rem;" title="降級点">点${points}</span>`;
+  // 結果タブの「今季開始時点の降級点」と同じ見た目に揃える（赤背景の抜き文字）
+  return `<span class="movement-mark" style="background:#ff5f5f; color:var(--navy-950); font-weight:700; padding:0 4px; border-radius:3px; font-size:0.7rem;" title="降級点">点${points}</span>`;
 }
 
 // 昇格・降格した行を、テーブル左端の色付きボーダーでも強調する（movement-markの文字だけだと
