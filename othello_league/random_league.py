@@ -5,22 +5,40 @@ from .play import play_league_match
 from .elo import update_elo
 
 
+def _circulant_pairs(order, degree):
+    """
+    ランダムに並べた円環上で、各個体を前後degree/2人ずつと結ぶ（circulant graph）。
+    degreeが偶数であれば、人数の偶奇に関わらず必ず全員ちょうどdegree戦になる。
+    """
+    n = len(order)
+    half = degree // 2
+    pairs = set()
+    for i in range(n):
+        for k in range(1, half + 1):
+            j = (i + k) % n
+            pairs.add(frozenset((order[i], order[j])))
+    return pairs
+
+
 def _build_schedule(ids, games_per_individual):
     """
     各個体がちょうど games_per_individual 人のユニークな相手と対戦する
     組み合わせを作る。参加人数が少なく全員と当たっても対戦数に届かない
     場合は、全員総当たり（人数-1戦）にフォールバックする。
 
-    対戦数は偶数（デフォルト8）を前提とする。偶数なら、ランダムに並べた
-    円環上で各個体を前後 games_per_individual/2 人ずつと結ぶ（circulant
-    graph）ことで、人数の偶奇に関わらず必ずちょうど games_per_individual
-    戦の組み合わせが作れる。
+    対戦数が偶数の場合は、ランダムに並べた円環上で各個体を前後N/2人ずつと
+    結ぶ（circulant graph）ことで、人数の偶奇に関わらず必ず全員ちょうど
+    games_per_individual戦の組み合わせになる。奇数の場合は、1人少ない
+    偶数次数のcirculant graphを作った上で、ランダムな重複なしペアリングで
+    1戦ずつ積み増す（人数×対戦数が奇数の場合、理論上全員を同数にはできない
+    ため、その時だけ1名だけ対戦数が1少なくなる）。
     """
     n = len(ids)
     if n <= 1:
         return []
 
-    if games_per_individual >= n - 1:
+    k = min(games_per_individual, n - 1)
+    if k >= n - 1:
         # 総当たり（全員と1回ずつ対戦）
         pairs = []
         for i in range(n):
@@ -28,15 +46,44 @@ def _build_schedule(ids, games_per_individual):
                 pairs.append((ids[i], ids[j]))
         return pairs
 
-    half = games_per_individual // 2
     order = list(ids)
     random.shuffle(order)
-    pairs = set()
-    for i in range(n):
-        for k in range(1, half + 1):
-            j = (i + k) % n
-            pairs.add(frozenset((order[i], order[j])))
-    return [tuple(p) for p in pairs]
+
+    if k % 2 == 0:
+        return [tuple(p) for p in _circulant_pairs(order, k)]
+
+    # 奇数対戦数：まず(k-1)次数のcirculant graphを作り、残り1戦分を
+    # まだ上限に届いていない個体同士でランダムにマッチングして積み増す。
+    # 人数×対戦数が奇数の場合は理論上全員を+1できないため、その時だけ
+    # 1名だけ対戦数が1少なくなる（誰になるかはランダムに選ぶ）。
+    base_pairs = _circulant_pairs(order, k - 1)
+    pool = list(order)
+    if (n * k) % 2 != 0:
+        pool.remove(random.choice(pool))
+
+    for _attempt in range(50):
+        remaining = list(pool)
+        random.shuffle(remaining)
+        extra_pairs = set()
+        ok = True
+        while remaining:
+            a = remaining.pop()
+            matched_idx = None
+            for idx, b in enumerate(remaining):
+                if frozenset((a, b)) not in base_pairs and frozenset((a, b)) not in extra_pairs:
+                    matched_idx = idx
+                    break
+            if matched_idx is None:
+                ok = False
+                break
+            b = remaining.pop(matched_idx)
+            extra_pairs.add(frozenset((a, b)))
+        if ok:
+            return [tuple(p) for p in (base_pairs | extra_pairs)]
+
+    # 50回試しても全員を組み切れなかった場合（極端な人数・対戦数の組み合わせ）は、
+    # 組めた分だけ積み増して返す（一部の個体だけ対戦数が1少なくなる）
+    return [tuple(p) for p in (base_pairs | extra_pairs)]
 
 
 def run_random_league(members, games_per_individual=8, depth=4, league_name="B", seed_order=None, allow_rematch=True):
