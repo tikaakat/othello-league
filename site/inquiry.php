@@ -75,6 +75,17 @@ $insStmt->execute([
     'ip' => $ipHash,
 ]);
 
+// お問い合わせをメールで通知する（DBへの保存はこの前で既に完了しているので、
+// メール送信に失敗しても問い合わせ自体は正常に受け付けたことにする＝@で握りつぶす。
+// xserver等の共有ホスティングではSMTP設定無しでもmail()がローカルのsendmail経由で
+// 動くことが多いため、追加設定なしで使える手段としてこれを採用している）
+$notifyTo = 'takaaki728@gmail.com';
+$subject = "[オセロリーグ] お問い合わせ（{$category}）";
+$mailBody = "カテゴリ: {$category}\n内容:\n{$message}\n\n返信先: " . ($contact !== '' ? $contact : '(未入力)');
+$headers = "MIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n";
+$encodedSubject = '=?UTF-8?B?' . base64_encode($subject) . '?=';
+@mail($notifyTo, $encodedSubject, base64_encode($mailBody), $headers);
+
 echo json_encode([
     'success' => true,
     'message' => 'お問い合わせを受け付けました。内容によっては返信できない場合があります。',
