@@ -1212,24 +1212,35 @@ function movementMarks(movement) {
 // それに加えて、この季に実際に動きがあった場合のみ、青龍戦リーグ（A〜Dの本戦）で
 // 負け越した（gained、+1）／玄武ブロック優勝等で軽減された（relief、-1）／
 // 0に戻った（cleared{N}、Nはクリア直前の点数）を追加で表示する。
+// 「点N」のハイライトは、今季の増減が起きる前（＝季開始時点）に既に持っていた点数を
+// 示す。今季の増減は「+点1」「-点1」で別途示すため、現在点（今季の増減を反映済みの値）
+// をそのままハイライトすると、例えば元々1点持っていて今季+1点で2点（即引退）になった
+// ケースで「点2 +点1」と表示され、実際には起きていない+1の二重計上に見えてしまう。
+// gained{N}・relief{N}のNが季開始時点の点数なので、それを優先して使う
+// （旧データに残る数字無しの"gained"/"relief"/"cleared"は現在点にフォールバックする）。
 // gained・reliefは同じ季に両方起きて相殺され見た目の点数が変わらないこともあるため、
 // 「+点1」「-点1」を両方出して状況が分かるようにする
-// （旧データに残る接尾辞なしの"cleared"は「点1」扱いにフォールバックする）
 function demotionEventMark(event, points) {
   const clearedMatch = /^cleared(\d*)$/.exec(event || '');
   if (clearedMatch) {
     const prevPoints = clearedMatch[1] || '1';
     return `<span class="movement-mark" style="font-size:0.7rem;" title="降級点が0に戻った"><s style="color:#ff5f5f;">点${prevPoints}</s><span style="color:var(--cyan);">消</span></span>`;
   }
-  let html = '';
-  if (points > 0) {
-    html += `<span class="movement-mark" style="background:#ff5f5f; color:var(--navy-950); font-weight:700; padding:0 4px; border-radius:3px; font-size:0.7rem;" title="現在の降級点">点${points}</span>`;
-  }
   const parts = (event || '').split('_').filter(Boolean);
-  if (parts.some(p => /^gained\d*$/.test(p))) {
+  const gainedMatch = parts.map(p => /^gained(\d*)$/.exec(p)).find(Boolean);
+  const reliefMatch = parts.map(p => /^relief(\d*)$/.exec(p)).find(Boolean);
+  let highlightPoints = points;
+  if (gainedMatch && gainedMatch[1] !== '') highlightPoints = parseInt(gainedMatch[1], 10);
+  else if (reliefMatch && reliefMatch[1] !== '') highlightPoints = parseInt(reliefMatch[1], 10);
+
+  let html = '';
+  if (highlightPoints > 0) {
+    html += `<span class="movement-mark" style="background:#ff5f5f; color:var(--navy-950); font-weight:700; padding:0 4px; border-radius:3px; font-size:0.7rem;" title="今季開始時点の降級点">点${highlightPoints}</span>`;
+  }
+  if (gainedMatch) {
     html += '<span class="movement-mark" style="color:#ff5f5f; font-size:0.7rem;" title="青龍戦リーグで負け越して降級点+1">+点1</span>';
   }
-  if (parts.includes('relief')) {
+  if (reliefMatch) {
     html += '<span class="movement-mark" style="color:var(--cyan); font-size:0.7rem;" title="玄武ブロック優勝等で降級点-1">-点1</span>';
   }
   return html;
