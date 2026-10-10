@@ -109,7 +109,6 @@
     flex: 0 0 auto; width: 48px; height: 48px; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
     font-weight: 700; font-size: 1rem; font-family: 'Zen Maru Gothic', sans-serif;
-    object-fit: cover; background: var(--card);
   }
   .card-body { flex: 1; min-width: 0; }
   .card-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
@@ -432,16 +431,8 @@ function hashString(s) {
   return h;
 }
 
-// 個体ID（seed）があれば、DiceBearの"Notionists"スタイルで決定的に生成した
-// アイコン画像を使う（同じ個体は常に同じ見た目になる）。個体IDが無い場合
-// （関連個体のない記事カード等）は、従来通りイニシャル1文字の色付き円にフォールバックする
-const AVATAR_BG_COLORS = AVATAR_PALETTE.map(p => p.bg.replace('#', '')).join(',');
 function avatarFor(name, seed) {
-  if (seed) {
-    const src = `https://api.dicebear.com/9.x/notionists/svg?seed=${encodeURIComponent(seed)}&backgroundColor=${AVATAR_BG_COLORS}`;
-    return `<img class="avatar" src="${src}" alt="" loading="lazy">`;
-  }
-  const palette = AVATAR_PALETTE[hashString(name || '?') % AVATAR_PALETTE.length];
+  const palette = AVATAR_PALETTE[hashString(seed || name || '?') % AVATAR_PALETTE.length];
   const initial = (name || '?').charAt(0);
   return `<div class="avatar" style="background:${palette.bg}; color:${palette.fg};">${escapeHtml(initial)}</div>`;
 }
@@ -952,9 +943,9 @@ async function renderIndividualProfile(id) {
 function setupProfileCardSave(id, name, ind, titleRanges, eternalTitles) {
   const btn = document.getElementById('profile-card-save-btn');
   if (!btn) return;
-  btn.addEventListener('click', async () => {
+  btn.addEventListener('click', () => {
     try {
-      const url = await renderProfileCardDataUrl(id, name, ind, titleRanges, eternalTitles);
+      const url = renderProfileCardDataUrl(id, name, ind, titleRanges, eternalTitles);
       const a = document.createElement('a');
       a.href = url;
       a.download = `${name}_選手カード.png`;
@@ -967,20 +958,7 @@ function setupProfileCardSave(id, name, ind, titleRanges, eternalTitles) {
   });
 }
 
-// crossOrigin='anonymous'で読み込み、canvasへの合成後もtoDataURL()できるようにする
-// （DiceBearのAPIはAccess-Control-Allow-Origin: *を返すため可能）。
-// 読み込みに失敗した場合（オフライン等）はnullを返し、呼び出し側でフォールバックする
-function loadImageSafe(src) {
-  return new Promise(resolve => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => resolve(img);
-    img.onerror = () => resolve(null);
-    img.src = src;
-  });
-}
-
-async function renderProfileCardDataUrl(id, name, ind, titleRanges, eternalTitles) {
+function renderProfileCardDataUrl(id, name, ind, titleRanges, eternalTitles) {
   const W = 1200, H = 630; // 主要SNSのOGP推奨サイズに合わせた横長カード
   const canvas = document.createElement('canvas');
   canvas.width = W; canvas.height = H;
@@ -1005,30 +983,17 @@ async function renderProfileCardDataUrl(id, name, ind, titleRanges, eternalTitle
   ctx.fill();
   ctx.stroke();
 
-  // アバター円（DiceBear "Notionists"の画像を円形にクリップして描画。
-  // 読み込めなかった場合のみ、従来のイニシャル1文字にフォールバックする）
+  // アバター円
   const avatarCx = pad + 140, avatarCy = pad + 150, avatarR = 90;
   ctx.fillStyle = palette.bg;
   ctx.beginPath();
   ctx.arc(avatarCx, avatarCy, avatarR, 0, Math.PI * 2);
   ctx.fill();
-
-  const avatarSrc = `https://api.dicebear.com/9.x/notionists/png?seed=${encodeURIComponent(id || name || '?')}&size=256&backgroundColor=${AVATAR_BG_COLORS}`;
-  const avatarImg = await loadImageSafe(avatarSrc);
-  if (avatarImg) {
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(avatarCx, avatarCy, avatarR, 0, Math.PI * 2);
-    ctx.clip();
-    ctx.drawImage(avatarImg, avatarCx - avatarR, avatarCy - avatarR, avatarR * 2, avatarR * 2);
-    ctx.restore();
-  } else {
-    ctx.fillStyle = palette.fg;
-    ctx.font = "700 86px 'Zen Maru Gothic', sans-serif";
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText((name || '?').charAt(0), avatarCx, avatarCy + 6);
-  }
+  ctx.fillStyle = palette.fg;
+  ctx.font = "700 86px 'Zen Maru Gothic', sans-serif";
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText((name || '?').charAt(0), avatarCx, avatarCy + 6);
 
   // 名前
   ctx.textAlign = 'left';
