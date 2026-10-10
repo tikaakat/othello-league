@@ -225,7 +225,9 @@ const TAB_GROUPS = {
     onSubView: (key) => { _hofActiveView = key; renderHofPanel(); },
   },
   newcomer_group: {
-    label: '新人', tabs: ['newcomer_create', 'newcomer', 'newcomer_history'],
+    // キャラクリエイト（newcomer_create）は一旦非表示にする（機能自体は復活する可能性があるため、
+    // コード・URLルーティング（#newcomer_create）・APIは残したまま、タブ一覧から外すだけにする）
+    label: '新人', tabs: ['newcomer', 'newcomer_history'],
     subLabels: { newcomer_create: 'キャラクリエイト', newcomer: '結果', newcomer_history: '歴代記録' },
   },
 };
