@@ -1682,7 +1682,8 @@ async function loadOneBracket(season, title, containerId = 'bracket-view') {
       const bracket = data.bracket || [];
       const finalGames = data.final_games || [];
       const genbuBlocks = data.genbu_blocks || null;
-      const genbuFinal = data.genbu_final || null;
+      const genbuFinalStandings = data.genbu_final_standings || null;
+      const genbuFinalPlayoff = data.genbu_final_playoff || null;
 
       if (bracket.length === 0 && finalGames.length === 0) {
         html = '<div style="color:var(--text-dim); font-size:0.78rem;">この季のトーナメント記録はありません</div>';
@@ -1690,9 +1691,11 @@ async function loadOneBracket(season, title, containerId = 'bracket-view') {
         html = `<div class="title-card">
           <h4>${escapeHtml(title)}戦</h4>`;
         if (title === '玄武' && genbuBlocks && genbuBlocks.length > 0) {
-          // 玄武戦：抽選トーナメント全体を8ブロックの予選（各8名→1名）に分けて表示し、
-          // その8名（各ブロック優勝者）による挑戦者決定トーナメントを別立てで示す
-          html += `<div style="font-size:0.7rem; color:var(--amber); margin-bottom:6px;">予選（8ブロック）</div>
+          // 玄武戦：抽選トーナメント全体を4ブロックの予選（各16名→1名）に分けて表示し、
+          // ブロック優勝者（前季失冠者が合流した季はブロック優勝者+1名）による
+          // 挑戦者決定リーグ戦（総当たり）の成績表を別立てで示す。総当たりなので
+          // 人数に関わらず組め、バイが発生しない（旧トーナメント方式の名残は無い）
+          html += `<div style="font-size:0.7rem; color:var(--amber); margin-bottom:6px;">予選（${genbuBlocks.length}ブロック）</div>
             <div style="display:flex; flex-wrap:wrap; gap:18px; margin-bottom:10px;">`;
           genbuBlocks.forEach((blockMatches, i) => {
             const tree = buildBracketTree(blockMatches);
@@ -1702,10 +1705,25 @@ async function loadOneBracket(season, title, containerId = 'bracket-view') {
             </div>`;
           });
           html += '</div>';
-          if (genbuFinal && genbuFinal.length > 0) {
-            const finalTree = buildBracketTree(genbuFinal);
-            html += `<div style="font-size:0.7rem; color:var(--amber); margin:10px 0 6px;">挑戦者決定トーナメント（各ブロック優勝者8名）</div>
-              <div style="margin-bottom:8px;">${renderBracketSVG(finalTree, data.participant_info)}</div>`;
+          if (genbuFinalStandings && genbuFinalStandings.length > 0) {
+            html += `<div style="font-size:0.7rem; color:var(--amber); margin:10px 0 6px;">挑戦者決定リーグ戦（ブロック優勝者${genbuFinalStandings.length}名・総当たり）</div>
+              <div style="overflow-x:auto; margin-bottom:8px;">
+                <table style="width:100%;"><thead><tr><th>#</th><th>名前</th><th>成績</th></tr></thead><tbody>`;
+            genbuFinalStandings.forEach(r => {
+              const record = `${r.win}勝${r.loss}敗${r.draw ? r.draw + '分' : ''}`;
+              html += `<tr><td class="rank-num">${r.rank}</td>
+                <td data-id="${escapeHtml(r.individual_id)}">${escapeHtml(r.display_name || r.individual_id)}</td>
+                <td>${record}</td></tr>`;
+            });
+            html += '</tbody></table></div>';
+            if (genbuFinalPlayoff && genbuFinalPlayoff.length > 0) {
+              html += `<div style="font-size:0.68rem; color:var(--text-dim); margin-bottom:8px;">※1位タイのため決定戦を実施：`
+                + genbuFinalPlayoff.map(m => {
+                  const winnerName = m.result === 'win' ? m.individual_a_name : m.individual_b_name;
+                  return `${escapeHtml(m.individual_a_name)} vs ${escapeHtml(m.individual_b_name)} → ${escapeHtml(winnerName)}`;
+                }).join('／')
+                + '</div>';
+            }
           }
           html += `<div style="font-size:0.66rem; color:var(--text-dim); margin-bottom:4px;">
             太い色付き線＝勝ち上がりの流れ（不戦勝の枠位置までは復元していません）／名前の左のアイコン＝参加時点の所属リーグ（その季タイトル保持者は代わりにタイトルの色バッジ）、右の()＝参加時点のElo
