@@ -592,10 +592,9 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
                 titleholder_params["朱雀"] = effective_params(challenger)
                 holder_name, holder_id = challenger.display_name, challenger.id
                 # 奪取された旧保持者は、防衛専念枠を外れて来季の紅白リーグに無条件で復帰する
-                # （青龍・白虎・玄武と同様、失冠した個体がそのまま母集団に戻るのが本来の仕様）
-                dethroned_ind = all_members_by_id.get(defending_holder["id"])
-                if dethroned_ind is not None:
-                    returning.append(dethroned_ind)
+                # （青龍・白虎・玄武と同様、失冠した個体がそのまま母集団に戻るのが本来の仕様）。
+                # ただしこの個体は今季開始時点でholder_parkedとして既にreturningへ
+                # merge済みなので、ここで改めて追加すると二重登録になってしまうため何もしない
             else:
                 holder_name, holder_id = defending_holder["name"], defending_holder["id"]
             defending_ind = all_members_by_id.get(defending_holder["id"])
@@ -611,9 +610,14 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
                 "defender_id": defending_holder["id"],
             })
 
-        # 新王者になった挑戦者は、来季は防衛専念枠に回るため残留組からは外す
+        # 新王者になった挑戦者は、来季は防衛専念枠に回る。ただし来季以降も
+        # suzaku_group_standingsへの記録（＝紅白リーグ通算/連続在籍期数の継続）を
+        # 途切れさせないため、ここでreturningから除外することはしない。
+        # returningに残したままにしておけば、assign_suzaku_groups()で来季の
+        # red/white振り分けに含まれ、来季以降は_prep_suzaku_group()のsuzaku_holder_id
+        # 判定によって自動的に「在籍しているが対局免除（holder_parked）」として
+        # 扱われる（既存の在位者と全く同じ仕組み）
         new_holder_id = titleholders["朱雀"]["id"]
-        returning = [ind for ind in returning if ind.id != new_holder_id]
 
         num_new_needed = max(0, 10 - len(returning))
         suzaku_exclude_ids = {m.id for m in red_others + white_others + red_holder_parked + white_holder_parked}
