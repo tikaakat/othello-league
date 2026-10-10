@@ -238,9 +238,10 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
                 # 常に表示するようにした
                 parts.append(f"gained{before}")
             # relief単独（今季負け越していない）で既に0点だった場合は、実質的に
-            # 何も変化していないため表示しない（relieveする対象の点が無かった）
+            # 何も変化していないため表示しない（relieveする対象の点が無かった）。
+            # gainedと同様、結果タブのハイライト表示用に「持っていた点数」を埋め込む
             if relief and (before > 0 or lost_more):
-                parts.append("relief")
+                parts.append(f"relief{before}")
             if parts:
                 demotion_events[ind.id] = "_".join(parts)
         if ind.demotion_points >= D_DEMOTION_POINT_LIMIT and ind.id not in protected_ids:
