@@ -9,7 +9,7 @@ from othello_league.league import (
 )
 from othello_league.buffs import effective_params, roll_age_multipliers
 from othello_league.round_robin import run_round_robin
-from othello_league.swiss import run_swiss_league
+from othello_league.random_league import run_random_league
 from othello_league.title import (
     run_seiryuu_challenge,
     run_suzaku_group_stage, run_suzaku_challenger_decision,
@@ -94,7 +94,8 @@ def bootstrap_rosters(registry):
 
 def _build_seed_order(members, league_name, prev_standings_by_id):
     """
-    スイス方式の初期シード順（＝ラウンド1の並び順、同点時のタイブレーク）を決める。
+    ランダム対戦時の同点タイブレーク順（前季この個体がこのリーグに在籍していれば
+    前季順位を継承、新規の場合はID順）を決める。
     """
     stayed = []
     others = []
@@ -151,25 +152,25 @@ def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_b
     if champion_ind:
         record_A[champion_ind.id] = {"win": 0, "loss": 0, "draw": 0}  # 対局免除のため記録なし
 
-    print("  --- Bリーグ（スイス方式） ---")
-    ranked_B, log_B, _, record_B = run_swiss_league(
-        rosters["B"], rounds=swiss_rounds, depth=depth, league_name="B",
+    print("  --- Bリーグ（ランダム対戦） ---")
+    ranked_B, log_B, _, record_B = run_random_league(
+        rosters["B"], games_per_individual=swiss_rounds, depth=depth, league_name="B",
         seed_order=_build_seed_order(rosters["B"], "B", prev_standings_by_id),
         allow_rematch=False,
     )
     match_log += log_B
 
-    print("  --- Cリーグ（スイス方式） ---")
-    ranked_C, log_C, _, record_C = run_swiss_league(
-        rosters["C"], rounds=swiss_rounds, depth=depth, league_name="C",
+    print("  --- Cリーグ（ランダム対戦） ---")
+    ranked_C, log_C, _, record_C = run_random_league(
+        rosters["C"], games_per_individual=swiss_rounds, depth=depth, league_name="C",
         seed_order=_build_seed_order(rosters["C"], "C", prev_standings_by_id),
         allow_rematch=False,
     )
     match_log += log_C
 
-    print("  --- Dリーグ（スイス方式） ---")
-    ranked_D, log_D, _, record_D = run_swiss_league(
-        rosters["D"], rounds=swiss_rounds, depth=depth, league_name="D",
+    print("  --- Dリーグ（ランダム対戦） ---")
+    ranked_D, log_D, _, record_D = run_random_league(
+        rosters["D"], games_per_individual=swiss_rounds, depth=depth, league_name="D",
         seed_order=_build_seed_order(rosters["D"], "D", prev_standings_by_id),
         allow_rematch=False,
     )
@@ -260,7 +261,7 @@ def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_b
     # _run_title_matchesで既に確定した正しい値のまま追加する
     standings_snapshot += suzaku_group_snapshot
 
-    # standings_snapshotの各行のeloは、A〜Dリーグの総当たり・スイス方式が終わった直後
+    # standings_snapshotの各行のeloは、A〜Dリーグの総当たり・ランダム対戦が終わった直後
     # （_run_title_matchesを呼ぶ前）の値で記録されていた。しかしタイトル戦（青龍挑戦・
     # 朱雀紅白リーグ戦や紅白決定戦・白虎予選トーナメント・玄武抽選トーナメント等）は
     # 全てこの後に行われ、参加者のeloを変動させる。そのため「シーズン終了時Elo」として

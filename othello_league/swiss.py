@@ -4,16 +4,29 @@ from .play import play_league_match
 from .elo import update_elo
 
 
-def swiss_pairing(ranked_ids, played_pairs, scores):
+def swiss_pairing(ranked_ids, played_pairs, scores, bye_counts=None):
     """
     オランダ式スイスペアリング。
     同じ得点（スコア）のグループごとに、上位半分×下位半分で組む
     （例：得点グループが8名なら、1位×5位、2位×6位、3位×7位、4位×8位）。
     既に対戦済みの組み合わせは避け、代わりの相手を探す（見つからなければ、
     グループの境界を越えて次のグループの選手を繰り上げる）。
+    参加人数が奇数の場合、最下位得点グループの中から「これまでのバイ回数が
+    最も少ない個体」を1名選んで今回のバイ（不戦）とする。これにより、
+    新規参入などで常にシード最下位になる個体が毎ラウンド固定でバイになる
+    ことを防ぎ、バイが公平にローテーションされる。
+    戻り値: (ペアのリスト, 今回バイとなった個体のID or None)
     """
+    bye_counts = bye_counts if bye_counts is not None else {}
     remaining = list(ranked_ids)
     pairs = []
+    bye_id = None
+
+    if len(remaining) % 2 != 0:
+        lowest_score = min(scores[x] for x in remaining)
+        lowest_group = [x for x in remaining if scores[x] == lowest_score]
+        bye_id = min(lowest_group, key=lambda x: bye_counts.get(x, 0))
+        remaining.remove(bye_id)
 
     while remaining:
         # 現在の得点グループ（先頭と同じ得点の人たち）を切り出す
@@ -66,7 +79,7 @@ def swiss_pairing(ranked_ids, played_pairs, scores):
                 remaining.remove(a)
                 remaining.remove(matched_b)
 
-    return pairs
+    return pairs, bye_id
 
 
 def run_swiss_league(members, rounds=4, depth=4, league_name="B", seed_order=None, allow_rematch=True):
@@ -85,6 +98,7 @@ def run_swiss_league(members, rounds=4, depth=4, league_name="B", seed_order=Non
     record = {ind.id: {"win": 0, "loss": 0, "draw": 0} for ind in members}
     played_pairs = set()
     match_log = []
+    bye_counts = {ind.id: 0 for ind in members}
     start = time.time()
 
     if seed_order:
@@ -94,8 +108,15 @@ def run_swiss_league(members, rounds=4, depth=4, league_name="B", seed_order=Non
 
     for rnd in range(rounds):
         ranked_ids = sorted(by_id.keys(), key=lambda i: (-score[i], seed_rank.get(i, 0)))
-        pairs = swiss_pairing(ranked_ids, played_pairs, score)
+        pairs, bye_id = swiss_pairing(ranked_ids, played_pairs, score, bye_counts)
         print(f"    {league_name}リーグ ラウンド{rnd + 1}/{rounds}（{len(pairs)}局）")
+
+        if bye_id is not None:
+            bye_counts[bye_id] += 1
+            score[bye_id] += 1.0
+            record[bye_id]["win"] += 1
+            bye_name = getattr(by_id[bye_id], "display_name", None) or bye_id
+            print(f"      {league_name}局-: {bye_name} はバイ（不戦勝）")
 
         for j, (a_id, b_id) in enumerate(pairs, 1):
             played_pairs.add(frozenset((a_id, b_id)))

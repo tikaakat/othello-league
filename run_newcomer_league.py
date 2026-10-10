@@ -1,6 +1,6 @@
 """
 新人リーグ（AM実行）：その日投稿されたキャラクリエイトのリクエストを集めて、
-スイス方式のミニリーグ（1人あたり15局）で競わせる。上位者（前回のシーズンで
+ランダム対戦のミニリーグ（1人あたり12局）で競わせる。上位者（前回のシーズンで
 Dリーグに新規参入した人数分）だけが、この日の夜に実行される本戦でDリーグへ
 新規参入する。
 
@@ -25,7 +25,7 @@ from othello_league.league import (
     _build_character_creation_individual, _pick_master, MASTER_MIN_AGE,
     count_existing_disciples,
 )
-from othello_league.swiss import run_swiss_league
+from othello_league.random_league import run_random_league
 from othello_league.play import play_decisive_match
 from othello_league.names import NameRegistry
 from othello_league.io_utils import (
@@ -34,7 +34,7 @@ from othello_league.io_utils import (
 )
 
 NEWCOMER_LEAGUE_DEPTH = 3
-NEWCOMER_LEAGUE_ROUNDS = 15
+NEWCOMER_LEAGUE_ROUNDS = 12
 NEWCOMER_TARGET_POOL = 30
 NEWCOMER_SUBMISSION_CAP = 40
 NEWCOMER_RETRY_KEEP_TOP_N = 5  # 非昇格者のうち、次回へ持ち越すのは上位何名まで
@@ -128,7 +128,7 @@ def resolve_promotion_playoff(tied_ids, by_id, remaining_slots, depth, _round=1,
 
 def _determine_promotion(ranked, score, slots_needed, by_id, depth):
     """
-    スイス方式終了後の最終スコアから昇格者を確定する。昇格枠の境界に同成績が
+    ランダム対戦終了後の最終スコアから昇格者を確定する。昇格枠の境界に同成績が
     並ばない（通常のケース）場合はそのままrank<=slots_needed、並ぶ場合は
     resolve_promotion_playoff()でプレーオフを行う。
     戻り値: (昇格者idの集合, 表示用順位（playoffで並び替え済み）のindividual_idリスト,
@@ -231,11 +231,11 @@ def run_newcomer_league(submissions, slots_needed, registry, retry_pool=None,
     if len(candidates) < 2:
         return [], [], [], (retry_pool or []), []
 
-    ranked, match_log, score, record = run_swiss_league(
-        candidates, rounds=rounds, depth=depth, league_name="新人リーグ",
+    ranked, match_log, score, record = run_random_league(
+        candidates, games_per_individual=rounds, depth=depth, league_name="新人リーグ",
     )
 
-    # スイス方式終了時点のスコアだけでは、昇格枠の境界に複数名が同成績で並んだ場合の
+    # ランダム対戦終了時点のスコアだけでは、昇格枠の境界に複数名が同成績で並んだ場合の
     # 決着がつかない（新人リーグは全員が新規参入者で初期Eloも揃っているため、
     # 従来のEloタイブレークは実質無意味で、投稿順という実力と無関係な決定になっていた）。
     # 境界で同成績が並んだ場合のみ、該当者同士のプレーオフ（引き分け無し）で昇格者を決める
@@ -270,7 +270,7 @@ def run_newcomer_league(submissions, slots_needed, registry, retry_pool=None,
         })
 
     # display_order（プレーオフ反映済みの最終順位）の順を使う。rankedのまま（プレーオフ前の
-    # スイス結果順）でwinner_entriesを作ると、昇格枠の境界に3名以上が並んでプレーオフで
+    # ランダム対戦結果順）でwinner_entriesを作ると、昇格枠の境界に3名以上が並んでプレーオフで
     # 入れ替わった場合、ここでの並び順とstandings（displayed_orderベースのrank）の並び順が
     # ずれる。この並び順がそのまま次季のDリーグ参入時の実ID（CC{season}-{index:03d}）の
     # 割り当て順になるため、ずれるとstandingsのrankから実IDを逆算する側（site/api.phpの
@@ -301,7 +301,7 @@ def relabel_if_stale(data_dir, marker_path=RESULT_MARKER_PATH):
     git pushが「本戦(evolve.yml)側のコミットが先に取り込まれていた」ことを理由に失敗し、
     git reset --mixedで最新originの上に積み直す自己修復が働いた場合を想定したチェック。
 
-    このスクリプトの対局計算（スイスリーグ、数分〜十数分かかる）が走っている間に、
+    このスクリプトの対局計算（ランダム対戦リーグ、数分〜十数分かかる）が走っている間に、
     ちょうど本戦のバッチが完了してcurrent_seasonが進んでしまうと、実行開始時点で
     読んだcurrent_seasonを元に決めたtarget_season（＝ファイル名）は、コミット時点では
     既に1つずれた値になっている。自己修復はファイルの中身・ファイル名を一切
