@@ -75,7 +75,7 @@ def bootstrap_rosters(registry):
         for ind in rosters[league]:
             ind.volatility = _random_volatility()
 
-    # Dリーグは、毎季固定2名（D_NEWCOMER_INTAKE）の新人受け入れを前提に、
+    # Dリーグは、毎季固定D_NEWCOMER_INTAKE名の新人受け入れを前提に、
     # 初年度はD_INITIAL_ROSTER_SIZE名の少人数スタートとする
     d_members = []
     for i in range(D_INITIAL_ROSTER_SIZE):
