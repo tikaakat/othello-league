@@ -204,12 +204,38 @@
   .clan-row:last-child { border-bottom: none; }
   .clan-row:hover { color: var(--accent-dark); }
   .clan-row .clan-right { color: var(--text-dim); font-size: 0.78rem; flex-shrink: 0; }
-  .clan-tree-row { font-size: 0.82rem; padding: 4px 0; display: flex; align-items: baseline; gap: 6px; cursor: pointer; }
+  /* 系統図の線：祖先の深さごとに1列（18px）を割り当て、各行はその列分の「レール」を
+     左に並べてから本文を続ける。レール1本＝「その祖先にまだ下に兄弟がいるので縦線を
+     伸ばす（ct-rail-line）」か「もう伸ばさない（空白）」のいずれか。自分の深さの列には
+     常に「上の親レールから繋がる縦線（上半分）＋名前へ向かう横線」の字型（ct-elbow）を描く。
+     次の兄弟へ縦線を繋げるかどうかは、自分の子孫の行すべてにこの列のレールを
+     「伸ばす」で渡すことで表現する（将棋連盟の棋士系統図のような縦線が引ける） */
+  .clan-tree-row, .clan-branch-row { display: flex; align-items: stretch; min-height: 26px; cursor: pointer; }
   .clan-tree-row:hover .clan-tree-name { color: var(--accent-dark); }
+  .ct-rails { display: flex; align-items: stretch; flex-shrink: 0; }
+  .ct-rail, .ct-elbow { position: relative; width: 18px; flex-shrink: 0; }
+  .ct-rail-line::before {
+    content: ''; position: absolute; left: 50%; top: 0; bottom: 0; width: 1px;
+    background: var(--border); transform: translateX(-50%);
+  }
+  .ct-elbow::before {
+    content: ''; position: absolute; left: 50%; top: 0; height: 50%; width: 1px;
+    background: var(--border); transform: translateX(-50%);
+  }
+  .ct-elbow::after {
+    content: ''; position: absolute; left: 50%; top: 50%; right: 2px; height: 1px;
+    background: var(--border);
+  }
+  /* 自分の下に弟子・分岐が続く場合、縦線を行の下端まで伸ばして幹を途切れさせない */
+  .ct-elbow.ct-elbow-open::before { height: 100%; }
+  .ct-row-body { display: flex; align-items: baseline; gap: 6px; padding: 4px 0; min-width: 0; }
   .clan-tree-name { color: var(--text-main); }
-  .clan-tree-meta { color: var(--text-dim); font-size: 0.72rem; }
-  .clan-branch-row { font-size: 0.76rem; padding: 3px 0; color: #B8692E; cursor: pointer; }
-  .clan-branch-row:hover { text-decoration: underline; }
+  .clan-tree-meta { color: var(--text-dim); font-size: 0.72rem; white-space: nowrap; }
+  .clan-branch-row { font-size: 0.76rem; color: #B8692E; }
+  .clan-branch-row .ct-row-body { padding: 3px 0; }
+  .clan-branch-row:hover .ct-row-body { text-decoration: underline; }
+  .ct-elbow-branch::after { border-top: 1px dashed #B8692E; background: none; height: 0; }
+  .ct-root-mark { color: var(--accent-dark); font-weight: 700; font-size: 0.72rem; margin-right: 2px; }
   .clan-branched-from { font-size: 0.78rem; color: var(--text-dim); margin-bottom: 10px; cursor: pointer; }
   .clan-branched-from:hover { color: var(--accent-dark); }
 
@@ -1611,22 +1637,46 @@ async function renderClanList() {
   });
 }
 
-// 系統図の各ノードを、師匠→弟子の階層でインデント表示する（データサイト側と同じ考え方）
-function renderClanTreeNode(node, childrenByParent, branchesByUnder, depth) {
+// 系統図の各ノードを、師匠→弟子の階層を縦線でつないで表示する（将棋連盟の棋士系統図を参考に）。
+// prefix: 自分より上の深さごとに「その先の行にも縦線を伸ばすか」を持つbool配列
+// （伸ばす＝その祖先にはまだ下に兄弟がいる）。isLastは自分が兄弟の中で最後かどうか
+// （最後なら自分の列は、これより下の子孫の行では縦線を伸ばさない＝枝が閉じる）
+function railsHtml(prefix, isRoot, isLast) {
+  let html = '<span class="ct-rails">';
+  prefix.forEach(cont => {
+    html += `<span class="ct-rail${cont ? ' ct-rail-line' : ''}"></span>`;
+  });
+  // 自分の下にまだ兄弟（次の弟子・分岐）が続くなら、縦線を行の下端まで伸ばして
+  // 次の兄弟の行へ途切れず繋げる（最後の兄弟なら上半分だけで「└」の形に閉じる）
+  if (!isRoot) html += `<span class="ct-elbow${!isLast ? ' ct-elbow-open' : ''}"></span>`;
+  return html + '</span>';
+}
+
+function renderClanTreeNode(node, childrenByParent, branchesByUnder, prefix, isLast, isRoot) {
   const kids = childrenByParent[node.id] || [];
   const branches = branchesByUnder[node.id] || [];
   const statusLabel = node.retired ? '（引退）' : node.league + 'リーグ';
   const eloLabel = node.retired ? `最高Elo ${Math.round(node.peak_elo)}` : `Elo ${Math.round(node.elo_rating)}`;
-  let html = `<div class="clan-tree-row" style="padding-left:${depth * 18}px;" data-goto-individual="${escapeHtml(node.id)}">
-      <span class="clan-tree-name">${isFollowed(node.id) ? '★ ' : ''}${escapeHtml(node.display_name || node.id)}</span>
-      <span class="clan-tree-meta">${statusLabel}・${eloLabel}</span>
+  let html = `<div class="clan-tree-row" data-goto-individual="${escapeHtml(node.id)}">
+      ${railsHtml(prefix, isRoot, isLast)}
+      <span class="ct-row-body">
+        ${isRoot ? '<span class="ct-root-mark">開祖</span>' : ''}
+        <span class="clan-tree-name">${isFollowed(node.id) ? '★ ' : ''}${escapeHtml(node.display_name || node.id)}</span>
+        <span class="clan-tree-meta">${statusLabel}・${eloLabel}</span>
+      </span>
     </div>`;
-  branches.forEach(b => {
-    html += `<div class="clan-branch-row" style="padding-left:${(depth + 1) * 18}px;" data-goto-clan="${escapeHtml(b.branch_clan_root_id)}">
-        └ ${escapeHtml(b.branch_name)}${b.branch_retired ? '（引退）' : ''}の一門へ分岐 →
+  // 子孫の行に渡すレール：自分の深さの列は、自分が最後の兄弟でなければ「伸ばす」
+  const childPrefix = isRoot ? [] : [...prefix, !isLast];
+  branches.forEach((b, i) => {
+    const branchIsLast = i === branches.length - 1 && kids.length === 0;
+    html += `<div class="clan-branch-row" data-goto-clan="${escapeHtml(b.branch_clan_root_id)}">
+        <span class="ct-rails">${childPrefix.map(cont => `<span class="ct-rail${cont ? ' ct-rail-line' : ''}"></span>`).join('')}<span class="ct-elbow ct-elbow-branch${!branchIsLast ? ' ct-elbow-open' : ''}"></span></span>
+        <span class="ct-row-body">${escapeHtml(b.branch_name)}${b.branch_retired ? '（引退）' : ''}の一門へ分岐 →</span>
       </div>`;
   });
-  kids.forEach(k => { html += renderClanTreeNode(k, childrenByParent, branchesByUnder, depth + 1); });
+  kids.forEach((k, i) => {
+    html += renderClanTreeNode(k, childrenByParent, branchesByUnder, childPrefix, i === kids.length - 1, false);
+  });
   return html;
 }
 
@@ -1673,7 +1723,7 @@ async function renderClanDetail(clanId) {
     <div class="profile-sub" style="margin-bottom:10px;">総勢${members.length}名（現役${members.filter(m => !m.retired).length}名）</div>
     ${branchedFromHtml}
     <div class="profile-section" style="margin-top:0; padding-top:0; border-top:none;">
-      ${root ? renderClanTreeNode(root, childrenByParent, branchesByUnder, 0) : ''}
+      ${root ? renderClanTreeNode(root, childrenByParent, branchesByUnder, [], true, true) : ''}
     </div>`;
 
   el.querySelectorAll('[data-goto-individual]').forEach(elm => {
