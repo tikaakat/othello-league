@@ -63,6 +63,7 @@ on:
           - "cleanup_test_sponsor_data_20261008"
           - "cleanup_stale_retired_individuals_rows_20261009"
           - "add_newcomer_master_columns"
+          - "add_gender_column"
         default: ""
       create_dir:
         description: "デプロイの代わりに、lab.spia-net.com直下（othello-league/の1つ上）に相対パスでディレクトリを作成する（例: othello-news）。「..」や先頭「/」は不可"
@@ -289,6 +290,15 @@ jobs:
                 SQL_LIST=(
                   'ALTER TABLE newcomer_league_standings ADD COLUMN master_id VARCHAR(32) NULL;'
                   'ALTER TABLE newcomer_league_standings ADD COLUMN master_name VARCHAR(30) NULL;'
+                )
+                ;;
+              add_gender_column)
+                # ファンサイトの顔アイコン（DiceBear Lorelei）を個体の性別で出し分けるための列。
+                # genderはPython側のシミュレーションでは既に個体ごとに持っている値だが、
+                # これまでDBには一切取り込んでいなかったため追加する
+                SQL_LIST=(
+                  'ALTER TABLE individuals ADD COLUMN gender VARCHAR(10) NULL;'
+                  'ALTER TABLE retired_archive ADD COLUMN gender VARCHAR(10) NULL;'
                 )
                 ;;
               *)

@@ -109,6 +109,7 @@
     flex: 0 0 auto; width: 48px; height: 48px; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
     font-weight: 700; font-size: 1rem; font-family: 'Zen Maru Gothic', sans-serif;
+    object-fit: cover; background: var(--card);
   }
   .card-body { flex: 1; min-width: 0; }
   .card-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
@@ -428,6 +429,29 @@ const AVATAR_PALETTE = [
   { bg: '#F1EBFB', fg: '#6B4FA0' }, { bg: '#FFF1E6', fg: '#B8692E' },
   { bg: '#E9F7EE', fg: '#2F7A52' },
 ];
+const AVATAR_BG_COLORS = AVATAR_PALETTE.map(p => p.bg.replace('#', '')).join(',');
+// DiceBear「Lorelei」スタイルの髪型（variant01〜48）を、見た目の印象で男性向け・
+// 女性向けに手作業で仕分けたもの（スタイル側に性別の概念が無いため、個体のgender
+// フィールドに応じてこちらで候補を絞り込むことで、見た目の性別がちぐはぐにならない
+// ようにする。以前Notionistsスタイルで導入した際、性別を区別できず撤回した反省から、
+// 今回は候補の絞り込みを前提にスタイルを選定している）
+const LORELEI_HAIR_MALE = ['variant01','variant02','variant03','variant04','variant05','variant06','variant07','variant08','variant09','variant12','variant20','variant22','variant25','variant27','variant28','variant30','variant34','variant36','variant39','variant44','variant47'];
+const LORELEI_HAIR_FEMALE = ['variant10','variant11','variant13','variant14','variant15','variant16','variant17','variant18','variant19','variant21','variant23','variant24','variant26','variant29','variant31','variant32','variant33','variant35','variant37','variant38','variant40','variant41','variant42','variant43','variant45','variant46','variant48'];
+
+// DiceBear（api.dicebear.com、MITライセンス）のLoreleiスタイルで、個体IDをシードにした
+// 決定的なアバター画像のURLを組み立てる。髪型はgenderで絞り込み、ひげ・髪飾り（花）も
+// 性別で出し分ける（ひげは男性のみ・花飾りは女性のみに確率を持たせる）
+function loreleiAvatarUrl(seed, gender, format) {
+  const hairPool = gender === 'male' ? LORELEI_HAIR_MALE : LORELEI_HAIR_FEMALE;
+  const params = new URLSearchParams({
+    seed: seed,
+    hair: hairPool.join(','),
+    beardProbability: gender === 'male' ? '25' : '0',
+    hairAccessoriesProbability: gender === 'female' ? '15' : '0',
+    backgroundColor: AVATAR_BG_COLORS,
+  });
+  return `https://api.dicebear.com/9.x/lorelei/${format}?${params.toString()}`;
+}
 const RESULTS_SITE_BASE = 'https://lab.spia-net.com/othello-league/';
 
 let _articles = null;
@@ -453,7 +477,14 @@ function hashString(s) {
   return h;
 }
 
-function avatarFor(name, seed) {
+// genderが分かっている（'male'/'female'）個体はDiceBear Loreleiの顔アイコンを使い、
+// gender不明（データが無い個体・関連個体のみで個体情報を持たない記事カード等）は
+// 従来通りイニシャル1文字の色付き円にフォールバックする
+function avatarFor(name, seed, gender) {
+  if (seed && (gender === 'male' || gender === 'female')) {
+    const src = loreleiAvatarUrl(seed, gender, 'svg');
+    return `<img class="avatar" src="${src}" alt="${escapeHtml(name || '?')}" loading="lazy">`;
+  }
   const palette = AVATAR_PALETTE[hashString(seed || name || '?') % AVATAR_PALETTE.length];
   const initial = (name || '?').charAt(0);
   return `<div class="avatar" style="background:${palette.bg}; color:${palette.fg};">${escapeHtml(initial)}</div>`;
@@ -907,7 +938,7 @@ async function renderIndividualProfile(id) {
   el.innerHTML = `
     <a class="back-link" href="#" onclick="navigateTo('');return false;">← フィードへ戻る</a>
     <div class="profile-header">
-      ${avatarFor(name, id)}
+      ${avatarFor(name, id, ind.gender)}
       <div>
         <h1 class="profile-name">${escapeHtml(name)}</h1>
         <div class="profile-sub">${statusLine}　Elo ${Math.round(ind.elo_rating)}（最高 ${Math.round(ind.peak_elo ?? ind.elo_rating)}）<span class="dan-badge">${danLabel(ind.dan)}</span></div>
@@ -965,9 +996,9 @@ async function renderIndividualProfile(id) {
 function setupProfileCardSave(id, name, ind, titleRanges, eternalTitles) {
   const btn = document.getElementById('profile-card-save-btn');
   if (!btn) return;
-  btn.addEventListener('click', () => {
+  btn.addEventListener('click', async () => {
     try {
-      const url = renderProfileCardDataUrl(id, name, ind, titleRanges, eternalTitles);
+      const url = await renderProfileCardDataUrl(id, name, ind, titleRanges, eternalTitles);
       const a = document.createElement('a');
       a.href = url;
       a.download = `${name}_選手カード.png`;
@@ -980,7 +1011,19 @@ function setupProfileCardSave(id, name, ind, titleRanges, eternalTitles) {
   });
 }
 
-function renderProfileCardDataUrl(id, name, ind, titleRanges, eternalTitles) {
+// img要素としての読み込みをPromise化する。失敗（ネットワーク不通・CORS等）した場合は
+// 例外を投げず、呼び出し側がnullを見てイニシャル表示にフォールバックできるようにする
+function loadImageSafe(src) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
+}
+
+async function renderProfileCardDataUrl(id, name, ind, titleRanges, eternalTitles) {
   const W = 1200, H = 630; // 主要SNSのOGP推奨サイズに合わせた横長カード
   const canvas = document.createElement('canvas');
   canvas.width = W; canvas.height = H;
@@ -1005,17 +1048,31 @@ function renderProfileCardDataUrl(id, name, ind, titleRanges, eternalTitles) {
   ctx.fill();
   ctx.stroke();
 
-  // アバター円
+  // アバター円（genderが分かっていればDiceBear Loreleiの画像を円形クリップして描画、
+  // 失敗した場合・genderが不明な場合は従来通りイニシャル1文字にフォールバックする）
   const avatarCx = pad + 140, avatarCy = pad + 150, avatarR = 90;
-  ctx.fillStyle = palette.bg;
-  ctx.beginPath();
-  ctx.arc(avatarCx, avatarCy, avatarR, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = palette.fg;
-  ctx.font = "700 86px 'Zen Maru Gothic', sans-serif";
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText((name || '?').charAt(0), avatarCx, avatarCy + 6);
+  let avatarImg = null;
+  if (id && (ind.gender === 'male' || ind.gender === 'female')) {
+    avatarImg = await loadImageSafe(loreleiAvatarUrl(id, ind.gender, 'png') + '&size=256');
+  }
+  if (avatarImg) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(avatarCx, avatarCy, avatarR, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.drawImage(avatarImg, avatarCx - avatarR, avatarCy - avatarR, avatarR * 2, avatarR * 2);
+    ctx.restore();
+  } else {
+    ctx.fillStyle = palette.bg;
+    ctx.beginPath();
+    ctx.arc(avatarCx, avatarCy, avatarR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = palette.fg;
+    ctx.font = "700 86px 'Zen Maru Gothic', sans-serif";
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText((name || '?').charAt(0), avatarCx, avatarCy + 6);
+  }
 
   // 名前
   ctx.textAlign = 'left';
