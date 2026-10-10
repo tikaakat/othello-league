@@ -77,12 +77,15 @@ def _pick_mvp(title_results, main_league_rows):
     win_by_id = {r["individual_id"]: r.get("win", 0) for r in main_league_rows}
     loss_by_id = {r["individual_id"]: r.get("loss", 0) for r in main_league_rows}
 
-    achievers = {}  # individual_id -> {"name", "score", "titles": [(title, result), ...]}
+    achievers = {}  # individual_id -> {"name", "score", "titles": [(title, result, match_score), ...]}
     for tr in title_results:
         wid, wname = tr["winner_id"], tr["winner_name"]
         entry = achievers.setdefault(wid, {"name": wname, "score": 0, "titles": []})
         entry["score"] += TITLE_PRESTIGE.get(tr["title"], 0)
-        entry["titles"].append((tr["title"], tr["result"]))
+        # タイトル戦の対局成績（例："3-1"）も合わせて持たせる。青龍在位者のように
+        # リーグ戦が防衛専念枠で免除され、リーグ成績が0勝0敗になる個体がいるため、
+        # 記事側で「0勝0敗なのに受賞」という誤解を招く表記を避けるのに使う
+        entry["titles"].append((tr["title"], tr["result"], f"{tr['challenger_wins']}-{tr['holder_wins']}"))
 
     if achievers:
         best_id = max(achievers, key=lambda iid: (achievers[iid]["score"], win_by_id.get(iid, 0), iid))
@@ -336,10 +339,17 @@ def build_prompt(facts):
         lines.append("■今季の活躍")
         if mvp:
             if mvp["titles"]:
-                titles_text = "・".join(f"{t}{r}" for t, r in mvp["titles"])
-                lines.append(
-                    f"・今季MVP：{mvp['name']}（{titles_text}。{mvp['league']}リーグ{mvp['win']}勝{mvp['loss']}敗）"
-                )
+                titles_text = "・".join(f"{t}{r}（対局成績{s}）" for t, r, s in mvp["titles"])
+                # 青龍在位者のように防衛専念枠でリーグ戦（A〜D）を免除され、
+                # リーグ成績が0勝0敗になる個体については、「0勝0敗なのに受賞」という
+                # 誤解を招く書き方にならないよう、リーグ成績の記載自体を省く
+                # （タイトル戦の対局成績は上のtitles_textに既に含まれている）
+                if mvp["win"] == 0 and mvp["loss"] == 0:
+                    lines.append(f"・今季MVP：{mvp['name']}（{titles_text}。{mvp['league']}リーグは防衛専念枠のため対局免除）")
+                else:
+                    lines.append(
+                        f"・今季MVP：{mvp['name']}（{titles_text}。{mvp['league']}リーグ{mvp['win']}勝{mvp['loss']}敗）"
+                    )
             else:
                 lines.append(f"・今季MVP（{mvp['league']}リーグで最多勝）：{mvp['name']}（{mvp['win']}勝{mvp['loss']}敗）")
         if rookie:
