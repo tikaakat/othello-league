@@ -114,15 +114,38 @@
     border: 1px solid var(--navy-700); padding: 4px 10px; cursor: pointer; margin-left: 6px;
   }
   .cheer-btn.cheered { color: #FF6B8A; border-color: #FF6B8A; cursor: default; }
-  /* サポーター：個体詳細ページの先頭で大きく目立たせる */
+  /* サポーター：個体詳細ページの先頭で、金箔のプレートのように高級感を出して表示する */
   .sponsor-highlight-box {
-    margin: 0 0 16px; padding: 14px 16px; border-radius: 10px;
-    border: 1px solid var(--amber); background: rgba(255, 182, 72, 0.08);
+    position: relative; margin: 0 0 16px; padding: 16px 18px; border-radius: 10px;
+    background: linear-gradient(160deg, rgba(255,182,72,0.10), rgba(16,24,44,0.4) 60%);
+    box-shadow: 0 0 0 1px rgba(255,182,72,0.4), 0 4px 20px rgba(255,182,72,0.06), inset 0 1px 0 rgba(255,255,255,0.03);
+  }
+  .sponsor-highlight-box::before {
+    content: ''; position: absolute; inset: 0; padding: 1px; border-radius: 10px;
+    background: linear-gradient(135deg, #ffe39a, #a8762f 35%, #ffdf9e 55%, #8a6a2e 80%, #ffe39a);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor; mask-composite: exclude; pointer-events: none;
   }
   .sponsor-highlight-box h3 {
-    margin: 0 0 8px; font-size: 1rem; color: var(--amber); display: flex; align-items: center; gap: 6px;
+    margin: 0 0 8px; font-size: 0.85rem; letter-spacing: 0.08em; display: flex; align-items: center; gap: 6px;
+    background: linear-gradient(120deg, #fff3d6, #ffb648 45%, #ffe9ab 60%, #a8762f 100%);
+    -webkit-background-clip: text; background-clip: text; color: var(--amber);
   }
-  .permanent-sponsor-row { font-size: 0.9rem; margin-bottom: 6px; }
+  .permanent-sponsor-row {
+    display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; font-size: 0.9rem;
+    padding: 10px 14px; border-radius: 8px; background: rgba(255,182,72,0.06);
+    border-left: 3px solid var(--amber); margin-bottom: 6px;
+  }
+  .permanent-sponsor-row b {
+    font-family: 'Orbitron', sans-serif; font-size: 1.02rem; letter-spacing: 0.02em;
+    background: linear-gradient(120deg, #fff3d6, #ffd27a 40%, #a8762f 100%);
+    -webkit-background-clip: text; background-clip: text; color: var(--amber);
+  }
+  .permanent-sponsor-row .sponsor-quote { color: var(--text-dim); font-style: italic; }
+  .permanent-sponsor-empty {
+    font-size: 0.8rem; color: var(--text-dim); padding: 10px 2px; text-align: center;
+    border: 1px dashed var(--navy-700); border-radius: 8px;
+  }
   .sliders { display: grid; gap: 6px; }
   .slider { display: grid; grid-template-columns: 6.5em 1fr 2.5em; align-items: center; gap: 8px; font-size: 0.78rem; color: var(--text-dim); }
   .slider input[type="range"] { width: 100%; accent-color: var(--cyan); }
@@ -785,7 +808,7 @@ async function loadIndividualDetail(id) {
 
     let html = `<div class="back-link" id="ind-back">← 一覧に戻る</div>`;
     html += `<div class="sponsor-highlight-box">
-      <h3>⭐ スペシャルサポーター</h3>
+      <h3>👑 スペシャルサポーター</h3>
       <div id="ind-sponsors">読み込み中...</div>
     </div>`;
     html += `<div style="text-align:center; margin-bottom:14px;">
@@ -1124,8 +1147,8 @@ async function loadIndividualSponsors(id) {
     const res = await fetch(`${API_BASE.replace('api.php', 'sponsor.php')}?individual_id=${encodeURIComponent(id)}`);
     const data = await res.json();
     const body = data.permanent
-      ? `<div class="permanent-sponsor-row"><b>${escapeHtml(data.permanent.display_name)}</b>${data.permanent.message ? `「${escapeHtml(data.permanent.message)}」` : ''}</div>`
-      : '<div style="color:var(--text-dim); font-size:0.8rem;">まだスペシャルサポーターはいません（先着1名限定）</div>';
+      ? `<div class="permanent-sponsor-row"><b>${escapeHtml(data.permanent.display_name)}</b>${data.permanent.message ? `<span class="sponsor-quote">「${escapeHtml(data.permanent.message)}」</span>` : ''}</div>`
+      : '<div class="permanent-sponsor-empty">まだスペシャルサポーターはいません（先着1名限定）</div>';
     el.innerHTML = `${body}
       <div style="margin-top:10px;"><a href="${NEWS_SITE_BASE}#individual/${encodeURIComponent(id)}" target="_blank" rel="noopener" style="color:var(--cyan); font-size:0.78rem;">→ ファンサイトでサポーターになる</a></div>`;
   } catch (e) {

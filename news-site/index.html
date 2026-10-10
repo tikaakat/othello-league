@@ -254,10 +254,18 @@
 
   /* サポーター（有料支援）：無料の応援とは見た目を分け、少し特別感を出す */
   .sponsor-box {
-    background: #FFFBF0; border: 1px solid #F0DDB8; border-radius: 14px;
-    padding: 14px 16px; margin-top: 10px;
+    position: relative; background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 16px 18px; margin-top: 10px; overflow: hidden;
   }
-  .sponsor-box h4 { font-size: 0.78rem; color: #8A6A2E; margin: 0 0 8px; }
+  .sponsor-box::before {
+    content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+    background: linear-gradient(180deg, #F0C878, #A8762F 50%, #F0C878);
+  }
+  .sponsor-box h4 {
+    font-size: 0.78rem; letter-spacing: 0.04em; font-weight: 700; margin: 0 0 8px;
+    background: linear-gradient(120deg, #C9972F, #8A6A2E 55%, #C9972F);
+    -webkit-background-clip: text; background-clip: text; color: #8A6A2E;
+  }
   .sponsor-box p.sponsor-desc { font-size: 0.78rem; color: var(--text-dim); margin: 0 0 10px; }
   .sponsor-cta-btn {
     font-size: 0.82rem; font-weight: 700; color: #fff; background: #B8692E;
@@ -265,23 +273,37 @@
   }
   .sponsor-list { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
   .sponsor-item {
-    display: flex; align-items: baseline; gap: 6px; font-size: 0.8rem; color: #5B5349;
-    background: #FFF1E0; border-left: 3px solid #D9A24B; border-radius: 6px; padding: 6px 10px;
+    display: flex; align-items: baseline; gap: 6px; font-size: 0.8rem; color: var(--text-main);
+    background: var(--hover-bg); border-left: 3px solid #D9A24B; border-radius: 6px; padding: 6px 10px;
   }
   .sponsor-item .sponsor-name { font-weight: 700; color: #8A6A2E; flex-shrink: 0; }
-  .sponsor-item .sponsor-message { overflow: hidden; text-overflow: ellipsis; }
+  .sponsor-item .sponsor-message { overflow: hidden; text-overflow: ellipsis; color: var(--text-dim); font-style: italic; }
   /* 松竹梅：支援ランクごとに一覧を区分けして表示する（金額そのものは出さない） */
   .sponsor-tier-group { margin-top: 10px; }
   .sponsor-tier-group:first-child { margin-top: 0; }
   .sponsor-tier-label {
     font-size: 0.72rem; font-weight: 700; margin-bottom: 4px; display: flex; align-items: center; gap: 4px;
   }
-  .sponsor-tier-label.tier-matsu { color: #96701A; }
+  .sponsor-tier-label.tier-matsu {
+    color: #96701A; font-size: 0.74rem; letter-spacing: 0.06em;
+  }
   .sponsor-tier-label.tier-take { color: #4F7A3D; }
   .sponsor-tier-label.tier-ume { color: #B8567A; }
-  .sponsor-item.tier-matsu { border-left-color: #D9A24B; }
-  .sponsor-item.tier-take { border-left-color: #7FAE63; background: #F1F7EC; }
-  .sponsor-item.tier-ume { border-left-color: #E08CAE; background: #FDF0F5; }
+  .sponsor-item.tier-take { border-left-color: #7FAE63; background: rgba(127,174,99,0.1); }
+  .sponsor-item.tier-ume { border-left-color: #E08CAE; background: rgba(224,140,174,0.1); }
+  /* スペシャルサポーター（先着1名）だけは、金箔のプレートのように一段高級感を出す */
+  .sponsor-item.tier-matsu {
+    position: relative; border: 1px solid #D9B872; border-left: none; border-radius: 8px;
+    padding: 10px 14px; background:
+      linear-gradient(135deg, rgba(240,200,120,0.22), rgba(240,200,120,0.05) 60%);
+    box-shadow: 0 0 0 1px rgba(217,184,114,0.25) inset, 0 2px 10px rgba(168,118,47,0.12);
+  }
+  .sponsor-item.tier-matsu .sponsor-name {
+    font-family: 'Zen Maru Gothic', sans-serif; font-weight: 900; font-size: 0.95rem; letter-spacing: 0.02em;
+    background: linear-gradient(120deg, #96701A, #E8C878 45%, #96701A 85%);
+    -webkit-background-clip: text; background-clip: text; color: #96701A;
+  }
+  .sponsor-item.tier-matsu .sponsor-message { color: #8A6A2E; }
 
   .modal-overlay {
     position: fixed; inset: 0; background: rgba(43, 36, 26, 0.45);
@@ -1226,10 +1248,10 @@ function sponsorTierGroupsHtml(list) {
 function specialSponsorHtml(permanent) {
   if (!permanent) return '';
   return `<div class="sponsor-tier-group">
-      <div class="sponsor-tier-label tier-matsu">⭐ スペシャルサポーター（1名）</div>
+      <div class="sponsor-tier-label tier-matsu">👑 スペシャルサポーター（先着1名）</div>
       <div class="sponsor-item tier-matsu">
         <span class="sponsor-name">${escapeHtml(permanent.display_name)}</span>
-        ${permanent.message ? `<span class="sponsor-message">${escapeHtml(permanent.message)}</span>` : ''}
+        ${permanent.message ? `<span class="sponsor-message">「${escapeHtml(permanent.message)}」</span>` : ''}
       </div>
     </div>`;
 }
