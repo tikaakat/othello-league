@@ -1204,32 +1204,27 @@ function movementMarks(movement) {
   return movement.split(',').map(tag => MOVEMENT_MARKS[tag.trim()] || '').join('');
 }
 
-// Dリーグの降級点：青龍戦リーグ（A〜Dの本戦）で負け越した（gained{N}、Nは今季開始時点
-// で既に持っていた点数。+1される）／玄武ブロック優勝等で軽減された（relief、-1）／
-// 0に戻った（cleared{N}、Nはクリア直前の点数）場合に、結果タブの行へ簡易表示する
-// （通常時は何も出さない）。gained・reliefは同じ季に両方起きて相殺され見た目の点数が
-// 変わらないこともあるため、「+点1」「-点1」を両方出して状況が分かるようにする。
-// clearedは「それまで溜まっていた点数」を取り消し線付きの「点N」として見せる
-// （旧データに残る接尾辞なしの"cleared"は「点1」扱いにフォールバックする）。
-// gainedで既に点を持っていた場合（N>0）は、その「点N」も併記してから「+点1」を出す
-// （以前は2点に達して引退する場合は「+点1」自体を省いていたが、「点1を持っていた
-// ところへ+1点で引退した」という経緯が分かるよう、引退時も省略せず表示する）
-function demotionEventMark(event) {
+// Dリーグの降級点：既に1点以上持っている場合、結果タブの行にも常時「点N」を赤背景の
+// 抜き文字（チップ）で表示する（リーグタブのdemotionPointsBadgeと同じ見た目。その季に
+// 何か動きが無くても、既に持っている点数自体は常に見えるようにする）。
+// それに加えて、この季に実際に動きがあった場合のみ、青龍戦リーグ（A〜Dの本戦）で
+// 負け越した（gained、+1）／玄武ブロック優勝等で軽減された（relief、-1）／
+// 0に戻った（cleared{N}、Nはクリア直前の点数）を追加で表示する。
+// gained・reliefは同じ季に両方起きて相殺され見た目の点数が変わらないこともあるため、
+// 「+点1」「-点1」を両方出して状況が分かるようにする
+// （旧データに残る接尾辞なしの"cleared"は「点1」扱いにフォールバックする）
+function demotionEventMark(event, points) {
   const clearedMatch = /^cleared(\d*)$/.exec(event || '');
   if (clearedMatch) {
     const prevPoints = clearedMatch[1] || '1';
     return `<span class="movement-mark" style="font-size:0.7rem;" title="降級点が0に戻った"><s style="color:#ff5f5f;">点${prevPoints}</s><span style="color:var(--cyan);">消</span></span>`;
   }
-  const parts = (event || '').split('_').filter(Boolean);
   let html = '';
-  const gainedPart = parts.find(p => /^gained\d*$/.test(p));
-  if (gainedPart) {
-    const before = parseInt(gainedPart.slice('gained'.length) || '0', 10);
-    if (before > 0) {
-      // 「今季開始時点で既に持っていた点数」と「今季+1された分」が同じ赤文字だと
-      // 見分けづらいため、既に持っていた点数の方は赤背景の抜き文字（チップ）にして区別する
-      html += `<span class="movement-mark" style="background:#ff5f5f; color:var(--navy-950); font-weight:700; padding:0 4px; border-radius:3px; font-size:0.7rem;" title="今季開始時点で持っていた降級点">点${before}</span>`;
-    }
+  if (points > 0) {
+    html += `<span class="movement-mark" style="background:#ff5f5f; color:var(--navy-950); font-weight:700; padding:0 4px; border-radius:3px; font-size:0.7rem;" title="現在の降級点">点${points}</span>`;
+  }
+  const parts = (event || '').split('_').filter(Boolean);
+  if (parts.some(p => /^gained\d*$/.test(p))) {
     html += '<span class="movement-mark" style="color:#ff5f5f; font-size:0.7rem;" title="青龍戦リーグで負け越して降級点+1">+点1</span>';
   }
   if (parts.includes('relief')) {
@@ -1240,13 +1235,13 @@ function demotionEventMark(event) {
 
 // 結果タブの行：表記の優先順位（左から）昇降 → 引退 → 降級点 → 新人、の順に固定する
 // （movementの文字列中のタグ順はデータ側の都合でまちまちなため、ここで並びを揃える）
-function resultMovementMarks(movement, demotionEvent) {
+function resultMovementMarks(movement, demotionEvent, demotionPoints) {
   const tags = (movement || '').split(',').map(t => t.trim());
   let html = '';
   if (tags.includes('promoted')) html += MOVEMENT_MARKS.promoted;
   else if (tags.includes('relegated')) html += MOVEMENT_MARKS.relegated;
   if (tags.includes('retired')) html += MOVEMENT_MARKS.retired;
-  html += demotionEventMark(demotionEvent);
+  html += demotionEventMark(demotionEvent, demotionPoints);
   if (tags.includes('new')) html += MOVEMENT_MARKS.new;
   return html;
 }
@@ -1687,7 +1682,8 @@ async function loadOneBracket(season, title, containerId = 'bracket-view') {
       const bracket = data.bracket || [];
       const finalGames = data.final_games || [];
       const genbuBlocks = data.genbu_blocks || null;
-      const genbuFinal = data.genbu_final || null;
+      const genbuFinalStandings = data.genbu_final_standings || null;
+      const genbuFinalPlayoff = data.genbu_final_playoff || null;
 
       if (bracket.length === 0 && finalGames.length === 0) {
         html = '<div style="color:var(--text-dim); font-size:0.78rem;">この季のトーナメント記録はありません</div>';
@@ -1695,9 +1691,11 @@ async function loadOneBracket(season, title, containerId = 'bracket-view') {
         html = `<div class="title-card">
           <h4>${escapeHtml(title)}戦</h4>`;
         if (title === '玄武' && genbuBlocks && genbuBlocks.length > 0) {
-          // 玄武戦：抽選トーナメント全体を8ブロックの予選（各8名→1名）に分けて表示し、
-          // その8名（各ブロック優勝者）による挑戦者決定トーナメントを別立てで示す
-          html += `<div style="font-size:0.7rem; color:var(--amber); margin-bottom:6px;">予選（8ブロック）</div>
+          // 玄武戦：抽選トーナメント全体を4ブロックの予選（各16名→1名）に分けて表示し、
+          // ブロック優勝者（前季失冠者が合流した季はブロック優勝者+1名）による
+          // 挑戦者決定リーグ戦（総当たり）の成績表を別立てで示す。総当たりなので
+          // 人数に関わらず組め、バイが発生しない（旧トーナメント方式の名残は無い）
+          html += `<div style="font-size:0.7rem; color:var(--amber); margin-bottom:6px;">予選（${genbuBlocks.length}ブロック）</div>
             <div style="display:flex; flex-wrap:wrap; gap:18px; margin-bottom:10px;">`;
           genbuBlocks.forEach((blockMatches, i) => {
             const tree = buildBracketTree(blockMatches);
@@ -1707,10 +1705,25 @@ async function loadOneBracket(season, title, containerId = 'bracket-view') {
             </div>`;
           });
           html += '</div>';
-          if (genbuFinal && genbuFinal.length > 0) {
-            const finalTree = buildBracketTree(genbuFinal);
-            html += `<div style="font-size:0.7rem; color:var(--amber); margin:10px 0 6px;">挑戦者決定トーナメント（各ブロック優勝者8名）</div>
-              <div style="margin-bottom:8px;">${renderBracketSVG(finalTree, data.participant_info)}</div>`;
+          if (genbuFinalStandings && genbuFinalStandings.length > 0) {
+            html += `<div style="font-size:0.7rem; color:var(--amber); margin:10px 0 6px;">挑戦者決定リーグ戦（ブロック優勝者${genbuFinalStandings.length}名・総当たり）</div>
+              <div style="overflow-x:auto; margin-bottom:8px;">
+                <table style="width:100%;"><thead><tr><th>#</th><th>名前</th><th>成績</th></tr></thead><tbody>`;
+            genbuFinalStandings.forEach(r => {
+              const record = `${r.win}勝${r.loss}敗${r.draw ? r.draw + '分' : ''}`;
+              html += `<tr><td class="rank-num">${r.rank}</td>
+                <td data-id="${escapeHtml(r.individual_id)}">${escapeHtml(r.display_name || r.individual_id)}</td>
+                <td>${record}</td></tr>`;
+            });
+            html += '</tbody></table></div>';
+            if (genbuFinalPlayoff && genbuFinalPlayoff.length > 0) {
+              html += `<div style="font-size:0.68rem; color:var(--text-dim); margin-bottom:8px;">※1位タイのため決定戦を実施：`
+                + genbuFinalPlayoff.map(m => {
+                  const winnerName = m.result === 'win' ? m.individual_a_name : m.individual_b_name;
+                  return `${escapeHtml(m.individual_a_name)} vs ${escapeHtml(m.individual_b_name)} → ${escapeHtml(winnerName)}`;
+                }).join('／')
+                + '</div>';
+            }
           }
           html += `<div style="font-size:0.66rem; color:var(--text-dim); margin-bottom:4px;">
             太い色付き線＝勝ち上がりの流れ（不戦勝の枠位置までは復元していません）／名前の左のアイコン＝参加時点の所属リーグ（その季タイトル保持者は代わりにタイトルの色バッジ）、右の()＝参加時点のElo
@@ -1803,7 +1816,7 @@ async function loadSeiryuuPanel(season) {
           const rTitles = (r.individual_id && seasonTitleholders.by_id[r.individual_id]) || [];
           html += `<tr class="${zoneClass(r.movement)}" data-id="${escapeHtml(r.individual_id)}">
             <td class="rank-num">${displayRank}</td>
-            <td>${resultMovementMarks(r.movement, r.demotion_point_event)}${escapeHtml(r.display_name || r.individual_id)}${titleOrDanBadge(rTitles, seasonDan[r.individual_id])}</td>
+            <td>${resultMovementMarks(r.movement, r.demotion_point_event, r.demotion_points)}${escapeHtml(r.display_name || r.individual_id)}${titleOrDanBadge(rTitles, seasonDan[r.individual_id])}</td>
             <td>${record}</td>
           </tr>`;
         });

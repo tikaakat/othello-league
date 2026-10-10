@@ -1,3 +1,4 @@
+import itertools
 import random
 
 from . import board as B
@@ -396,13 +397,18 @@ def determine_genbu_challenger(all_members, exclude_id=None, depth=1, bracket_si
     表示のため、bracket_size枠全体をnum_blocks個のブロック（既定4ブロック、各16名）に
     分割し、各ブロック内の抽選トーナメントで1名ずつ勝ち上がらせる（ここまでが「予選」）。
     guaranteed_final_idが与えられた場合（前季このタイトルを失冠した個体のid）、その個体は
-    予選ブロックを経ずに、ブロック優勝者たちによる「挑戦者決定トーナメント（本戦）」へ
+    予選ブロックを経ずに、ブロック優勝者たちによる「挑戦者決定リーグ戦（本戦）」へ
     直接合流する（all_membersに実在し、exclude_id・既にブロック優勝者本人でない場合のみ）。
-    本戦の人数が2の累乗でない場合は、標準シード順で並べた上で不足分をバイで埋める。
+    本戦（挑戦者決定）は、人数（通常はnum_blocks名、前季失冠者合流時はnum_blocks+1名）に
+    関わらず総当たりで行う。以前はトーナメント方式だったため、失冠者合流時に人数が
+    2の累乗にならず不自然な大量バイが発生していたが、総当たり方式なら人数を問わず
+    組める。最多勝者が複数名タイになった場合のみ、その中だけで決定戦（総当たり。
+    これも複数名タイならさらに絞り込む）を行う。
     ブロック分けは生成済みブラケット（bracket_size枠）を等分した連続区間で行う。
     トーナメント表は各段階で必ず再帰的に閉じた部分木になる性質上、ブロック内の対戦は
-    そのブロックの参加者だけで完結する。bracket_logの各要素にはstage（"block"または
-    "final"）を、block段階ではさらにそのブロック番号（0始まり）を付与する。
+    そのブロックの参加者だけで完結する。bracket_logの各要素にはstage（"block"・
+    本戦総当たりの"final"・本戦タイ決定戦の"final_playoff"のいずれか）を、block段階では
+    さらにそのブロック番号（0始まり）を付与する。
     """
     # guaranteed_final_idは予選ブロックを経ずに本戦へ直接合流させるため、ここで
     # pool自体から除く（exclude_idと同様）。除かずにいると予選ブロックの通常参加者として
@@ -480,28 +486,35 @@ def determine_genbu_challenger(all_members, exclude_id=None, depth=1, bracket_si
         if guaranteed_ind is not None:
             final_pool.append(guaranteed_ind)
 
-    # --- 挑戦者決定トーナメント（本戦） ---
-    # 通常（前季失冠者の合流が無い場合）はブロック優勝者の人数がそのままnum_blocks
-    # （2の累乗）になるため、ブロック段階からの並び順のままシャッフルも再シードもせず
-    # 進める（従来の挙動を保つ）。前季失冠者が合流した場合のみ、人数が2の累乗で
-    # なくなるため、標準シード順で並べ直した上で不足分をバイで埋める
-    if guaranteed_ind is None:
-        round_members = final_pool
-    else:
-        final_size = 1
-        while final_size < len(final_pool):
-            final_size *= 2
-        random.shuffle(final_pool)
-        final_slots = final_pool + [None] * (final_size - len(final_pool))
-        final_order = _bracket_seed_order(final_size)
-        round_members = [final_slots[i] for i in final_order]
-    while len(round_members) > 1:
-        next_round = []
-        for i in range(0, len(round_members), 2):
-            next_round.append(single_game(round_members[i], round_members[i + 1], "final"))
-        round_members = next_round
+    # --- 挑戦者決定リーグ戦（本戦） ---
+    # ブロック優勝者（通常num_blocks名）＋（いれば）前季失冠者の総当たりで挑戦者を決める。
+    # 前季失冠者が合流する季だけ人数が+1されるため、以前は決勝トーナメントの人数が
+    # 2の累乗にならずバイが発生していた。総当たり方式なら人数に関わらず組めるため、
+    # 合流の有無でブロック数等を変える必要がなく、常に同じ仕組みで扱える
+    final_score = {ind.id: 0.0 for ind in final_pool}
+    for ind_x, ind_y in itertools.combinations(final_pool, 2):
+        winner_ind = single_game(ind_x, ind_y, "final")
+        if winner_ind.id == ind_x.id:
+            final_score[ind_x.id] += 1.0
+        else:
+            final_score[ind_y.id] += 1.0
 
-    challenger = round_members[0]
+    ranked = sorted(final_pool, key=lambda ind: -final_score[ind.id])
+
+    # 1位が複数タイの場合は、その中だけで決定戦を行う（stageを分けて記録し、
+    # 本戦の総当たり成績とは別に表示できるようにする）
+    top_score = final_score[ranked[0].id]
+    tied_for_first = [ind for ind in ranked if final_score[ind.id] == top_score]
+    while len(tied_for_first) > 1:
+        tie_score = {ind.id: 0.0 for ind in tied_for_first}
+        for ind_x, ind_y in itertools.combinations(tied_for_first, 2):
+            winner_ind = single_game(ind_x, ind_y, "final_playoff")
+            tie_score[winner_ind.id] += 1.0
+        tied_for_first = sorted(tied_for_first, key=lambda ind: -tie_score[ind.id])
+        new_top = tie_score[tied_for_first[0].id]
+        tied_for_first = [ind for ind in tied_for_first if tie_score[ind.id] == new_top]
+
+    challenger = tied_for_first[0]
     return challenger, bracket_log, block_champions
 
 

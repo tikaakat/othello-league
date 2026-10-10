@@ -1464,7 +1464,7 @@ switch ($action) {
             $season = (int)$_GET['season'];
             $stmt = $pdo->prepare(
                 "SELECT league, `rank`, individual_id, display_name, win, loss, draw, movement, no_roundrobin,
-                        demotion_point_event
+                        demotion_point_event, demotion_points
                  FROM standings WHERE season = :season
                  ORDER BY FIELD(league,'A','B','C','D'), `rank` ASC"
             );
@@ -1898,14 +1898,20 @@ switch ($action) {
         $stmt->execute(['season' => $season, 'league' => $title . '予選']);
         $bracket = $stmt->fetchAll();
 
-        // 玄武戦のみ：8ブロックの予選＋挑戦者決定トーナメントとして分けて表示するため、
+        // 玄武戦のみ：4ブロックの予選＋挑戦者決定リーグ戦（総当たり）として分けて表示するため、
         // stage/block_noでブロックごと・最終段階ごとに振り分ける（他タイトルはstageが
-        // 常にNULLのため何もしない＝従来通り単一ブラケットのまま）
+        // 常にNULLのため何もしない＝従来通り単一ブラケットのまま）。
+        // 本戦（final）は総当たりなのでブラケット木には復元できないため、対局一覧から
+        // 勝敗成績を集計し、順位表（genbu_final_standings）として返す。1位タイが
+        // 発生した場合のみ、その決定戦（final_playoff）を別立てで返す
         $genbuBlocks = null;
         $genbuFinal = null;
+        $genbuFinalStandings = null;
+        $genbuFinalPlayoff = null;
         if ($title === '玄武') {
             $blocksTmp = [];
             $finalTmp = [];
+            $finalPlayoffTmp = [];
             foreach ($bracket as $m) {
                 if ($m['stage'] === 'block') {
                     $b = (int)$m['block_no'];
@@ -1913,12 +1919,44 @@ switch ($action) {
                     $blocksTmp[$b][] = $m;
                 } elseif ($m['stage'] === 'final') {
                     $finalTmp[] = $m;
+                } elseif ($m['stage'] === 'final_playoff') {
+                    $finalPlayoffTmp[] = $m;
                 }
             }
             if (!empty($blocksTmp)) {
                 ksort($blocksTmp);
                 $genbuBlocks = array_values($blocksTmp);
+            }
+            if (!empty($finalTmp)) {
                 $genbuFinal = $finalTmp;
+                $genbuFinalPlayoff = $finalPlayoffTmp;
+
+                $stats = [];
+                foreach ($finalTmp as $m) {
+                    foreach ([
+                        [$m['individual_a_id'], $m['individual_a_name']],
+                        [$m['individual_b_id'], $m['individual_b_name']],
+                    ] as [$pid, $pname]) {
+                        if (!isset($stats[$pid])) {
+                            $stats[$pid] = ['individual_id' => $pid, 'display_name' => $pname, 'win' => 0, 'loss' => 0, 'draw' => 0];
+                        }
+                    }
+                    if ($m['result'] === 'draw') {
+                        $stats[$m['individual_a_id']]['draw']++;
+                        $stats[$m['individual_b_id']]['draw']++;
+                    } elseif ($m['result'] === 'win') {
+                        $stats[$m['individual_a_id']]['win']++;
+                        $stats[$m['individual_b_id']]['loss']++;
+                    } else {
+                        $stats[$m['individual_a_id']]['loss']++;
+                        $stats[$m['individual_b_id']]['win']++;
+                    }
+                }
+                $genbuFinalStandings = array_values($stats);
+                usort($genbuFinalStandings, fn($a, $b) => $b['win'] <=> $a['win']);
+                $rank = 1;
+                foreach ($genbuFinalStandings as &$row) { $row['rank'] = $rank++; }
+                unset($row);
             }
         }
 
@@ -1958,7 +1996,8 @@ switch ($action) {
         json_out([
             'bracket' => $bracket,
             'genbu_blocks' => $genbuBlocks,
-            'genbu_final' => $genbuFinal,
+            'genbu_final_standings' => $genbuFinalStandings,
+            'genbu_final_playoff' => $genbuFinalPlayoff,
             'final_games' => $finalGames,
             'challenger_name' => $challengerName,
             'holder_name' => $holderName,
