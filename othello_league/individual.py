@@ -28,7 +28,7 @@ class LeagueIndividual:
         self.parent_b_id = parent_b_id
         self.initial_age = initial_age if initial_age is not None else random.randint(18, 24)
         self.age_multipliers = {}              # 年齢バフ（パラメータ別倍率）。シーズン開始時に再抽選
-        self.demotion_points = 0                # Dリーグの降級点（2点で引退。連続でなくてもよい）
+        self.demotion_points = 0                # 降級点（C・D共通。上限に達するとCは降格・Dは引退。連続でなくてもよい）
 
         self.peak_elo = 1500.0  # 歴代最高Elo（殿堂ページの表示用）。elo setterが自動更新する
         self.elo = 1500.0

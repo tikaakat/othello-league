@@ -15,8 +15,9 @@ B_TO_C_RELEGATE = 3  # B→C降格人数（＝C→B昇格人数）
 D_TO_C_PROMOTE = 3   # D→C昇格人数（C→D降格人数と揃え、Cリーグの定員超過を防ぐ）
 
 RETIREMENT_AGE = 60
-D_DEMOTION_POINT_LIMIT = 2  # Dリーグでの降級点がこの数に達すると強制引退（連続でなくてもよい）
-C_TO_D_RELEGATE = 3  # C→D降格人数（B→Cと同数）
+# 降級点がこの数に達すると、Dリーグなら強制引退、Cリーグなら強制降格（Dへ）となる
+# （連続でなくてもよい）。CリーグとDリーグで共通の値を使う
+DEMOTION_POINT_LIMIT = 3
 
 # Dリーグの新人受け入れ枠（新人リーグの募集人数）。
 # 以前は「定員に対する欠員数」から算出しており、在籍者が増えて欠員が無くなると
@@ -97,6 +98,11 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
     a_relegating_ids = {ind.id for ind in A[-ab_n_for_protection:]} if ab_n_for_protection > 0 else set()
     protected_ids.update(ind.id for ind in A if ind.id not in a_relegating_ids)
 
+    # 降級点判定（C・D共通）での「救済」対象：この季の白虎トーナメント出場者・玄武
+    # ブロック優勝者（demotion_relief_ids）に加え、保護中（protected_ids）の個体も
+    # 同じ「-1点」救済に合流させる。保護が外れた季に想定外の点数から再出発しないようにするため
+    demotion_relief_ids = set(demotion_relief_ids or set()) | protected_ids
+
     age_retired = []
     def _filter_aged_out(members):
         keep, retired = [], []
@@ -130,8 +136,7 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
     b_remain = B[ab_n:-bc_n]
 
     c_promote_to_b = C[:bc_n]
-    c_relegate_to_d = C[-C_TO_D_RELEGATE:]
-    c_remain = C[bc_n:-C_TO_D_RELEGATE]
+    c_rest = C[bc_n:]  # B昇格以外のCリーグ在籍者（この中から降級点でDへ降格する個体を選ぶ）
 
     d_promote_to_c = D[:D_TO_C_PROMOTE]
     d_remain = D[D_TO_C_PROMOTE:]
@@ -139,7 +144,7 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
     # 降級点の増減（結果タブへの「+点1」「-点1」「消」表示用）。
     # individual_id => "gained"（青龍戦リーグで負け越し、+1）/ "relief"（玄武ブロック優勝等で-1）/
     # "gained_relief"（同じ季に両方発生。相殺されて見た目の点数が変わらないこともある）/
-    # "cleared"（0に戻った。Dを卒業した際のリセット・減点が貯まり分を相殺しきった場合のいずれでも）
+    # "cleared"（0に戻った。CまたはDを卒業した際のリセット・減点が貯まり分を相殺しきった場合のいずれでも）
     demotion_events = {}
 
     # Dリーグを卒業（Cへ昇格）する個体は、降級点をリセットする。
@@ -152,6 +157,48 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
             # クリア直前の点数をイベント文字列に埋め込む（例: "cleared1"）
             demotion_events[ind.id] = f"cleared{ind.demotion_points}"
         ind.demotion_points = 0
+    # BからCへ降格してくる個体も、Cでの降級点をゼロから数え直すようにリセットする
+    # （Bリーグは降級点を使わないため通常は0のはずだが、過去にC在籍時の点数を
+    #  持ち越したまま昇格していた場合への保険も兼ねる）
+    for ind in b_relegate_to_c:
+        ind.demotion_points = 0
+
+    # --- Cリーグ：Dと同じ降級点制でDへ降格する（以前は順位に関わらず機械的に
+    #     下位C_TO_D_RELEGATE名を降格させていたが、Dリーグと同様「本当に負け越しが
+    #     続いている個体」だけを降格させる方式に変更した。きわどい順位でも成績が
+    #     堅調なら残留できる。C→D間の人数バランスは、この関数の末尾にある
+    #     _backfill（Cの定員割れをDから補充）・_relegate_overflow（Cの定員超過をDへ）
+    #     が自動的に調整するため、固定人数のやり取りには依存しない）。
+    #     判定ロジック（delta・relief・protected_ids）はDリーグと全く同じものを使う ---
+    c_relegate_to_d = []
+    c_remain = []
+    for ind in c_rest:
+        before = ind.demotion_points
+        lost_more = ind.loss_this_season > ind.win_this_season
+        won_more = ind.win_this_season > ind.loss_this_season
+        relief = ind.id in demotion_relief_ids
+        delta = 0
+        if lost_more:
+            delta += 1
+        elif won_more:
+            delta -= 1
+        if relief:
+            delta -= 1
+        ind.demotion_points = min(max(0, before + delta), DEMOTION_POINT_LIMIT)
+        if ind.demotion_points == 0 and before > 0:
+            demotion_events[ind.id] = f"cleared{before}"
+        else:
+            parts = []
+            if lost_more:
+                parts.append(f"gained{before}")
+            if relief and (before > 0 or lost_more):
+                parts.append(f"relief{before}")
+            if parts:
+                demotion_events[ind.id] = "_".join(parts)
+        if ind.demotion_points >= DEMOTION_POINT_LIMIT and ind.id not in protected_ids:
+            c_relegate_to_d.append(ind)
+        else:
+            c_remain.append(ind)
 
     A = a_remain + b_promote_to_a
     B = b_remain + a_relegate + c_promote_to_b
@@ -159,8 +206,9 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
 
     # --- Cリーグが定員超過した場合はDへ降格させる（引退ではない。
     #     A〜Cリーグの引退条件は年齢のみとする方針のため、Elo下位を退場させるのではなく
-    #     降格として扱う。本来D_TO_C_PROMOTEとC_TO_D_RELEGATEを揃えていれば
-    #     超過しないはずだが、初期ロスターが定員通りでない場合などへの保険） ---
+    #     降格として扱う。C→D降格が降級点制（人数が季ごとに変動する）になったため、
+    #     D→C昇格（D_TO_C_PROMOTE、固定人数）との兼ね合いで定員超過が普通に起こりうる。
+    #     逆に不足した場合は後述の_backfillがDから繰り上げて埋める） ---
     def _relegate_overflow(members, capacity):
         if len(members) <= capacity:
             return members, []
@@ -177,8 +225,8 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
     C, c_relegate_overflow = _relegate_overflow(C, LEAGUE_CAPACITY["C"])
 
     # --- Dリーグ：降級点制。負け越した季ごとに降級点が1つ積み重なり（連続していなくてもよい）、
-    #     2つに達したら実力・在籍年数に関わらず即引退する（ただしタイトル保持者・朱雀紅白
-    #     リーグ在籍者・extra_protected_idsは、age_retiredと同様に猶予対象）。
+    #     DEMOTION_POINT_LIMITに達したら実力・在籍年数に関わらず即引退する（ただしタイトル
+    #     保持者・朱雀紅白リーグ在籍者・extra_protected_idsは、age_retiredと同様に猶予対象）。
     #     以前は「2季連続で負け越した場合のみ」引退としていたが、勝ち越しを挟むと
     #     カウンタがリセットされてしまい、長期的に負け越しがちな個体がいつまでも
     #     居座れる不備があったため、点として積み重ねる方式に変更した。
@@ -189,19 +237,8 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
     #     今季Cから降格してきた個体（c_relegate_to_d・c_relegate_overflow）は、
     #     まだDでの対局実績が無い（直前の成績はC所属時のもの）ため対象外とし、
     #     降級点を0にリセットして「Dでの降級点」を来季以降ゼロから数え直す。
-    #
-    #     protected_ids（タイトル保持者・朱雀紅白リーグ在籍者・この季の挑戦者）は
-    #     強制引退そのものは免除されるが、以前はその間も負け越すたびに降級点が
-    #     上限なく積み上がり続けてしまい、(a) 白虎トーナメント出場者等
-    #     （demotion_relief_idsのみ対象で-1点止まり）と比べて不公平、
-    #     (b) 保護が外れた季に「点3」のような想定外の点数から再出発する、という
-    #     2つの問題があった。これを解消するため、protected_idsもdemotion_relief_idsと
-    #     同じ「-1点」救済の対象に合流させる（＝保護中は負け越しても実質ネット0で
-    #     増えない）。これにより白虎出場者と保持者・挑戦者は同じルールで扱われ、
-    #     保護が外れた時点の点数も従来の最大値（D_DEMOTION_POINT_LIMIT）を超えない。
-    #     さらに保険として、計算結果そのものもD_DEMOTION_POINT_LIMITで上限キャップし、
-    #     どのような経路でも「点3」以上の表示が出ないようにする。 ---
-    demotion_relief_ids = set(demotion_relief_ids or set()) | protected_ids
+    #     demotion_relief_idsへのprotected_ids合流（保護中は負け越しても実質ネット0で
+    #     増えない）は、C・D共通の判定ロジックで使えるよう上の方で行っている ---
     d_up_or_out_retired = []
     d_keep = []
     for ind in d_remain:
@@ -219,7 +256,7 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
             delta -= 1
         if relief:
             delta -= 1
-        ind.demotion_points = min(max(0, before + delta), D_DEMOTION_POINT_LIMIT)
+        ind.demotion_points = min(max(0, before + delta), DEMOTION_POINT_LIMIT)
         # gained（青龍戦リーグで負け越して+1）・relief（玄武ブロック優勝等で-1）は、
         # 同じ季に両方起きて相殺され見た目の点数が変わらないこともあるため、
         # 片方だけでなく両方が起きたことを別々に結果タブへ出せるよう、
@@ -232,7 +269,7 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
             parts = []
             if lost_more:
                 # 既に降級点を持っていた場合（before > 0）は、その「持っていた点数」も
-                # 結果タブで分かるように埋め込む（例: "gained1"）。引退（降級点2点に
+                # 結果タブで分かるように埋め込む（例: "gained1"）。引退（降級点が上限に
                 # 達した）場合も、以前は「+点1」の表示自体を省いていたが、「点1を
                 # 持っていたところへ+1点で引退」という経緯が分かるよう、省略をやめて
                 # 常に表示するようにした
@@ -244,9 +281,9 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
                 parts.append(f"relief{before}")
             if parts:
                 demotion_events[ind.id] = "_".join(parts)
-        if ind.demotion_points >= D_DEMOTION_POINT_LIMIT and ind.id not in protected_ids:
+        if ind.demotion_points >= DEMOTION_POINT_LIMIT and ind.id not in protected_ids:
             ind.retired = True
-            ind.retirement_reason = f"降級点{D_DEMOTION_POINT_LIMIT}点により強制引退"
+            ind.retirement_reason = f"降級点{DEMOTION_POINT_LIMIT}点により強制引退"
             ind.total_seasons += 1  # age_retiredと同様、引退する今季分も在籍シーズン数に数える
             d_up_or_out_retired.append(ind)
         else:
