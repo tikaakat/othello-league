@@ -239,6 +239,10 @@ def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_b
     # --- 昇降格・新規・引退マークを確定する ---
     retired_ids = {ind.id for ind in retired}
     post_move_league_by_id = {ind.id: ind.league for league_list in rosters.values() for ind in league_list}
+    # 降級点の「現在の保有点数」（この季終了時点）。結果タブで、何も動きが無かった季でも
+    # 既に持っている点数を常時表示できるようにするため、引退者も含めて引き継ぐ
+    demotion_points_by_id = {ind.id: ind.demotion_points for league_list in rosters.values() for ind in league_list}
+    demotion_points_by_id.update({ind.id: ind.demotion_points for ind in retired})
 
     for row in standings_snapshot:
         iid = row["individual_id"]
@@ -256,6 +260,7 @@ def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_b
         row["movement"] = ",".join(tags)
         # Dリーグの降級点：この季に何か動きがあった場合のみセットする（値はleague.py参照）
         row["demotion_point_event"] = demotion_events.get(iid, "")
+        row["demotion_points"] = demotion_points_by_id.get(iid, 0)
 
     # 朱雀紅白リーグの順位・残留/陥落は、上のA〜D用ロジック（movementの上書き）の対象外として、
     # _run_title_matchesで既に確定した正しい値のまま追加する

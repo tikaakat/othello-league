@@ -1464,7 +1464,7 @@ switch ($action) {
             $season = (int)$_GET['season'];
             $stmt = $pdo->prepare(
                 "SELECT league, `rank`, individual_id, display_name, win, loss, draw, movement, no_roundrobin,
-                        demotion_point_event
+                        demotion_point_event, demotion_points
                  FROM standings WHERE season = :season
                  ORDER BY FIELD(league,'A','B','C','D'), `rank` ASC"
             );
