@@ -66,6 +66,7 @@ on:
           - "add_gender_column"
           - "reset_fan_site_data_20261011"
           - "fix_newcomer_standings_stale_master_20261011"
+          - "fix_newcomer_standings_stale_master_round2_20261011"
         default: ""
       create_dir:
         description: "デプロイの代わりに、lab.spia-net.com直下（othello-league/の1つ上）に相対パスでディレクトリを作成する（例: othello-news）。「..」や先頭「/」は不可"
@@ -326,6 +327,16 @@ jobs:
                 # for_season_2.jsonを直しただけではDB側の表示が直らず、ここで直接UPDATEする
                 SQL_LIST=(
                   "UPDATE newcomer_league_standings SET master_id = NULL, master_name = NULL WHERE for_season = 2 AND individual_id IN ('CCNL-000', 'CCNL-001');"
+                )
+                ;;
+              fix_newcomer_standings_stale_master_round2_20261011)
+                # fix_newcomer_standings_stale_master_20261011は目視で見つけた2件のみを
+                # 対象にしていたが、その後data/rosters.json・season_state.jsonの実在個体ID
+                # 全件とfor_season_2.jsonの全master_idを機械的に突き合わせたところ、
+                # 同じ原因（リセット漏れのdata/newcomer_candidate_pool.json）による汚染が
+                # さらに3件（CCNL-002・CCNL-003・CCNL-004）残っていたことが判明した
+                SQL_LIST=(
+                  "UPDATE newcomer_league_standings SET master_id = NULL, master_name = NULL WHERE for_season = 2 AND individual_id IN ('CCNL-002', 'CCNL-003', 'CCNL-004');"
                 )
                 ;;
               *)
