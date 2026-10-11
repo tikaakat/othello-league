@@ -125,9 +125,14 @@ jobs:
             echo "=== 一括リセット: 既存データを削除してシーズン1からやり直します ==="
 
             rm -rf data/rosters.json data/season_state.json data/matches data/standings \
-              data/newcomer_league data/newcomer_winners.json data/newcomer_submissions.json
-            mkdir -p data/matches data/standings data/newcomer_league
+              data/newcomer_league data/newcomer_winners.json data/newcomer_submissions.json \
+              data/news/articles.json
+            mkdir -p data/matches data/standings data/newcomer_league data/news
             touch data/matches/.gitkeep data/standings/.gitkeep data/newcomer_league/.gitkeep
+            # ファンサイトの記事も季の履歴に紐づくため、結果サイト側と合わせてリセットする
+            # （この後すぐにseasons分の本戦が走り、generate_news.ymlが呼ばれて
+            # news-site/配下へ再デプロイされるため、空配列のままxserver側に残ることはない）
+            echo '[]' > data/news/articles.json
 
             git add -A data
             if ! git diff --staged --quiet; then
