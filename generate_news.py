@@ -40,6 +40,32 @@ def load_json(path, default):
         return json.load(f)
 
 
+def _load_gender_map(data_dir):
+    """個体ID→性別（"male"/"female"/未設定ならNone）の辞書を、現役（rosters.json）・
+    引退済み（season_state.jsonのretired_archive）の両方から組み立てる。記事生成の
+    プロンプトに明示的に渡すことで、モデルが性別を当て推量して「この男」「彼女」等と
+    誤記する（ファンサイトのDiceBearアイコンの性別と食い違う）のを防ぐ"""
+    gender_by_id = {}
+    rosters = load_json(os.path.join(data_dir, "rosters.json"), {})
+    for league_members in rosters.values():
+        for ind in league_members:
+            gender_by_id[ind["id"]] = ind.get("gender")
+    state = load_json(os.path.join(data_dir, "season_state.json"), {})
+    for r in state.get("retired_archive", []):
+        gender_by_id.setdefault(r["id"], r.get("gender"))
+    return gender_by_id
+
+
+def _gender_label(gender):
+    return {"male": "男性", "female": "女性"}.get(gender, "不明")
+
+
+GENDER_PROMPT_NOTE = (
+    "各選手の性別はデータ中の「性別」欄の通りとし、不明な場合を除き、"
+    "それに矛盾する表現（性別不明なのに「彼」「彼女」と決めつける等）をしないこと。"
+)
+
+
 def latest_season_with_standings(data_dir):
     standings_dir = os.path.join(data_dir, "standings")
     if not os.path.isdir(standings_dir):
@@ -241,6 +267,7 @@ def gather_season_facts(data_dir, season):
     names = {r["individual_id"]: r["display_name"] for r in standings}
 
     main_league_rows = [r for r in standings if r.get("league") in ("A", "B", "C", "D")]
+    gender_by_id = _load_gender_map(data_dir)
 
     # 「初代襲名」（まだ誰も保持したことのないタイトルへ、在位者不在のため無条件で
     # 即位する）の検出用。この場合は番勝負自体が発生しないため、matchesには
@@ -263,6 +290,7 @@ def gather_season_facts(data_dir, season):
                 title_results.append({
                     "title": t, "challenger_id": holder_id, "holder_id": None,
                     "winner_id": holder_id, "winner_name": holder_name,
+                    "winner_gender": gender_by_id.get(holder_id),
                     "challenger_name": holder_name, "holder_name": None,
                     "challenger_wins": None, "holder_wins": None,
                     "result": "初代襲名",
@@ -277,6 +305,7 @@ def gather_season_facts(data_dir, season):
         title_results.append({
             "title": t, "challenger_id": a_id, "holder_id": b_id,
             "winner_id": winner_id, "winner_name": names.get(winner_id, winner_id),
+            "winner_gender": gender_by_id.get(winner_id),
             "challenger_name": names.get(a_id, a_id), "holder_name": names.get(b_id, b_id),
             "challenger_wins": win_a, "holder_wins": loss_a,
             "result": "奪取" if challenger_won else "防衛",
@@ -285,11 +314,13 @@ def gather_season_facts(data_dir, season):
 
     mvp = _pick_mvp(title_results, main_league_rows)
     if mvp is not None:
+        mvp["gender"] = gender_by_id.get(mvp["individual_id"])
         related.append((mvp["individual_id"], mvp["name"]))
 
     rookie = _pick_rookie_of_year(data_dir, season, rosters, main_league_rows, title_results)
     # MVPと同一人物であれば、新人王は重複して取り上げない
     if rookie is not None and (mvp is None or rookie["individual_id"] != mvp["individual_id"]):
+        rookie["gender"] = gender_by_id.get(rookie["individual_id"])
         related.append((rookie["individual_id"], rookie["name"]))
     elif rookie is not None:
         rookie = None
@@ -340,12 +371,13 @@ def build_prompt(facts):
         if tr["result"] == "初代襲名":
             lines.append(
                 f"・{tr['title']}：まだ誰も保持したことのない新設タイトルのため在位者が不在。"
-                f"{tr['winner_name']}が無条件で初代保持者に襲名（挑戦者・在位者による番勝負は発生していない）"
+                f"{tr['winner_name']}（性別：{_gender_label(tr['winner_gender'])}）が無条件で初代保持者に襲名"
+                "（挑戦者・在位者による番勝負は発生していない）"
             )
         else:
             lines.append(
                 f"・{tr['title']}：挑戦者{tr['challenger_name']} {tr['challenger_wins']}-{tr['holder_wins']} "
-                f"保持者{tr['holder_name']} → {tr['result']}"
+                f"保持者{tr['holder_name']} → {tr['result']}（{tr['result']}した側（{tr['winner_name']}）の性別：{_gender_label(tr['winner_gender'])}）"
             )
     mv = facts["movements"]
     lines.append("")
@@ -379,26 +411,26 @@ def build_prompt(facts):
                 # 誤解を招く書き方にならないよう、リーグ成績の記載自体を省く
                 # （タイトル戦の対局成績は上のtitles_textに既に含まれている）
                 if mvp["win"] == 0 and mvp["loss"] == 0:
-                    lines.append(f"・今季MVP：{mvp['name']}（{titles_text}。{mvp['league']}リーグは防衛専念枠のため対局免除）")
+                    lines.append(f"・今季MVP：{mvp['name']}（性別：{_gender_label(mvp['gender'])}。{titles_text}。{mvp['league']}リーグは防衛専念枠のため対局免除）")
                 else:
                     lines.append(
-                        f"・今季MVP：{mvp['name']}（{titles_text}。{mvp['league']}リーグ{mvp['win']}勝{mvp['loss']}敗）"
+                        f"・今季MVP：{mvp['name']}（性別：{_gender_label(mvp['gender'])}。{titles_text}。{mvp['league']}リーグ{mvp['win']}勝{mvp['loss']}敗）"
                     )
             else:
-                lines.append(f"・今季MVP（{mvp['league']}リーグで最多勝）：{mvp['name']}（{mvp['win']}勝{mvp['loss']}敗）")
+                lines.append(f"・今季MVP（{mvp['league']}リーグで最多勝）：{mvp['name']}（性別：{_gender_label(mvp['gender'])}。{mvp['win']}勝{mvp['loss']}敗）")
         if rookie:
             if rookie["title"] and rookie["title_result"] == "初代襲名":
                 lines.append(
-                    f"・新人王：{rookie['name']}（{rookie['league']}リーグ、{rookie['win']}勝{rookie['loss']}敗。"
+                    f"・新人王：{rookie['name']}（性別：{_gender_label(rookie['gender'])}。{rookie['league']}リーグ、{rookie['win']}勝{rookie['loss']}敗。"
                     f"今季{rookie['title']}の初代保持者に襲名）"
                 )
             elif rookie["title"]:
                 lines.append(
-                    f"・新人王：{rookie['name']}（{rookie['league']}リーグ、{rookie['win']}勝{rookie['loss']}敗。"
+                    f"・新人王：{rookie['name']}（性別：{_gender_label(rookie['gender'])}。{rookie['league']}リーグ、{rookie['win']}勝{rookie['loss']}敗。"
                     f"今季{rookie['title']}に挑戦し{rookie['title_result']}）"
                 )
             else:
-                lines.append(f"・新人王：{rookie['name']}（{rookie['league']}リーグ、{rookie['win']}勝{rookie['loss']}敗）")
+                lines.append(f"・新人王：{rookie['name']}（性別：{_gender_label(rookie['gender'])}。{rookie['league']}リーグ、{rookie['win']}勝{rookie['loss']}敗）")
 
     lines.append("")
     lines.append(
@@ -407,6 +439,7 @@ def build_prompt(facts):
         "今季MVP・新人王がいる場合は、本文の中でひと言触れること（見出しにする必要はない）。"
         "リーグ戦については、Aリーグに関わる昇格・降格だけ名前を挙げて触れればよい。"
         "B〜Dリーグ内の入れ替えは、件数だけ一言触れる程度で十分（個別の名前は渡していないので書けない）。"
+        f"{GENDER_PROMPT_NOTE}"
         "出力は次のJSON形式のみ（説明文やコードフェンスなど、他のテキストは一切含めない）：\n"
         '{"title": "見出し", "summary": "1〜2文の要約", "body": "本文（300〜500字程度）", '
         '"tags": ["結果", "関係するタイトル名..."]}'
@@ -460,6 +493,7 @@ def gather_column_facts(data_dir, season):
 
     return {
         "season": season, "individual_id": top_id, "name": row["display_name"],
+        "gender": _load_gender_map(data_dir).get(top_id),
         "league": row["league"], "streak": top_streak,
         "win": row.get("win", 0), "loss": row.get("loss", 0),
         "is_grassroots": is_grassroots,
@@ -470,7 +504,8 @@ def gather_column_facts(data_dir, season):
 def build_column_prompt(facts):
     lines = [
         f"第{facts['season']}季の事実データ（これ以外の出来事は起きていない）:", "",
-        f"・{facts['name']}（{facts['league']}リーグ）が、リーグ戦（A/B/C/Dいずれか）で{facts['streak']}連勝した"
+        f"・{facts['name']}（{facts['league']}リーグ、性別：{_gender_label(facts['gender'])}）が、"
+        f"リーグ戦（A/B/C/Dいずれか）で{facts['streak']}連勝した"
         f"（今季の成績は{facts['win']}勝{facts['loss']}敗）。",
     ]
     if facts["is_grassroots"]:
@@ -480,6 +515,7 @@ def build_column_prompt(facts):
         f"以上の事実だけをもとに、{facts['name']}の{facts['streak']}連勝を主題にした、"
         "記者個人の所感・コラム記事を書いてください（ダイジェスト記事とは別の、短い読み物）。"
         "データに無い出来事・数字は書かないこと。"
+        f"{GENDER_PROMPT_NOTE}"
         "出力は次のJSON形式のみ（説明文やコードフェンスなど、他のテキストは一切含めない）：\n"
         '{"title": "見出し", "summary": "1〜2文の要約", "body": "本文（200〜350字程度）", '
         '"tags": ["コラム", "関係するリーグ名..."]}'
@@ -526,10 +562,13 @@ def gather_upset_facts(data_dir, season):
         return None
 
     winner_id, loser_id = best["winner_id"], best["loser_id"]
+    gender_by_id = _load_gender_map(data_dir)
     return {
         "season": season, "league": best["league"], "elo_gap": round(best["gap"]),
         "winner_id": winner_id, "winner_name": names.get(winner_id, winner_id),
+        "winner_gender": gender_by_id.get(winner_id),
         "loser_id": loser_id, "loser_name": names.get(loser_id, loser_id),
+        "loser_gender": gender_by_id.get(loser_id),
         "related_individual_ids": [winner_id, loser_id],
         "related_individual_names": [names.get(winner_id, winner_id), names.get(loser_id, loser_id)],
     }
@@ -538,13 +577,15 @@ def gather_upset_facts(data_dir, season):
 def build_upset_prompt(facts):
     lines = [
         f"第{facts['season']}季の事実データ（これ以外の出来事は起きていない）:", "",
-        f"・{facts['league']}リーグの対局で、{facts['winner_name']}が{facts['loser_name']}に勝利した。"
+        f"・{facts['league']}リーグの対局で、{facts['winner_name']}（性別：{_gender_label(facts['winner_gender'])}）が"
+        f"{facts['loser_name']}（性別：{_gender_label(facts['loser_gender'])}）に勝利した。"
         f"{facts['loser_name']}は前季終了時点のEloが{facts['winner_name']}より約{facts['elo_gap']}ポイント高く、"
         "実力面では下馬評を覆す結果だった。",
         "",
         f"以上の事実だけをもとに、この一局（波乱の一局）を主題にした、"
         "記者個人の所感・コラム記事を書いてください（ダイジェスト記事とは別の、短い読み物）。"
         "データに無い出来事・数字は書かないこと。"
+        f"{GENDER_PROMPT_NOTE}"
         "出力は次のJSON形式のみ（説明文やコードフェンスなど、他のテキストは一切含めない）：\n"
         '{"title": "見出し", "summary": "1〜2文の要約", "body": "本文（200〜350字程度）", '
         '"tags": ["コラム", "関係するリーグ名..."]}'
@@ -828,7 +869,7 @@ def build_newcomer_prompt(facts):
         f"・Dリーグ昇格枠：{facts['slots_needed']}名",
     ]
     for p in facts["promoted"]:
-        master_part = f"（師匠：{p['master_name']}）" if p.get("master_name") else "（新規開祖）"
+        master_part = f"（師匠：{p['master_name']}）" if p.get("master_name") else "（師匠なし）"
         origin = "読者投稿" if not p["auto_generated"] else "自動生成"
         lines.append(f"・昇格：{p['name']}{master_part}　{p['win']}勝{p['loss']}敗{p['draw']}分　{origin}")
     if facts["had_playoff"]:
