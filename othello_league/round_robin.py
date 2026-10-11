@@ -6,9 +6,11 @@ from .play import play_league_match
 from .elo import update_elo
 
 
-def run_round_robin(members, depth=4, league_name="A", log_prefix="A"):
+def run_round_robin(members, depth=4, league_name="A", log_prefix="A", seed_order=None):
     """
     総当たり戦（Aリーグ、および朱雀戦の紅白リーグで使用）。全ペアが1回ずつ対局する。
+    seed_order（前季順位継承のID列）を渡した場合、同点は1位タイも含めて全てseed_orderで
+    決め、順位決定戦は行わない（Aリーグ用）。渡さない場合は1位タイのみ順位決定戦を行う。
     戻り値: (順位確定済みリスト, 対局ログ, 勝ち点, 個体ごとの勝敗分dict)
     """
     score = {ind.id: 0.0 for ind in members}
@@ -51,6 +53,11 @@ def run_round_robin(members, depth=4, league_name="A", log_prefix="A"):
         name_b = getattr(ind_b, "display_name", None) or ind_b.id
         elapsed = time.time() - start
         print(f"    {log_prefix}局{i}/{total}: {name_a} vs {name_b} → {outcome_a}（経過{elapsed:.0f}秒）")
+
+    if seed_order:
+        seed_rank = {iid: n for n, iid in enumerate(seed_order)}
+        ranked_ids = sorted(score.keys(), key=lambda i: (-score[i], seed_rank.get(i, len(seed_rank))))
+        return [by_id[i] for i in ranked_ids], match_log, score, record
 
     ranked_ids = sorted(score.keys(), key=lambda i: -score[i])
 
