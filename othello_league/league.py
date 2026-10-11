@@ -354,6 +354,7 @@ def recruit_d_league(rosters, season, name_registry=None, pending_characters=Non
         creation_pool = [ind for ind in (A + B + C + D) if not ind.retired]
         eligible_creation_masters = [ind for ind in creation_pool if ind.age >= MASTER_MIN_AGE] or creation_pool
         disciple_counts = count_existing_disciples(creation_pool)
+        master_pick_counts = {}
         created_characters = []
         for i, req in enumerate(pending_characters):
             # 通常は新人リーグのロスターを組む時点で師弟関係が既に決まっている
@@ -362,7 +363,10 @@ def recruit_d_league(rosters, season, name_registry=None, pending_characters=Non
             if "parent_a_id" in req:
                 master = None
             else:
-                master = _pick_master(eligible_creation_masters, titleholder_ids, allow_new_founder=False)
+                master = _pick_master(
+                    eligible_creation_masters, titleholder_ids, allow_new_founder=False,
+                    pick_counts=master_pick_counts,
+                )
             created_characters.append(
                 _build_character_creation_individual(req, season, i, master=master, disciple_counts=disciple_counts)
             )
@@ -417,26 +421,38 @@ def _resolve_clan_root(master, ind_id, disciple_counts):
     return master.clan_root_id
 
 
-def _master_weight(ind, titleholder_ids):
+def _master_weight(ind, titleholder_ids, times_picked=0):
     """師匠として選ばれやすさの重み。Eloが高いほど、タイトルを保持しているほど選ばれやすくする
     （強い一門ほど自然と子孫を残しやすくなる。ベースは1.0なので誰にでもチャンスはある）。
-    旧数値（÷200, +3.0）だと強い一門への集約が急激すぎたため、やや緩めた"""
+    旧数値（÷200, +3.0）だと強い一門への集約が急激すぎたため、やや緩めた。
+    times_pickedは、このバッチ（1回の新人リーグ・1回のD新弟子一括生成）の中で既に
+    その個体が師匠として選ばれた回数。選ばれるたびに重みを半減させ、同じ1バッチの中で
+    同じ師匠ばかりに弟子が集中するのを抑える（「強い一門ほど残りやすい」傾向自体は
+    バッチをまたいで累積していくので保たれるが、1回の抽選で連続して同じ人に
+    当たり続けるだけの不自然な偏りは減らす）"""
     elo_bonus = max(0.0, (ind.elo - 1500) / 300)
     title_bonus = 2.0 if ind.id in titleholder_ids else 0.0
-    return 1.0 + elo_bonus + title_bonus
+    return (1.0 + elo_bonus + title_bonus) / (2 ** times_picked)
 
 
-def _pick_master(eligible_masters, titleholder_ids, allow_new_founder=True):
+def _pick_master(eligible_masters, titleholder_ids, allow_new_founder=True, pick_counts=None):
     """師匠を自動選出する（Elo・タイトル保持で重み付けした抽選）。
     allow_new_founder=Trueの場合、CLAN_NEW_FOUNDER_CHANCEの確率で師匠を持たない
     新規開祖になる（通常の新弟子生成と同じ）。Falseの場合は必ず誰かの弟子になる
-    （候補が1人もいない極端なケースのみ例外的にNoneを返す）"""
+    （候補が1人もいない極端なケースのみ例外的にNoneを返す）。
+    pick_countsを渡すと、個体ID→このバッチ内で選ばれた回数の辞書として使い、
+    選ばれるたびに加算する（呼び出し元はループの外で1つの辞書を使い回すことで、
+    1バッチ内の重複選出を抑える）"""
     if not eligible_masters:
         return None
     if allow_new_founder and random.random() < CLAN_NEW_FOUNDER_CHANCE:
         return None
-    weights = [_master_weight(ind, titleholder_ids) for ind in eligible_masters]
-    return random.choices(eligible_masters, weights=weights, k=1)[0]
+    counts = pick_counts if pick_counts is not None else {}
+    weights = [_master_weight(ind, titleholder_ids, counts.get(ind.id, 0)) for ind in eligible_masters]
+    chosen = random.choices(eligible_masters, weights=weights, k=1)[0]
+    if pick_counts is not None:
+        pick_counts[chosen.id] = pick_counts.get(chosen.id, 0) + 1
+    return chosen
 
 
 # キャラクリエイト機能：サイトから指定されたタイプ傾向に応じて、該当パラメータの
@@ -560,12 +576,15 @@ def generate_disciples(count, season, pool, name_registry, titleholder_ids=froze
     # 師匠になれるのは一定年齢以上の個体のみ（該当者が誰もいない序盤などは制限なしにフォールバック）
     eligible_masters = [ind for ind in active_pool_all if ind.age >= MASTER_MIN_AGE] or active_pool_all
     disciple_counts = count_existing_disciples(active_pool_all)
+    master_pick_counts = {}
 
     for i in range(count):
         ind_id = f"D{season}-{i:03d}"
         display_name, gender = name_registry.generate()
 
-        master = _pick_master(eligible_masters, titleholder_ids, allow_new_founder=True)
+        master = _pick_master(
+            eligible_masters, titleholder_ids, allow_new_founder=True, pick_counts=master_pick_counts,
+        )
 
         if master:
             params, gen = mutate_params(master)
