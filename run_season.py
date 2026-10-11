@@ -532,16 +532,6 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
         red_returning = red_stay + red_holder_parked
         white_returning = white_stay + white_holder_parked
         returning = red_returning + white_returning
-        # 在位者（holder_parked）は紅白リーグの枠には残るが対局免除で実質的に
-        # 「抜けている」ため、補充人数（num_new_needed）は在位者を除いた実働人数
-        # （red_stay・white_stayのみ）を基準に10名を満たすよう計算する。
-        # returning（holder_parked込み）をそのまま10から引くと、在位者がいる季は
-        # 実働枠が9名のまま埋まらず、1人少ない状態が続いてしまう。
-        # ただし在位者自身もreturningに含まれて来季の枠を1つ占めるため、
-        # 「10 - 実働人数」をそのまま補充人数にすると今度は在位者の分だけ
-        # 来季の総人数が11名に増えてしまう。在位者数（0または1）も差し引く必要がある
-        active_returning_count = len(red_stay) + len(white_stay)
-        num_holders_parked = len(red_holder_parked) + len(white_holder_parked)
 
         # 紅白リーグの順位・残留/陥落は、この時点で決まった正しい判定をそのまま記録する。
         # サイト側で対局結果から独自に順位を再計算すると、同率タイの並び順がここでの
@@ -636,7 +626,14 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
         # 扱われる（既存の在位者と全く同じ仕組み）
         new_holder_id = titleholders["朱雀"]["id"]
 
-        num_new_needed = max(0, 10 - active_returning_count - num_holders_parked)
+        # 紅白リーグは「実際に総当たりで戦う実働10名（紅白各5名）」＋「来季の在位者（対局免除で
+        # 在籍のみ）」で構成する。在位者は枠を占めないので、来季の在位者（new_holder_id）を
+        # 除いた残留者を基準に、実働10名になるよう補充する（在位者がいる季は通常5名補充）。
+        # 来季の在位者で判定するので、防衛（在位者は引き続き免除）・奪取（旧在位者は実働に戻り、
+        # 新在位者が免除に回る）・初代襲名（今季戦った新在位者が来季から免除）のいずれでも正しく数える
+        next_active_returning = [m for m in returning if m.id != new_holder_id]
+        next_parked = [m for m in returning if m.id == new_holder_id]
+        num_new_needed = max(0, 10 - len(next_active_returning))
         suzaku_exclude_ids = {m.id for m in red_others + white_others + red_holder_parked + white_holder_parked}
         if suzaku_holder_id:
             suzaku_exclude_ids.add(suzaku_holder_id)
@@ -661,7 +658,12 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
                         total_seasons_a=ind_a.total_seasons, total_seasons_b=ind_b.total_seasons,
                     )
 
-        red_ids_next, white_ids_next = assign_suzaku_groups(returning, qualifiers)
+        # 実働メンバーだけで紅白各5名に振り分け、在位者は元いた組に在籍のみ加える
+        # （在位者込みで均等配分すると、在位者が入った組の実働が4名になってしまう）
+        red_ids_next, white_ids_next = assign_suzaku_groups(next_active_returning, qualifiers)
+        red_returning_ids = {m.id for m in red_returning}
+        for m in next_parked:
+            (red_ids_next if m.id in red_returning_ids else white_ids_next).append(m.id)
         suzaku_state["red"], suzaku_state["white"] = red_ids_next, white_ids_next
     else:
         print("  朱雀戦: 紅白リーグの参加者不足のため今季は見送り")
