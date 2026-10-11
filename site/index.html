@@ -1396,7 +1396,8 @@ function leagueBadgeSVG(cx, cy, info) {
 // （玄武戦のブロック予選のように、その木の勝者が真の優勝者ではなく次の段階に進むだけの場合に使う）
 function renderBracketSVG(root, participantInfo, showCrown = true) {
   participantInfo = participantInfo || {};
-  const ROW_H = 26, COL_W = 116, PAD_L = 6, PAD_T = 10, STUB = 66, NODE_W = COL_W - 14;
+  // COL_Wは名前欄の幅を決める（5文字以上の氏名が省略されてしまっていたため拡張）
+  const ROW_H = 26, COL_W = 150, PAD_L = 6, PAD_T = 10, STUB = 66, NODE_W = COL_W - 14;
   const LINE_COLOR = '#3d5170';    // 敗者側・構造線（従来のnavy-700より明るく視認性を上げる）
   const WIN_COLOR = 'var(--cyan)'; // 勝者側の線
   const LINE_W = 1.3, WIN_LINE_W = 2.6;
