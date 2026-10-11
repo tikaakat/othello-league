@@ -37,6 +37,10 @@ on:
         description: "対象シーズン番号（省略時は最新。通常はevolve.yml側が確定した季番号を指定して自動起動する）"
         required: false
         default: ""
+      regenerate_digest:
+        description: "trueにすると、対象季のダイジェスト記事が既にあっても作り直す（記事の誤りを修正する場合）"
+        required: false
+        default: "false"
 
 jobs:
   generate-news:
@@ -78,7 +82,12 @@ jobs:
             SEASON_ARG="--season ${{ github.event.inputs.season }}"
           fi
 
-          python -u generate_news.py --data-dir data --news-dir data/news $SEASON_ARG
+          REGEN_ARG=""
+          if [ "${{ github.event.inputs.regenerate_digest }}" = "true" ]; then
+            REGEN_ARG="--regenerate-digest"
+          fi
+
+          python -u generate_news.py --data-dir data --news-dir data/news $SEASON_ARG $REGEN_ARG
 
           git add data/news/articles.json
           if ! git diff --staged --quiet; then
