@@ -199,6 +199,10 @@ def run_newcomer_league(submissions, slots_needed, registry, retry_pool=None,
     active_pool = [ind for ind in (pool or []) if not ind.retired]
     eligible_masters = [ind for ind in active_pool if ind.age >= MASTER_MIN_AGE] or active_pool
     disciple_counts = count_existing_disciples(active_pool)
+    # 師匠選出の重みは、このバッチ（最大30名程度）の中で既に選ばれた回数に応じて
+    # 選ばれるたびに下げる（master_pick_counts）。そうしないとElo上位やタイトル
+    # 保持者に抽選が偏り、1回のバッチ内で同じ師匠が何度も重複してしまうため
+    master_pick_counts = {}
 
     candidates = []
     entries_by_id = {}
@@ -210,7 +214,9 @@ def run_newcomer_league(submissions, slots_needed, registry, retry_pool=None,
         if "parent_a_id" in entry:
             master = None
         else:
-            master = _pick_master(eligible_masters, titleholder_ids, allow_new_founder=False) if eligible_masters else None
+            master = _pick_master(
+                eligible_masters, titleholder_ids, allow_new_founder=False, pick_counts=master_pick_counts,
+            ) if eligible_masters else None
 
         ind = _build_character_creation_individual(
             entry, season="NL", index=i, master=master, disciple_counts=disciple_counts,
