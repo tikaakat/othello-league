@@ -109,11 +109,6 @@
     border: 1px solid var(--navy-700); padding: 4px 10px; cursor: pointer;
   }
   .fav-toggle.is-fav { color: var(--amber); border-color: var(--amber); }
-  .cheer-btn {
-    font-family: 'Orbitron', sans-serif; font-size: 0.75rem; background: var(--navy-800); color: var(--text-dim);
-    border: 1px solid var(--navy-700); padding: 4px 10px; cursor: pointer; margin-left: 6px;
-  }
-  .cheer-btn.cheered { color: #FF6B8A; border-color: #FF6B8A; cursor: default; }
   /* サポーター：個体詳細ページの先頭で、金箔のプレートのように高級感を出して表示する */
   .sponsor-highlight-box {
     position: relative; margin: 0 0 16px; padding: 16px 18px; border-radius: 10px;
@@ -368,42 +363,6 @@ function toggleFavorite(id) {
   if (ids.has(id)) ids.delete(id); else ids.add(id);
   saveFavoriteIds(ids);
   applyFavoriteHighlights();
-}
-
-// 応援ボタン：実際の金銭のやり取りは発生しない、閲覧専用のカウンタ（いいね的な機能）。
-// サーバー側（cheer.php）が1個体1日1回に制限するが、ここでのlocalStorageチェックは
-// 「今日は応援済み」をページ再読込後もすぐ見せるための表示上のヒントに過ぎない
-function cheeredTodayKey(id) {
-  return `cheered:${id}:${new Date().toISOString().slice(0, 10)}`;
-}
-function setupCheerButton(btn) {
-  if (!btn) return;
-  const id = btn.dataset.id;
-  let alreadyCheeredLocally = false;
-  try { alreadyCheeredLocally = localStorage.getItem(cheeredTodayKey(id)) === '1'; } catch (e) { /* 無視 */ }
-  if (alreadyCheeredLocally) {
-    btn.classList.add('cheered');
-    btn.firstChild.textContent = '♡ 応援済み';
-  }
-  btn.addEventListener('click', async () => {
-    if (btn.classList.contains('cheered')) return;
-    btn.disabled = true;
-    try {
-      const res = await fetch('cheer.php', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ individual_id: id }),
-      });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      const countEl = document.getElementById('ind-cheer-count');
-      if (countEl) countEl.textContent = `（${data.cheer_count}）`;
-      btn.classList.add('cheered');
-      btn.firstChild.textContent = '♡ 応援済み';
-      try { localStorage.setItem(cheeredTodayKey(id), '1'); } catch (e) { /* 無視 */ }
-    } catch (e) {
-      btn.disabled = false;
-    }
-  });
 }
 
 function applyFavoriteHighlights() {
@@ -820,7 +779,6 @@ async function loadIndividualDetail(id) {
         <span style="font-size:0.72rem; color:var(--amber); margin-left:8px;">最高 ${Math.round(ind.peak_elo ?? ind.elo_rating)}</span></div>
       <div style="margin-top:8px;">
         <button id="ind-fav-toggle" class="fav-toggle" data-id="${escapeHtml(ind.id)}">☆ お気に入りに追加</button>
-        <button id="ind-cheer-btn" class="cheer-btn" data-id="${escapeHtml(ind.id)}">♡ 応援する<span id="ind-cheer-count">（${ind.cheer_count ?? 0}）</span></button>
       </div>
       ${ind.awakened_param ? `<div style="margin-top:8px; display:inline-block; background:rgba(255,182,72,0.15); border:1px solid var(--amber); color:var(--amber); font-size:0.72rem; padding:3px 10px; border-radius:2px;">★ 覚醒：「${escapeHtml(paramLabel(ind.awakened_param))}」突破</div>` : ''}
     </div>`;
@@ -862,7 +820,6 @@ async function loadIndividualDetail(id) {
     document.getElementById('ind-back').addEventListener('click', () => navigateTo('leagues'));
     document.getElementById('ind-fav-toggle').addEventListener('click', () => toggleFavorite(ind.id));
     applyFavoriteHighlights();
-    setupCheerButton(document.getElementById('ind-cheer-btn'));
     el.querySelectorAll('.lineage-link').forEach(span => span.addEventListener('click', () => navigateTo('individual/' + span.dataset.id)));
 
     renderRecord(data.record);
@@ -1589,21 +1546,25 @@ async function loadTitleOnlyPanel(titleKey, titleLabel, season) {
   const el = document.getElementById(`${titleKey}-content`);
   el.innerHTML = '<div class="loading">読み込み中...</div>';
   try {
-    if (!season) {
-      const res0 = await fetch(`${API_BASE}?action=standings`);
-      const data0 = await res0.json();
-      season = data0.latest_season || 1;
-    }
+    // 青龍戦タブ（結果タブと共有の順位戦ナビ）と同じく、プルダウンでも季を選べるように
+    // latest_seasonを常に取得しておく（季指定無しの初期表示でも、「次季」ボタンの
+    // 無効化判定でも使うため、season指定の有無に関わらず取得する）
+    const res0 = await fetch(`${API_BASE}?action=standings`);
+    const data0 = await res0.json();
+    const latestSeason = data0.latest_season || 1;
+    if (!season) season = latestSeason;
     document.getElementById(`tab-${titleKey}`).dataset.season = season;
 
     el.innerHTML = `<div class="season-nav">
       <button id="${titleKey}-season-prev" ${season <= 1 ? 'disabled' : ''}>◀ 前季</button>
-      <span style="color:var(--amber); font-size:0.85rem;">第${season}季</span>
-      <button id="${titleKey}-season-next">次季 ▶</button>
+      ${seasonSelectHtml(`${titleKey}-season-select`, season, latestSeason)}
+      <button id="${titleKey}-season-next" ${season >= latestSeason ? 'disabled' : ''}>次季 ▶</button>
     </div><div id="${titleKey}-bracket-view"></div>`;
 
     document.getElementById(`${titleKey}-season-prev`).addEventListener('click', () => navigateTo(`${titleKey}/` + (season - 1)));
     document.getElementById(`${titleKey}-season-next`).addEventListener('click', () => navigateTo(`${titleKey}/` + (season + 1)));
+    const seasonSelect = document.getElementById(`${titleKey}-season-select`);
+    if (seasonSelect) seasonSelect.addEventListener('change', () => navigateTo(`${titleKey}/` + seasonSelect.value));
 
     await loadOneBracket(season, titleLabel, `${titleKey}-bracket-view`);
   } catch (e) {
@@ -2069,16 +2030,21 @@ async function loadAwards(season) {
   const el = document.getElementById('awards-content');
   el.innerHTML = '<div class="loading">読み込み中...</div>';
   try {
-    const url = season ? `${API_BASE}?action=season_awards&season=${season}` : `${API_BASE}?action=season_awards`;
-    const res = await fetch(url);
+    const res0 = await fetch(`${API_BASE}?action=standings`);
+    const data0 = await res0.json();
+    const latestSeason = data0.latest_season || 1;
+    if (!season) season = latestSeason;
+
+    const res = await fetch(`${API_BASE}?action=season_awards&season=${season}`);
     const data = await res.json();
     if (!data.season) { el.innerHTML = '<div class="empty">まだデータがありません</div>'; return; }
 
-    let html = `<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
-      <button id="awards-prev" style="background:var(--navy-800); color:var(--cyan); border:1px solid var(--navy-700); padding:4px 10px; cursor:pointer;">◀ 前季</button>
-      <h3 style="font-size:0.85rem; color:var(--amber); margin:0;">第${data.season}季の表彰</h3>
-      <button id="awards-next" style="background:var(--navy-800); color:var(--cyan); border:1px solid var(--navy-700); padding:4px 10px; cursor:pointer;">次季 ▶</button>
-    </div>`;
+    let html = `<div class="season-nav">
+      <button id="awards-prev" ${season <= 1 ? 'disabled' : ''}>◀ 前季</button>
+      ${seasonSelectHtml('awards-season-select', season, latestSeason)}
+      <button id="awards-next" ${season >= latestSeason ? 'disabled' : ''}>次季 ▶</button>
+    </div>
+    <h3 style="font-size:0.85rem; color:var(--amber); margin:10px 0 0; text-align:center;">第${data.season}季の表彰</h3>`;
 
     const sections = [
       { key: 'games', title: '対局数ランキング', fmt: p => `${p.games}対局`, keyFn: p => p.games },
@@ -2107,6 +2073,8 @@ async function loadAwards(season) {
     el.querySelectorAll('tr[data-id]').forEach(tr => tr.addEventListener('click', () => navigateTo('individual/' + tr.dataset.id)));
     document.getElementById('awards-prev').addEventListener('click', () => navigateTo('awards/' + (data.season - 1)));
     document.getElementById('awards-next').addEventListener('click', () => navigateTo('awards/' + (data.season + 1)));
+    const awardsSeasonSelect = document.getElementById('awards-season-select');
+    if (awardsSeasonSelect) awardsSeasonSelect.addEventListener('change', () => navigateTo('awards/' + awardsSeasonSelect.value));
   } catch (e) {
     el.innerHTML = `<div class="empty">読み込み失敗: ${escapeHtml(String(e))}</div>`;
   }
