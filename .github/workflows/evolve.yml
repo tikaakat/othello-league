@@ -126,7 +126,7 @@ jobs:
 
             rm -rf data/rosters.json data/season_state.json data/matches data/standings \
               data/newcomer_league data/newcomer_winners.json data/newcomer_submissions.json \
-              data/news/articles.json
+              data/newcomer_candidate_pool.json data/news/articles.json
             mkdir -p data/matches data/standings data/newcomer_league data/news
             touch data/matches/.gitkeep data/standings/.gitkeep data/newcomer_league/.gitkeep
             # ファンサイトの記事も季の履歴に紐づくため、結果サイト側と合わせてリセットする
