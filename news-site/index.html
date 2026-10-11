@@ -18,7 +18,7 @@
 {"@context":"https://schema.org","@type":"WebSite","name":"オセロ界タイムズ","url":"https://lab.spia-net.com/othello-news/","description":"AI同士が戦う架空のオセロリーグ「サーキットオセロリーグ」を追いかける非公式ファンメディア"}
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&family=Noto+Sans+JP:wght@400;500;700&family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
 <style>
   :root {
     --bg: #FFFBF4; --card: #FFFFFF; --text-main: #3A332E; --text-dim: #8C8378;
@@ -1049,6 +1049,51 @@ function loadImageSafe(src) {
   });
 }
 
+// トレーディングカード風の選手カード画像を描く。実績に応じて4段階のレアリティ
+// （LEGENDARY=永世称号持ち／EPIC=タイトル獲得歴あり／RARE=Aリーグ在籍／
+// COMMON=それ以外）を割り当て、箔押し風グラデーション・縁取り・称号バッジ等の
+// 見た目をレアリティごとに変える（TCGのレアリティ演出を模したお祭り要素）
+const CARD_TIERS = {
+  legendary: {
+    label: 'LEGENDARY', stops: ['#FFF6D8', '#F0C84B', '#A8790F'], glow: '#F0C84B',
+    plate: ['#FFF3C4', '#D9A520'], text: '#6B4F0A',
+  },
+  epic: {
+    label: 'EPIC', stops: ['#F2E6FF', '#B087E8', '#5C3B99'], glow: '#B087E8',
+    plate: ['#EBDBFF', '#8A5FCF'], text: '#3E2766',
+  },
+  rare: {
+    label: 'RARE', stops: ['#DCF6FD', '#5FC2E0', '#1F6E8C'], glow: '#5FC2E0',
+    plate: ['#CDF1FA', '#3E9BBF'], text: '#0F4357',
+  },
+  common: {
+    label: 'COMMON', stops: ['#FFE9DB', '#E8A373', '#B8573A'], glow: '#E8A373',
+    plate: ['#FCDFCB', '#D9704F'], text: '#5A2E1A',
+  },
+};
+function cardTierFor(ind, eternalTitles, titleRanges) {
+  if (eternalTitles.length > 0) return 'legendary';
+  if (titleRanges.length > 0) return 'epic';
+  if (!ind.retired && ind.league === 'A') return 'rare';
+  return 'common';
+}
+
+function roundRectPath(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, r);
+}
+
+// 角の小さなダイヤ飾り（カードフレームの四隅に置く装飾）
+function drawCornerGem(ctx, cx, cy, size, color) {
+  ctx.save();
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - size); ctx.lineTo(cx + size, cy); ctx.lineTo(cx, cy + size); ctx.lineTo(cx - size, cy);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
 async function renderProfileCardDataUrl(id, name, ind, titleRanges, eternalTitles) {
   const W = 1200, H = 630; // 主要SNSのOGP推奨サイズに合わせた横長カード
   const canvas = document.createElement('canvas');
@@ -1056,95 +1101,222 @@ async function renderProfileCardDataUrl(id, name, ind, titleRanges, eternalTitle
   const ctx = canvas.getContext('2d');
 
   const palette = AVATAR_PALETTE[hashString(id || name || '?') % AVATAR_PALETTE.length];
+  const tierKey = cardTierFor(ind, eternalTitles, titleRanges);
+  const tier = CARD_TIERS[tierKey];
 
-  // 背景（うっすら対角グラデーション。サイトのクリーム系トーンに合わせる）
+  // 背景：レアリティカラーの斜めグラデーション＋中央のハイライト（箔押し・ホログラム風）
   const bgGrad = ctx.createLinearGradient(0, 0, W, H);
-  bgGrad.addColorStop(0, '#FFFBF4');
-  bgGrad.addColorStop(1, '#FFF1E6');
+  bgGrad.addColorStop(0, tier.stops[0]);
+  bgGrad.addColorStop(0.55, tier.stops[1]);
+  bgGrad.addColorStop(1, tier.stops[2]);
   ctx.fillStyle = bgGrad;
   ctx.fillRect(0, 0, W, H);
+  const sheen = ctx.createRadialGradient(W * 0.28, H * 0.22, 0, W * 0.28, H * 0.22, W * 0.75);
+  sheen.addColorStop(0, 'rgba(255,255,255,0.45)');
+  sheen.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = sheen;
+  ctx.fillRect(0, 0, W, H);
 
-  // カード枠
-  ctx.fillStyle = '#FFFFFF';
-  ctx.strokeStyle = '#EEE6DB';
-  ctx.lineWidth = 2;
-  const pad = 40;
-  ctx.beginPath();
-  ctx.roundRect(pad, pad, W - pad * 2, H - pad * 2, 28);
+  // カードパネル（半透明の生成りで文字を読みやすくしつつ、下の箔グラデーションを透かす）
+  const pad = 30;
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.18)';
+  ctx.shadowBlur = 30;
+  ctx.shadowOffsetY = 10;
+  ctx.fillStyle = 'rgba(255,251,246,0.93)';
+  roundRectPath(ctx, pad, pad, W - pad * 2, H - pad * 2, 30);
   ctx.fill();
+  ctx.restore();
+
+  // 二重縁取り（外側はレアリティカラー、内側は白のアクセントライン）
+  ctx.lineWidth = 6;
+  ctx.strokeStyle = tier.glow;
+  roundRectPath(ctx, pad, pad, W - pad * 2, H - pad * 2, 30);
+  ctx.stroke();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+  roundRectPath(ctx, pad + 10, pad + 10, W - (pad + 10) * 2, H - (pad + 10) * 2, 22);
   ctx.stroke();
 
-  // アバター円（genderが分かっていればDiceBear Loreleiの画像を円形クリップして描画、
-  // 失敗した場合・genderが不明な場合は従来通りイニシャル1文字にフォールバックする）
-  const avatarCx = pad + 140, avatarCy = pad + 150, avatarR = 90;
+  // 四隅のダイヤ飾り
+  [[pad + 14, pad + 14], [W - pad - 14, pad + 14], [pad + 14, H - pad - 14], [W - pad - 14, H - pad - 14]]
+    .forEach(([cx, cy]) => drawCornerGem(ctx, cx, cy, 9, tier.glow));
+
+  // レアリティバッジ（右上）
+  ctx.save();
+  ctx.font = "900 22px 'Orbitron', 'Zen Maru Gothic', sans-serif";
+  const badgeText = `✦ ${tier.label}`;
+  const badgeW = ctx.measureText(badgeText).width + 36;
+  const badgeGrad = ctx.createLinearGradient(W - pad - 24 - badgeW, 0, W - pad - 24, 0);
+  badgeGrad.addColorStop(0, tier.plate[0]);
+  badgeGrad.addColorStop(1, tier.plate[1]);
+  ctx.fillStyle = badgeGrad;
+  roundRectPath(ctx, W - pad - 24 - badgeW, pad + 24, badgeW, 40, 20);
+  ctx.fill();
+  ctx.fillStyle = tier.text;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(badgeText, W - pad - 24 - badgeW / 2, pad + 44);
+  ctx.restore();
+
+  // アバター：八角形の宝石カットのようなフレームで囲む（genderが分かっていればDiceBear
+  // Loreleiの画像を、失敗・不明ならイニシャル1文字を円に描き、その上から縁取りを重ねる）
+  const avatarCx = pad + 190, avatarCy = H / 2, avatarR = 155;
   let avatarImg = null;
   if (id && (ind.gender === 'male' || ind.gender === 'female')) {
-    avatarImg = await loadImageSafe(loreleiAvatarUrl(id, ind.gender, 'png') + '&size=256');
+    avatarImg = await loadImageSafe(loreleiAvatarUrl(id, ind.gender, 'png') + '&size=400');
   }
+  // 外周のグロー
+  ctx.save();
+  ctx.shadowColor = tier.glow;
+  ctx.shadowBlur = 36;
+  ctx.fillStyle = tier.glow;
+  ctx.beginPath();
+  ctx.arc(avatarCx, avatarCy, avatarR + 14, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+  // 肖像本体
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(avatarCx, avatarCy, avatarR, 0, Math.PI * 2);
+  ctx.clip();
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillRect(avatarCx - avatarR, avatarCy - avatarR, avatarR * 2, avatarR * 2);
   if (avatarImg) {
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(avatarCx, avatarCy, avatarR, 0, Math.PI * 2);
-    ctx.clip();
     ctx.drawImage(avatarImg, avatarCx - avatarR, avatarCy - avatarR, avatarR * 2, avatarR * 2);
-    ctx.restore();
   } else {
     ctx.fillStyle = palette.bg;
-    ctx.beginPath();
-    ctx.arc(avatarCx, avatarCy, avatarR, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.fillRect(avatarCx - avatarR, avatarCy - avatarR, avatarR * 2, avatarR * 2);
     ctx.fillStyle = palette.fg;
-    ctx.font = "700 86px 'Zen Maru Gothic', sans-serif";
+    ctx.font = "700 150px 'Zen Maru Gothic', sans-serif";
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText((name || '?').charAt(0), avatarCx, avatarCy + 6);
+    ctx.fillText((name || '?').charAt(0), avatarCx, avatarCy + 10);
   }
+  ctx.restore();
+  // 肖像の縁取り（二重リング）
+  ctx.lineWidth = 7;
+  ctx.strokeStyle = tier.glow;
+  ctx.beginPath(); ctx.arc(avatarCx, avatarCy, avatarR, 0, Math.PI * 2); ctx.stroke();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = '#FFFFFF';
+  ctx.beginPath(); ctx.arc(avatarCx, avatarCy, avatarR - 8, 0, Math.PI * 2); ctx.stroke();
 
-  // 名前
-  ctx.textAlign = 'left';
+  // 段位バッジ（肖像の右下に、ステータスジェムのように重ねる）
+  const danCx = avatarCx + avatarR * 0.68, danCy = avatarCy + avatarR * 0.68, danR = 46;
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.25)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 3;
+  const danGrad = ctx.createLinearGradient(danCx - danR, danCy - danR, danCx + danR, danCy + danR);
+  danGrad.addColorStop(0, tier.plate[0]); danGrad.addColorStop(1, tier.plate[1]);
+  ctx.fillStyle = danGrad;
+  ctx.beginPath(); ctx.arc(danCx, danCy, danR, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+  ctx.lineWidth = 4; ctx.strokeStyle = '#FFFFFF';
+  ctx.beginPath(); ctx.arc(danCx, danCy, danR, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = tier.text;
+  ctx.font = "900 30px 'Zen Maru Gothic', sans-serif";
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(danLabel(ind.dan).replace('段', ''), danCx, danCy - 7);
+  ctx.font = "700 16px 'Noto Sans JP', sans-serif";
+  ctx.fillText('段', danCx, danCy + 17);
+
+  // 右側：名前プレート
+  const rx = pad + 400;
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = '#3A332E';
-  ctx.font = "900 64px 'Zen Maru Gothic', sans-serif";
-  ctx.fillText(name, pad + 250, pad + 110);
+  ctx.font = "900 62px 'Zen Maru Gothic', sans-serif";
+  ctx.fillText(name, rx, pad + 100);
+  // 名前の下に箔ライン
+  const lineGrad = ctx.createLinearGradient(rx, 0, W - pad - 40, 0);
+  lineGrad.addColorStop(0, tier.glow); lineGrad.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = lineGrad;
+  ctx.fillRect(rx, pad + 116, W - pad - 40 - rx, 4);
 
-  // ステータス行（リーグ/段位・Elo）
-  const statusText = ind.retired ? '引退済み' : `${ind.league || '-'}リーグ　${danLabel(ind.dan)}`;
+  // ステータス行（リーグ・現在/引退・Elo）
+  const statusText = ind.retired ? '引退済み' : `${ind.league || '-'}リーグ所属`;
+  ctx.fillStyle = '#6B6258';
+  ctx.font = "500 28px 'Noto Sans JP', sans-serif";
+  ctx.fillText(statusText, rx, pad + 165);
+
+  // Eloを大きなステータス数値として見せる（TCGの「攻撃力」のような演出）
+  ctx.fillStyle = tier.text;
+  ctx.font = "900 72px 'Orbitron', 'Zen Maru Gothic', sans-serif";
+  ctx.fillText(`${Math.round(ind.elo_rating)}`, rx, pad + 250);
+  const eloBigW = ctx.measureText(`${Math.round(ind.elo_rating)}`).width;
+  ctx.font = "700 22px 'Noto Sans JP', sans-serif";
   ctx.fillStyle = '#8C8378';
-  ctx.font = "500 30px 'Noto Sans JP', sans-serif";
-  ctx.fillText(statusText, pad + 250, pad + 160);
-  ctx.fillStyle = '#D9704F';
-  ctx.font = "700 30px 'Noto Sans JP', sans-serif";
-  ctx.fillText(`Elo ${Math.round(ind.elo_rating)}（最高 ${Math.round(ind.peak_elo ?? ind.elo_rating)}）`, pad + 250, pad + 205);
+  ctx.fillText('ELO', rx + eloBigW + 10, pad + 232);
+  ctx.fillText(`最高 ${Math.round(ind.peak_elo ?? ind.elo_rating)}`, rx + eloBigW + 10, pad + 256);
 
-  // タイトル獲得歴（最大3件、永世称号には★を付ける）
-  let ty = pad + 290;
+  // タイトル獲得歴：バッジチップを横並びで描く（永世称号は★付き・金枠）
+  const TITLE_COLORS = {
+    '青龍': '#3E6FD9', '朱雀': '#D9433E', '白虎': '#8C8378', '玄武': '#3A332E',
+  };
+  let ty = pad + 300;
+  ctx.font = "700 24px 'Noto Sans JP', sans-serif";
   ctx.fillStyle = '#3A332E';
-  ctx.font = "700 28px 'Noto Sans JP', sans-serif";
-  ctx.fillText('タイトル獲得歴', pad + 40, ty);
-  ty += 44;
-  ctx.font = "500 26px 'Noto Sans JP', sans-serif";
+  ctx.fillText('タイトル獲得歴', rx, ty);
+  ty += 20;
   if (titleRanges.length === 0) {
+    ctx.font = "500 24px 'Noto Sans JP', sans-serif";
     ctx.fillStyle = '#8C8378';
-    ctx.fillText('なし', pad + 40, ty);
+    ctx.fillText('なし', rx, ty + 36);
   } else {
-    titleRanges.slice(0, 3).forEach(t => {
-      const star = eternalTitles.includes(t.title) ? '★永世　' : '';
-      ctx.fillStyle = '#3A332E';
-      ctx.fillText(`${star}${t.title}：${t.total}期（${t.ranges}）`, pad + 40, ty);
-      ty += 40;
+    let bx = rx, by = ty + 14;
+    const rowRight = W - pad - 40;
+    titleRanges.slice(0, 6).forEach(t => {
+      const isEternal = eternalTitles.includes(t.title);
+      const label = `${isEternal ? '★' : ''}${t.title} ${t.total}期`;
+      ctx.font = "700 22px 'Noto Sans JP', sans-serif";
+      const chipW = ctx.measureText(label).width + 30;
+      if (bx + chipW > rowRight) { bx = rx; by += 46; }
+      const chipColor = TITLE_COLORS[t.title] || '#8C8378';
+      ctx.fillStyle = isEternal ? '#B8860B' : chipColor;
+      roundRectPath(ctx, bx, by, chipW, 36, 18);
+      ctx.fill();
+      if (isEternal) {
+        ctx.lineWidth = 2; ctx.strokeStyle = '#FFE39A';
+        roundRectPath(ctx, bx, by, chipW, 36, 18); ctx.stroke();
+      }
+      ctx.fillStyle = '#FFFFFF';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(label, bx + chipW / 2, by + 19);
+      ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+      bx += chipW + 10;
     });
-    if (titleRanges.length > 3) {
-      ctx.fillStyle = '#8C8378';
-      ctx.fillText(`他${titleRanges.length - 3}タイトル`, pad + 40, ty);
-    }
   }
 
-  // フッター（ブランド表記）
-  ctx.fillStyle = '#D9704F';
+  // 引退済みの場合、右上あたりに斜めの認定スタンプ風ラベルを重ねる
+  if (ind.retired) {
+    ctx.save();
+    ctx.translate(W - pad - 150, pad + 190);
+    ctx.rotate(-Math.PI / 14);
+    ctx.globalAlpha = 0.85;
+    ctx.fillStyle = '#8C8378';
+    roundRectPath(ctx, -70, -20, 140, 40, 6);
+    ctx.fill();
+    ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 2;
+    roundRectPath(ctx, -66, -16, 132, 32, 5); ctx.stroke();
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = "900 20px 'Zen Maru Gothic', sans-serif";
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('引 退', 0, 1);
+    ctx.restore();
+  }
+
+  // フッター（ブランド表記・カード番号風の個体ID）
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = tier.text;
   ctx.font = "900 26px 'Zen Maru Gothic', sans-serif";
-  ctx.fillText('オセロ界タイムズ', pad + 40, H - pad - 30);
+  ctx.fillText('オセロ界タイムズ', rx, H - pad - 28);
   ctx.fillStyle = '#8C8378';
-  ctx.font = "400 20px 'Noto Sans JP', sans-serif";
-  ctx.fillText('lab.spia-net.com/othello-news/', pad + 40, H - pad - 2);
+  ctx.font = "400 18px 'Noto Sans JP', sans-serif";
+  ctx.fillText('lab.spia-net.com/othello-news/', rx, H - pad - 4);
+  ctx.textAlign = 'right';
+  ctx.font = "400 18px 'Orbitron', 'Noto Sans JP', sans-serif";
+  ctx.fillStyle = '#8C8378';
+  ctx.fillText(`No. ${id || '-'}`, W - pad - 40, H - pad - 4);
+  ctx.textAlign = 'left';
 
   return canvas.toDataURL('image/png');
 }
