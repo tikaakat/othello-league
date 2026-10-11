@@ -150,15 +150,22 @@ def _play_until_decided(params_x, params_y, depth, noise_x=1.0, noise_y=1.0, max
 # 入れ替えの4名を決定する。残留6名（紅白各3名）と新規4名は、来季また紅白各3名+2名に
 # ランダムに組み直される。
 # ============================================================
-def run_suzaku_group_stage(red_members, white_members, depth=1):
+def run_suzaku_group_stage(red_members, white_members, depth=1, tiebreak=None):
     """
-    紅組・白組それぞれで総当たりを行う。
+    紅組・白組それぞれで総当たりを行う。tiebreakは同点時の順位付けに使う
+    {"prev_rank": {id: 前季の紅白順位}, "tenure": {id: 紅白通算在籍期数}}。
     戻り値: (紅組の順位確定済みリスト, 白組の順位確定済みリスト, 紅組の勝敗record, 白組の勝敗record, 対局ログ)
     """
     match_log = []
-    red_ranked, red_log, _, red_record = run_round_robin(red_members, depth=depth, league_name="朱雀紅組", log_prefix="朱雀紅")
+    red_ranked, red_log, _, red_record = run_round_robin(
+        red_members, depth=depth, league_name="朱雀紅組", log_prefix="朱雀紅",
+        suzaku_tiebreak=tiebreak, relegate_n=min(2, len(red_members)),
+    )
     match_log += red_log
-    white_ranked, white_log, _, white_record = run_round_robin(white_members, depth=depth, league_name="朱雀白組", log_prefix="朱雀白")
+    white_ranked, white_log, _, white_record = run_round_robin(
+        white_members, depth=depth, league_name="朱雀白組", log_prefix="朱雀白",
+        suzaku_tiebreak=tiebreak, relegate_n=min(2, len(white_members)),
+    )
     match_log += white_log
     return red_ranked, white_ranked, red_record, white_record, match_log
 
@@ -179,11 +186,15 @@ def run_suzaku_challenger_decision(red_champion, white_champion, depth=1):
 def determine_suzaku_qualifiers(all_members, exclude_ids=frozenset(), depth=1, num_blocks=4,
                                  titleholder_ids=frozenset(), a_league_order=()):
     """
-    紅白リーグ外の全個体による入れ替え戦。優先度（タイトル保持者＞Aリーグ順位＞Elo）順に
-    num_blocks個のブロックへスネーク配分し、ブロックごとにシード付き単独トーナメントを行い、
-    ブロック優勝者（計num_blocks名）を返す。
+    紅白リーグ外の全個体による入れ替え戦。ブロック割り振りは毎年ランダムだが、
+    シード（タイトル保持者＞Aリーグ順位）は優先度順に各ブロックへ分散（スネーク配分）し、
+    ブロック内でもシード位置に置くことで、上位同士（Aリーグ同士）が初戦で当たらないようにする。
+    シード以外の個体はランダムな順で、人数の少ないブロックから順に配る。
+    ブロックごとにシード付き単独トーナメントを行い、ブロック優勝者（計num_blocks名）を返す。
     戻り値: (優勝者のリスト, 対局ログ)
     """
+    if num_blocks <= 0:
+        return [], []
     pool = [ind for ind in all_members if ind.id not in exclude_ids]
     a_rank_by_id = {iid: rank for rank, iid in enumerate(a_league_order)}
     not_in_a = len(a_league_order)
@@ -191,14 +202,15 @@ def determine_suzaku_qualifiers(all_members, exclude_ids=frozenset(), depth=1, n
     def seed_priority(ind):
         is_title = ind.id in titleholder_ids
         a_rank = a_rank_by_id.get(ind.id, not_in_a)
-        return (0 if is_title else 1, a_rank, -ind.elo)
+        return (0 if is_title else 1, a_rank)
 
-    ranked = sorted(pool, key=seed_priority)
+    seeds = sorted((ind for ind in pool if ind.id in titleholder_ids or ind.id in a_rank_by_id), key=seed_priority)
+    unseeded = [ind for ind in pool if not (ind.id in titleholder_ids or ind.id in a_rank_by_id)]
+    random.shuffle(unseeded)
 
-    # スネーク配分：1,2,3,4番目のシードを別々のブロックへ最初に割り当て、以降は折り返しながら配る
     blocks = [[] for _ in range(num_blocks)]
     b, direction = 0, 1
-    for ind in ranked:
+    for ind in seeds:
         blocks[b].append(ind)
         if direction == 1:
             b += 1
@@ -208,6 +220,8 @@ def determine_suzaku_qualifiers(all_members, exclude_ids=frozenset(), depth=1, n
             b -= 1
             if b < 0:
                 b, direction = 0, 1
+    for ind in unseeded:
+        min(blocks, key=len).append(ind)
 
     bracket_log = []
 
@@ -416,11 +430,10 @@ def determine_genbu_challenger(all_members, exclude_id=None, depth=1, bracket_si
     # bye_count・シード優先度の算出も他の参加者分だけずれてしまう
     pool = [ind for ind in all_members if ind.id != exclude_id and ind.id != guaranteed_final_id]
     n = len(pool)
-    if n > bracket_size:
-        # 参加人数がbracket_sizeを超えることは通常想定していないが、
-        # 万一超えた場合はElo下位から間引く
-        pool = sorted(pool, key=lambda ind: -ind.elo)[:bracket_size]
-        n = bracket_size
+    # 玄武戦は全所属個体が参加する。参加人数が枠を超えた場合は誰も除外せず、
+    # 枠を2倍ずつ広げて全員を収める（ブロック数は変えず、各ブロックの人数が増える）
+    while bracket_size < n:
+        bracket_size *= 2
 
     bye_count = bracket_size - n
     # 所属リーグとその季の順位（A→B→C→D、リーグ内は成績順）をタイブレークに使う

@@ -58,8 +58,8 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
 
     demotion_relief_idsが与えられた場合、Dリーグ降級点の判定（下記）で対象者の降級点を
     1点減らす（0未満にはしない）。この季の白虎トーナメント出場者（16名）・玄武ブロック
-    優勝者（8名）が対象。挑戦者ほどの重みではないため、強制引退からの完全な免除
-    （extra_protected_ids）ではなく、勝ち越しと同じ「減点」による救済にとどめる。
+    優勝者（4名）が対象。降級点による引退そのものは免除しない（減点のみ）が、
+    年齢引退は免除する。
 
     戻り値: (更新後のrosters dict, 引退者リスト, 来季のDリーグ新人受け入れ枠数
              （D_NEWCOMER_INTAKEの固定値）, 降級点イベント（individual_id => "gained"/"cleared"）)
@@ -69,13 +69,9 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
     C = list(rosters["C"])
     D = list(rosters["D"])
 
-    # --- 60歳以上、かつ無冠（どのタイトルも持っていない）の個体は強制引退させる。
-    #     タイトルを1つでも持っていれば、全て失冠するまで猶予が続く。
-    #     朱雀紅白リーグ在籍者（来季から加入予定の予選通過者も含む）・この季のタイトル戦
-    #     挑戦者・白虎トーナメント出場者・玄武ブロック優勝者（extra_protected_ids）も、
-    #     在籍中（または対象になった季）は年齢引退に加えて、Dリーグ降級点による引退も
-    #     免除する（でないと紅白リーグ加入前や、挑戦するところまで勝ち上がった
-    #     直後に引退させてしまうため） ---
+    # --- タイトル保持者・朱雀紅白リーグ在籍者（来季から加入予定の予選通過者も含む）・
+    #     この季のタイトル戦挑戦者（extra_protected_ids）は、年齢引退とDリーグ降級点
+    #     による引退の両方を免除する（年齢引退のみの免除対象は下の age_exempt_ids を参照） ---
     titleholder_ids = set()
     if titleholders:
         for info in titleholders.values():
@@ -88,53 +84,56 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
     if extra_protected_ids:
         protected_ids.update(extra_protected_ids)
 
-    # Aリーグ所属による年齢引退免除：ただし「今季Aから降格する個体」はこの免除を受けない
-    # （降格が決まった季に60歳以上かつ他の免除条件も無ければ、その季に引退する）。
-    # ab_nの本来の算出（109行目）は年齢引退フィルタ後のA/B人数を使うが、ここでは
-    # フィルタ前の人数で仮に算出する（A_TO_B_RELEGATEはA・Bの人数に対して十分小さく、
-    # 年齢引退で後から人数が減っても降格人数が変わることは実質無い）
-    ab_n_for_protection = min(A_TO_B_RELEGATE, len(A), len(rosters["B"]))
-    a_relegating_ids = {ind.id for ind in A[-ab_n_for_protection:]} if ab_n_for_protection > 0 else set()
-    protected_ids.update(ind.id for ind in A if ind.id not in a_relegating_ids)
-
-    age_retired = []
-    def _filter_aged_out(members):
-        keep, retired = [], []
-        for ind in members:
-            if ind.age >= RETIREMENT_AGE and ind.id not in protected_ids:
-                ind.retired = True
-                ind.retirement_reason = f"{RETIREMENT_AGE}歳の年齢規定により引退"
-                # 引退する個体も今季は実際に対局しているので、在籍シーズン数に数える
-                # （数えないと、対局実績があるのに引退季の1つ手前までしか通算しておらず、
-                #  在籍期間の表示が実際より1季ずれてしまう）
-                ind.total_seasons += 1
-                retired.append(ind)
-            else:
-                keep.append(ind)
-        return keep, retired
-
-    A, r = _filter_aged_out(A); age_retired += r
-    B, r = _filter_aged_out(B); age_retired += r
-    C, r = _filter_aged_out(C); age_retired += r
-    D, r = _filter_aged_out(D); age_retired += r
-
-    # 昇降格枠数の決定
+    # --- 昇降格の対象は、年齢引退を除外する「前」の今季順位で決める。
+    #     除外後のリストで A[-2:] のように切ると、最下位が年齢引退した場合に
+    #     本来残留のはずの個体が繰り下がって降格してしまうため。
+    #     年齢引退した個体はその枠ごと抜け、空いた枠は後段の_backfillで下位リーグから埋める ---
     ab_n = min(A_TO_B_RELEGATE, len(A), len(B))
     bc_n = min(B_TO_C_RELEGATE, len(B), len(C))
+    cd_n = min(C_TO_D_RELEGATE, len(C))
+    dc_n = min(D_TO_C_PROMOTE, len(D))
 
-    a_relegate = A[-ab_n:]
-    a_remain = A[:-ab_n]
-
+    a_relegate = A[len(A) - ab_n:]
+    a_remain = A[:len(A) - ab_n]
     b_promote_to_a = B[:ab_n]
-    b_relegate_to_c = B[-bc_n:]
-    b_remain = B[ab_n:-bc_n]
-
+    b_relegate_to_c = B[len(B) - bc_n:]
+    b_remain = B[ab_n:len(B) - bc_n]
     c_promote_to_b = C[:bc_n]
-    c_relegate_to_d = C[-C_TO_D_RELEGATE:]
-    c_remain = C[bc_n:-C_TO_D_RELEGATE]
+    c_relegate_to_d = C[len(C) - cd_n:]
+    c_remain = C[bc_n:len(C) - cd_n]
+    d_promote_to_c = D[:dc_n]
+    d_remain = D[dc_n:]
 
-    d_promote_to_c = D[:D_TO_C_PROMOTE]
-    d_remain = D[D_TO_C_PROMOTE:]
+    # --- 年齢引退の免除。
+    #     protected_ids（タイトル保持者・朱雀紅白リーグ在籍者・挑戦者）は年齢引退と
+    #     D降級点引退の両方を免除する。以下は年齢引退のみ免除する（降級点は通常どおり）：
+    #     ・Aリーグ所属者（ただし今季Aから降格する個体は除く）
+    #     ・今季BからAへ昇格する個体（来季A所属になるため）
+    #     ・この季の白虎トーナメント出場者・玄武ブロック優勝者（demotion_relief_ids。
+    #       降級点の-1救済とあわせて、年齢引退もさせない） ---
+    age_exempt_ids = set(protected_ids)
+    age_exempt_ids.update(ind.id for ind in a_remain)
+    age_exempt_ids.update(ind.id for ind in b_promote_to_a)
+    age_exempt_ids.update(demotion_relief_ids or set())
+
+    age_retired = []
+    aged_out_ids = set()
+    for ind in A + B + C + D:
+        if ind.age >= RETIREMENT_AGE and ind.id not in age_exempt_ids:
+            ind.retired = True
+            ind.retirement_reason = f"{RETIREMENT_AGE}歳の年齢規定により引退"
+            # 引退する個体も今季は実際に対局しているので、在籍シーズン数に数える
+            ind.total_seasons += 1
+            age_retired.append(ind)
+            aged_out_ids.add(ind.id)
+
+    def _drop_aged(members):
+        return [ind for ind in members if ind.id not in aged_out_ids]
+
+    a_relegate, a_remain = _drop_aged(a_relegate), _drop_aged(a_remain)
+    b_promote_to_a, b_relegate_to_c, b_remain = _drop_aged(b_promote_to_a), _drop_aged(b_relegate_to_c), _drop_aged(b_remain)
+    c_promote_to_b, c_relegate_to_d, c_remain = _drop_aged(c_promote_to_b), _drop_aged(c_relegate_to_d), _drop_aged(c_remain)
+    d_promote_to_c, d_remain = _drop_aged(d_promote_to_c), _drop_aged(d_remain)
 
     # 降級点の増減（結果タブへの「+点1」「-点1」「消」表示用）。
     # individual_id => "gained"（青龍戦リーグで負け越し、+1）/ "relief"（玄武ブロック優勝等で-1）/
@@ -328,7 +327,7 @@ def recruit_d_league(rosters, season, name_registry=None, pending_characters=Non
     始まる前に行う。まずキャラクリエイト・新人リーグ経由のリクエスト
     （pending_characters）を優先的に参入させ、残り枠のみ通常の新弟子生成で埋める。
     キャラクリエイト個体も通常の新弟子と同様、必ず既存個体の中から師匠が自動選出される
-    （本人が選ぶわけではない。新規開祖にはならないが、分岐で新しい一門の開祖になることはある）。
+    （本人が選ぶわけではない。新規開祖にはならない。一門は師匠の一門に入る）。
     pending_charactersの人数が固定枠数を上回っても（新人リーグの募集人数のズレなど）、
     全員そのまま参入させる（既存メンバーを強制引退させて枠を確保することはしない）。
 
@@ -358,7 +357,7 @@ def recruit_d_league(rosters, season, name_registry=None, pending_characters=Non
     if pending_characters:
         creation_pool = [ind for ind in (A + B + C + D) if not ind.retired]
         eligible_creation_masters = [ind for ind in creation_pool if ind.age >= MASTER_MIN_AGE] or creation_pool
-        disciple_counts = count_existing_disciples(creation_pool)
+        creation_pool_by_id = {ind.id: ind for ind in creation_pool}
         master_pick_counts = {}
         created_characters = []
         for i, req in enumerate(pending_characters):
@@ -372,9 +371,13 @@ def recruit_d_league(rosters, season, name_registry=None, pending_characters=Non
                     eligible_creation_masters, titleholder_ids, allow_new_founder=False,
                     pick_counts=master_pick_counts,
                 )
-            created_characters.append(
-                _build_character_creation_individual(req, season, i, master=master, disciple_counts=disciple_counts)
-            )
+            ind = _build_character_creation_individual(req, season, i, master=master)
+            # 新人リーグで師匠が決まってから実際に参入するまでの間に、師匠が一門ごと独立して
+            # いることがあるため、一門は参入時点の師匠の一門に合わせる
+            current_master = creation_pool_by_id.get(ind.parent_a_id)
+            if current_master is not None:
+                ind.clan_root_id = current_master.clan_root_id
+            created_characters.append(ind)
         D.extend(created_characters)
 
     new_disciples = []
@@ -395,35 +398,66 @@ def recruit_d_league(rosters, season, name_registry=None, pending_characters=Non
 MASTER_MIN_AGE = 30  # 師匠になれる最低年齢（師匠より年下の弟子が生まれないようにするため）
 AWAKENED_INITIAL_AGE_RANGE = (14, 16)  # 覚醒個体の参入年齢（通常は18〜24歳）
 
-# 一門イベントの確率・基準（新弟子1人あたり）。
-# 新規開祖は0.03→0.08に引き上げ（強い一門の弟子ばかりが生き残る展開を防ぎ、
-# 新規参入の血統がもっと混ざるようにするため）
-CLAN_NEW_FOUNDER_CHANCE = 0.08  # 師匠を持たず、完全ランダムな能力の新規開祖として参入する
-# 一門の分岐は確率ではなく、師匠の弟子人数で決める：弟子がこの人数を超えたら
-# （6人目以降）、本人が新しい一門の開祖として分岐する
+# 一門イベントの確率（新弟子1人あたり）。新人は必ず誰かの弟子として参入するため、
+# 現在は師匠候補が誰もいない極端なケースでのみ師匠なしになる
+CLAN_NEW_FOUNDER_CHANCE = 0.08
+# 一門の独立：現役の弟子がこの人数を超えた（6人目以降）師匠は、弟子を引き連れて
+# 元の一門から独立し、自分を開祖とする新しい一門を興す
 CLAN_BRANCH_DISCIPLE_THRESHOLD = 5
 
 
-def count_existing_disciples(pool):
-    """poolに含まれる個体について、師匠ID（parent_a_id）ごとの現在の弟子数を数える。
-    一門分岐判定（_resolve_clan_root）の初期値として使う"""
-    counts = {}
-    for ind in pool:
+def apply_clan_independence(active_members, retired_records, season):
+    """現役の弟子がCLAN_BRANCH_DISCIPLE_THRESHOLD人を超えた師匠を、弟子（とその子孫）を
+    引き連れて元の一門から独立させる。師匠本人と、同じ一門に属している子孫
+    （現役・引退済みとも）のclan_root_idを師匠本人のIDに付け替える。
+    retired_recordsは引退者アーカイブ（dictのリスト）で、引退済みの子孫も付け替える。
+    戻り値: 独立イベントのリスト（{"id","name","from_clan_id","season"}）"""
+    disciple_counts = {}
+    for ind in active_members:
         if ind.parent_a_id:
-            counts[ind.parent_a_id] = counts.get(ind.parent_a_id, 0) + 1
-    return counts
+            disciple_counts[ind.parent_a_id] = disciple_counts.get(ind.parent_a_id, 0) + 1
 
+    children = {}
+    for ind in active_members:
+        if ind.parent_a_id:
+            children.setdefault(ind.parent_a_id, []).append(ind)
+    for rec in retired_records:
+        if rec.get("parent_a_id"):
+            children.setdefault(rec["parent_a_id"], []).append(rec)
 
-def _resolve_clan_root(master, ind_id, disciple_counts):
-    """新弟子の一門を決める：disciple_counts（{師匠ID: 弟子人数}、呼び出し元が
-    バッチ生成全体で使い回す可変dict）を見て、師匠の弟子が既にCLAN_BRANCH_DISCIPLE_THRESHOLD
-    人を超えていれば、本人を新しい一門の開祖にする（新弟子をdisciple_countsに加算するのも
-    この関数の責務。同じバッチ内で同じ師匠に複数の新弟子が割り当たる場合も正しく積算される）"""
-    count = disciple_counts.get(master.id, 0)
-    disciple_counts[master.id] = count + 1
-    if count >= CLAN_BRANCH_DISCIPLE_THRESHOLD:
-        return ind_id
-    return master.clan_root_id
+    def _root(x):
+        return x["clan_root_id"] if isinstance(x, dict) else x.clan_root_id
+
+    def _set_root(x, root):
+        if isinstance(x, dict):
+            x["clan_root_id"] = root
+        else:
+            x.clan_root_id = root
+
+    def _id(x):
+        return x["id"] if isinstance(x, dict) else x.id
+
+    events = []
+    # 世代の浅い師匠から処理する（師匠とその弟子が同時に条件を満たした場合も、
+    # 先に師匠が独立してから弟子が独立する順になり、付け替えが正しく入れ子になる）
+    for master in sorted(active_members, key=lambda ind: ind.generation):
+        if disciple_counts.get(master.id, 0) <= CLAN_BRANCH_DISCIPLE_THRESHOLD:
+            continue
+        old_root = master.clan_root_id
+        if old_root == master.id:
+            continue
+        stack = [master.id]
+        while stack:
+            pid = stack.pop()
+            for child in children.get(pid, []):
+                if _root(child) == old_root:
+                    _set_root(child, master.id)
+                    stack.append(_id(child))
+        master.clan_root_id = master.id
+        master.independent_from_clan_id = old_root
+        master.independent_season = season
+        events.append({"id": master.id, "name": master.display_name, "from_clan_id": old_root, "season": season})
+    return events
 
 
 def _master_weight(ind, titleholder_ids, times_picked=0):
@@ -502,7 +536,7 @@ def _character_creation_params_from_custom(custom_params):
     return {k: round(v, 3) for k, v in values.items()}
 
 
-def _build_character_creation_individual(request, season, index, master=None, disciple_counts=None):
+def _build_character_creation_individual(request, season, index, master=None):
     """キャラクリエイトのリクエスト（{"name":, "type":, "params":, "awakened_param":}）から
     1体生成する。paramsが指定されていればそれを優先し、無ければtypeに応じたランダム
     生成にフォールバックする。
@@ -516,11 +550,11 @@ def _build_character_creation_individual(request, season, index, master=None, di
     なお新人リーグを経由しないpending_characters.json経由の直接登録など、師弟関係が
     まだ決まっていないリクエストに対しては、ここで初めてmasterから決定する）。
 
-    masterが指定された場合、通常の新弟子生成と同様にその個体の弟子として参入する
-    （parent_a_id）。paramsは師匠から継承せず、あくまで本人の指定/抽選値を使う
-    （キャラクリエイトの趣旨は本人の狙った性能で参戦することのため）。一門分岐は
-    disciple_countsを渡せば_resolve_clan_root()（弟子人数ベース）で判定し、
-    渡さない場合は分岐しない（常にmaster.clan_root_idに参加する）"""
+    masterが指定された場合、その個体の弟子として参入し、師匠の一門に入る。
+    自動生成の新人（request["auto_generated"]）は通常の新弟子と同じく師匠の能力を
+    継承（mutate_params）し、覚醒率も通常の新弟子と同じにする。
+    キャラクリエイト投稿は師匠から継承せず、本人の指定/抽選値を使う
+    （キャラクリエイトの趣旨は本人の狙った性能で参戦することのため）。"""
     ind_id = f"CC{season}-{index:03d}"
 
     if "parent_a_id" in request:
@@ -531,6 +565,12 @@ def _build_character_creation_individual(request, season, index, master=None, di
         generation = request.get("generation", 0)
         volatility = request.get("volatility")
         awakened_key = request.get("awakened_param")
+    elif master is not None and request.get("auto_generated"):
+        params, generation = mutate_params(master)
+        params, awakened_key = maybe_awaken(params, individual_id=ind_id)
+        master_id = master.id
+        clan_root_id = master.clan_root_id
+        volatility = round(max(0.1, min(3.0, master.volatility + random.uniform(-0.2, 0.2))), 2)
     else:
         custom_params = request.get("params")
         params = (_character_creation_params_from_custom(custom_params) if isinstance(custom_params, dict) else None) \
@@ -538,11 +578,7 @@ def _build_character_creation_individual(request, season, index, master=None, di
         params, awakened_key = maybe_awaken(params, individual_id=ind_id, chance=CHARACTER_CREATION_AWAKENING_CHANCE)
 
         master_id = master.id if master is not None else None
-        if master is not None:
-            clan_root_id = _resolve_clan_root(master, ind_id, disciple_counts) if disciple_counts is not None \
-                else master.clan_root_id
-        else:
-            clan_root_id = ind_id
+        clan_root_id = master.clan_root_id if master is not None else ind_id
         generation = master.generation + 1 if master is not None else 0
         volatility = round(max(0.1, min(3.0, random.uniform(0.3, 2.0))), 2)
 
@@ -580,21 +616,21 @@ def generate_disciples(count, season, pool, name_registry, titleholder_ids=froze
     active_pool_all = [ind for ind in pool if not ind.retired]
     # 師匠になれるのは一定年齢以上の個体のみ（該当者が誰もいない序盤などは制限なしにフォールバック）
     eligible_masters = [ind for ind in active_pool_all if ind.age >= MASTER_MIN_AGE] or active_pool_all
-    disciple_counts = count_existing_disciples(active_pool_all)
     master_pick_counts = {}
 
     for i in range(count):
         ind_id = f"D{season}-{i:03d}"
         display_name, gender = name_registry.generate()
 
+        # 新人は必ず誰かの弟子として参入する（師匠候補が誰もいない場合のみ師匠なし）
         master = _pick_master(
-            eligible_masters, titleholder_ids, allow_new_founder=True, pick_counts=master_pick_counts,
+            eligible_masters, titleholder_ids, allow_new_founder=False, pick_counts=master_pick_counts,
         )
 
         if master:
             params, gen = mutate_params(master)
             master_id = master.id
-            clan_root_id = _resolve_clan_root(master, ind_id, disciple_counts)
+            clan_root_id = master.clan_root_id
         else:
             # 新規開祖は、既存の一門（世代を重ねて強化されてきた血統）に対抗できるよう、
             # 旧レンジ（0.5〜5.0、平均2.75）よりやや強めのベースラインで生成する

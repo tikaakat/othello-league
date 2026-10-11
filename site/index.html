@@ -903,7 +903,7 @@ function renderLineage(ancestors, children) {
     childrenHtml = '<div style="padding:4px 0; color:var(--text-dim);">弟子：まだいません</div>';
   } else {
     const items = children.map(c =>
-      `<span class="lineage-link" data-id="${escapeHtml(c.id)}" style="display:inline-block; color:var(--text-main); cursor:pointer; margin:2px 10px 2px 0;">${escapeHtml(c.display_name || c.id)}${c.retired ? '<span style="color:var(--text-dim); font-size:0.68rem;">（引退）</span>' : ''}<span style="color:var(--text-dim); font-size:0.72rem; margin-left:4px;">最高Elo ${Math.round(c.peak_elo)}</span></span>`
+      `<span class="lineage-link" data-id="${escapeHtml(c.id)}" style="display:inline-block; color:var(--text-main); cursor:pointer; margin:2px 10px 2px 0;">${escapeHtml(c.display_name || c.id)}${c.independent ? '<span style="color:var(--amber); font-size:0.68rem;">（独立・一門を興す）</span>' : ''}${c.retired ? '<span style="color:var(--text-dim); font-size:0.68rem;">（引退）</span>' : ''}<span style="color:var(--text-dim); font-size:0.72rem; margin-left:4px;">最高Elo ${Math.round(c.peak_elo)}</span></span>`
     ).join('');
     childrenHtml = `<div style="padding:4px 0;">弟子（${children.length}名）：<div style="margin-top:4px;">${items}</div></div>`;
   }
@@ -1640,6 +1640,22 @@ async function loadOneBracket(season, title, containerId = 'bracket-view') {
         }
 
         html += combinedStandingsTable(redStandings, whiteStandings);
+
+        // 同率決定戦は順位表の成績に含めず、文言で示す
+        const playoffLines = [];
+        [['紅組', data.red_playoff || []], ['白組', data.white_playoff || []]].forEach(([label, rows]) => {
+          rows.forEach(m => {
+            const a = escapeHtml(m.individual_a_name || m.individual_a_id);
+            const b = escapeHtml(m.individual_b_name || m.individual_b_id);
+            const winner = m.result === 'win' ? a : (m.result === 'loss' ? b : null);
+            playoffLines.push(`${label}同率決定戦：${a} vs ${b}${winner ? ` → ${winner}の勝ち` : '（引き分け）'}`);
+          });
+        });
+        if (playoffLines.length > 0) {
+          html += `<div style="font-size:0.7rem; color:var(--text-dim); margin:-4px 0 10px; line-height:1.6;">
+            ${playoffLines.map(l => `<div>※${l}（順位決定のための対局。上の成績には含まない）</div>`).join('')}
+          </div>`;
+        }
 
         if (decisionM.length > 0) {
           html += `<div style="padding:10px 0; border-top:1px solid rgba(24,34,56,0.6);">

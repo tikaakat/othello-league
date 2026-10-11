@@ -23,7 +23,6 @@ import re
 
 from othello_league.league import (
     _build_character_creation_individual, _pick_master, MASTER_MIN_AGE,
-    count_existing_disciples,
 )
 from othello_league.random_league import run_random_league
 from othello_league.play import play_decisive_match
@@ -57,9 +56,8 @@ def _build_entry_pool(submissions, retry_pool, target, registry):
     filled = []
     for s in submissions:
         filled.append({**s, "source": "submission"})
+    # 持ち越し候補（前回の非昇格者上位5名）は、投稿数に関わらず必ず出場させる
     for c in retry_pool:
-        if len(filled) >= target:
-            break
         filled.append({**c, "source": "retry", "initial_age": c.get("age")})
     while len(filled) < target:
         name, gender = registry.generate()
@@ -194,11 +192,10 @@ def run_newcomer_league(submissions, slots_needed, registry, retry_pool=None,
     entries = _build_entry_pool(submissions, retry_pool or [], target_pool, registry)
 
     # 師匠候補（30歳以上の現役個体。該当者がいなければ制限なしにフォールバック）。
-    # 一門分岐の判定（弟子5名超で分岐）に使うdisciple_countsは、このバッチ全体で
-    # 使い回し、割り当てるたびに加算する（count_existing_disciplesで現在の人数から開始）
+    # 一門の独立判定は実際にDリーグへ参入した弟子だけで数える（本戦側のapply_clan_independence）
+    # ため、ここ（昇格しない候補も含む新人リーグ）では弟子数を数えない
     active_pool = [ind for ind in (pool or []) if not ind.retired]
     eligible_masters = [ind for ind in active_pool if ind.age >= MASTER_MIN_AGE] or active_pool
-    disciple_counts = count_existing_disciples(active_pool)
     # 師匠選出の重みは、このバッチ（最大30名程度）の中で既に選ばれた回数に応じて
     # 選ばれるたびに下げる（master_pick_counts）。そうしないとElo上位やタイトル
     # 保持者に抽選が偏り、1回のバッチ内で同じ師匠が何度も重複してしまうため
@@ -219,7 +216,7 @@ def run_newcomer_league(submissions, slots_needed, registry, retry_pool=None,
             ) if eligible_masters else None
 
         ind = _build_character_creation_individual(
-            entry, season="NL", index=i, master=master, disciple_counts=disciple_counts,
+            entry, season="NL", index=i, master=master,
         )
         ind.league = "新人"
         candidates.append(ind)

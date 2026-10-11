@@ -994,10 +994,10 @@ switch ($action) {
         // individualsテーブルはretired=1の行も削除されずretired_archiveに二重登録されるため、
         // individuals側はretired=0に絞らないと同じ個体が2回表示されてしまう
         $childrenStmt = $pdo->prepare(
-            "SELECT id, display_name, league, elo_rating, peak_elo, 0 AS retired FROM individuals
+            "SELECT id, display_name, league, elo_rating, peak_elo, clan_root_id, 0 AS retired FROM individuals
              WHERE parent_a_id = :id AND retired = 0
              UNION ALL
-             SELECT id, display_name, league, elo_rating, peak_elo, 1 AS retired FROM retired_archive
+             SELECT id, display_name, league, elo_rating, peak_elo, clan_root_id, 1 AS retired FROM retired_archive
              WHERE parent_a_id = :id2
              ORDER BY retired ASC, id ASC"
         );
@@ -1006,6 +1006,8 @@ switch ($action) {
         foreach ($children as &$ch) {
             $ch['elo_rating'] = round((float)$ch['elo_rating'], 1);
             $ch['peak_elo'] = round((float)($ch['peak_elo'] ?? $ch['elo_rating']), 1);
+            // 弟子を引き連れて独立した（自分自身が一門の開祖になった）弟子には、元の師匠のページで「独立」と表示する
+            $ch['independent'] = ($ch['clan_root_id'] === $ch['id']) ? 1 : 0;
         }
         unset($ch);
 
@@ -1872,6 +1874,9 @@ switch ($action) {
             json_out([
                 'format' => 'suzaku_v2',
                 'red_standings' => $redStandings, 'white_standings' => $whiteStandings,
+                // 紅白各組の同率決定戦（1位タイ・残留/陥落の境目の同率）。順位表の成績には含めず、
+                // 表の下に文言で示す（個体の通算対戦成績には対局として含まれる）
+                'red_playoff' => $fetchGroup('朱雀紅組-playoff'), 'white_playoff' => $fetchGroup('朱雀白組-playoff'),
                 'decision_matches' => $decisionMatches,
                 'decision_red_name' => $decisionRedName, 'decision_white_name' => $decisionWhiteName,
                 'decision_red_wins' => $decisionRedWins, 'decision_white_wins' => $decisionWhiteWins,
