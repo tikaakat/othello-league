@@ -288,10 +288,15 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
     b_remain_ids = {ind.id for ind in b_remain}
     c_remain_ids = {ind.id for ind in c_remain}
     d_keep_ids = {ind.id for ind in d_keep}
+    # 今季C→Dへ降格した個体（通常降格・定員超過による追加降格の両方）は、
+    # C,D backfillのexclude_idsからも除外する。除外しないと、Cが（age_retired等で）
+    # 定員割れした際にこのバックフィルで同じ季のうちにCへ舞い戻ってしまい、
+    # 降格がその場で取り消されたのと同じ結果になってしまう
+    c_relegate_to_d_ids = {ind.id for ind in c_relegate_to_d} | {ind.id for ind in c_relegate_overflow}
 
     A, B = _backfill(A, B, LEAGUE_CAPACITY["A"], remain_ids=b_remain_ids, exclude_ids=c_promote_to_b_ids)
     B, C = _backfill(B, C, LEAGUE_CAPACITY["B"], remain_ids=c_remain_ids, exclude_ids=d_promote_to_c_ids)
-    C, D = _backfill(C, D, LEAGUE_CAPACITY["C"], remain_ids=d_keep_ids)
+    C, D = _backfill(C, D, LEAGUE_CAPACITY["C"], remain_ids=d_keep_ids, exclude_ids=c_relegate_to_d_ids)
 
     # リーグ所属情報・在籍年数の更新
     all_retired = age_retired + d_up_or_out_retired
@@ -538,7 +543,7 @@ def _build_character_creation_individual(request, season, index, master=None, di
                 else master.clan_root_id
         else:
             clan_root_id = ind_id
-        generation = 0
+        generation = master.generation + 1 if master is not None else 0
         volatility = round(max(0.1, min(3.0, random.uniform(0.3, 2.0))), 2)
 
     # initial_ageが明示されていれば最優先で使う（新人リーグで持ち越し中の候補が、

@@ -227,10 +227,18 @@ def run_newcomer_league(submissions, slots_needed, registry, retry_pool=None,
         # こうしないと、本戦で実際にDリーグへ参入する際（勝者）や次回の持ち越し時
         # （非昇格者の上位5名）に別の乱数で再抽選されてしまい、新人リーグで戦った個体と
         # 食い違ってしまう
+        # clan_root_idがここで決めた仮ID（ind.id＝"CCNL-xxx"）そのものを指している場合、
+        # それは「このバッチの中で一門分岐して新しい開祖になった」ことを示す自己参照であり、
+        # 本戦でのDリーグ参入時に実IDへ入れ替わっても仮IDのまま残ってしまう
+        # （実IDが存在しないCCNL-xxxを指す、永続的に無効な一門ルート参照になる）。
+        # Noneにしておけば、_build_character_creation_individualが実ID参入時に
+        # 自分自身の実IDを新しい一門ルートとして採用し直す（既存一門から継承した
+        # 正規のclan_root_idの場合はそのまま保持される）
+        resolved_clan_root_id = ind.clan_root_id if ind.clan_root_id != ind.id else None
         entries_by_id[ind.id] = {
             **entry, "params": dict(ind.params), "awakened_param": ind.awakened_param,
             "initial_age": ind.initial_age, "parent_a_id": ind.parent_a_id,
-            "clan_root_id": ind.clan_root_id, "generation": ind.generation,
+            "clan_root_id": resolved_clan_root_id, "generation": ind.generation,
             "volatility": ind.volatility,
         }
 
