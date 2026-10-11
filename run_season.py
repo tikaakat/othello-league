@@ -144,7 +144,10 @@ def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_b
     competing_A = [ind for ind in a_roster if champion_ind is None or ind.id != champion_ind.id]
 
     print("  --- Aリーグ（総当たり） ---" + ("　※青龍在位者は防衛専念枠のため対局免除" if champion_ind else ""))
-    ranked_competing_A, log_A, _, record_A = run_round_robin(competing_A, depth=depth)
+    # 同点（1位タイ含む）は前季順位の高い方を上位とする（B〜Dと同じ扱い。順位決定戦は行わない）
+    ranked_competing_A, log_A, _, record_A = run_round_robin(
+        competing_A, depth=depth, seed_order=_build_seed_order(rosters["A"], "A", prev_standings_by_id),
+    )
     match_log += log_A
 
     # 公式Aリーグ順位：青龍在位者がいれば1位に据え、以降は総当たり結果を続ける
