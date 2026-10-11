@@ -1854,6 +1854,10 @@ async function loadMatches(q) {
     const url = `${API_BASE}?action=recent_matches&limit=50${q ? '&q=' + encodeURIComponent(q) : ''}`;
     const res = await fetch(url);
     const data = await res.json();
+    // 検索中に次の文字が入力され、より新しいloadMatches呼び出しが走っていた場合、
+    // 後から戻ってきたこの古いレスポンスで上書きしない（タイピング中の表示が
+    // 巻き戻って見える・入力できないように見える不具合の一因だった）
+    if (_matchesSearchQuery !== q) return;
     const matches = data.matches || [];
     if (matches.length === 0) {
       el.innerHTML = searchBoxHtml + `<div class="empty">${q ? '該当する対局が見つかりません' : 'まだ対局記録がありません'}</div>`;
@@ -1868,6 +1872,7 @@ async function loadMatches(q) {
     bindMatchesSearch();
     el.querySelectorAll('.kifu-row').forEach(row => row.addEventListener('click', () => navigateTo('game/' + row.dataset.matchId)));
   } catch (e) {
+    if (_matchesSearchQuery !== q) return;
     el.innerHTML = searchBoxHtml + `<div class="empty">読み込み失敗: ${escapeHtml(String(e))}</div>`;
     bindMatchesSearch();
   }
@@ -1877,9 +1882,20 @@ function bindMatchesSearch() {
   const searchEl = document.getElementById('matches-search');
   if (!searchEl) return;
   let debTimer = null;
-  searchEl.addEventListener('input', () => {
+  let composing = false;
+  const scheduleSearch = () => {
     clearTimeout(debTimer);
     debTimer = setTimeout(() => loadMatches(searchEl.value.trim()), 300);
+  };
+  // 対局者名は日本語のため、IME（かな漢字変換）での入力中にinputイベントで
+  // 入力欄のDOMを再構築してしまうと、変換が確定する前に中断されてしまい
+  // 「文字が打ち込めない」ように見える。変換中は検索を走らせず、
+  // 変換確定（compositionend）後にまとめて検索する
+  searchEl.addEventListener('compositionstart', () => { composing = true; });
+  searchEl.addEventListener('compositionend', () => { composing = false; scheduleSearch(); });
+  searchEl.addEventListener('input', (e) => {
+    if (composing || e.isComposing) return;
+    scheduleSearch();
   });
   // 再描画後もカーソル位置ごと入力状態を保つ（末尾にフォーカスを戻す）
   searchEl.focus();
