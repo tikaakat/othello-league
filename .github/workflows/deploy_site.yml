@@ -64,6 +64,7 @@ on:
           - "cleanup_stale_retired_individuals_rows_20261009"
           - "add_newcomer_master_columns"
           - "add_gender_column"
+          - "reset_fan_site_data_20261011"
         default: ""
       create_dir:
         description: "デプロイの代わりに、lab.spia-net.com直下（othello-league/の1つ上）に相対パスでディレクトリを作成する（例: othello-news）。「..」や先頭「/」は不可"
@@ -299,6 +300,21 @@ jobs:
                 SQL_LIST=(
                   'ALTER TABLE individuals ADD COLUMN gender VARCHAR(10) NULL;'
                   'ALTER TABLE retired_archive ADD COLUMN gender VARCHAR(10) NULL;'
+                )
+                ;;
+              reset_fan_site_data_20261011)
+                # 季のリセット（evolve.yml reset=true）に合わせて、ファンサイト側の
+                # 季に紐づく蓄積データも一括クリアする一回限りの操作。evolve.yml reset=true
+                # 自体は個体・対局等の本戦データ（reset_database.php）とdata/news/articles.json
+                # のみを対象にしており、cheer_log・article_likes・sponsors・permanent_sponsors・
+                # supporters・inquiriesは触れないため、ここで明示的に空にする
+                SQL_LIST=(
+                  'DELETE FROM cheer_log;'
+                  'DELETE FROM article_likes;'
+                  'DELETE FROM sponsors;'
+                  'DELETE FROM permanent_sponsors;'
+                  'DELETE FROM supporters;'
+                  'DELETE FROM inquiries;'
                 )
                 ;;
               *)
