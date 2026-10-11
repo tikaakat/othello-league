@@ -925,7 +925,7 @@ def main():
             state["retired_archive"] += [ind.to_dict() for ind in recruit_retired]
             print(f"[DEBUG] Dリーグ補充時の定員超過調整で{len(recruit_retired)}名引退しました", flush=True)
 
-        # 新弟子の参入で現役の弟子が規定人数を超えた師匠は、弟子を引き連れて一門から独立する
+        # 新弟子の参入で弟子（引退した弟子も含む通算）が規定人数を超えた師匠は、弟子を引き連れて一門から独立する
         independence_events = apply_clan_independence(
             [ind for league in ("A", "B", "C", "D") for ind in rosters[league]],
             state.setdefault("retired_archive", []), season,

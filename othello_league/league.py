@@ -401,21 +401,25 @@ AWAKENED_INITIAL_AGE_RANGE = (14, 16)  # 覚醒個体の参入年齢（通常は
 # 一門イベントの確率（新弟子1人あたり）。新人は必ず誰かの弟子として参入するため、
 # 現在は師匠候補が誰もいない極端なケースでのみ師匠なしになる
 CLAN_NEW_FOUNDER_CHANCE = 0.08
-# 一門の独立：現役の弟子がこの人数を超えた（6人目以降）師匠は、弟子を引き連れて
+# 一門の独立：弟子（引退した弟子も含む通算）がこの人数を超えた（6人目以降）師匠は、弟子を引き連れて
 # 元の一門から独立し、自分を開祖とする新しい一門を興す
 CLAN_BRANCH_DISCIPLE_THRESHOLD = 5
 
 
 def apply_clan_independence(active_members, retired_records, season):
-    """現役の弟子がCLAN_BRANCH_DISCIPLE_THRESHOLD人を超えた師匠を、弟子（とその子孫）を
+    """弟子（引退した弟子も含む通算）がCLAN_BRANCH_DISCIPLE_THRESHOLD人を超えた現役の師匠を、弟子（とその子孫）を
     引き連れて元の一門から独立させる。師匠本人と、同じ一門に属している子孫
     （現役・引退済みとも）のclan_root_idを師匠本人のIDに付け替える。
     retired_recordsは引退者アーカイブ（dictのリスト）で、引退済みの子孫も付け替える。
     戻り値: 独立イベントのリスト（{"id","name","from_clan_id","season"}）"""
+    # 弟子の人数は引退した弟子も含めた通算で数える
     disciple_counts = {}
     for ind in active_members:
         if ind.parent_a_id:
             disciple_counts[ind.parent_a_id] = disciple_counts.get(ind.parent_a_id, 0) + 1
+    for rec in retired_records:
+        if rec.get("parent_a_id"):
+            disciple_counts[rec["parent_a_id"]] = disciple_counts.get(rec["parent_a_id"], 0) + 1
 
     children = {}
     for ind in active_members:
