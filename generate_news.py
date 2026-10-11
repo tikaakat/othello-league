@@ -84,8 +84,10 @@ def _pick_mvp(title_results, main_league_rows):
         entry["score"] += TITLE_PRESTIGE.get(tr["title"], 0)
         # タイトル戦の対局成績（例："3-1"）も合わせて持たせる。青龍在位者のように
         # リーグ戦が防衛専念枠で免除され、リーグ成績が0勝0敗になる個体がいるため、
-        # 記事側で「0勝0敗なのに受賞」という誤解を招く表記を避けるのに使う
-        entry["titles"].append((tr["title"], tr["result"], f"{tr['challenger_wins']}-{tr['holder_wins']}"))
+        # 記事側で「0勝0敗なのに受賞」という誤解を招く表記を避けるのに使う。
+        # 初代襲名は番勝負自体が無いため、対局成績の文字列は持たせない
+        match_score = None if tr["result"] == "初代襲名" else f"{tr['challenger_wins']}-{tr['holder_wins']}"
+        entry["titles"].append((tr["title"], tr["result"], match_score))
 
     if achievers:
         best_id = max(achievers, key=lambda iid: (achievers[iid]["score"], win_by_id.get(iid, 0), iid))
@@ -204,7 +206,9 @@ def _pick_rookie_of_year(data_dir, season, rosters, main_league_rows, title_resu
         cid = tr.get("challenger_id")
         if cid not in eligible_ids:
             continue
-        score = (ROOKIE_TITLE_CAPTURE_SCORE if tr["result"] == "奪取" else ROOKIE_TITLE_CHALLENGE_SCORE) \
+        # 初代襲名（在位者不在のため無条件で襲名）も、タイトルを獲得した点では
+        # 奪取と同等の実績なので同じスコアを与える
+        score = (ROOKIE_TITLE_CAPTURE_SCORE if tr["result"] in ("奪取", "初代襲名") else ROOKIE_TITLE_CHALLENGE_SCORE) \
             + TITLE_PRESTIGE.get(tr["title"], 0)
         if score > title_score_by_id.get(cid, 0):
             title_score_by_id[cid] = score
@@ -238,11 +242,32 @@ def gather_season_facts(data_dir, season):
 
     main_league_rows = [r for r in standings if r.get("league") in ("A", "B", "C", "D")]
 
+    # 「初代襲名」（まだ誰も保持したことのないタイトルへ、在位者不在のため無条件で
+    # 即位する）の検出用。この場合は番勝負自体が発生しないため、matchesには
+    # 該当タイトルの対局が1件も記録されない（下のループで通常のrowsが空になる）
+    state = load_json(os.path.join(data_dir, "season_state.json"), {})
+    inaugural_by_title = {
+        e["title"]: e for e in state.get("title_history", [])
+        if e.get("season") == season and e.get("event") == "初代襲名"
+    }
+
     title_results = []
     related = []  # [(id, name), ...]（勝者のみ、重複は後で除去）
     for t in TITLE_NAMES:
         rows = [m for m in matches if m.get("league") == t]
         if not rows:
+            inaugural = inaugural_by_title.get(t)
+            if inaugural is not None:
+                holder_id = inaugural.get("holder_id")
+                holder_name = inaugural.get("new_holder") or names.get(holder_id, holder_id)
+                title_results.append({
+                    "title": t, "challenger_id": holder_id, "holder_id": None,
+                    "winner_id": holder_id, "winner_name": holder_name,
+                    "challenger_name": holder_name, "holder_name": None,
+                    "challenger_wins": None, "holder_wins": None,
+                    "result": "初代襲名",
+                })
+                related.append((holder_id, holder_name))
             continue
         a_id, b_id = rows[0]["individual_a_id"], rows[0]["individual_b_id"]
         win_a = sum(1 for r in rows if r["result"] == "win")
@@ -312,10 +337,16 @@ def gather_season_facts(data_dir, season):
 def build_prompt(facts):
     lines = [f"第{facts['season']}季の結果データ（事実のみ。これ以外の出来事は起きていない）:", "", "■タイトル戦"]
     for tr in facts["title_results"]:
-        lines.append(
-            f"・{tr['title']}：挑戦者{tr['challenger_name']} {tr['challenger_wins']}-{tr['holder_wins']} "
-            f"保持者{tr['holder_name']} → {tr['result']}"
-        )
+        if tr["result"] == "初代襲名":
+            lines.append(
+                f"・{tr['title']}：まだ誰も保持したことのない新設タイトルのため在位者が不在。"
+                f"{tr['winner_name']}が無条件で初代保持者に襲名（挑戦者・在位者による番勝負は発生していない）"
+            )
+        else:
+            lines.append(
+                f"・{tr['title']}：挑戦者{tr['challenger_name']} {tr['challenger_wins']}-{tr['holder_wins']} "
+                f"保持者{tr['holder_name']} → {tr['result']}"
+            )
     mv = facts["movements"]
     lines.append("")
     lines.append("■リーグ戦")
@@ -339,7 +370,10 @@ def build_prompt(facts):
         lines.append("■今季の活躍")
         if mvp:
             if mvp["titles"]:
-                titles_text = "・".join(f"{t}{r}（対局成績{s}）" for t, r, s in mvp["titles"])
+                titles_text = "・".join(
+                    f"{t}{r}（在位者不在のため番勝負なしで襲名）" if s is None else f"{t}{r}（対局成績{s}）"
+                    for t, r, s in mvp["titles"]
+                )
                 # 青龍在位者のように防衛専念枠でリーグ戦（A〜D）を免除され、
                 # リーグ成績が0勝0敗になる個体については、「0勝0敗なのに受賞」という
                 # 誤解を招く書き方にならないよう、リーグ成績の記載自体を省く
@@ -353,7 +387,12 @@ def build_prompt(facts):
             else:
                 lines.append(f"・今季MVP（{mvp['league']}リーグで最多勝）：{mvp['name']}（{mvp['win']}勝{mvp['loss']}敗）")
         if rookie:
-            if rookie["title"]:
+            if rookie["title"] and rookie["title_result"] == "初代襲名":
+                lines.append(
+                    f"・新人王：{rookie['name']}（{rookie['league']}リーグ、{rookie['win']}勝{rookie['loss']}敗。"
+                    f"今季{rookie['title']}の初代保持者に襲名）"
+                )
+            elif rookie["title"]:
                 lines.append(
                     f"・新人王：{rookie['name']}（{rookie['league']}リーグ、{rookie['win']}勝{rookie['loss']}敗。"
                     f"今季{rookie['title']}に挑戦し{rookie['title_result']}）"
