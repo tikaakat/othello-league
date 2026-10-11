@@ -60,6 +60,24 @@ def _gender_label(gender):
     return {"male": "男性", "female": "女性"}.get(gender, "不明")
 
 
+# 各タイトルの挑戦者（初代の場合は襲名者）がどう決まるか。記事生成AIにこれを渡さないと、
+# 例えば「Aリーグ1位だから青龍を襲名した」のに「青龍襲名に加え、Aリーグでも好成績」のように
+# 同じ一つの実績を別々の功績として並べてしまう
+TITLE_QUALIFY_PATH = {
+    "青龍": "Aリーグ（青龍戦リーグ）の総当たり1位",
+    "朱雀": "朱雀紅白リーグの紅組1位・白組1位による挑戦者決定戦の勝者",
+    "白虎": "Elo上位16名による白虎トーナメントの優勝者",
+    "玄武": "全選手参加の玄武戦（予選ブロック・本戦リーグ）の1位",
+}
+TITLE_RULES_NOTE = (
+    "【タイトルの決まり方】"
+    + "".join(f"{t}は{p}が挑戦者になる。" for t, p in TITLE_QUALIFY_PATH.items())
+    + "在位者がいない新設タイトル（初代）は、この挑戦者決定の勝者が番勝負なしでそのまま襲名する。"
+    "挑戦権（または初代襲名）を得るまでの成績（例：青龍ならAリーグの成績）と、タイトルの獲得・挑戦は"
+    "ひと続きの同じ実績である。「〜に加え」「〜でも」のように別々の功績として並べたり、"
+    "「称号を受け取っただけでなく盤上でも実力を示した」のように切り離して書かないこと。"
+)
+
 GENDER_PROMPT_NOTE = (
     "各選手の性別はデータ中の「性別」欄の通りとし、不明な場合を除き、"
     "それに矛盾する表現（性別不明なのに「彼」「彼女」と決めつける等）をしないこと。"
@@ -371,12 +389,14 @@ def build_prompt(facts):
         if tr["result"] == "初代襲名":
             lines.append(
                 f"・{tr['title']}：まだ誰も保持したことのない新設タイトルのため在位者が不在。"
-                f"{tr['winner_name']}（性別：{_gender_label(tr['winner_gender'])}）が無条件で初代保持者に襲名"
+                f"{TITLE_QUALIFY_PATH[tr['title']]}となった{tr['winner_name']}"
+                f"（性別：{_gender_label(tr['winner_gender'])}）が、番勝負なしでそのまま初代保持者に襲名"
                 "（挑戦者・在位者による番勝負は発生していない）"
             )
         else:
             lines.append(
-                f"・{tr['title']}：挑戦者{tr['challenger_name']} {tr['challenger_wins']}-{tr['holder_wins']} "
+                f"・{tr['title']}：{TITLE_QUALIFY_PATH[tr['title']]}として挑戦した"
+                f"{tr['challenger_name']} {tr['challenger_wins']}-{tr['holder_wins']} "
                 f"保持者{tr['holder_name']} → {tr['result']}（{tr['result']}した側（{tr['winner_name']}）の性別：{_gender_label(tr['winner_gender'])}）"
             )
     mv = facts["movements"]
@@ -391,7 +411,9 @@ def build_prompt(facts):
             f"・B〜Dリーグ内の入れ替え：昇格{mv['promoted_other']}名、降格{mv['relegated_other']}名"
             "（個別の名前のデータはここでは渡していない）"
         )
-    if mv["new"]:
+    if facts["season"] == 1:
+        lines.append("・第1季のため全選手が初年度（新規参入として個別に紹介する必要はない）")
+    elif mv["new"]:
         lines.append(f"・新規参入：{'、'.join(mv['new'])}")
     if mv["retired"]:
         lines.append(f"・引退：{'、'.join(mv['retired'])}")
@@ -413,8 +435,11 @@ def build_prompt(facts):
                 if mvp["win"] == 0 and mvp["loss"] == 0:
                     lines.append(f"・今季MVP：{mvp['name']}（性別：{_gender_label(mvp['gender'])}。{titles_text}。{mvp['league']}リーグは防衛専念枠のため対局免除）")
                 else:
+                    via_a_league = mvp["league"] == "A" and any(t == "青龍" for t, _, _ in mvp["titles"])
+                    note = "。このAリーグ1位の成績によって青龍の挑戦権（または初代襲名）を得たもので、別の功績ではない" \
+                        if via_a_league else ""
                     lines.append(
-                        f"・今季MVP：{mvp['name']}（性別：{_gender_label(mvp['gender'])}。{titles_text}。{mvp['league']}リーグ{mvp['win']}勝{mvp['loss']}敗）"
+                        f"・今季MVP：{mvp['name']}（性別：{_gender_label(mvp['gender'])}。{titles_text}。{mvp['league']}リーグ{mvp['win']}勝{mvp['loss']}敗{note}）"
                     )
             else:
                 lines.append(f"・今季MVP（{mvp['league']}リーグで最多勝）：{mvp['name']}（性別：{_gender_label(mvp['gender'])}。{mvp['win']}勝{mvp['loss']}敗）")
@@ -425,9 +450,12 @@ def build_prompt(facts):
                     f"今季{rookie['title']}の初代保持者に襲名）"
                 )
             elif rookie["title"]:
+                # title_resultはタイトル側から見た結果（奪取/防衛）。新人王は挑戦者なので、
+                # 「防衛」は「挑戦して敗れた」の意味になる（そのまま渡すと逆の意味に読まれる）
+                outcome = "奪取" if rookie["title_result"] == "奪取" else "敗退（在位者が防衛）"
                 lines.append(
                     f"・新人王：{rookie['name']}（性別：{_gender_label(rookie['gender'])}。{rookie['league']}リーグ、{rookie['win']}勝{rookie['loss']}敗。"
-                    f"今季{rookie['title']}に挑戦し{rookie['title_result']}）"
+                    f"今季{rookie['title']}に挑戦者として出場し{outcome}）"
                 )
             else:
                 lines.append(f"・新人王：{rookie['name']}（性別：{_gender_label(rookie['gender'])}。{rookie['league']}リーグ、{rookie['win']}勝{rookie['loss']}敗）")
@@ -439,6 +467,7 @@ def build_prompt(facts):
         "今季MVP・新人王がいる場合は、本文の中でひと言触れること（見出しにする必要はない）。"
         "リーグ戦については、Aリーグに関わる昇格・降格だけ名前を挙げて触れればよい。"
         "B〜Dリーグ内の入れ替えは、件数だけ一言触れる程度で十分（個別の名前は渡していないので書けない）。"
+        f"{TITLE_RULES_NOTE}"
         f"{GENDER_PROMPT_NOTE}"
         "出力は次のJSON形式のみ（説明文やコードフェンスなど、他のテキストは一切含めない）：\n"
         '{"title": "見出し", "summary": "1〜2文の要約", "body": "本文（300〜500字程度）", '
@@ -515,6 +544,7 @@ def build_column_prompt(facts):
         f"以上の事実だけをもとに、{facts['name']}の{facts['streak']}連勝を主題にした、"
         "記者個人の所感・コラム記事を書いてください（ダイジェスト記事とは別の、短い読み物）。"
         "データに無い出来事・数字は書かないこと。"
+        f"{TITLE_RULES_NOTE}"
         f"{GENDER_PROMPT_NOTE}"
         "出力は次のJSON形式のみ（説明文やコードフェンスなど、他のテキストは一切含めない）：\n"
         '{"title": "見出し", "summary": "1〜2文の要約", "body": "本文（200〜350字程度）", '
@@ -585,6 +615,7 @@ def build_upset_prompt(facts):
         f"以上の事実だけをもとに、この一局（波乱の一局）を主題にした、"
         "記者個人の所感・コラム記事を書いてください（ダイジェスト記事とは別の、短い読み物）。"
         "データに無い出来事・数字は書かないこと。"
+        f"{TITLE_RULES_NOTE}"
         f"{GENDER_PROMPT_NOTE}"
         "出力は次のJSON形式のみ（説明文やコードフェンスなど、他のテキストは一切含めない）：\n"
         '{"title": "見出し", "summary": "1〜2文の要約", "body": "本文（200〜350字程度）", '
@@ -665,6 +696,7 @@ def build_milestone_prompt(facts):
         f"以上の事実だけをもとに、{facts['name']}の永世{facts['title']}達成を主題にした、"
         "特集記事（コラムより少し丁寧な読み物）を書いてください。"
         "データに無い出来事・数字は書かないこと。"
+        f"{TITLE_RULES_NOTE}"
         "出力は次のJSON形式のみ（説明文やコードフェンスなど、他のテキストは一切含めない）：\n"
         '{"title": "見出し", "summary": "1〜2文の要約", "body": "本文（250〜400字程度）", '
         '"tags": ["特集", "永世称号", "関係するタイトル名"]}'
@@ -716,7 +748,8 @@ def save_article(articles_path, articles, article):
 
 def try_generate_digest(args, season, articles_path, articles):
     article_id = f"s{season}-digest"
-    if any(a.get("id") == article_id for a in articles):
+    existing = next((a for a in articles if a.get("id") == article_id), None)
+    if existing is not None and not getattr(args, "regenerate_digest", False):
         print(f"[DEBUG] 第{season}季のダイジェストは既に生成済みです（{article_id}）。スキップします", flush=True)
         return
 
@@ -728,10 +761,16 @@ def try_generate_digest(args, season, articles_path, articles):
     print(f"[DEBUG] 第{season}季のダイジェストを生成します（model={args.model}）", flush=True)
     generated = generate_article(facts, model=args.model)
 
+    if existing is not None:
+        # 作り直し：同じidの記事を置き換える（いいね等はidに紐づくため引き継がれる。
+        # 掲載日時も元の記事のものを引き継ぎ、一覧での並び順を変えない）
+        print(f"[DEBUG] 第{season}季のダイジェストを作り直しました（{article_id}）", flush=True)
+        articles.remove(existing)
     save_article(articles_path, articles, {
         "id": article_id, "type": "result", "season": season, "author": AUTHOR_DIGEST,
         "title": generated["title"], "summary": generated["summary"], "body": generated["body"],
-        "published_at": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
+        "published_at": (existing or {}).get("published_at")
+        or datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
         "related_individual_ids": facts["related_individual_ids"],
         "related_individual_names": facts["related_individual_names"],
         "tags": generated.get("tags") or ["結果"],
@@ -920,6 +959,8 @@ def main():
     parser.add_argument("--news-dir", default="data/news")
     parser.add_argument("--model", default=DEFAULT_MODEL)
     parser.add_argument("--season", type=int, default=None, help="対象シーズン（省略時は最新）")
+    parser.add_argument("--regenerate-digest", action="store_true",
+                        help="対象季のダイジェスト記事が既にあっても作り直す（記事の誤りを修正する場合）")
     args = parser.parse_args()
 
     season = args.season or latest_season_with_standings(args.data_dir)
