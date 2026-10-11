@@ -527,9 +527,17 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
 
         red_relegate_n = min(2, len(red_ranked))
         white_relegate_n = min(2, len(white_ranked))
-        red_returning = red_ranked[:len(red_ranked) - red_relegate_n] + red_holder_parked
-        white_returning = white_ranked[:len(white_ranked) - white_relegate_n] + white_holder_parked
+        red_stay = red_ranked[:len(red_ranked) - red_relegate_n]
+        white_stay = white_ranked[:len(white_ranked) - white_relegate_n]
+        red_returning = red_stay + red_holder_parked
+        white_returning = white_stay + white_holder_parked
         returning = red_returning + white_returning
+        # 在位者（holder_parked）は紅白リーグの枠には残るが対局免除で実質的に
+        # 「抜けている」ため、補充人数（num_new_needed）は在位者を除いた実働人数
+        # （red_stay・white_stayのみ）を基準に10名を満たすよう計算する。
+        # returning（holder_parked込み）をそのまま10から引くと、在位者がいる季は
+        # 実働枠が9名のまま埋まらず、1人少ない状態が続いてしまう
+        active_returning_count = len(red_stay) + len(white_stay)
 
         # 紅白リーグの順位・残留/陥落は、この時点で決まった正しい判定をそのまま記録する。
         # サイト側で対局結果から独自に順位を再計算すると、同率タイの並び順がここでの
@@ -624,7 +632,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
         # 扱われる（既存の在位者と全く同じ仕組み）
         new_holder_id = titleholders["朱雀"]["id"]
 
-        num_new_needed = max(0, 10 - len(returning))
+        num_new_needed = max(0, 10 - active_returning_count)
         suzaku_exclude_ids = {m.id for m in red_others + white_others + red_holder_parked + white_holder_parked}
         if suzaku_holder_id:
             suzaku_exclude_ids.add(suzaku_holder_id)
