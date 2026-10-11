@@ -5,7 +5,7 @@ import random
 
 from othello_league.individual import LeagueIndividual
 from othello_league.league import (
-    relegate_and_retire, recruit_d_league, LEAGUE_CAPACITY, RETIREMENT_AGE, D_INITIAL_ROSTER_SIZE,
+    relegate_and_retire, recruit_d_league, apply_clan_independence, LEAGUE_CAPACITY, RETIREMENT_AGE, D_INITIAL_ROSTER_SIZE,
 )
 from othello_league.buffs import effective_params, roll_age_multipliers
 from othello_league.round_robin import run_round_robin
@@ -92,27 +92,29 @@ def bootstrap_rosters(registry):
     return rosters
 
 
+LEAGUE_TIERS = {"A": 0, "B": 1, "C": 2, "D": 3}
+SUZAKU_BOOTSTRAP_DEPTH = 1
+
+
 def _build_seed_order(members, league_name, prev_standings_by_id):
     """
-    ランダム対戦時の同点タイブレーク順（前季この個体がこのリーグに在籍していれば
-    前季順位を継承、新規の場合はID順）を決める。
+    同点タイブレーク順（前季順位）を決める。前季の全体順位どおり、
+    上のリーグから降格してきた個体 → 前季もこのリーグに残留していた個体 → 下のリーグから
+    昇格してきた個体 の順に並べ、それぞれの中は前季のリーグ内順位順とする。
+    前季の順位が無い個体（新人・第1季の全員）は最後にID順で並べる。
     """
-    stayed = []
+    ranked = []
     others = []
     for ind in members:
         prev = prev_standings_by_id.get(ind.id)
-        if prev is not None and prev["league"] == league_name:
-            stayed.append((ind.id, prev["rank"]))
+        if prev is not None and prev.get("league") in LEAGUE_TIERS:
+            ranked.append((LEAGUE_TIERS[prev["league"]], prev["rank"], ind.id))
         else:
             others.append(ind.id)
-
-    stayed_sorted = [iid for iid, _ in sorted(stayed, key=lambda t: t[1])]
-    others_sorted = sorted(others)
-
-    return stayed_sorted + others_sorted
+    return [iid for _, _, iid in sorted(ranked)] + sorted(others)
 
 
-def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_by_id=None):
+def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_by_id=None, suzaku_tiebreak=None):
     prev_standings_by_id = prev_standings_by_id or {}
     match_log = []
 
@@ -224,6 +226,7 @@ def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_b
     all_members = ranked_A + ranked_B + ranked_C + ranked_D
     title_results, title_extra_match_log, suzaku_group_snapshot, title_extra_protected_ids, title_demotion_relief_ids = _run_title_matches(
         ranked_A, ranked_competing_A, champion_ind, ranked_B, ranked_C, ranked_D, all_members, state, season,
+        suzaku_tiebreak=suzaku_tiebreak,
     )
     title_match_log = _title_results_to_match_log(title_results, season)
     match_log += title_match_log
@@ -303,6 +306,15 @@ def _result_from_winner_tag(tag):
     return "win" if tag == "a" else "loss"
 
 
+def _update_elo_per_game(ind_a, ind_b, games):
+    """番勝負・決定戦のEloを1局ごとに更新する（gamesのwinnerは"a"/"b"/"draw"、aがind_a）"""
+    for g in games:
+        ind_a.elo, ind_b.elo = update_elo(
+            ind_a.elo, ind_b.elo, _result_from_winner_tag(g.get("winner")),
+            total_seasons_a=ind_a.total_seasons, total_seasons_b=ind_b.total_seasons,
+        )
+
+
 def _best_of_n_to_match_log(games, league_name, a_id, b_id):
     """run_best_of_n_matchのgames_log（先取制の本戦・決定戦）をmatch_logの形式に変換する"""
     entries = []
@@ -378,7 +390,8 @@ def _title_results_to_match_log(title_results, season):
     return entries
 
 
-def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ranked_C, ranked_D, all_members, state, season):
+def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ranked_C, ranked_D, all_members, state, season,
+                       suzaku_tiebreak=None):
     results = []
     extra_match_log = []  # タイトル戦のうち、title_history（保持者の記録）には載せない付随対局（朱雀の紅白リーグ戦等）
     suzaku_group_snapshot = []  # 朱雀紅白リーグの順位・残留/陥落を、サイト側が独自に再計算せず正確に表示できるよう記録する
@@ -405,6 +418,14 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
         
     titleholders = state.setdefault("titleholders", {"青龍": None, "白虎": None, "玄武": None, "朱雀": None})
     titleholder_params = state.setdefault("titleholder_params", {"青龍": None, "白虎": None, "玄武": None, "朱雀": None})
+
+    def _current_holder_params(title, holder_ind):
+        # 在位者も挑戦者と同じく、毎季の年齢補正を反映した「今季の能力」で戦う
+        # （獲得した季の能力のまま固定すると、防衛中は年を取らないことになるため）。
+        # 在位者がロスターに見当たらない場合のみ、獲得時に保存した能力を使う
+        if holder_ind is not None:
+            return effective_params(holder_ind)
+        return titleholder_params[title]
     all_members_by_id = {ind.id: ind for ind in all_members}
 
     # 前季このタイトルを失冠した個体のid（白虎・玄武のみ対応）。前季失冠が無かった、
@@ -443,7 +464,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
         old_seiryuu = None
     else:
         result = run_seiryuu_challenge(
-            a_challenger, titleholder_params["青龍"], depth=SEIRYUU_TITLE_DEPTH,
+            a_challenger, _current_holder_params("青龍", champion_ind), depth=SEIRYUU_TITLE_DEPTH,
             titleholder_volatility=champion_ind.volatility if champion_ind is not None else 1.0,
         )
         print(f"  青龍戦: {a_challenger.display_name} {result['challenger_wins']}-{result['titleholder_wins']}"
@@ -458,10 +479,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
             new_seiryuu = champion_ind
             seiryuu_defended = True
         if champion_ind is not None:
-            a_challenger.elo, champion_ind.elo = update_elo(
-                a_challenger.elo, champion_ind.elo, "win" if result["won"] else "loss",
-                total_seasons_a=a_challenger.total_seasons, total_seasons_b=champion_ind.total_seasons,
-            )
+            _update_elo_per_game(a_challenger, champion_ind, result["games"])
         results.append({
             "title": "青龍", "season": season, **result,
             "challenger_name": a_challenger.display_name,
@@ -483,8 +501,9 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
         # 初代メンバー10名は、既存個体をElo等で直接シードするのではなく、通常の入れ替え戦
         # （determine_suzaku_qualifiers）と同じ10ブロックのシード付きトーナメントで決める
         bootstrap_pool = [ind for ind in all_members if ind.id != suzaku_holder_id]
+        # 初代メンバー決定トーナメントは対局数が多いため、探索深さは1で固定する（オーナー指定）
         bootstrap_qualifiers, bootstrap_bracket_log = determine_suzaku_qualifiers(
-            bootstrap_pool, depth=SUZAKU_LEAGUE_DEPTH, num_blocks=10,
+            bootstrap_pool, depth=SUZAKU_BOOTSTRAP_DEPTH, num_blocks=10,
             titleholder_ids=suzaku_seed_titleholder_ids, a_league_order=suzaku_seed_a_order,
         )
         # 通常の入れ替え戦（"朱雀予選"）と同じ季に発生しうるうえ、参加プールが一部重複する
@@ -524,7 +543,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
 
     if red_others and white_others:
         red_ranked, white_ranked, red_record, white_record, group_match_log = run_suzaku_group_stage(
-            red_others, white_others, depth=SUZAKU_LEAGUE_DEPTH,
+            red_others, white_others, depth=SUZAKU_LEAGUE_DEPTH, tiebreak=suzaku_tiebreak,
         )
         extra_match_log += group_match_log
 
@@ -592,7 +611,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
             defending_holder = titleholders["朱雀"]
             defending_ind_for_volatility = all_members_by_id.get(defending_holder["id"])
             result = run_suzaku_challenge(
-                challenger, titleholder_params["朱雀"], depth=SUZAKU_TITLE_DEPTH,
+                challenger, _current_holder_params("朱雀", defending_ind_for_volatility), depth=SUZAKU_TITLE_DEPTH,
                 titleholder_volatility=defending_ind_for_volatility.volatility if defending_ind_for_volatility else 1.0,
             )
             print(f"  朱雀戦: {challenger.display_name} {result['challenger_wins']}-{result['titleholder_wins']}"
@@ -609,10 +628,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
                 holder_name, holder_id = defending_holder["name"], defending_holder["id"]
             defending_ind = all_members_by_id.get(defending_holder["id"])
             if defending_ind is not None:
-                challenger.elo, defending_ind.elo = update_elo(
-                    challenger.elo, defending_ind.elo, "win" if result["won"] else "loss",
-                    total_seasons_a=challenger.total_seasons, total_seasons_b=defending_ind.total_seasons,
-                )
+                _update_elo_per_game(challenger, defending_ind, result["games"])
             results.append({
                 "title": "朱雀", "season": season, **result,
                 "challenger_name": challenger.display_name,
@@ -711,17 +727,14 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
         defending_holder = titleholders["白虎"]
         defending_ind_for_volatility = all_members_by_id.get(defending_holder["id"])
         result = run_byakko_challenge(
-            challenger, titleholder_params["白虎"], depth=BYAKKO_TITLE_DEPTH,
+            challenger, _current_holder_params("白虎", defending_ind_for_volatility), depth=BYAKKO_TITLE_DEPTH,
             titleholder_volatility=defending_ind_for_volatility.volatility if defending_ind_for_volatility else 1.0,
         )
         print(f"  白虎戦: {challenger.display_name} {result['challenger_wins']}-{result['titleholder_wins']}"
               f" → {'奪取！' if result['won'] else '防衛'}")
         defending_ind = all_members_by_id.get(defending_holder["id"])
         if defending_ind is not None:
-            challenger.elo, defending_ind.elo = update_elo(
-                challenger.elo, defending_ind.elo, "win" if result["won"] else "loss",
-                total_seasons_a=challenger.total_seasons, total_seasons_b=defending_ind.total_seasons,
-            )
+            _update_elo_per_game(challenger, defending_ind, result["games"])
         if result["won"]:
             titleholders["白虎"] = {"id": challenger.id, "name": challenger.display_name}
             titleholder_params["白虎"] = effective_params(challenger)
@@ -779,17 +792,14 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
         defending_holder = titleholders["玄武"]
         defending_ind_for_volatility = all_members_by_id.get(defending_holder["id"])
         result = run_genbu_challenge(
-            challenger, titleholder_params["玄武"], depth=GENBU_TITLE_DEPTH,
+            challenger, _current_holder_params("玄武", defending_ind_for_volatility), depth=GENBU_TITLE_DEPTH,
             titleholder_volatility=defending_ind_for_volatility.volatility if defending_ind_for_volatility else 1.0,
         )
         print(f"  玄武戦: {challenger.display_name} {result['challenger_wins']}-{result['titleholder_wins']}"
               f" → {'奪取！' if result['won'] else '防衛'}")
         defending_ind = all_members_by_id.get(defending_holder["id"])
         if defending_ind is not None:
-            challenger.elo, defending_ind.elo = update_elo(
-                challenger.elo, defending_ind.elo, "win" if result["won"] else "loss",
-                total_seasons_a=challenger.total_seasons, total_seasons_b=defending_ind.total_seasons,
-            )
+            _update_elo_per_game(challenger, defending_ind, result["games"])
         if result["won"]:
             titleholders["玄武"] = {"id": challenger.id, "name": challenger.display_name}
             titleholder_params["玄武"] = effective_params(challenger)
@@ -808,6 +818,32 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
         })
 
     return results, extra_match_log, suzaku_group_snapshot, extra_protected_ids, demotion_relief_ids
+
+
+SUZAKU_GROUP_LEAGUES = ("朱雀紅組", "朱雀白組")
+
+
+def _load_suzaku_tiebreak(data_dir, season):
+    """紅白リーグの同点順位付け用に、前季の紅白順位（在位者として在籍のみだった行は0）と
+    紅白通算在籍期数（過去の全季のstandingsから数える）を集める"""
+    prev_rank, tenure = {}, {}
+    for s in range(1, season):
+        path = os.path.join(data_dir, "standings", f"season_{s}.json")
+        if not os.path.exists(path):
+            continue
+        with open(path, "r", encoding="utf-8") as f:
+            rows = json.load(f)
+        seen = set()
+        for row in rows:
+            if row.get("league") not in SUZAKU_GROUP_LEAGUES:
+                continue
+            iid = row["individual_id"]
+            if iid not in seen:
+                tenure[iid] = tenure.get(iid, 0) + 1
+                seen.add(iid)
+            if s == season - 1:
+                prev_rank[iid] = row.get("rank", 99)
+    return {"prev_rank": prev_rank, "tenure": tenure}
 
 
 def main():
@@ -889,16 +925,31 @@ def main():
             state["retired_archive"] += [ind.to_dict() for ind in recruit_retired]
             print(f"[DEBUG] Dリーグ補充時の定員超過調整で{len(recruit_retired)}名引退しました", flush=True)
 
+        # 新弟子の参入で弟子（引退した弟子も含む通算）が規定人数を超えた師匠は、弟子を引き連れて一門から独立する
+        independence_events = apply_clan_independence(
+            [ind for league in ("A", "B", "C", "D") for ind in rosters[league]],
+            state.setdefault("retired_archive", []), season,
+        )
+        for ev in independence_events:
+            print(f"  一門独立: {ev['name']}（{ev['id']}）が{ev['from_clan_id']}一門から独立", flush=True)
+        state.setdefault("clan_independence_history", []).extend(independence_events)
+
         prev_standings_by_id = {}
         if season > 1:
             prev_path = os.path.join(args.data_dir, "standings", f"season_{season - 1}.json")
             if os.path.exists(prev_path):
                 with open(prev_path, "r", encoding="utf-8") as f:
                     prev_rows = json.load(f)
-                prev_standings_by_id = {row["individual_id"]: row for row in prev_rows}
+                # standingsには朱雀紅白リーグの行も同じ個体IDで含まれる（A〜Dの行の後ろに追記）。
+                # IDだけで辞書化すると紅白在籍者の行が紅白の行で上書きされ、前季順位が
+                # 失われるため、A〜Dの行だけを使う
+                prev_standings_by_id = {row["individual_id"]: row for row in prev_rows
+                                        if row.get("league") in LEAGUE_TIERS}
 
+        suzaku_tiebreak = _load_suzaku_tiebreak(args.data_dir, season)
         rosters, match_log, title_results, retired, standings_snapshot, vacancy = run_one_season(
             rosters, season, args.depth, args.swiss_rounds, state, prev_standings_by_id,
+            suzaku_tiebreak=suzaku_tiebreak,
         )
         state["current_season"] = season
         state.setdefault("retired_archive", [])

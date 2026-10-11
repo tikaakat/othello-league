@@ -1843,7 +1843,7 @@ function renderClanTreeNode(node, childrenByParent, branchesByUnder, prefix, isL
     const branchIsLast = i === branches.length - 1 && kids.length === 0;
     html += `<div class="clan-branch-row" data-goto-clan="${escapeHtml(b.branch_clan_root_id)}">
         <span class="ct-rails">${childPrefix.map(cont => `<span class="ct-rail${cont ? ' ct-rail-line' : ''}"></span>`).join('')}<span class="ct-elbow ct-elbow-branch${!branchIsLast ? ' ct-elbow-open' : ''}"></span></span>
-        <span class="ct-row-body">${escapeHtml(b.branch_name)}${b.branch_retired ? '（引退）' : ''}の一門へ分岐 →</span>
+        <span class="ct-row-body">${escapeHtml(b.branch_name)}${b.branch_retired ? '（引退）' : ''}が独立して一門を興す →</span>
       </div>`;
   });
   kids.forEach((k, i) => {
@@ -1919,11 +1919,12 @@ function renderRules() {
 
     <h3>一門と弟子</h3>
     <div class="sec">
-      新しくDリーグに加わる新人の多くは、現役選手の中から選ばれた「師匠」の能力をもとに、
-      少し変化を加えて生まれてくる（師弟関係）。実力のある選手ほど弟子を持ちやすい。<br>
-      一門は、師弟関係をたどった先に同じ開祖（一番最初の祖先）を持つ選手たちのまとまり。
-      一門が大きくなりすぎると、途中から新しい一門に分かれることもある。<br>
-      まれに、師匠を持たずに生まれる新規開祖や、能力が大きく伸びた「神童」が現れることもある。
+      新しくDリーグに加わる新人は、必ず現役選手の中から選ばれた「師匠」に弟子入りする。
+      自動で生まれる新人は師匠の能力をもとに少し変化を加えて生まれてくる（キャラクリエイトで
+      投稿された新人は、本人の設定した能力のまま弟子入りする）。実力のある選手ほど弟子を持ちやすい。<br>
+      一門は、師弟関係をたどった先に同じ開祖を持つ選手たちのまとまり。
+      弟子（引退した弟子も含む）が5人を超えた選手は、弟子を引き連れて独立し、自分を開祖とする新しい一門を興す。<br>
+      まれに、能力が大きく伸びた「神童」が現れることもある。
     </div>
 
     <h3>引退</h3>
@@ -1931,7 +1932,9 @@ function renderRules() {
       60歳に達すると、どのリーグに所属していても引退する。<br>
       Dリーグには「降級点」制度もあり、負け越しが続くと実力や在籍年数に関わらず引退となる
       （勝ち越すと点は減っていく。3点で引退）。<br>
-      タイトル保持者やAリーグ所属選手など、一部の選手はこれらの引退条件が猶予される。
+      タイトル保持者・朱雀紅白リーグ在籍者・その季のタイトル挑戦者は、どちらの引退条件も猶予される。
+      Aリーグ所属選手（その季に降格する選手を除く）・Aリーグへ昇格する選手・白虎トーナメント出場者・
+      玄武戦ブロック優勝者は、60歳での引退が猶予される。
     </div>
 
     <h3>タイトル戦</h3>

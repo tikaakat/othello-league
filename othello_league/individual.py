@@ -29,6 +29,9 @@ class LeagueIndividual:
         self.initial_age = initial_age if initial_age is not None else random.randint(18, 24)
         self.age_multipliers = {}              # 年齢バフ（パラメータ別倍率）。シーズン開始時に再抽選
         self.demotion_points = 0                # Dリーグの降級点（3点で引退。連続でなくてもよい）
+        # 一門独立：弟子を引き連れて元の一門から独立した場合、元の一門の開祖IDと独立した季
+        self.independent_from_clan_id = None
+        self.independent_season = None
 
         self.peak_elo = 1500.0  # 歴代最高Elo（殿堂ページの表示用）。elo setterが自動更新する
         self.elo = 1500.0
@@ -80,6 +83,8 @@ class LeagueIndividual:
             "initial_age": self.initial_age,
             "age_multipliers": self.age_multipliers,
             "demotion_points": self.demotion_points,
+            "independent_from_clan_id": self.independent_from_clan_id,
+            "independent_season": self.independent_season,
             "elo": self.elo,
             "peak_elo": self.peak_elo,
             "volatility": self.volatility,
@@ -113,6 +118,8 @@ class LeagueIndividual:
         ind.peak_elo = d.get("peak_elo", d.get("elo", 1500.0))
         ind.elo = d.get("elo", 1500.0)
         ind.volatility = d.get("volatility", 1.0)
+        ind.independent_from_clan_id = d.get("independent_from_clan_id")
+        ind.independent_season = d.get("independent_season")
         ind.awakened_param = d.get("awakened_param")
         ind.black_count = d.get("black_count", 0)
         ind.white_count = d.get("white_count", 0)
