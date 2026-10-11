@@ -65,6 +65,7 @@ on:
           - "add_newcomer_master_columns"
           - "add_gender_column"
           - "reset_fan_site_data_20261011"
+          - "fix_newcomer_standings_stale_master_20261011"
         default: ""
       create_dir:
         description: "デプロイの代わりに、lab.spia-net.com直下（othello-league/の1つ上）に相対パスでディレクトリを作成する（例: othello-news）。「..」や先頭「/」は不可"
@@ -315,6 +316,16 @@ jobs:
                   'DELETE FROM permanent_sponsors;'
                   'DELETE FROM supporters;'
                   'DELETE FROM inquiries;'
+                )
+                ;;
+              fix_newcomer_standings_stale_master_20261011)
+                # リセット漏れ（data/newcomer_candidate_pool.json）により、第2季新人リーグの
+                # 2名分（CCNL-000・CCNL-001）にリセット前の旧個体ID（CC26-001・D8-000）が
+                # master_idとして紛れ込んでいた。import_from_github.phpは既存行を更新しない
+                # （0件登録/更新で対象なしと表示される）ため、GitHub上のdata/newcomer_league/
+                # for_season_2.jsonを直しただけではDB側の表示が直らず、ここで直接UPDATEする
+                SQL_LIST=(
+                  "UPDATE newcomer_league_standings SET master_id = NULL, master_name = NULL WHERE for_season = 2 AND individual_id IN ('CCNL-000', 'CCNL-001');"
                 )
                 ;;
               *)
