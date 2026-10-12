@@ -45,6 +45,10 @@ on:
         description: "trueにすると、対象季（＝新人が出走する季）の新人リーグ記事だけを生成する（新人リーグ直後に自動で使う）"
         required: false
         default: "false"
+      regenerate_milestone:
+        description: "trueにすると、対象季の永世称号の特集記事が既にあっても作り直す（記事の誤りを修正する場合）"
+        required: false
+        default: "false"
       regenerate_digest:
         description: "trueにすると、対象季のダイジェスト記事が既にあっても作り直す（記事の誤りを修正する場合）"
         required: false
@@ -95,6 +99,9 @@ jobs:
             REGEN_ARG="--regenerate-digest"
           fi
 
+          if [ "${{ github.event.inputs.regenerate_milestone }}" = "true" ]; then
+            REGEN_ARG="$REGEN_ARG --regenerate-milestone"
+          fi
           if [ "${{ github.event.inputs.newcomer_only }}" = "true" ]; then
             REGEN_ARG="$REGEN_ARG --newcomer-only"
           fi
