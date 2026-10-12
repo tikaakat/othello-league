@@ -495,6 +495,9 @@ def _master_weight(ind, titleholder_ids, times_picked=0):
     return (1.0 + elo_bonus + title_bonus) / (2 ** times_picked)
 
 
+MAX_DISCIPLES_PER_BATCH = 2
+
+
 def _pick_master(eligible_masters, titleholder_ids, allow_new_founder=True, pick_counts=None):
     """師匠を自動選出する（Elo・タイトル保持で重み付けした抽選）。
     allow_new_founder=Trueの場合、CLAN_NEW_FOUNDER_CHANCEの確率で師匠を持たない
@@ -508,6 +511,11 @@ def _pick_master(eligible_masters, titleholder_ids, allow_new_founder=True, pick
     if allow_new_founder and random.random() < CLAN_NEW_FOUNDER_CHANCE:
         return None
     counts = pick_counts if pick_counts is not None else {}
+    # 1回のバッチ（新人リーグ1回・Dリーグ新弟子の一括生成1回）で1人の師匠に付く弟子は
+    # MAX_DISCIPLES_PER_BATCH人まで（全員が上限に達している極端な場合のみ上限を無視する）
+    if pick_counts is not None:
+        eligible_masters = [ind for ind in eligible_masters
+                            if counts.get(ind.id, 0) < MAX_DISCIPLES_PER_BATCH] or eligible_masters
     weights = [_master_weight(ind, titleholder_ids, counts.get(ind.id, 0)) for ind in eligible_masters]
     chosen = random.choices(eligible_masters, weights=weights, k=1)[0]
     if pick_counts is not None:
@@ -683,12 +691,26 @@ def generate_disciples(count, season, pool, name_registry, titleholder_ids=froze
     return disciples
 
 
+# 弟子が受け継ぐ能力の割合。残りはランダムな（リーグ平均的な合計の）能力で埋める。
+# 師匠の能力をほぼそのまま（±15%）受け継ぐ方式だと、最強の師匠の弟子がほぼ最強の能力で
+# 新人リーグに出てきて上位を独占してしまうため、強い一門の弟子は平均より強い程度に抑える
+DISCIPLE_INHERIT_RATIO = 0.6
+DISCIPLE_BASELINE_SUM = 40.0  # ランダム部分の能力合計（現役選手の能力合計の平均程度）
+
+
+def _baseline_params():
+    raw = {k: random.uniform(0.5, 10.0) for k in PARAM_KEYS}
+    scale = DISCIPLE_BASELINE_SUM / sum(raw.values())
+    return {k: v * scale for k, v in raw.items()}
+
+
 def mutate_params(master):
-    """師匠のパラメータを継承しつつ、弟子ごとに変異（±15%程度のノイズ）を加える"""
+    """師匠の能力をDISCIPLE_INHERIT_RATIOの割合で受け継ぎ、残りをランダムな能力で埋め、
+    さらに±5%の揺らぎを加える"""
+    baseline = _baseline_params()
     child_params = {}
     for k in PARAM_KEYS:
-        val = master.params.get(k, 1.0)
-        mutation = random.uniform(0.85, 1.15)
-        child_params[k] = max(0.1, round(val * mutation, 3))
+        mixed = DISCIPLE_INHERIT_RATIO * master.params.get(k, 1.0) + (1 - DISCIPLE_INHERIT_RATIO) * baseline[k]
+        child_params[k] = max(0.1, round(mixed * random.uniform(0.95, 1.05), 3))
 
     return child_params, master.generation + 1
