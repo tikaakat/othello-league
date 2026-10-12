@@ -385,17 +385,17 @@ function compute_age($initial_age, $total_seasons) {
 // タイトル戦ブラケット（白虎・玄武・朱雀予選）の参加者に添える補足情報を組み立てる。
 // 全タイトル共通で「名前の左にリーグアイコン（タイトル保持者の場合はタイトルアイコン）、
 // 右に(Elo)」の表示に揃えるため、その季のstandings（順位表）時点の所属リーグ・Eloと、
-// この季の予選・挑戦者決定トーナメントが始まった時点（＝前季終了時点）でのタイトル保持状況
-// （title_history）をあわせて返す
-// （対局結果とは別にstandings/title_historyから逆算できるので、Python側にデータを追加しなくてよい）。
-// タイトルはあえて「その季のtitle_history」ではなく「前季のtitle_history」から引く：
-// 玄武戦の挑戦者決定トーナメントのように、このブラケット自体がその季のタイトル在位者を
-// 決める対局そのものであるケースでは、対局開始時点ではまだ挑戦者は在位者ではないため、
-// 対局後（その季のtitle_history確定後）の状態を参照すると、奪取した本人が
-// トーナメント中もずっと在位者だったかのように表示されてしまう
-// （＝そのトーナメントが始まった時点の肩書ではなくなってしまう）
+// この季の予選・挑戦者決定トーナメントが始まった時点でのタイトル保持状況（title_history）を
+// あわせて返す（対局結果とは別にstandings/title_historyから逆算できるので、Python側にデータを追加しなくてよい）。
+// タイトルは「前季終了時点の保持者」に、同じ季にこのブラケットより前に決着したタイトル
+// （$titlesDoneBefore）の結果だけを上書きして求める。このブラケット自体のタイトルや、まだ行われて
+// いないタイトルにその季の結果を使うと、奪取した本人がトーナメント中もずっと在位者だったかのように
+// 表示されてしまう（＝そのトーナメントが始まった時点の肩書ではなくなってしまう）
 // 戻り値: [individual_id => ['league' => 'A'|'B'|'C'|'D'|null, 'elo' => 数値|null, 'title' => タイトル名|null]]
-function build_bracket_participant_info($pdo, $season, $ids) {
+// $titlesDoneBefore：同じ季のうち、このブラケットより前に決着しているタイトル（季内の実行順は
+// 青龍→朱雀→白虎→玄武）。これらはその季の結果（奪取・防衛）を反映した保持者で表示する
+// （例：玄武戦の時点では、同じ季に白虎を奪取した選手が既に白虎保持者）
+function build_bracket_participant_info($pdo, $season, $ids, $titlesDoneBefore = []) {
     $info = [];
     if (!$ids) return $info;
     $standStmt = $pdo->prepare(
@@ -412,9 +412,19 @@ function build_bracket_participant_info($pdo, $season, $ids) {
         "SELECT title, holder_id FROM title_history WHERE season = :prev_season AND holder_id IS NOT NULL"
     );
     $titleStmt->execute(['prev_season' => $season - 1]);
-    $titlesById = [];
+    $holderByTitle = [];
     foreach ($titleStmt->fetchAll() as $t) {
-        $titlesById[$t['holder_id']][] = $t['title'];
+        $holderByTitle[$t['title']] = $t['holder_id'];
+    }
+    if ($titlesDoneBefore) {
+        $titleStmt->execute(['prev_season' => $season]);
+        foreach ($titleStmt->fetchAll() as $t) {
+            if (in_array($t['title'], $titlesDoneBefore, true)) $holderByTitle[$t['title']] = $t['holder_id'];
+        }
+    }
+    $titlesById = [];
+    foreach ($holderByTitle as $title => $holderId) {
+        $titlesById[$holderId][] = $title;
     }
 
     foreach ($ids as $id) {
@@ -1864,12 +1874,14 @@ switch ($action) {
                 if ($challengerName === null) { $challengerName = $g['challenger_name']; $holderName = $g['holder_name']; }
             }
 
+            // 朱雀の予選・初代メンバー決定戦は、同じ季の青龍戦の結果でシードを組んでいるため、
+            // 表示も青龍戦後の肩書に揃える
             $qualifierParticipantInfo = build_bracket_participant_info($pdo, $season, array_unique(array_filter(array_merge(
                 array_column($qualifierMatches, 'individual_a_id'), array_column($qualifierMatches, 'individual_b_id')
-            ))));
+            ))), ['青龍']);
             $bootstrapParticipantInfo = build_bracket_participant_info($pdo, $season, array_unique(array_filter(array_merge(
                 array_column($bootstrapMatches, 'individual_a_id'), array_column($bootstrapMatches, 'individual_b_id')
-            ))));
+            ))), ['青龍']);
 
             json_out([
                 'format' => 'suzaku_v2',
@@ -1997,9 +2009,12 @@ switch ($action) {
         // 予選ブラケット参加者に添える補足情報：所属リーグ（アイコン用）＋その季のタイトル戦
         // 開始前時点のElo。全タイトル共通の表示形式（名前の左にリーグアイコン、右に(Elo)）に
         // 揃えるため、朱雀の予選ブラケットも含めて共通ヘルパーで組み立てる
+        // このタイトルより前に同じ季に決着したタイトル（青龍→朱雀→白虎→玄武の順）の結果を反映する
+        $titleOrderIdx = array_search($title, TITLE_NAMES_LIST, true);
+        $titlesDoneBefore = $titleOrderIdx === false ? [] : array_slice(TITLE_NAMES_LIST, 0, $titleOrderIdx);
         $participantInfo = build_bracket_participant_info($pdo, $season, array_unique(array_filter(array_merge(
             array_column($bracket, 'individual_a_id'), array_column($bracket, 'individual_b_id')
-        ))));
+        ))), $titlesDoneBefore);
 
         json_out([
             'bracket' => $bracket,
