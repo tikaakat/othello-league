@@ -236,6 +236,10 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
                 # 持っていたところへ+1点で引退」という経緯が分かるよう、省略をやめて
                 # 常に表示するようにした
                 parts.append(f"gained{before}")
+            # 勝ち越して-1点（0点まで減らなかった場合）。0点まで減った場合は上のclearedで表示される。
+            # これが無いと、勝ち越しで減ったのに結果タブに何も表示されず、点数だけが黙って減って見える
+            if won_more and before > 0:
+                parts.append(f"won{before}")
             # relief単独（今季負け越していない）で既に0点だった場合は、実質的に
             # 何も変化していないため表示しない（relieveする対象の点が無かった）。
             # gainedと同様、結果タブのハイライト表示用に「持っていた点数」を埋め込む

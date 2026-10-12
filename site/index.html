@@ -1203,7 +1203,7 @@ function movementMarks(movement) {
 // 抜き文字（チップ）で表示する（リーグタブのdemotionPointsBadgeと同じ見た目。その季に
 // 何か動きが無くても、既に持っている点数自体は常に見えるようにする）。
 // それに加えて、この季に実際に動きがあった場合のみ、青龍戦リーグ（A〜Dの本戦）で
-// 負け越した（gained、+1）／玄武ブロック優勝等で軽減された（relief、-1）／
+// 負け越した（gained、+1）／勝ち越した（won、-1）／玄武ブロック優勝等で軽減された（relief、-1）／
 // 0に戻った（cleared{N}、Nはクリア直前の点数）を追加で表示する。
 // 「点N」のハイライトは、今季の増減が起きる前（＝季開始時点）に既に持っていた点数を
 // 示す。今季の増減は「+点1」「-点1」で別途示すため、現在点（今季の増減を反映済みの値）
@@ -1222,8 +1222,10 @@ function demotionEventMark(event, points) {
   const parts = (event || '').split('_').filter(Boolean);
   const gainedMatch = parts.map(p => /^gained(\d*)$/.exec(p)).find(Boolean);
   const reliefMatch = parts.map(p => /^relief(\d*)$/.exec(p)).find(Boolean);
+  const wonMatch = parts.map(p => /^won(\d*)$/.exec(p)).find(Boolean);
   let highlightPoints = points;
   if (gainedMatch && gainedMatch[1] !== '') highlightPoints = parseInt(gainedMatch[1], 10);
+  else if (wonMatch && wonMatch[1] !== '') highlightPoints = parseInt(wonMatch[1], 10);
   else if (reliefMatch && reliefMatch[1] !== '') highlightPoints = parseInt(reliefMatch[1], 10);
 
   let html = '';
@@ -1232,6 +1234,9 @@ function demotionEventMark(event, points) {
   }
   if (gainedMatch) {
     html += '<span class="movement-mark" style="color:#ff5f5f; font-size:0.7rem;" title="青龍戦リーグで負け越して降級点+1">+点1</span>';
+  }
+  if (wonMatch) {
+    html += '<span class="movement-mark" style="color:var(--cyan); font-size:0.7rem;" title="青龍戦リーグで勝ち越して降級点-1">-点1</span>';
   }
   if (reliefMatch) {
     html += '<span class="movement-mark" style="color:var(--cyan); font-size:0.7rem;" title="玄武ブロック優勝等で降級点-1">-点1</span>';
