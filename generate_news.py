@@ -73,6 +73,8 @@ TITLE_RULES_NOTE = (
     "【タイトルの決まり方】"
     + "".join(f"{t}は{p}が挑戦者になる。" for t, p in TITLE_QUALIFY_PATH.items())
     + "在位者がいない新設タイトル（初代）は、この挑戦者決定の勝者が番勝負なしでそのまま襲名する。"
+    "在位者は挑戦者決定（リーグ・トーナメント）には出場せず、勝ち上がってきた挑戦者を番勝負で迎え撃つ。"
+    "防衛とはこの番勝負に勝つことであり、在位者が毎季挑戦者決定を勝ち抜いているかのように書かないこと。"
     "挑戦権（または初代襲名）を得るまでの成績（例：青龍ならAリーグの成績）と、タイトルの獲得・挑戦は"
     "ひと続きの同じ実績である。「〜に加え」「〜でも」のように別々の功績として並べたり、"
     "「称号を受け取っただけでなく盤上でも実力を示した」のように切り離して書かないこと。"
@@ -659,6 +661,34 @@ def compute_title_stats_up_to(title_history, title, holder_name, season):
     return total, best_streak
 
 
+def _title_holder_history(data_dir, title_history, title, holder_name, season):
+    """holder_nameがそのタイトルを保持した各季の経緯（初代襲名／誰から奪取／誰の挑戦を防衛）を
+    古い順に文字列で返す。永世称号の特集記事で、実際の経緯に基づいて書かせるため"""
+    names = {}
+    rosters = load_json(os.path.join(data_dir, "rosters.json"), {})
+    for league_members in rosters.values():
+        for ind in league_members:
+            names[ind["id"]] = ind.get("display_name")
+    for r in load_json(os.path.join(data_dir, "season_state.json"), {}).get("retired_archive", []):
+        names.setdefault(r["id"], r.get("display_name"))
+
+    lines = []
+    for e in sorted((e for e in title_history if e.get("title") == title and e.get("season", 0) <= season),
+                    key=lambda e: e["season"]):
+        if _title_holder_name(e) != holder_name:
+            continue
+        if e.get("event") == "初代襲名":
+            lines.append(f"第{e['season']}季：在位者不在のため、挑戦者決定を勝ち抜いて番勝負なしで初代襲名")
+        elif e.get("won"):
+            prev = names.get(e.get("defender_id"), "前保持者")
+            lines.append(f"第{e['season']}季：挑戦者決定を勝ち抜いて挑戦者となり、保持者{prev}を"
+                         f"{e.get('challenger_wins')}-{e.get('titleholder_wins')}で破って奪取")
+        else:
+            lines.append(f"第{e['season']}季：在位者として挑戦者決定には出場せず、勝ち上がってきた挑戦者"
+                         f"{e.get('challenger_name')}を{e.get('titleholder_wins')}-{e.get('challenger_wins')}で退けて防衛")
+    return lines
+
+
 def gather_milestone_facts(data_dir, season):
     """この季に、誰かが初めて永世称号の基準を新たに満たしたかを検出する
     （既に前季までに達成済みなら対象外）。最初に見つかった1件のみをネタとする"""
@@ -681,6 +711,7 @@ def gather_milestone_facts(data_dir, season):
         return {
             "season": season, "title": title, "name": holder_name,
             "total": total_after, "streak": streak_after,
+            "history": _title_holder_history(data_dir, title_history, title, holder_name, season),
             "related_individual_ids": [e["holder_id"]] if e.get("holder_id") else [],
             "related_individual_names": [holder_name],
         }
@@ -692,6 +723,8 @@ def build_milestone_prompt(facts):
         f"第{facts['season']}季の事実データ（これ以外の出来事は起きていない）:", "",
         f"・{facts['name']}が、{facts['title']}位で「永世{facts['title']}」の称号基準を満たした"
         f"（通算保持{facts['total']}期、最大連続保持{facts['streak']}期）。",
+        "・保持した各季の経緯：",
+        *[f"　・{h}" for h in facts.get("history", [])],
         "",
         f"以上の事実だけをもとに、{facts['name']}の永世{facts['title']}達成を主題にした、"
         "特集記事（コラムより少し丁寧な読み物）を書いてください。"
@@ -839,17 +872,22 @@ def try_generate_milestone(args, season, articles_path, articles):
         return
 
     article_id = f"s{season}-{facts['title']}-eternal"
-    if any(a.get("id") == article_id for a in articles):
+    existing = next((a for a in articles if a.get("id") == article_id), None)
+    if existing is not None and not getattr(args, "regenerate_milestone", False):
         print(f"[DEBUG] 第{season}季の永世{facts['title']}特集は既に生成済みです（{article_id}）。スキップします", flush=True)
         return
 
     print(f"[DEBUG] 第{season}季の特集を生成します（{facts['name']}が永世{facts['title']}達成、model={args.model}）", flush=True)
     generated = run_claude(build_milestone_prompt(facts), model=args.model, persona_path=COLUMN_PERSONA_PATH)
 
+    if existing is not None:
+        # 作り直し：同じid・同じ掲載日時のまま置き換える（いいね等はidに紐づくため引き継がれる）
+        articles.remove(existing)
     save_article(articles_path, articles, {
         "id": article_id, "type": "feature", "season": season, "author": AUTHOR_COLUMN,
         "title": generated["title"], "summary": generated["summary"], "body": generated["body"],
-        "published_at": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
+        "published_at": (existing or {}).get("published_at")
+        or datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
         "related_individual_ids": facts["related_individual_ids"],
         "related_individual_names": facts["related_individual_names"],
         "tags": generated.get("tags") or ["特集", "永世称号"],
@@ -981,6 +1019,8 @@ def main():
     parser.add_argument("--season", type=int, default=None, help="対象シーズン（省略時は最新）")
     parser.add_argument("--regenerate-digest", action="store_true",
                         help="対象季のダイジェスト記事が既にあっても作り直す（記事の誤りを修正する場合）")
+    parser.add_argument("--regenerate-milestone", action="store_true",
+                        help="対象季の永世称号の特集記事が既にあっても作り直す（記事の誤りを修正する場合）")
     parser.add_argument("--newcomer-only", action="store_true",
                         help="対象季（＝新人が出走する季）の新人リーグ記事だけを生成する。新人リーグ（newcomer_league.yml）の"
                              "直後に、その回の記事をすぐ出すために使う")
