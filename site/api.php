@@ -747,19 +747,29 @@ switch ($action) {
                         'league' => $ind['league'], 'elo' => $ind['elo_rating'], 'group' => $group,
                     ];
                 };
+                // 現在の朱雀位は紅白リーグに在籍のみ（対局免除）のため、メンバー一覧には出さない
+                // （防衛し続ける限り表示しない。失冠すれば在位者ではなくなり、通常のメンバーとして表示される）
+                $suzakuHolderId = null;
+                foreach ((get_current_titleholders($pdo)['by_id']) as $hid => $titles) {
+                    if (in_array('朱雀', $titles, true)) { $suzakuHolderId = $hid; break; }
+                }
                 foreach (($suzakuLeagueState['red'] ?? []) as $id) {
+                    if ($id === $suzakuHolderId) continue;
                     $row = $memberRow($id, 'red');
                     if ($row) $suzakuMembers[] = $row;
                 }
                 foreach (($suzakuLeagueState['white'] ?? []) as $id) {
+                    if ($id === $suzakuHolderId) continue;
                     $row = $memberRow($id, 'white');
                     if ($row) $suzakuMembers[] = $row;
                 }
 
                 if ($latest_season > 0) {
                     $prevStmt = $pdo->prepare(
+                        // 在位者として在籍のみ（no_roundrobin）だった行も含める。含めないと、失冠して
+                        // 紅白リーグの対局に戻ってきた元在位者に「新」マークが付いてしまう
                         "SELECT individual_id FROM suzaku_group_standings
-                         WHERE season = :season AND league IN ('朱雀紅組', '朱雀白組') AND no_roundrobin = 0"
+                         WHERE season = :season AND league IN ('朱雀紅組', '朱雀白組')"
                     );
                     $prevStmt->execute(['season' => $latest_season]);
                     $suzakuPrevIds = array_column($prevStmt->fetchAll(), 'individual_id');
