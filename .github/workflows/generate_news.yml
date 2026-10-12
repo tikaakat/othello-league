@@ -41,6 +41,10 @@ on:
         description: "対象シーズン番号（省略時は最新。通常はevolve.yml側が確定した季番号を指定して自動起動する）"
         required: false
         default: ""
+      newcomer_only:
+        description: "trueにすると、対象季（＝新人が出走する季）の新人リーグ記事だけを生成する（新人リーグ直後に自動で使う）"
+        required: false
+        default: "false"
       regenerate_digest:
         description: "trueにすると、対象季のダイジェスト記事が既にあっても作り直す（記事の誤りを修正する場合）"
         required: false
@@ -89,6 +93,10 @@ jobs:
           REGEN_ARG=""
           if [ "${{ github.event.inputs.regenerate_digest }}" = "true" ]; then
             REGEN_ARG="--regenerate-digest"
+          fi
+
+          if [ "${{ github.event.inputs.newcomer_only }}" = "true" ]; then
+            REGEN_ARG="$REGEN_ARG --newcomer-only"
           fi
 
           python -u generate_news.py --data-dir data --news-dir data/news $SEASON_ARG $REGEN_ARG
