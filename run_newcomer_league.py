@@ -200,6 +200,10 @@ def run_newcomer_league(submissions, slots_needed, registry, retry_pool=None,
     # 選ばれるたびに下げる（master_pick_counts）。そうしないとElo上位やタイトル
     # 保持者に抽選が偏り、1回のバッチ内で同じ師匠が何度も重複してしまうため
     master_pick_counts = {}
+    # 持ち越し候補（既に師匠が決まっている）も、1人の師匠に付く弟子の上限（2人）に数える
+    for entry in entries:
+        if entry.get("parent_a_id"):
+            master_pick_counts[entry["parent_a_id"]] = master_pick_counts.get(entry["parent_a_id"], 0) + 1
 
     candidates = []
     entries_by_id = {}
