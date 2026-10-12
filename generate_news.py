@@ -22,9 +22,10 @@ import subprocess
 
 DEFAULT_MODEL = "sonnet"
 TITLE_NAMES = ["青龍", "朱雀", "白虎", "玄武"]
-# タイトルの格（青龍＝名人格が最高、玄武が最も格下）。MVP・新人王の評価で
-# タイトル絡みの実績を比較する際の同格内タイブレークに使う（site/api.phpのDAN_*定義と同じ順）
-TITLE_PRESTIGE = {name: len(TITLE_NAMES) - i for i, name in enumerate(TITLE_NAMES)}
+# タイトルの格（青龍＝名人格が最高、玄武が最も格下）。MVPは今季獲得・防衛したタイトルの
+# この点数の合計で選ぶ。青龍は最高格だが、単冠が二冠（最低でも玄武3＋白虎4＝7）を
+# 上回らないよう、各タイトルの差を小さくしてある（4/3/2/1だと青龍単冠4が白虎＋玄武の3を上回っていた）
+TITLE_PRESTIGE = {"青龍": 6, "朱雀": 5, "白虎": 4, "玄武": 3}
 _NEWS_SITE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "news-site")
 PERSONA_PATH = os.path.join(_NEWS_SITE_DIR, "persona.md")
 # コラム・特集は、ダイジェスト（犬飼）とは別の記者（東堂）が書く
@@ -67,7 +68,7 @@ TITLE_QUALIFY_PATH = {
     "青龍": "Aリーグ（青龍戦リーグ）の総当たり1位",
     "朱雀": "朱雀紅白リーグの紅組1位・白組1位による挑戦者決定戦の勝者",
     "白虎": "Elo上位16名による白虎トーナメントの優勝者",
-    "玄武": "全選手参加の玄武戦（予選ブロック・本戦リーグ）の1位",
+    "玄武": "全選手参加の玄武戦（4ブロックの抽選トーナメント→ブロック優勝者による挑戦者決定リーグ）の1位",
 }
 TITLE_RULES_NOTE = (
     "【タイトルの決まり方】"
@@ -122,6 +123,7 @@ def _pick_mvp(title_results, main_league_rows):
     今季タイトル絡みの実績が誰にも無ければ、従来通り最多勝の個体にフォールバックする"""
     win_by_id = {r["individual_id"]: r.get("win", 0) for r in main_league_rows}
     loss_by_id = {r["individual_id"]: r.get("loss", 0) for r in main_league_rows}
+    draw_by_id = {r["individual_id"]: r.get("draw", 0) for r in main_league_rows}
 
     achievers = {}  # individual_id -> {"name", "score", "titles": [(title, result, match_score), ...]}
     for tr in title_results:
@@ -132,7 +134,14 @@ def _pick_mvp(title_results, main_league_rows):
         # リーグ戦が防衛専念枠で免除され、リーグ成績が0勝0敗になる個体がいるため、
         # 記事側で「0勝0敗なのに受賞」という誤解を招く表記を避けるのに使う。
         # 初代襲名は番勝負自体が無いため、対局成績の文字列は持たせない
-        match_score = None if tr["result"] == "初代襲名" else f"{tr['challenger_wins']}-{tr['holder_wins']}"
+        # 対局成績はMVP本人（勝者）側から見た「自分の勝ち数-相手の勝ち数」で持たせる
+        # （挑戦者側から見た値のままだと、防衛した在位者が「玄武防衛（0-3）」のように負けたかに読める）
+        if tr["result"] == "初代襲名":
+            match_score = None
+        elif tr["result"] == "防衛":
+            match_score = f"{tr['holder_wins']}-{tr['challenger_wins']}"
+        else:
+            match_score = f"{tr['challenger_wins']}-{tr['holder_wins']}"
         entry["titles"].append((tr["title"], tr["result"], match_score))
 
     if achievers:
@@ -142,6 +151,7 @@ def _pick_mvp(title_results, main_league_rows):
             "individual_id": best_id, "name": chosen["name"], "titles": chosen["titles"],
             "league": next((r["league"] for r in main_league_rows if r["individual_id"] == best_id), None),
             "win": win_by_id.get(best_id, 0), "loss": loss_by_id.get(best_id, 0),
+            "draw": draw_by_id.get(best_id, 0),
         }
 
     fallback = _pick_best_record(main_league_rows)
@@ -150,6 +160,7 @@ def _pick_mvp(title_results, main_league_rows):
     return {
         "individual_id": fallback["individual_id"], "name": fallback["display_name"], "titles": [],
         "league": fallback["league"], "win": fallback.get("win", 0), "loss": fallback.get("loss", 0),
+        "draw": fallback.get("draw", 0),
     }
 
 
@@ -219,6 +230,39 @@ def _simplified_dan(history):
     return dan
 
 
+def _career_before(data_dir, season):
+    """1〜season-1季のstandingsから、個体ごとの「今季より前に在籍した季数」と
+    「初めて在籍した季・リーグ」を求める。rosters.jsonのtotal_seasonsは最新季終了時点の値のため、
+    過去の季の記事を作り直す際にそのまま使うと季数・年齢がずれてしまう（今季終了時点でも
+    今季分が加算済みで1つずれる）。standingsの履歴から数えればどの季でも正しく求まる"""
+    prior = {}
+    first = {}
+    for s in range(1, season):
+        rows = load_json(os.path.join(data_dir, "standings", f"season_{s}.json"), [])
+        for r in rows:
+            if r.get("league") not in ("A", "B", "C", "D"):
+                continue
+            iid = r["individual_id"]
+            prior[iid] = prior.get(iid, 0) + 1
+            first.setdefault(iid, (s, r["league"]))
+    return prior, first
+
+
+def _initial_age_map(data_dir):
+    """個体ID→初年度の年齢（initial_age）。現役（rosters.json）と引退済み（retired_archive）の両方から"""
+    ages = {}
+    for league_members in load_json(os.path.join(data_dir, "rosters.json"), {}).values():
+        for ind in league_members:
+            ages[ind["id"]] = ind.get("initial_age")
+    for r in load_json(os.path.join(data_dir, "season_state.json"), {}).get("retired_archive", []):
+        ages.setdefault(r["id"], r.get("initial_age"))
+    return ages
+
+
+def _career_label(nth_season):
+    return "今季がデビューシーズン（通算1季目）" if nth_season == 1 else f"通算{nth_season}季目（デビューシーズンではない）"
+
+
 def _pick_rookie_of_year(data_dir, season, rosters, main_league_rows, title_results):
     """新人王を選ぶ。対象は「今季デビューの新規参入者」ではなく（Dリーグ新人受け入れが
     毎季固定少数（D_NEWCOMER_INTAKE）のため、そこだけに絞ると選択肢が狭すぎる）、シーズン開始時点で
@@ -226,9 +270,14 @@ def _pick_rookie_of_year(data_dir, season, rosters, main_league_rows, title_resu
     その中から、今季タイトルを奪取・挑戦した個体を最優先し（新人の年齢・段位で
     タイトル戦に絡めば十分な実績と言えるため）、それが無ければ勝率→勝数で最も
     活躍した個体を選ぶ。該当者がいなければNoneを返す"""
+    # シーズン開始時点の年齢＝初年度の年齢＋今季より前の在籍季数
+    # （rosters.jsonのtotal_seasonsは最新季終了時点の値のため使わない。_career_before参照）
+    prior_seasons, _ = _career_before(data_dir, season)
+    initial_age = _initial_age_map(data_dir)
     age_by_id = {
-        ind["id"]: ind.get("initial_age", 0) + ind.get("total_seasons", 0)
-        for league_members in rosters.values() for ind in league_members
+        iid: initial_age[iid] + prior_seasons.get(iid, 0)
+        for iid in (r["individual_id"] for r in main_league_rows)
+        if initial_age.get(iid) is not None
     }
     title_exp_ids = _title_experience_ids(data_dir, season)
     league_history = _dan_league_history(data_dir, season)
@@ -273,6 +322,7 @@ def _pick_rookie_of_year(data_dir, season, rosters, main_league_rows, title_resu
     return {
         "individual_id": best_id, "name": row.get("display_name", best_id),
         "league": row.get("league"), "win": row.get("win", 0), "loss": row.get("loss", 0),
+        "draw": row.get("draw", 0), "age": age_by_id.get(best_id),
         "title": tr["title"] if tr else None, "title_result": tr["result"] if tr else None,
     }
 
@@ -332,15 +382,29 @@ def gather_season_facts(data_dir, season):
         })
         related.append((winner_id, names.get(winner_id, winner_id)))
 
+    # 勝者がそのタイトルを保持するのは通算何期目か（「初戴冠」「〜連覇」等を当て推量で書かせないため）
+    title_history = state.get("title_history", [])
+    for tr in title_results:
+        tr["winner_title_total"], _ = compute_title_stats_up_to(title_history, tr["title"], tr["winner_name"], season)
+    # 今季終了時点で各個体が保持しているタイトル（全タイトルが毎季決着するので、今季の勝者＝季末の保持者）
+    crowns_by_id = {}
+    for tr in title_results:
+        crowns_by_id.setdefault(tr["winner_id"], []).append(tr["title"])
+
+    prior_seasons, _ = _career_before(data_dir, season)
+
     mvp = _pick_mvp(title_results, main_league_rows)
     if mvp is not None:
         mvp["gender"] = gender_by_id.get(mvp["individual_id"])
+        mvp["nth_season"] = prior_seasons.get(mvp["individual_id"], 0) + 1
+        mvp["crowns"] = crowns_by_id.get(mvp["individual_id"], [])
         related.append((mvp["individual_id"], mvp["name"]))
 
     rookie = _pick_rookie_of_year(data_dir, season, rosters, main_league_rows, title_results)
     # MVPと同一人物であれば、新人王は重複して取り上げない
     if rookie is not None and (mvp is None or rookie["individual_id"] != mvp["individual_id"]):
         rookie["gender"] = gender_by_id.get(rookie["individual_id"])
+        rookie["nth_season"] = prior_seasons.get(rookie["individual_id"], 0) + 1
         related.append((rookie["individual_id"], rookie["name"]))
     elif rookie is not None:
         rookie = None
@@ -385,6 +449,25 @@ def gather_season_facts(data_dir, season):
     }
 
 
+def _title_count_label(total):
+    if not total:
+        return "通算期数不明"
+    return "初めて（初獲得）" if total == 1 else f"通算{total}期目"
+
+
+def _record(win, loss, draw):
+    return f"{win}勝{loss}敗" + (f"{draw}分" if draw else "")
+
+
+# 経歴を当て推量で書かせない（新人王を「デビューシーズン」と書いてしまった不具合の再発防止）
+CAREER_PROMPT_NOTE = (
+    "選手の経歴（デビュー・初出場・初タイトル・ベテラン・〜連覇等）は、データに明記されたものだけを書くこと。"
+    "新人王は「シーズン開始時点で26歳以下・六段以下・タイトル戦（番勝負）未経験」の若手から選ぶ賞であり、"
+    "デビュー年の選手に限らない。データで「通算1季目」とされていない限り、「デビュー」「ルーキーイヤー」"
+    "「初年度」「初参戦」のように書かないこと。"
+)
+
+
 def build_prompt(facts):
     lines = [f"第{facts['season']}季の結果データ（事実のみ。これ以外の出来事は起きていない）:", "", "■タイトル戦"]
     for tr in facts["title_results"]:
@@ -395,12 +478,13 @@ def build_prompt(facts):
                 f"（性別：{_gender_label(tr['winner_gender'])}）が、番勝負なしでそのまま初代保持者に襲名"
                 "（挑戦者・在位者による番勝負は発生していない）"
             )
-        else:
-            lines.append(
-                f"・{tr['title']}：{TITLE_QUALIFY_PATH[tr['title']]}として挑戦した"
-                f"{tr['challenger_name']} {tr['challenger_wins']}-{tr['holder_wins']} "
-                f"保持者{tr['holder_name']} → {tr['result']}（{tr['result']}した側（{tr['winner_name']}）の性別：{_gender_label(tr['winner_gender'])}）"
-            )
+            continue
+        lines.append(
+            f"・{tr['title']}：{TITLE_QUALIFY_PATH[tr['title']]}として挑戦した"
+            f"{tr['challenger_name']} {tr['challenger_wins']}-{tr['holder_wins']} "
+            f"保持者{tr['holder_name']} → {tr['result']}（{tr['result']}した側（{tr['winner_name']}）の性別：{_gender_label(tr['winner_gender'])}。"
+            f"{tr['winner_name']}の{tr['title']}保持は{_title_count_label(tr.get('winner_title_total'))}）"
+        )
     mv = facts["movements"]
     lines.append("")
     lines.append("■リーグ戦")
@@ -434,33 +518,40 @@ def build_prompt(facts):
                 # リーグ成績が0勝0敗になる個体については、「0勝0敗なのに受賞」という
                 # 誤解を招く書き方にならないよう、リーグ成績の記載自体を省く
                 # （タイトル戦の対局成績は上のtitles_textに既に含まれている）
-                if mvp["win"] == 0 and mvp["loss"] == 0:
+                crowns = mvp.get("crowns") or []
+                if len(crowns) >= 2:
+                    titles_text += f"。今季終了時点で{'・'.join(crowns)}の{len(crowns)}冠"
+                career = _career_label(mvp["nth_season"]) if mvp.get("nth_season") else ""
+                if career:
+                    titles_text += f"。{career}"
+                if mvp["win"] == 0 and mvp["loss"] == 0 and not mvp.get("draw"):
                     lines.append(f"・今季MVP：{mvp['name']}（性別：{_gender_label(mvp['gender'])}。{titles_text}。{mvp['league']}リーグは防衛専念枠のため対局免除）")
                 else:
                     via_a_league = mvp["league"] == "A" and any(t == "青龍" for t, _, _ in mvp["titles"])
                     note = "。このAリーグ1位の成績によって青龍の挑戦権（または初代襲名）を得たもので、別の功績ではない" \
                         if via_a_league else ""
                     lines.append(
-                        f"・今季MVP：{mvp['name']}（性別：{_gender_label(mvp['gender'])}。{titles_text}。{mvp['league']}リーグ{mvp['win']}勝{mvp['loss']}敗{note}）"
+                        f"・今季MVP：{mvp['name']}（性別：{_gender_label(mvp['gender'])}。{titles_text}。{mvp['league']}リーグ{_record(mvp['win'], mvp['loss'], mvp.get('draw', 0))}{note}）"
                     )
             else:
-                lines.append(f"・今季MVP（{mvp['league']}リーグで最多勝）：{mvp['name']}（性別：{_gender_label(mvp['gender'])}。{mvp['win']}勝{mvp['loss']}敗）")
+                career = f"。{_career_label(mvp['nth_season'])}" if mvp.get("nth_season") else ""
+                lines.append(f"・今季MVP（{mvp['league']}リーグで最多勝）：{mvp['name']}（性別：{_gender_label(mvp['gender'])}。{_record(mvp['win'], mvp['loss'], mvp.get('draw', 0))}{career}）")
         if rookie:
+            rookie_head = (
+                f"・新人王：{rookie['name']}（性別：{_gender_label(rookie['gender'])}。"
+                + (f"シーズン開始時点で{rookie['age']}歳。" if rookie.get("age") is not None else "")
+                + (f"{_career_label(rookie['nth_season'])}。" if rookie.get("nth_season") else "")
+                + f"{rookie['league']}リーグ、{_record(rookie['win'], rookie['loss'], rookie.get('draw', 0))}"
+            )
             if rookie["title"] and rookie["title_result"] == "初代襲名":
-                lines.append(
-                    f"・新人王：{rookie['name']}（性別：{_gender_label(rookie['gender'])}。{rookie['league']}リーグ、{rookie['win']}勝{rookie['loss']}敗。"
-                    f"今季{rookie['title']}の初代保持者に襲名）"
-                )
+                lines.append(f"{rookie_head}。今季{rookie['title']}の初代保持者に襲名）")
             elif rookie["title"]:
                 # title_resultはタイトル側から見た結果（奪取/防衛）。新人王は挑戦者なので、
                 # 「防衛」は「挑戦して敗れた」の意味になる（そのまま渡すと逆の意味に読まれる）
                 outcome = "奪取" if rookie["title_result"] == "奪取" else "敗退（在位者が防衛）"
-                lines.append(
-                    f"・新人王：{rookie['name']}（性別：{_gender_label(rookie['gender'])}。{rookie['league']}リーグ、{rookie['win']}勝{rookie['loss']}敗。"
-                    f"今季{rookie['title']}に挑戦者として出場し{outcome}）"
-                )
+                lines.append(f"{rookie_head}。今季{rookie['title']}に挑戦者として出場し{outcome}）")
             else:
-                lines.append(f"・新人王：{rookie['name']}（性別：{_gender_label(rookie['gender'])}。{rookie['league']}リーグ、{rookie['win']}勝{rookie['loss']}敗）")
+                lines.append(f"{rookie_head}）")
 
     lines.append("")
     lines.append(
@@ -470,6 +561,7 @@ def build_prompt(facts):
         "リーグ戦については、Aリーグに関わる昇格・降格だけ名前を挙げて触れればよい。"
         "B〜Dリーグ内の入れ替えは、件数だけ一言触れる程度で十分（個別の名前は渡していないので書けない）。"
         f"{TITLE_RULES_NOTE}"
+        f"{CAREER_PROMPT_NOTE}"
         f"{GENDER_PROMPT_NOTE}"
         "出力は次のJSON形式のみ（説明文やコードフェンスなど、他のテキストは一切含めない）：\n"
         '{"title": "見出し", "summary": "1〜2文の要約", "body": "本文（300〜500字程度）", '
@@ -518,16 +610,20 @@ def gather_column_facts(data_dir, season):
     if row is None:
         return None
 
-    # IDの先頭が「D」＝Dリーグの新人として参入した個体（命名規則上の由来）。
-    # 現在Dリーグ以外にいれば「Dリーグ出身からの成り上がり」の物語として扱える
-    is_grassroots = top_id.startswith("D") and row["league"] != "D"
+    # 初在籍がDリーグで、今季はDリーグ以外にいれば「Dリーグからの成り上がり」の物語として扱える。
+    # （以前はIDの先頭が「D」かどうかで判定していたが、新人リーグ経由の参入者はID「CC◯-◯◯◯」で
+    # 同じくDリーグから始まるため漏れていた。standingsの履歴から判定する）
+    prior_seasons, first_by_id = _career_before(data_dir, season)
+    first_season, first_league = first_by_id.get(top_id, (season, row["league"]))
+    is_grassroots = first_league == "D" and row["league"] != "D"
 
     return {
         "season": season, "individual_id": top_id, "name": row["display_name"],
         "gender": _load_gender_map(data_dir).get(top_id),
         "league": row["league"], "streak": top_streak,
-        "win": row.get("win", 0), "loss": row.get("loss", 0),
-        "is_grassroots": is_grassroots,
+        "win": row.get("win", 0), "loss": row.get("loss", 0), "draw": row.get("draw", 0),
+        "is_grassroots": is_grassroots, "first_season": first_season,
+        "nth_season": prior_seasons.get(top_id, 0) + 1,
         "related_individual_ids": [top_id], "related_individual_names": [row["display_name"]],
     }
 
@@ -536,17 +632,20 @@ def build_column_prompt(facts):
     lines = [
         f"第{facts['season']}季の事実データ（これ以外の出来事は起きていない）:", "",
         f"・{facts['name']}（{facts['league']}リーグ、性別：{_gender_label(facts['gender'])}）が、"
-        f"リーグ戦（A/B/C/Dいずれか）で{facts['streak']}連勝した"
-        f"（今季の成績は{facts['win']}勝{facts['loss']}敗）。",
+        f"{facts['league']}リーグの今季のリーグ戦で{facts['streak']}連勝した"
+        f"（今季の{facts['league']}リーグでの成績は{_record(facts['win'], facts['loss'], facts.get('draw', 0))}）。",
     ]
+    if facts.get("nth_season"):
+        lines.append(f"・{facts['name']}は{_career_label(facts['nth_season'])}。")
     if facts["is_grassroots"]:
-        lines.append(f"・{facts['name']}はDリーグの新人としてデビューし、現在は{facts['league']}リーグまで昇格している。")
+        lines.append(f"・{facts['name']}は第{facts['first_season']}季にDリーグから在籍を始め、今季は{facts['league']}リーグで戦った。")
     lines.append("")
     lines.append(
         f"以上の事実だけをもとに、{facts['name']}の{facts['streak']}連勝を主題にした、"
         "記者個人の所感・コラム記事を書いてください（ダイジェスト記事とは別の、短い読み物）。"
         "データに無い出来事・数字は書かないこと。"
         f"{TITLE_RULES_NOTE}"
+        f"{CAREER_PROMPT_NOTE}"
         f"{GENDER_PROMPT_NOTE}"
         "出力は次のJSON形式のみ（説明文やコードフェンスなど、他のテキストは一切含めない）：\n"
         '{"title": "見出し", "summary": "1〜2文の要約", "body": "本文（200〜350字程度）", '
@@ -588,7 +687,8 @@ def gather_upset_facts(data_dir, season):
         loser_id = m["individual_b_id"] if m["result"] == "win" else m["individual_a_id"]
         gap = prev_elo.get(loser_id, 1500.0) - prev_elo.get(winner_id, 1500.0)
         if gap >= MIN_UPSET_ELO_GAP and (best is None or gap > best["gap"]):
-            best = {"winner_id": winner_id, "loser_id": loser_id, "gap": gap, "league": m["league"]}
+            best = {"winner_id": winner_id, "loser_id": loser_id, "gap": gap, "league": m["league"],
+                    "stage": m.get("stage")}
 
     if best is None:
         return None
@@ -596,7 +696,7 @@ def gather_upset_facts(data_dir, season):
     winner_id, loser_id = best["winner_id"], best["loser_id"]
     gender_by_id = _load_gender_map(data_dir)
     return {
-        "season": season, "league": best["league"], "elo_gap": round(best["gap"]),
+        "season": season, "league": best["league"], "stage": best["stage"], "elo_gap": round(best["gap"]),
         "winner_id": winner_id, "winner_name": names.get(winner_id, winner_id),
         "winner_gender": gender_by_id.get(winner_id),
         "loser_id": loser_id, "loser_name": names.get(loser_id, loser_id),
@@ -606,10 +706,32 @@ def gather_upset_facts(data_dir, season):
     }
 
 
+def _match_stage_label(league, stage=None):
+    """対局ログのleague欄（"白虎予選"・"朱雀紅組"等）を記事用の呼び名にする。
+    以前は「{league}リーグの対局」とそのまま書かせていたため、トーナメントである
+    白虎予選や、紅白リーグの入れ替え戦である朱雀予選が「〜予選リーグ」のように誤って書かれていた"""
+    if league in TITLE_NAMES:
+        return f"{league}戦の番勝負（タイトル保持者と挑戦者によるタイトル戦本番）"
+    if league == "白虎予選":
+        return "白虎戦の挑戦者決定トーナメント（Elo上位16名による）"
+    if league == "玄武予選":
+        if stage == "final":
+            return "玄武戦の挑戦者決定リーグ（各予選ブロックの優勝者による総当たり）"
+        return "玄武戦の予選ブロック（全選手参加の抽選トーナメント）"
+    if league == "朱雀予選":
+        return ("朱雀紅白リーグの入れ替え戦（紅白リーグからの陥落者の補充枠を争うトーナメント。"
+                "勝っても紅白リーグ入りが決まるだけで、朱雀への挑戦権ではない）")
+    if league in ("朱雀紅組", "朱雀白組"):
+        return f"朱雀紅白リーグ（{league[-2:]}）"
+    if league == "朱雀挑戦者決定戦":
+        return "朱雀挑戦者決定戦（紅組1位と白組1位による一戦）"
+    return f"{league}リーグ"
+
+
 def build_upset_prompt(facts):
     lines = [
         f"第{facts['season']}季の事実データ（これ以外の出来事は起きていない）:", "",
-        f"・{facts['league']}リーグの対局で、{facts['winner_name']}（性別：{_gender_label(facts['winner_gender'])}）が"
+        f"・{_match_stage_label(facts['league'], facts.get('stage'))}の対局で、{facts['winner_name']}（性別：{_gender_label(facts['winner_gender'])}）が"
         f"{facts['loser_name']}（性別：{_gender_label(facts['loser_gender'])}）に勝利した。"
         f"{facts['loser_name']}は前季終了時点のEloが{facts['winner_name']}より約{facts['elo_gap']}ポイント高く、"
         "実力面では下馬評を覆す結果だった。",
@@ -618,6 +740,7 @@ def build_upset_prompt(facts):
         "記者個人の所感・コラム記事を書いてください（ダイジェスト記事とは別の、短い読み物）。"
         "データに無い出来事・数字は書かないこと。"
         f"{TITLE_RULES_NOTE}"
+        f"{CAREER_PROMPT_NOTE}"
         f"{GENDER_PROMPT_NOTE}"
         "出力は次のJSON形式のみ（説明文やコードフェンスなど、他のテキストは一切含めない）：\n"
         '{"title": "見出し", "summary": "1〜2文の要約", "body": "本文（200〜350字程度）", '
