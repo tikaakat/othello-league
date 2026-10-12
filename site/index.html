@@ -1204,7 +1204,7 @@ function movementMarks(movement) {
 // 何か動きが無くても、既に持っている点数自体は常に見えるようにする）。
 // それに加えて、この季に実際に動きがあった場合のみ、青龍戦リーグ（A〜Dの本戦）で
 // 負け越した（gained、+1）／勝ち越した（won、-1）／玄武ブロック優勝等で軽減された（relief、-1）／
-// 0に戻った（cleared{N}、Nはクリア直前の点数）を追加で表示する。
+// 0に戻った（cleared{N}、Nはクリア直前の点数。「点N -点N」と表示）を追加で表示する。
 // 「点N」のハイライトは、今季の増減が起きる前（＝季開始時点）に既に持っていた点数を
 // 示す。今季の増減は「+点1」「-点1」で別途示すため、現在点（今季の増減を反映済みの値）
 // をそのままハイライトすると、例えば元々1点持っていて今季+1点で2点（即引退）になった
@@ -1216,8 +1216,11 @@ function movementMarks(movement) {
 function demotionEventMark(event, points) {
   const clearedMatch = /^cleared(\d*)$/.exec(event || '');
   if (clearedMatch) {
+    // 0点に戻った場合も、増減の表示（「点N +点1」「点N -点1」）と同じ形に揃え、
+    // 季開始時点の点数のチップ＋減った点数で示す（例：1点→0点は「点1 -点1」）
     const prevPoints = clearedMatch[1] || '1';
-    return `<span class="movement-mark" style="font-size:0.7rem;" title="降級点が0に戻った"><s style="color:#ff5f5f;">点${prevPoints}</s><span style="color:var(--cyan);">消</span></span>`;
+    return `<span class="movement-mark" style="background:#ff5f5f; color:var(--navy-950); font-weight:700; padding:0 4px; border-radius:3px; font-size:0.7rem;" title="今季開始時点の降級点">点${prevPoints}</span>`
+      + `<span class="movement-mark" style="color:var(--cyan); font-size:0.7rem;" title="降級点が0に戻った">-点${prevPoints}</span>`;
   }
   const parts = (event || '').split('_').filter(Boolean);
   const gainedMatch = parts.map(p => /^gained(\d*)$/.exec(p)).find(Boolean);
