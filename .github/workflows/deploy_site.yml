@@ -68,6 +68,7 @@ on:
           - "fix_newcomer_standings_stale_master_20261011"
           - "fix_newcomer_standings_stale_master_round2_20261011"
           - "fix_demotion_won_event_20261012"
+          - "fix_backfill_demotion_reset_20261012"
         default: ""
       create_dir:
         description: "デプロイの代わりに、lab.spia-net.com直下（othello-league/の1つ上）に相対パスでディレクトリを作成する（例: othello-news）。「..」や先頭「/」は不可"
@@ -328,6 +329,15 @@ jobs:
                 # for_season_2.jsonを直しただけではDB側の表示が直らず、ここで直接UPDATEする
                 SQL_LIST=(
                   "UPDATE newcomer_league_standings SET master_id = NULL, master_name = NULL WHERE for_season = 2 AND individual_id IN ('CCNL-000', 'CCNL-001');"
+                )
+                ;;
+              fix_backfill_demotion_reset_20261012)
+                # 繰り上げ（backfill）でDからCへ上がった個体の降級点をリセットしていなかったため、
+                # 第6季にD4位から繰り上げでCへ上がった中田由紀（CC3-002）に降級点1が残っていた。
+                # 結果タブの記録（cleared2）と現在の降級点（0）を直接直す
+                SQL_LIST=(
+                  "UPDATE standings SET demotion_point_event = 'cleared2', demotion_points = 0 WHERE season = 6 AND individual_id = 'CC3-002' AND league = 'D';"
+                  "UPDATE individuals SET demotion_points = 0 WHERE id = 'CC3-002';"
                 )
                 ;;
               fix_demotion_won_event_20261012)

@@ -68,6 +68,7 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
     B = list(rosters["B"])
     C = list(rosters["C"])
     D = list(rosters["D"])
+    d_start_points = {ind.id: ind.demotion_points for ind in D}
 
     # --- タイトル保持者・朱雀紅白リーグ在籍者（来季から加入予定の予選通過者も含む）・
     #     この季のタイトル戦挑戦者（extra_protected_ids）は、年齢引退とDリーグ降級点
@@ -300,6 +301,18 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
     A, B = _backfill(A, B, LEAGUE_CAPACITY["A"], remain_ids=b_remain_ids, exclude_ids=c_promote_to_b_ids)
     B, C = _backfill(B, C, LEAGUE_CAPACITY["B"], remain_ids=c_remain_ids, exclude_ids=d_promote_to_c_ids)
     C, D = _backfill(C, D, LEAGUE_CAPACITY["C"], remain_ids=d_keep_ids, exclude_ids=c_relegate_to_d_ids)
+
+    # 繰り上げ（backfill）でDからCへ上がった個体も、通常のD→C昇格（d_promote_to_c）と同じく
+    # 降級点をリセットする。降級点はDリーグ在籍中の成績のみを反映するもので、Dを卒業したら消える。
+    # 結果タブには季開始時点の点数を「cleared{N}」として記録する（今季の増減の記録は上書きする）
+    for ind in C:
+        if ind.id in d_keep_ids:
+            start_points = d_start_points.get(ind.id, 0)
+            ind.demotion_points = 0
+            if start_points > 0:
+                demotion_events[ind.id] = f"cleared{start_points}"
+            else:
+                demotion_events.pop(ind.id, None)
 
     # リーグ所属情報・在籍年数の更新
     all_retired = age_retired + d_up_or_out_retired
