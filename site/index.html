@@ -2,6 +2,18 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
+<!-- Google tag (gtag.js)：GA4「spia-net lab」ストリーム。画面切り替えはURLの#以降だけが変わる作りのため、
+     自動のページビュー送信は止め、画面を切り替えるたびにtrackPageView()で送る -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-0EYFM3WP9J"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-0EYFM3WP9J', { send_page_view: false });
+  function trackPageView() {
+    gtag('event', 'page_view', { page_location: location.href, page_title: document.title });
+  }
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CIRCUIT OTHELLO LEAGUE | lab.spia-net.com</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -401,6 +413,7 @@ applyFavoriteHighlights();
 const scrollPositions = {};
 
 function render(hash, isPopstate) {
+  setTimeout(trackPageView, 0);
   const parts = (hash || '').replace(/^#/, '').split('/');
   const base = parts[0] || 'leagues';
   const param = parts[1];
