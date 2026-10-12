@@ -67,6 +67,7 @@ on:
           - "reset_fan_site_data_20261011"
           - "fix_newcomer_standings_stale_master_20261011"
           - "fix_newcomer_standings_stale_master_round2_20261011"
+          - "fix_demotion_won_event_20261012"
         default: ""
       create_dir:
         description: "デプロイの代わりに、lab.spia-net.com直下（othello-league/の1つ上）に相対パスでディレクトリを作成する（例: othello-news）。「..」や先頭「/」は不可"
@@ -327,6 +328,14 @@ jobs:
                 # for_season_2.jsonを直しただけではDB側の表示が直らず、ここで直接UPDATEする
                 SQL_LIST=(
                   "UPDATE newcomer_league_standings SET master_id = NULL, master_name = NULL WHERE for_season = 2 AND individual_id IN ('CCNL-000', 'CCNL-001');"
+                )
+                ;;
+              fix_demotion_won_event_20261012)
+                # 勝ち越しによる降級点-1（0点まで減らなかった場合）の結果タブ表示用イベント（won{N}）を
+                # 記録していなかったため、第5季の田村麻衣（2→1点）の表示が抜けていた。
+                # import_from_github.phpは既存行を更新しないため、ここで直接UPDATEする
+                SQL_LIST=(
+                  "UPDATE standings SET demotion_point_event = 'won2' WHERE season = 5 AND individual_id = 'C0-000' AND league = 'D';"
                 )
                 ;;
               fix_newcomer_standings_stale_master_round2_20261011)
