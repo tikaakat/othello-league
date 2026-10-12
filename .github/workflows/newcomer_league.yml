@@ -151,16 +151,14 @@ jobs:
             echo "変更なし（コミット不要）"
           fi
 
-          # news-site（ファンサイト）のデプロイは、本戦（evolve.yml）側が季を進めた際にのみ
-          # generate_news.ymlをworkflow_dispatchで起動する仕組みになっているため、
-          # news-site/index.html等をmainにマージしただけでは次の本戦実行まで反映されない。
-          # 新人リーグの実行タイミングでも同様に起動しておくことで、本戦の間隔が空いても
-          # news-site側の変更を取りこぼさず反映できるようにする（季番号は指定しない＝
-          # 既存の最新記事をそのまま使い、news-siteファイル一式の再デプロイだけが目的）
-          echo "=== news-siteの再デプロイをworkflow_dispatchで起動 ==="
+          # この回の新人リーグ記事を、すぐに生成する（季番号は新人が出走する季＝現在の季+1）。
+          # 以前は出走する季の本戦が終わってから生成していたため、記事が1季遅れて本戦記事の後ろに
+          # 並んでいた。記事生成はnews-site一式の再デプロイも行うので、そちらもこの起動で兼ねる
+          TARGET_SEASON=$(python -c "import json; print(json.load(open('data/season_state.json')).get('current_season', 0) + 1)")
+          echo "=== 新人リーグ記事（第${TARGET_SEASON}季から出走）の生成をworkflow_dispatchで起動 ==="
           curl -sS -f -X POST \
             -H "Authorization: Bearer ${GH_TOKEN}" \
             -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/${{ github.repository }}/actions/workflows/generate_news.yml/dispatches" \
-            -d '{"ref":"main","inputs":{}}' \
-            || echo "::warning::news-siteの再デプロイ起動に失敗しました。後で手動実行してください"
+            -d "{\"ref\":\"main\",\"inputs\":{\"season\":\"${TARGET_SEASON}\",\"newcomer_only\":\"true\"}}" \
+            || echo "::warning::新人リーグ記事の生成起動に失敗しました。後で手動実行してください（season=${TARGET_SEASON}、newcomer_only=true）"

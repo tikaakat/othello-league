@@ -927,7 +927,19 @@ def build_newcomer_prompt(facts):
 
 def try_generate_newcomer(args, season, articles_path, articles):
     article_id = f"s{season}-newcomer"
-    if any(a.get("id") == article_id for a in articles):
+    existing = next((a for a in articles if a.get("id") == article_id), None)
+    if existing is not None:
+        # 新人リーグ直後に生成した記事は、昇格者がまだDリーグに参入していないため関連個体
+        # （選手へのリンク）が空になる。参入後の実行で、本文は変えずに関連個体だけ補う
+        if not existing.get("related_individual_ids"):
+            facts = gather_newcomer_facts(args.data_dir, season)
+            if facts and facts["related_individual_ids"]:
+                existing["related_individual_ids"] = facts["related_individual_ids"]
+                existing["related_individual_names"] = facts["related_individual_names"]
+                with open(articles_path, "w", encoding="utf-8") as f:
+                    json.dump(articles, f, ensure_ascii=False, indent=2)
+                print(f"[DEBUG] {article_id}に関連個体を追加しました", flush=True)
+                return
         print(f"[DEBUG] 第{season}季の新人リーグ記事は既に生成済みです（{article_id}）。スキップします", flush=True)
         return
 
@@ -942,10 +954,18 @@ def try_generate_newcomer(args, season, articles_path, articles):
     print(f"[DEBUG] 第{season}季の新人リーグ記事を生成します（model={args.model}）", flush=True)
     generated = run_claude(build_newcomer_prompt(facts), model=args.model, persona_path=PERSONA_PATH)
 
+    # 新人リーグは、新人が出走する季の本戦より前に行われる。保険として本戦の後に生成した場合も、
+    # 一覧で本戦記事より前に並ぶよう、その季のダイジェストより前の日時にする
+    published_at = datetime.datetime.now().astimezone()
+    digest = next((a for a in articles if a.get("id") == f"s{season}-digest"), None)
+    if digest:
+        digest_at = datetime.datetime.fromisoformat(digest["published_at"])
+        if published_at >= digest_at:
+            published_at = digest_at - datetime.timedelta(minutes=1)
     save_article(articles_path, articles, {
         "id": article_id, "type": "result", "season": season, "author": AUTHOR_DIGEST,
         "title": generated["title"], "summary": generated["summary"], "body": generated["body"],
-        "published_at": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
+        "published_at": published_at.isoformat(timespec="seconds"),
         "related_individual_ids": facts["related_individual_ids"],
         "related_individual_names": facts["related_individual_names"],
         "tags": generated.get("tags") or ["新人リーグ", "結果"],
@@ -961,6 +981,9 @@ def main():
     parser.add_argument("--season", type=int, default=None, help="対象シーズン（省略時は最新）")
     parser.add_argument("--regenerate-digest", action="store_true",
                         help="対象季のダイジェスト記事が既にあっても作り直す（記事の誤りを修正する場合）")
+    parser.add_argument("--newcomer-only", action="store_true",
+                        help="対象季（＝新人が出走する季）の新人リーグ記事だけを生成する。新人リーグ（newcomer_league.yml）の"
+                             "直後に、その回の記事をすぐ出すために使う")
     args = parser.parse_args()
 
     season = args.season or latest_season_with_standings(args.data_dir)
@@ -971,7 +994,13 @@ def main():
     articles_path = os.path.join(args.news_dir, "articles.json")
     articles = load_json(articles_path, [])
 
+    if args.newcomer_only:
+        try_generate_newcomer(args, season, articles_path, articles)
+        return
+
     try_generate_digest(args, season, articles_path, articles)
+    # 新人リーグ記事は通常、新人リーグ直後の--newcomer-only実行で生成済み。その実行が
+    # 失敗していた場合の保険としてここでも試みる（既に生成済みなら何もしない）
     try_generate_newcomer(args, season, articles_path, articles)
     try_generate_column(args, season, articles_path, articles)
     try_generate_upset(args, season, articles_path, articles)
