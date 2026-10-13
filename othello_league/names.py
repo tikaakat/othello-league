@@ -1,4 +1,5 @@
 import random
+import re
 
 # 日本の名字リスト（200種）
 SURNAMES = [
@@ -53,6 +54,23 @@ GIVEN_NAMES_FEMALE = [
 GIVEN_NAMES = GIVEN_NAMES_MALE + GIVEN_NAMES_FEMALE
 
 GENDERS = ("male", "female")
+
+
+def infer_gender(display_name):
+    """表示名（「名字＋名前」、重複時は末尾に連番）の名前部分から性別を推定する。
+    NameRegistry.generate()で作った名前なら名前リストで一意に決まる（男女のリストに重複は無い）。
+    読者投稿等、リストに無い名前ならNoneを返す"""
+    if not display_name:
+        return None
+    full = re.sub(r"\d+$", "", display_name)
+    for surname in sorted(SURNAMES, key=len, reverse=True):
+        if full.startswith(surname):
+            given = full[len(surname):]
+            if given in GIVEN_NAMES_MALE:
+                return "male"
+            if given in GIVEN_NAMES_FEMALE:
+                return "female"
+    return None
 
 
 class NameRegistry:

@@ -2,7 +2,7 @@ import random
 
 from .individual import LeagueIndividual
 from .buffs import maybe_awaken
-from .names import NameRegistry
+from .names import NameRegistry, infer_gender
 
 # リーグの定員（Dリーグは「定員」ではなく、強制引退を起こさないための大きめのバッファ。
 # 下記D_NEWCOMER_INTAKEによる固定枠の受け入れを人数に関わらず続けられるよう、
@@ -625,7 +625,9 @@ def _build_character_creation_individual(request, season, index, master=None):
         ind_id, "D", params=params, generation=generation,
         parent_a_id=master_id, parent_b_id=None,
         display_name=request.get("name") or ind_id, clan_root_id=clan_root_id,
-        initial_age=resolved_initial_age, gender=request.get("gender"),
+        # 性別が渡されていない場合（新人リーグの持ち越し候補で性別が抜け落ちていた不具合の名残等）は、
+        # 名前から推定する（性別不明だとファンサイトの顔アイコンが表示されない）
+        initial_age=resolved_initial_age, gender=request.get("gender") or infer_gender(request.get("name")),
     )
     ind.awakened_param = awakened_key
     ind.volatility = volatility if volatility is not None else round(max(0.1, min(3.0, random.uniform(0.3, 2.0))), 2)
