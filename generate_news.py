@@ -721,6 +721,8 @@ def _match_stage_label(league, stage=None):
     if league == "朱雀予選":
         return ("朱雀紅白リーグの入れ替え戦（紅白リーグからの陥落者の補充枠を争うトーナメント。"
                 "勝っても紅白リーグ入りが決まるだけで、朱雀への挑戦権ではない）")
+    if league in ("朱雀紅組-playoff", "朱雀白組-playoff"):
+        return f"朱雀紅白リーグ（{league[2:4]}）の同率決定戦（順位を決めるための一局）"
     if league in ("朱雀紅組", "朱雀白組"):
         return f"朱雀紅白リーグ（{league[-2:]}）"
     if league == "朱雀挑戦者決定戦":

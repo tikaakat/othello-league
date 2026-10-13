@@ -111,20 +111,21 @@ function resolve_newcomer_real_ids($pdo, $rows) {
 const TITLE_NAMES_LIST = ['青龍', '朱雀', '白虎', '玄武'];
 
 // 1季の中での対局の進行順（run_season.pyの実行順：A〜Dリーグ→青龍→朱雀（紅白決定戦→紅白リーグ→
-// 挑戦者決定戦→番勝負→翌季の紅白リーグ入れ替え予選）→白虎（予選→番勝負）→玄武（予選→番勝負））。
+// 紅白リーグの同率決定戦→挑戦者決定戦→番勝負→翌季の紅白リーグ入れ替え予選）→白虎（予選→番勝負）→玄武（予選→番勝負））。
 // matchesのidは記録順（リーグ戦→各タイトルの番勝負→予選等の付随対局）で、実際の進行順と一致しないため、
 // 「最近の対局」を新しい順に並べる際は、季→この進行順→id の順で並べる
 const MATCH_STAGE_ORDER_SQL = "CASE m.league
     WHEN '青龍' THEN 1
     WHEN '朱雀紅白決定戦' THEN 2
     WHEN '朱雀紅組' THEN 3 WHEN '朱雀白組' THEN 3
-    WHEN '朱雀挑戦者決定戦' THEN 4
-    WHEN '朱雀' THEN 5
-    WHEN '朱雀予選' THEN 6
-    WHEN '白虎予選' THEN 7
-    WHEN '白虎' THEN 8
-    WHEN '玄武予選' THEN 9
-    WHEN '玄武' THEN 10
+    WHEN '朱雀紅組-playoff' THEN 4 WHEN '朱雀白組-playoff' THEN 4
+    WHEN '朱雀挑戦者決定戦' THEN 5
+    WHEN '朱雀' THEN 6
+    WHEN '朱雀予選' THEN 7
+    WHEN '白虎予選' THEN 8
+    WHEN '白虎' THEN 9
+    WHEN '玄武予選' THEN 10
+    WHEN '玄武' THEN 11
     ELSE 0 END";
 
 // 永世称号の判定基準（タイトルごとに異なる）
