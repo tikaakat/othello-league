@@ -208,7 +208,7 @@ def _simplified_dan(history):
     対象をタイトル戦経験の無い個体に絞っているため、省いても結果は変わらない）。
     historyは(season, league, win)のリスト（season昇順）"""
     dan_league_floor = {"C": 5, "B": 6, "A": 7}
-    dan_win_step = {5: 30, 6: 40, 7: 50, 8: 70, 9: 100}
+    dan_win_step = {5: 40, 6: 50, 7: 60, 8: 80, 9: 100}  # site/api.phpのDAN_WIN_STEPと揃える
     dan = 4  # 新人の初期段位
     win_baseline = 0
     cum_win = 0
