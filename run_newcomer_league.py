@@ -301,7 +301,9 @@ def run_newcomer_league(submissions, slots_needed, registry, retry_pool=None,
     for ind in non_promoted[:NEWCOMER_RETRY_KEEP_TOP_N]:
         entry = entries_by_id[ind.id]
         next_retry_pool.append({
-            "name": entry.get("name"), "type": entry.get("type"),
+            # genderも引き継ぐ（以前は抜けており、持ち越しを経て昇格した個体が性別不明＝
+            # ファンサイトの顔アイコン無しになっていた）
+            "name": entry.get("name"), "gender": entry.get("gender"), "type": entry.get("type"),
             "params": entry["params"], "awakened_param": entry.get("awakened_param"),
             "auto_generated": bool(entry.get("auto_generated")), "age": entry["initial_age"] + 1,
             "parent_a_id": entry.get("parent_a_id"), "clan_root_id": entry.get("clan_root_id"),
