@@ -53,6 +53,14 @@ on:
         description: "trueにすると、対象季のダイジェスト記事が既にあっても作り直す（記事の誤りを修正する場合）"
         required: false
         default: "false"
+      regenerate_column:
+        description: "trueにすると、対象季の連勝コラムが既にあっても作り直す（掲載日時は元のまま）"
+        required: false
+        default: "false"
+      regenerate_upset:
+        description: "trueにすると、対象季の波乱の一局コラムが既にあっても作り直す（掲載日時は元のまま）"
+        required: false
+        default: "false"
 
 jobs:
   generate-news:
@@ -101,6 +109,12 @@ jobs:
 
           if [ "${{ github.event.inputs.regenerate_milestone }}" = "true" ]; then
             REGEN_ARG="$REGEN_ARG --regenerate-milestone"
+          fi
+          if [ "${{ github.event.inputs.regenerate_column }}" = "true" ]; then
+            REGEN_ARG="$REGEN_ARG --regenerate-column"
+          fi
+          if [ "${{ github.event.inputs.regenerate_upset }}" = "true" ]; then
+            REGEN_ARG="$REGEN_ARG --regenerate-upset"
           fi
           if [ "${{ github.event.inputs.newcomer_only }}" = "true" ]; then
             REGEN_ARG="$REGEN_ARG --newcomer-only"

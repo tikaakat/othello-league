@@ -936,7 +936,8 @@ def try_generate_digest(args, season, articles_path, articles):
 
 def try_generate_column(args, season, articles_path, articles):
     article_id = f"s{season}-column"
-    if any(a.get("id") == article_id for a in articles):
+    existing = next((a for a in articles if a.get("id") == article_id), None)
+    if existing is not None and not getattr(args, "regenerate_column", False):
         print(f"[DEBUG] 第{season}季のコラムは既に生成済みです（{article_id}）。スキップします", flush=True)
         return
 
@@ -948,10 +949,14 @@ def try_generate_column(args, season, articles_path, articles):
     print(f"[DEBUG] 第{season}季のコラムを生成します（{facts['name']}の{facts['streak']}連勝、model={args.model}）", flush=True)
     generated = run_claude(build_column_prompt(facts), model=args.model, persona_path=COLUMN_PERSONA_PATH)
 
+    if existing is not None:
+        # 作り直し：同じid・同じ掲載日時のまま置き換える（いいね等はidに紐づくため引き継がれる）
+        articles.remove(existing)
     save_article(articles_path, articles, {
         "id": article_id, "type": "column", "season": season, "author": AUTHOR_COLUMN,
         "title": generated["title"], "summary": generated["summary"], "body": generated["body"],
-        "published_at": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
+        "published_at": (existing or {}).get("published_at")
+        or datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
         "related_individual_ids": facts["related_individual_ids"],
         "related_individual_names": facts["related_individual_names"],
         "tags": generated.get("tags") or ["コラム"],
@@ -961,7 +966,8 @@ def try_generate_column(args, season, articles_path, articles):
 
 def try_generate_upset(args, season, articles_path, articles):
     article_id = f"s{season}-upset"
-    if any(a.get("id") == article_id for a in articles):
+    existing = next((a for a in articles if a.get("id") == article_id), None)
+    if existing is not None and not getattr(args, "regenerate_upset", False):
         print(f"[DEBUG] 第{season}季の波乱の一局コラムは既に生成済みです（{article_id}）。スキップします", flush=True)
         return
 
@@ -977,10 +983,14 @@ def try_generate_upset(args, season, articles_path, articles):
     )
     generated = run_claude(build_upset_prompt(facts), model=args.model, persona_path=COLUMN_PERSONA_PATH)
 
+    if existing is not None:
+        # 作り直し：同じid・同じ掲載日時のまま置き換える（いいね等はidに紐づくため引き継がれる）
+        articles.remove(existing)
     save_article(articles_path, articles, {
         "id": article_id, "type": "column", "season": season, "author": AUTHOR_COLUMN,
         "title": generated["title"], "summary": generated["summary"], "body": generated["body"],
-        "published_at": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
+        "published_at": (existing or {}).get("published_at")
+        or datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
         "related_individual_ids": facts["related_individual_ids"],
         "related_individual_names": facts["related_individual_names"],
         "tags": generated.get("tags") or ["コラム"],
@@ -1144,6 +1154,10 @@ def main():
                         help="対象季のダイジェスト記事が既にあっても作り直す（記事の誤りを修正する場合）")
     parser.add_argument("--regenerate-milestone", action="store_true",
                         help="対象季の永世称号の特集記事が既にあっても作り直す（記事の誤りを修正する場合）")
+    parser.add_argument("--regenerate-column", action="store_true",
+                        help="対象季の連勝コラムが既にあっても作り直す（記事の誤りを修正する場合。掲載日時は元のまま）")
+    parser.add_argument("--regenerate-upset", action="store_true",
+                        help="対象季の波乱の一局コラムが既にあっても作り直す（記事の誤りを修正する場合。掲載日時は元のまま）")
     parser.add_argument("--newcomer-only", action="store_true",
                         help="対象季（＝新人が出走する季）の新人リーグ記事だけを生成する。新人リーグ（newcomer_league.yml）の"
                              "直後に、その回の記事をすぐ出すために使う")
