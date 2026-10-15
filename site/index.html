@@ -2467,7 +2467,7 @@ function renderCharacterEntryForm(statusData) {
   const typeOptions = Object.entries(CHARACTER_TYPE_LABELS)
     .map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
 
-  const flowTip = '新人リーグは1日2回、本戦の直後に行われ、朝7:00・夜19:00（JST）までに終わります（本戦は2:30〜4:30頃・14:30〜16:30頃に開始）。新人リーグが始まるまでのエントリーがその回で選抜され、次の本戦（朝の回なら同じ日の夕方、夜の回なら翌朝）から出走します。';
+  const flowTip = '新人リーグは1日2回、本戦の直後に行われ、朝7:00・夜19:00（JST）頃までに終わる見込みです（本戦は0:30・12:30以降に順次開始。GitHub側の都合で遅れることがあります）。新人リーグが始まるまでのエントリーがその回で選抜され、次の本戦（朝の回なら同じ日の夕方、夜の回なら翌朝）から出走します。';
   const typeTip = 'バランス型：全パラメータを均等に配分。攻撃型：着手可能数（機動力）を重視。守備型：確定石（辺の安定度）を重視。隅重視型：角の確保と危険マスの回避を重視。';
 
   const paramRows = CC_PARAM_KEYS.map(k => `<div class="slider">

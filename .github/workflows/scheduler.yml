@@ -6,12 +6,16 @@ name: Season Scheduler (朝・夜の定期実行)
 # 以前は evolve.yml / newcomer_league.yml に1日2回ずつcronを直接置いていたが、GitHub Actionsの
 # スケジュール実行は実績で3〜10時間遅れて開始しており（例：6:05 JST予定 → 8:52〜11:31開始、
 # 18:05 JST予定 → 23:25〜翌3:49開始）、時刻を前倒しするだけでは終了時刻が読めなかった。
-# そこで、このワークフローを毎時起動し（個々の起動が遅れても、毎時の起動が続いていれば
-# 枠の中に何回かは入る）、次の時間枠に入っているときだけ本戦を起動する：
-#   朝の枠：JST 2:30〜4:29 → 本戦（約1時間20分〜1時間50分）＋新人リーグ（約20〜30分）で7時までに完了
-#   夜の枠：JST 14:30〜16:29 → 同様に19時までに完了
-# 同じ枠で既に起動済み（実行中・成功）なら何もしない。失敗・キャンセルで終わっていれば、
-# 枠の中の次の起動で再挑戦する。新人リーグは本戦の成功後に本戦側から起動される。
+# そこで、このワークフローを毎時起動し、その回（朝・夜）の本戦がまだなら起動する：
+#   朝の回：JST 0:30〜12:29 の間に最初に起動したとき
+#   夜の回：JST 12:30〜翌0:29 の間に最初に起動したとき
+# 本戦（約1時間20分〜1時間50分）＋新人リーグ（約20〜30分）なので、回の開始直後に起動できれば
+# 朝7時・夜7時までに終わる。毎時のはずの起動自体が間引かれて数時間空くこともあるため
+# （実績：2:07・5:22 JSTの2回しか起動しなかった夜があった）、当初の「2時間だけの枠」では
+# 回ごと取りこぼしていた。回の終わりまで受け付けることで、遅れても回そのものは逃さない。
+# 同じ回で既に起動済み（実行待ち・実行中・成功）なら何もしない。失敗・キャンセルで終わっていれば、
+# 次の起動で再挑戦する。新人リーグは本戦の成功後に本戦側から起動される。
+# 手動で本戦を回すときも、slot入力（例: 2026-10-16-AM）を付ければその回の分として数えられる。
 
 on:
   schedule:
@@ -39,17 +43,17 @@ jobs:
           set -euo pipefail
           NOW_HM=$(TZ=Asia/Tokyo date +%H%M)
           TODAY=$(TZ=Asia/Tokyo date +%Y-%m-%d)
+          YESTERDAY=$(TZ=Asia/Tokyo date -d '-1 day' +%Y-%m-%d)
           # 10#: 先頭0付きの値を8進数として解釈させない
           HM=$((10#$NOW_HM))
-          if [ "$HM" -ge 230 ] && [ "$HM" -lt 430 ]; then
+          if [ "$HM" -lt 30 ]; then
+            SLOT="${YESTERDAY}-PM"
+          elif [ "$HM" -lt 1230 ]; then
             SLOT="${TODAY}-AM"
-          elif [ "$HM" -ge 1430 ] && [ "$HM" -lt 1630 ]; then
-            SLOT="${TODAY}-PM"
           else
-            echo "JST ${NOW_HM}：実行枠（2:30〜4:29 / 14:30〜16:29）の外のため何もしません"
-            exit 0
+            SLOT="${TODAY}-PM"
           fi
-          echo "JST ${NOW_HM}：実行枠 ${SLOT}"
+          echo "JST ${NOW_HM}：回 ${SLOT}"
 
           api() {
             curl -sS -f -H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json" "$@"
@@ -68,11 +72,24 @@ jobs:
                   print(r["id"]); break
           ' "$SLOT")
           if [ -n "$EXISTING" ]; then
-            echo "枠 ${SLOT} の本戦は起動済みです（run_id=${EXISTING}）。何もしません"
+            echo "回 ${SLOT} の本戦は起動済みです（run_id=${EXISTING}）。何もしません"
             exit 0
           fi
 
-          echo "枠 ${SLOT} の本戦を起動します"
+          # 本戦・新人リーグのどちらかが実行待ち・実行中なら起動しない（同じ排他グループは
+          # 実行待ちを1件しか持てず、新しい実行待ちが古い実行待ちを取り消すため、前の回の
+          # 新人リーグが本戦の後ろで待っている間に本戦を足すと、新人リーグが消えてしまう）。
+          # 次の起動で改めて判定する
+          for WF in evolve.yml newcomer_league.yml; do
+            BUSY=$(api "https://api.github.com/repos/${REPO}/actions/workflows/${WF}/runs?per_page=5" \
+              | python3 -c 'import json,sys; print(sum(1 for r in json.load(sys.stdin)["workflow_runs"] if r["status"] != "completed"))')
+            if [ "$BUSY" != "0" ]; then
+              echo "${WF} が実行待ち・実行中のため、今回は起動しません（次の起動で判定）"
+              exit 0
+            fi
+          done
+
+          echo "回 ${SLOT} の本戦を起動します"
           api -X POST "https://api.github.com/repos/${REPO}/actions/workflows/evolve.yml/dispatches" \
             -d "{\"ref\":\"main\",\"inputs\":{\"slot\":\"${SLOT}\"}}"
           # 次の起動（同じ排他グループで順番待ちしているもの）が起動済みと判定できるよう、
