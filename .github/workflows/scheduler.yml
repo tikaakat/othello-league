@@ -1,0 +1,88 @@
+name: Season Scheduler (朝・夜の定期実行)
+
+# 朝7時・夜7時（JST）までに「本戦→新人リーグ」が終わっているよう、本戦（evolve.yml）を
+# 決まった時間枠の中で1回だけ起動する。
+#
+# 以前は evolve.yml / newcomer_league.yml に1日2回ずつcronを直接置いていたが、GitHub Actionsの
+# スケジュール実行は実績で3〜10時間遅れて開始しており（例：6:05 JST予定 → 8:52〜11:31開始、
+# 18:05 JST予定 → 23:25〜翌3:49開始）、時刻を前倒しするだけでは終了時刻が読めなかった。
+# そこで、このワークフローを毎時起動し（個々の起動が遅れても、毎時の起動が続いていれば
+# 枠の中に何回かは入る）、次の時間枠に入っているときだけ本戦を起動する：
+#   朝の枠：JST 2:30〜4:29 → 本戦（約1時間20分〜1時間50分）＋新人リーグ（約20〜30分）で7時までに完了
+#   夜の枠：JST 14:30〜16:29 → 同様に19時までに完了
+# 同じ枠で既に起動済み（実行中・成功）なら何もしない。失敗・キャンセルで終わっていれば、
+# 枠の中の次の起動で再挑戦する。新人リーグは本戦の成功後に本戦側から起動される。
+
+on:
+  schedule:
+    # 分を0にしないのは、毎時0分は負荷が集中して遅延・取りこぼしが起きやすいため
+    - cron: "17 * * * *"
+  workflow_dispatch: {}
+
+# 同時に複数起動しても、枠の判定・起動は1つずつ順番に行う（二重起動防止）
+concurrency:
+  group: othello-scheduler
+  cancel-in-progress: false
+
+permissions:
+  actions: write  # evolve.ymlをworkflow_dispatchで起動し、既存の実行を照会するため
+
+jobs:
+  dispatch-season:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch season if inside a slot window
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          NOW_HM=$(TZ=Asia/Tokyo date +%H%M)
+          TODAY=$(TZ=Asia/Tokyo date +%Y-%m-%d)
+          # 10#: 先頭0付きの値を8進数として解釈させない
+          HM=$((10#$NOW_HM))
+          if [ "$HM" -ge 230 ] && [ "$HM" -lt 430 ]; then
+            SLOT="${TODAY}-AM"
+          elif [ "$HM" -ge 1430 ] && [ "$HM" -lt 1630 ]; then
+            SLOT="${TODAY}-PM"
+          else
+            echo "JST ${NOW_HM}：実行枠（2:30〜4:29 / 14:30〜16:29）の外のため何もしません"
+            exit 0
+          fi
+          echo "JST ${NOW_HM}：実行枠 ${SLOT}"
+
+          api() {
+            curl -sS -f -H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json" "$@"
+          }
+
+          # この枠で起動済みの本戦（run-nameに [slot ...] が付く）があり、
+          # 実行待ち・実行中・成功のいずれかなら二重に起動しない
+          EXISTING=$(api "https://api.github.com/repos/${REPO}/actions/workflows/evolve.yml/runs?event=workflow_dispatch&per_page=20" \
+            | python3 -c '
+          import json, sys
+          slot = sys.argv[1]
+          runs = json.load(sys.stdin)["workflow_runs"]
+          for r in runs:
+              if f"[slot {slot}]" in (r.get("display_title") or "") and \
+                 (r["status"] != "completed" or r["conclusion"] == "success"):
+                  print(r["id"]); break
+          ' "$SLOT")
+          if [ -n "$EXISTING" ]; then
+            echo "枠 ${SLOT} の本戦は起動済みです（run_id=${EXISTING}）。何もしません"
+            exit 0
+          fi
+
+          echo "枠 ${SLOT} の本戦を起動します"
+          api -X POST "https://api.github.com/repos/${REPO}/actions/workflows/evolve.yml/dispatches" \
+            -d "{\"ref\":\"main\",\"inputs\":{\"slot\":\"${SLOT}\"}}"
+          # 次の起動（同じ排他グループで順番待ちしているもの）が起動済みと判定できるよう、
+          # 起動した実行が一覧に現れるまで待つ
+          for i in $(seq 1 12); do
+            sleep 5
+            if api "https://api.github.com/repos/${REPO}/actions/workflows/evolve.yml/runs?event=workflow_dispatch&per_page=5" \
+                 | grep -q "\[slot ${SLOT}\]"; then
+              echo "起動を確認しました"
+              exit 0
+            fi
+          done
+          echo "::warning::起動した本戦が一覧に現れませんでした（反映遅延の可能性）"
