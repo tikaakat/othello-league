@@ -1,4 +1,5 @@
 name: Run Othello League Season
+run-name: "Run Othello League Season${{ inputs.slot && format(' [slot {0}]', inputs.slot) || '' }}"
 
 concurrency:
   group: othello-league
@@ -19,33 +20,17 @@ on:
         description: "trueにすると、既存データ（ロスター・対局ログ・順位表・タイトル保持者など）を全て削除し、シーズン1から最初にやり直します"
         required: false
         default: "false"
-  schedule:
-    # 1日2季（6:05・18:05 JST、朝・夕方）回す。それぞれ1季ずつ進める（inputs省略時は
-    # seasons=1がデフォルトのため）。新人リーグ（newcomer_league.yml）は本戦の1時間後に
-    # 実行される（本戦→新人リーグの順）。これは、Dリーグの欠員数（新人リーグの募集人数の
-    # 元になる値）が対局結果が出るまで確定しないため。本戦がその季の対局を終えて欠員を
-    # 確定させた直後に新人リーグを回すことで、「直前に確定したばかりの正確な欠員数」を
-    # 使って募集人数を決められる。
-    #
-    # 6:05 JST(=21:05 UTC 前日)：この回の対局開始前に、前回（19:05 JST）の新人リーグの
-    #   勝者をrecruit_d_league()で取り込み、その季からそのまま出走させる
-    #   （newcomer_winners.jsonは読み取り後に削除されるため、二重適用はされない）。
-    #   対局後に確定したこの回の欠員数は、1時間後（7:05 JST）の新人リーグへ引き継がれる。
-    # 18:05 JST(=09:05 UTC)：同様に、前回（7:05 JST）の新人リーグの勝者を取り込んで
-    #   出走させ、対局後に確定した欠員数を1時間後（19:05 JST）の新人リーグへ引き継ぐ。
-    #
-    # 本戦→新人リーグの順で同じ排他グループ（concurrency: othello-league）を使うため、
-    # 前段が長引いても後段は失敗せずキューで待機する（キュー待ちで長時間経過した場合でも、
-    # checkoutのref: main明示により、実行時点の最新mainを必ず取得するため、対象季がずれる
-    # ことはない）。
-    # 分を0ちょうどではなく5にずらしているのは、GitHub Actionsのスケジュール実行は
-    # 「毎時0分」に負荷が集中して実行が大きく遅延しやすいと公式に案内されているため
-    # （https://docs.github.com/actions/using-workflows/events-that-trigger-workflows#schedule）。
-    # なお、スケジュール実行自体の遅延（キュー投入から実際の実行開始までの遅延）は
-    # GitHub Actions側の仕様上ベストエフォートであり保証がないため、cron時刻の調整だけで
-    # 完全に解消することはできない
-    - cron: "5 21 * * *"
-    - cron: "5 9 * * *"
+      chain_newcomer:
+        description: "trueにすると、本戦が成功した後に新人リーグ（newcomer_league.yml）を続けて起動する"
+        required: false
+        default: "true"
+      slot:
+        description: "scheduler.ymlが付ける実行枠の識別子（例: 2026-10-15-AM）。手動実行時は空でよい"
+        required: false
+        default: ""
+  # 定期実行は scheduler.yml（毎時起動し、朝・夜の時間枠の中で1回だけここをworkflow_dispatchする）が担う。
+  # 以前はここに1日2回のcronを直接置いていたが、GitHub Actionsのスケジュール実行が
+  # 3〜10時間も遅れることが続き、狙った時刻に終わらなかったため（scheduler.ymlの冒頭コメント参照）
 
 permissions:
   contents: write  # data/配下の季進行結果をpushするため
@@ -342,3 +327,20 @@ jobs:
             echo "::error::サイトへの最終同期（プッシュ型・プル型とも）に失敗しました。GitHub上のデータは正常に保存されていますが、サイトへの反映には手動対応（プル型インポートの実行）が必要です。"
             exit 1
           fi
+
+      # 本戦の直後に新人リーグを起動する（本戦→新人リーグの順で、Dリーグの欠員数が確定した
+      # 直後に募集する）。以前は新人リーグ側にも独立したcronを置いていたが、スケジュール実行の
+      # 遅延で本戦との間隔が読めず、手動で本戦を回したときに新人リーグが続かない問題もあったため、
+      # 本戦の成功をきっかけに起動する方式にした。同じ排他グループのため、起動直後は
+      # この本戦ジョブの終了を待ってから動き出す
+      - name: Chain newcomer league
+        if: success() && (github.event_name != 'workflow_dispatch' || inputs.chain_newcomer != 'false')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          curl -sS -f -X POST \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/newcomer_league.yml/dispatches" \
+            -d '{"ref":"main"}' \
+            || { echo "::error::新人リーグの起動に失敗しました。newcomer_league.ymlを手動実行してください"; exit 1; }

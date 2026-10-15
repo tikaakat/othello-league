@@ -2375,7 +2375,7 @@ async function loadNewcomerLeague(forSeason) {
     const resData = await fetch(url).then(r => r.json());
 
     if (!resData.for_season || !resData.meta) {
-      el.innerHTML = '<div class="empty">まだ新人リーグの結果がありません（1日2回、7:00・19:00 JSTに実施）</div>';
+      el.innerHTML = '<div class="empty">まだ新人リーグの結果がありません（1日2回、7:00・19:00 JSTまでに実施）</div>';
       return;
     }
 
@@ -2467,7 +2467,7 @@ function renderCharacterEntryForm(statusData) {
   const typeOptions = Object.entries(CHARACTER_TYPE_LABELS)
     .map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
 
-  const flowTip = '締め切りは1日2回：7:00(JST)までのエントリーは7:00の新人リーグで選抜され夜18:00の本戦から出走。7:00〜19:00のエントリーは19:00の新人リーグで選抜され翌朝6:00の本戦から出走。（本戦・新人リーグとも1日2回、本戦→新人リーグの順で朝6:00/7:00と夜18:00/19:00に実行）';
+  const flowTip = '新人リーグは1日2回、本戦の直後に行われ、朝7:00・夜19:00（JST）までに終わります（本戦は2:30〜4:30頃・14:30〜16:30頃に開始）。新人リーグが始まるまでのエントリーがその回で選抜され、次の本戦（朝の回なら同じ日の夕方、夜の回なら翌朝）から出走します。';
   const typeTip = 'バランス型：全パラメータを均等に配分。攻撃型：着手可能数（機動力）を重視。守備型：確定石（辺の安定度）を重視。隅重視型：角の確保と危険マスの回避を重視。';
 
   const paramRows = CC_PARAM_KEYS.map(k => `<div class="slider">
@@ -2480,7 +2480,7 @@ function renderCharacterEntryForm(statusData) {
   const fieldLabelStyle = 'display:block; font-size:0.72rem; color:var(--text-dim); margin-bottom:4px;';
 
   return `<h3 style="font-size:0.8rem; color:var(--amber); border-bottom:1px solid var(--navy-700); padding-bottom:4px; margin-bottom:2px;">キャラクリエイト${infoIcon(flowTip)}</h3>
-    <div style="font-size:0.7rem; color:var(--text-dim); margin-bottom:10px;">締め切りは1日2回（7:00／19:00 JST）。新人リーグで選抜されれば、次の本戦からすぐ出走します</div>
+    <div style="font-size:0.7rem; color:var(--text-dim); margin-bottom:10px;">新人リーグは1日2回（7:00／19:00 JSTまでに実施）。選抜されれば、次の本戦からすぐ出走します</div>
     <div style="margin-bottom:10px;">
       <label style="${fieldLabelStyle}" for="cc-name">名前（20文字まで）</label>
       <input type="text" id="cc-name" maxlength="20" ${closed ? 'disabled' : ''} style="${fieldStyle}">
