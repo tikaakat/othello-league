@@ -1,25 +1,69 @@
 [
   {
-    "name": "大西信一",
-    "gender": "male",
-    "type": "defensive",
+    "name": "大平綾",
+    "gender": "female",
+    "type": "corner",
     "params": {
-      "corner_weight": 6.916,
-      "danger_zone_weight": 4.076,
-      "mobility_weight": 4.673,
-      "edge_stability_weight": 4.387,
-      "frontier_weight": 5.561,
-      "disc_weight": 6.063,
-      "parity_weight": 6.986,
-      "center_weight": 2.072
+      "corner_weight": 7.368,
+      "danger_zone_weight": 5.939,
+      "mobility_weight": 11.471,
+      "edge_stability_weight": 1.277,
+      "frontier_weight": 6.556,
+      "disc_weight": 3.745,
+      "parity_weight": 6.66,
+      "center_weight": 4.143
+    },
+    "awakened_param": "mobility_weight",
+    "auto_generated": true,
+    "age": 17,
+    "parent_a_id": "CC5-000",
+    "clan_root_id": "B0-010",
+    "generation": 2,
+    "volatility": 1.49
+  },
+  {
+    "name": "岡本大輔",
+    "gender": "male",
+    "type": "aggressive",
+    "params": {
+      "corner_weight": 7.089,
+      "danger_zone_weight": 6.338,
+      "mobility_weight": 3.88,
+      "edge_stability_weight": 3.934,
+      "frontier_weight": 7.331,
+      "disc_weight": 2.395,
+      "parity_weight": 5.189,
+      "center_weight": 3.628
     },
     "awakened_param": null,
     "auto_generated": true,
-    "age": 20,
-    "parent_a_id": "CC3-001",
+    "age": 23,
+    "parent_a_id": "CC5-000",
     "clan_root_id": "B0-010",
     "generation": 2,
-    "volatility": 1.43
+    "volatility": 1.63
+  },
+  {
+    "name": "須賀新",
+    "gender": "male",
+    "type": "balanced",
+    "params": {
+      "corner_weight": 7.071,
+      "danger_zone_weight": 5.978,
+      "mobility_weight": 4.294,
+      "edge_stability_weight": 2.299,
+      "frontier_weight": 6.778,
+      "disc_weight": 4.804,
+      "parity_weight": 4.768,
+      "center_weight": 3.337
+    },
+    "awakened_param": null,
+    "auto_generated": true,
+    "age": 19,
+    "parent_a_id": "C0-007",
+    "clan_root_id": "C0-007",
+    "generation": 1,
+    "volatility": 0.97
   },
   {
     "name": "谷川昌弘",
@@ -37,76 +81,32 @@
     },
     "awakened_param": null,
     "auto_generated": true,
-    "age": 24,
+    "age": 25,
     "parent_a_id": "CC7-002",
     "clan_root_id": "D0-012",
     "generation": 2,
     "volatility": 0.22
   },
   {
-    "name": "宮本大和",
-    "gender": "male",
-    "type": "balanced",
-    "params": {
-      "corner_weight": 4.829,
-      "danger_zone_weight": 6.227,
-      "mobility_weight": 1.905,
-      "edge_stability_weight": 4.413,
-      "frontier_weight": 7.892,
-      "disc_weight": 6.772,
-      "parity_weight": 5.179,
-      "center_weight": 2.797
-    },
-    "awakened_param": null,
-    "auto_generated": true,
-    "age": 25,
-    "parent_a_id": "CC4-000",
-    "clan_root_id": "B0-010",
-    "generation": 2,
-    "volatility": 1.18
-  },
-  {
-    "name": "小田拓也",
-    "gender": "male",
+    "name": "浜田泉",
+    "gender": "female",
     "type": "corner",
     "params": {
-      "corner_weight": 9.092,
-      "danger_zone_weight": 5.36,
-      "mobility_weight": 3.709,
-      "edge_stability_weight": 3.716,
-      "frontier_weight": 7.663,
-      "disc_weight": 2.543,
-      "parity_weight": 6.035,
-      "center_weight": 3.893
+      "corner_weight": 8.067,
+      "danger_zone_weight": 7.662,
+      "mobility_weight": 4.969,
+      "edge_stability_weight": 1.594,
+      "frontier_weight": 5.832,
+      "disc_weight": 3.181,
+      "parity_weight": 6.219,
+      "center_weight": 3.727
     },
     "awakened_param": null,
     "auto_generated": true,
-    "age": 23,
-    "parent_a_id": "CC2-001",
+    "age": 24,
+    "parent_a_id": "B0-010",
     "clan_root_id": "B0-010",
-    "generation": 2,
-    "volatility": 1.33
-  },
-  {
-    "name": "武田智子",
-    "gender": "female",
-    "type": "defensive",
-    "params": {
-      "corner_weight": 3.338,
-      "danger_zone_weight": 4.968,
-      "mobility_weight": 7.805,
-      "edge_stability_weight": 3.035,
-      "frontier_weight": 5.126,
-      "disc_weight": 5.313,
-      "parity_weight": 4.435,
-      "center_weight": 2.854
-    },
-    "awakened_param": null,
-    "auto_generated": true,
-    "age": 21,
-    "parent_a_id": "CC2-000",
-    "clan_root_id": "D0-006",
-    "generation": 2,
-    "volatility": 1.16
+    "generation": 1,
+    "volatility": 1.47
   }
 ]
