@@ -328,6 +328,33 @@ jobs:
             exit 1
           fi
 
+      # この実行中に一門の独立が起きた場合、引退済みの子孫の一門（clan_root_id）をDBへ同期する
+      # （サーバー側の取り込みはretired_archiveの既存行を更新しないため。deploy_site.ymlの
+      # sync_retired_clan_rootsマイグレーション参照）
+      - name: Sync retired clan roots if a clan became independent
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SEASONS_RUN: ${{ inputs.seasons || '1' }}
+        run: |
+          git pull -q origin main || true
+          if python3 -c "
+          import json, os, sys
+          s = json.load(open('data/season_state.json'))
+          cur = s['current_season']; n = int(os.environ['SEASONS_RUN'] or 1)
+          sys.exit(0 if any(e.get('season', 0) > cur - n for e in s.get('clan_independence_history', [])) else 1)
+          "; then
+            echo "一門の独立が起きたため、引退者の一門情報を同期します"
+            curl -sS -f -X POST \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${{ github.repository }}/actions/workflows/deploy_site.yml/dispatches" \
+              -d '{"ref":"main","inputs":{"run_migration":"sync_retired_clan_roots"}}' \
+              || echo "::warning::引退者の一門情報の同期を起動できませんでした。deploy_site.ymlをrun_migration=sync_retired_clan_rootsで手動実行してください"
+          else
+            echo "この実行では一門の独立は起きていません"
+          fi
+
       # 本戦の直後に新人リーグを起動する（本戦→新人リーグの順で、Dリーグの欠員数が確定した
       # 直後に募集する）。以前は新人リーグ側にも独立したcronを置いていたが、スケジュール実行の
       # 遅延で本戦との間隔が読めず、手動で本戦を回したときに新人リーグが続かない問題もあったため、
