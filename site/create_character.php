@@ -105,7 +105,7 @@ if ($capCount >= $SUBMISSION_CAP) {
 // IPアドレスは生のまま保存せず、ハッシュ化してレート制限の照合にのみ使う
 $ipHash = hash('sha256', ($_SERVER['REMOTE_ADDR'] ?? 'unknown') . '|othello-league-charcreate');
 
-// 同一IPからの上限。新人リーグが1日2回（6:00・17:00締切）実行されるのに合わせ、
+// 同一IPからの上限。本戦→新人リーグが1日2回（JST 0:30以降・12:30以降の回）実行されるのに合わせ、
 // 「24時間」ではなく「直近の締切以降」で数える（＝各回ごとに上限がリセットされる）。
 // created_atはDBサーバーのローカル時刻（xserverのためJST想定）で入るため、
 // 締切境界の判定もMySQL側のNOW()を基準に行い、PHP側のタイムゾーン設定に依存しないようにする
@@ -117,16 +117,16 @@ if ($IP_LIMIT_ENABLED) {
          WHERE requester_ip_hash = :ip
            AND created_at >= (
              CASE
-               WHEN TIME(NOW()) >= '17:00:00' THEN CONCAT(DATE(NOW()), ' 17:00:00')
-               WHEN TIME(NOW()) >= '06:00:00' THEN CONCAT(DATE(NOW()), ' 06:00:00')
-               ELSE CONCAT(DATE(NOW() - INTERVAL 1 DAY), ' 17:00:00')
+               WHEN TIME(NOW()) >= '12:30:00' THEN CONCAT(DATE(NOW()), ' 12:30:00')
+               WHEN TIME(NOW()) >= '00:30:00' THEN CONCAT(DATE(NOW()), ' 00:30:00')
+               ELSE CONCAT(DATE(NOW() - INTERVAL 1 DAY), ' 12:30:00')
              END
            )"
     );
     $rateStmt->execute(['ip' => $ipHash]);
     if ((int)$rateStmt->fetchColumn() >= $IP_CYCLE_LIMIT) {
         http_response_code(429);
-        echo json_encode(['error' => "今回の受付枠（{$IP_CYCLE_LIMIT}体）に達しました。次回の締切（6:00/17:00）以降にまたお試しください。"]);
+        echo json_encode(['error' => "今回の受付枠（{$IP_CYCLE_LIMIT}体）に達しました。次の回（0:30／12:30）以降にまたお試しください。"]);
         exit;
     }
 }
