@@ -1990,9 +1990,11 @@ switch ($action) {
                             $stats[$pid] = ['individual_id' => $pid, 'display_name' => $pname, 'win' => 0, 'loss' => 0, 'draw' => 0];
                         }
                     }
+                    // 挑戦者決定リーグは引き分けを勝敗が付くまで指し直す（title.pyのsingle_game→
+                    // _play_until_decided）ため、引き分けの対局は途中経過として成績に数えない
+                    // （数えると、指し直しがあった組だけ対局数・「分」が増えて見える）
                     if ($m['result'] === 'draw') {
-                        $stats[$m['individual_a_id']]['draw']++;
-                        $stats[$m['individual_b_id']]['draw']++;
+                        continue;
                     } elseif ($m['result'] === 'win') {
                         $stats[$m['individual_a_id']]['win']++;
                         $stats[$m['individual_b_id']]['loss']++;
