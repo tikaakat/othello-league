@@ -69,6 +69,7 @@ on:
           - "fix_newcomer_standings_stale_master_round2_20261011"
           - "fix_demotion_won_event_20261012"
           - "fix_backfill_demotion_reset_20261012"
+          - "sync_retired_clan_roots"
         default: ""
       create_dir:
         description: "デプロイの代わりに、lab.spia-net.com直下（othello-league/の1つ上）に相対パスでディレクトリを作成する（例: othello-news）。「..」や先頭「/」は不可"
@@ -330,6 +331,27 @@ jobs:
                 SQL_LIST=(
                   "UPDATE newcomer_league_standings SET master_id = NULL, master_name = NULL WHERE for_season = 2 AND individual_id IN ('CCNL-000', 'CCNL-001');"
                 )
+                ;;
+              sync_retired_clan_roots)
+                # 一門の独立（apply_clan_independence）は引退済みの子孫のclan_root_idも付け替えるが、
+                # サーバー側の取り込み（import_from_github.php等）はretired_archiveを
+                # INSERT IGNOREで入れるだけで既存行を更新しないため、DB上は独立前の一門のまま残り、
+                # ファンサイトの一門ページで「（引退）が独立して一門を興す」と誤表示されていた
+                # （第18季の高木真央の独立で、引退済みの弟子・千葉彩香が該当）。
+                # data/season_state.jsonのretired_archiveを正として、clan_root_idと独立情報を同期する。
+                # 何度実行しても同じ結果になる（独立が起きた季の本戦から自動で呼ばれる）
+                mapfile -t SQL_LIST < <(python3 - <<'PYEOF'
+          import json, re
+          state = json.load(open("data/season_state.json", encoding="utf-8"))
+          ok = re.compile(r"^[A-Za-z0-9_-]+$")
+          for r in state.get("retired_archive", []):
+              iid, root = r.get("id"), r.get("clan_root_id")
+              if not (iid and root and ok.match(iid) and ok.match(root)):
+                  continue
+              print(f"UPDATE retired_archive SET clan_root_id = '{root}' WHERE id = '{iid}' AND (clan_root_id IS NULL OR clan_root_id <> '{root}');")
+          PYEOF
+                )
+                echo "対象 ${#SQL_LIST[@]} 件"
                 ;;
               fix_backfill_demotion_reset_20261012)
                 # 繰り上げ（backfill）でDからCへ上がった個体の降級点をリセットしていなかったため、
