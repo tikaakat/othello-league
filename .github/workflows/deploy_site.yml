@@ -90,6 +90,7 @@ on:
           - "inquiries"
           - "retirement_reasons"
           - "dup_check"
+          - "consistency_dump"
         default: ""
 
 jobs:
@@ -506,6 +507,19 @@ jobs:
                   if (!$rows) { echo "individuals/retired_archiveの重複はありません" . PHP_EOL; }
                   foreach ($rows as $r) {
                     echo "id=" . $r["id"] . " display_name=" . $r["display_name"] . PHP_EOL;
+                  }
+                '
+                ;;
+              consistency_dump)
+                # DBの個体データ（現役・引退）を1行1件のJSONで出力する。シミュレーション側の
+                # data/rosters.json・season_state.jsonと突き合わせ、取り込み漏れ・更新漏れ
+                # （例：引退者のclan_root_idが独立後も古いまま）を洗い出すための確認用
+                PHP_QUERY='
+                  foreach (["individuals", "retired_archive"] as $t) {
+                    foreach ($pdo->query("SELECT * FROM $t ORDER BY id")->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                      unset($r["params_json"], $r["match_history"], $r["age_multipliers_json"]);
+                      echo "ROW " . $t . " " . json_encode($r, JSON_UNESCAPED_UNICODE) . PHP_EOL;
+                    }
                   }
                 '
                 ;;
