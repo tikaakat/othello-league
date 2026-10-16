@@ -418,14 +418,14 @@ AWAKENED_INITIAL_AGE_RANGE = (14, 16)  # 覚醒個体の参入年齢（通常は
 # 一門イベントの確率（新弟子1人あたり）。新人は必ず誰かの弟子として参入するため、
 # 現在は師匠候補が誰もいない極端なケースでのみ師匠なしになる
 CLAN_NEW_FOUNDER_CHANCE = 0.08
-# 一門の独立：同じ一門に残っている子孫（直弟子だけでなく孫弟子以下も含む。引退者も含む通算）が
-# この人数を超えた（6人目以降）師匠は、子孫を引き連れて元の一門から独立し、自分を開祖とする新しい一門を興す
-CLAN_BRANCH_DISCIPLE_THRESHOLD = 5
+# 一門の独立：師匠本人と、同じ一門に残っている子孫（直弟子だけでなく孫弟子以下も含む。引退者も含む通算）を
+# 合わせてこの人数以上になった師匠は、子孫を引き連れて元の一門から独立し、自分を開祖とする新しい一門を興す
+CLAN_BRANCH_MIN_MEMBERS = 6
 
 
 def apply_clan_independence(active_members, retired_records, season):
     """同じ一門に残っている子孫（直弟子・孫弟子以下とも。引退者も含む通算）が
-    CLAN_BRANCH_DISCIPLE_THRESHOLD人を超えた現役の師匠を、その子孫を引き連れて元の一門から独立させる。
+    本人と合わせてCLAN_BRANCH_MIN_MEMBERS人以上になった現役の師匠を、その子孫を引き連れて元の一門から独立させる。
     既に別の一門として独立した子孫（とその先）は、連れて行かないので人数にも数えない。師匠本人と、同じ一門に属している子孫
     （現役・引退済みとも）のclan_root_idを師匠本人のIDに付け替える。
     retired_recordsは引退者アーカイブ（dictのリスト）で、引退済みの子孫も付け替える。
@@ -473,7 +473,7 @@ def apply_clan_independence(active_members, retired_records, season):
         # 先に処理した（世代の浅い）師匠の独立で一門の付け替えが起きている場合も、
         # その時点の状態で数え直す
         descendants = _same_clan_descendants(master.id, old_root)
-        if len(descendants) <= CLAN_BRANCH_DISCIPLE_THRESHOLD:
+        if 1 + len(descendants) < CLAN_BRANCH_MIN_MEMBERS:  # 1 = 師匠本人
             continue
         for d in descendants:
             _set_root(d, master.id)
@@ -641,7 +641,7 @@ def generate_disciples(count, season, pool, name_registry, titleholder_ids=froze
     """
     新弟子（Dリーグ参入個体）を生成する。師弟関係のため、親（師匠）は常に1人。
     師匠はElo・タイトル保持で重み付けした抽選で選ばれる（強い一門ほど子孫を残しやすい）。
-    師匠の子孫（同じ一門内、孫弟子以下も含む）がCLAN_BRANCH_DISCIPLE_THRESHOLD人を超えると「分岐」（弟子ではあるが
+    師匠本人と子孫（同じ一門内、孫弟子以下も含む）が合わせてCLAN_BRANCH_MIN_MEMBERS人以上になると「分岐」（弟子ではあるが
     新しい一門の開祖になる）が起き、稀に「新規開祖」（師匠を持たず完全ランダムな
     能力で参入する）も起きる。
     """
