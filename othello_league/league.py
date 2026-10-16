@@ -540,8 +540,8 @@ CHARACTER_PARAM_MIN = 0.1
 CHARACTER_PARAM_MAX = 10.0
 CHARACTER_PARAM_BUDGET = 40.0  # 8パラメータ合計の上限（サイト側の割り振りUIと一致させる）
 
-# キャラクリエイト個体は、通常の新弟子（3%）よりも少しだけ覚醒しやすくする
-CHARACTER_CREATION_AWAKENING_CHANCE = 0.05
+# キャラクリエイト個体は、通常の新弟子（6%）よりも少しだけ覚醒しやすくする
+CHARACTER_CREATION_AWAKENING_CHANCE = 0.08
 
 
 def _character_creation_params(type_tendency):
