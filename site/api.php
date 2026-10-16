@@ -227,8 +227,17 @@ function simulate_dan_progression($debutSeason, $debutLeague, array $nonWinCandi
 
         // 1) リーグ昇格・タイトル挑戦・青龍/通算タイトル・永世称号による昇段（下限が高い順ではなく、
         //    段位の小さい順に適用することで、同季内の複数飛び級も正しく積み上がる）
+        // リーグ昇格による下限はその季の開始時点で既に満たしている（standings上その季から
+        // 上位リーグに在籍している）ため、先に適用し、その時点の段位を「タイトル戦の前の段位」として控える
+        $danBeforeTitleMatches = $dan;
         if (isset($nonWinBySeasonList[$s])) {
-            foreach ($nonWinBySeasonList[$s] as $c) { $promote($c['dan'], $s, $c['reason']); }
+            foreach ($nonWinBySeasonList[$s] as $c) {
+                if (preg_match('/リーグ昇格$/u', $c['reason'])) { $promote($c['dan'], $s, $c['reason']); }
+            }
+            $danBeforeTitleMatches = $dan;
+            foreach ($nonWinBySeasonList[$s] as $c) {
+                if (!preg_match('/リーグ昇格$/u', $c['reason'])) { $promote($c['dan'], $s, $c['reason']); }
+            }
         }
         // 2) タイトル獲得：まだ6段未満なら、初めての獲得で6段にする
         if (isset($titleWinBySeasonList[$s])) {
@@ -238,8 +247,11 @@ function simulate_dan_progression($debutSeason, $debutLeague, array $nonWinCandi
                 }
             }
         }
-        // 3) タイトル挑戦（6段昇段後）：既に6段以上に達していれば、挑戦者として登場するたび7段にする
-        if (isset($challengeBySeasonList[$s]) && $dan >= 6) {
+        // 3) タイトル挑戦（6段昇段後）：タイトル戦の前に既に6段以上に達していれば、挑戦者として
+        //    登場するたび7段にする。同じ季の挑戦そのもので獲得して6段になった場合は対象外
+        //    （以前は獲得後の段位で判定していたため、初挑戦で獲得しただけで
+        //    「六段昇段後タイトル挑戦」とみなされ、一気に七段まで上がっていた）
+        if (isset($challengeBySeasonList[$s]) && $danBeforeTitleMatches >= 6) {
             $promote(7, $s, "六段昇段後タイトル挑戦");
         }
         // 4) 勝数による昇段：現在の段になってからの増分勝数が必要数に達するたび、1段ずつ（複数段も）昇段
