@@ -1077,13 +1077,16 @@ def gather_newcomer_facts(data_dir, season):
 def build_newcomer_prompt(facts):
     lines = [
         f"第{facts['season']}季から出走する新人リーグ結果データ（事実のみ。これ以外の出来事は起きていない）:", "",
-        f"・参加者数：{facts['participant_count']}名（うち読者からの投稿：{facts['submission_count']}名、残りは自動生成）",
+        # 読者投稿の受付を止めている間（投稿0件）は、投稿・自動生成の区別自体を渡さない
+        # （渡すと「読者からの投稿はなく全員が自動生成」のような、受付停止中には不自然な一文が入る）
+        f"・参加者数：{facts['participant_count']}名"
+        + (f"（うち読者からの投稿：{facts['submission_count']}名、残りは自動生成）" if facts["submission_count"] else ""),
         f"・Dリーグ昇格枠：{facts['slots_needed']}名",
     ]
     for p in facts["promoted"]:
         master_part = f"（師匠：{p['master_name']}）" if p.get("master_name") else "（師匠なし）"
-        origin = "読者投稿" if not p["auto_generated"] else "自動生成"
-        lines.append(f"・昇格：{p['name']}{master_part}　{p['win']}勝{p['loss']}敗{p['draw']}分　{origin}")
+        origin = ("　読者投稿" if not p["auto_generated"] else "　自動生成") if facts["submission_count"] else ""
+        lines.append(f"・昇格：{p['name']}{master_part}　{p['win']}勝{p['loss']}敗{p['draw']}分{origin}")
     if facts["had_playoff"]:
         lines.append("・昇格枠の境界で同成績が並び、プレーオフで昇格者を決定した。")
     lines.append("")
@@ -1091,7 +1094,8 @@ def build_newcomer_prompt(facts):
         "以上の事実だけをもとに、今回の新人リーグ結果を紹介する短い記事を書いてください。"
         "新たにDリーグへ参入する顔ぶれを紹介する、記者（犬飼）の速報記事という位置づけです。"
         "データに無い出来事・数字は書かないこと。"
-        "出力は次のJSON形式のみ（説明文やコードフェンスなど、他のテキストは一切含めない）：\n"
+        + ("" if facts["submission_count"] else "読者からの投稿や、自動生成かどうかには触れないこと。")
+        + "出力は次のJSON形式のみ（説明文やコードフェンスなど、他のテキストは一切含めない）：\n"
         '{"title": "見出し", "summary": "1〜2文の要約", "body": "本文（200〜350字程度）", '
         '"tags": ["新人リーグ", "結果"]}'
     )
@@ -1101,7 +1105,7 @@ def build_newcomer_prompt(facts):
 def try_generate_newcomer(args, season, articles_path, articles):
     article_id = f"s{season}-newcomer"
     existing = next((a for a in articles if a.get("id") == article_id), None)
-    if existing is not None:
+    if existing is not None and not getattr(args, "regenerate_newcomer", False):
         # 新人リーグ直後に生成した記事は、昇格者がまだDリーグに参入していないため関連個体
         # （選手へのリンク）が空になる。参入後の実行で、本文は変えずに関連個体だけ補う
         if not existing.get("related_individual_ids"):
@@ -1131,7 +1135,11 @@ def try_generate_newcomer(args, season, articles_path, articles):
     # 一覧で本戦記事より前に並ぶよう、その季のダイジェストより前の日時にする
     published_at = datetime.datetime.now().astimezone()
     digest = next((a for a in articles if a.get("id") == f"s{season}-digest"), None)
-    if digest:
+    if existing is not None:
+        # 作り直し：同じid・同じ掲載日時のまま置き換える
+        articles.remove(existing)
+        published_at = datetime.datetime.fromisoformat(existing["published_at"])
+    elif digest:
         digest_at = datetime.datetime.fromisoformat(digest["published_at"])
         if published_at >= digest_at:
             published_at = digest_at - datetime.timedelta(minutes=1)
@@ -1156,6 +1164,8 @@ def main():
                         help="対象季のダイジェスト記事が既にあっても作り直す（記事の誤りを修正する場合）")
     parser.add_argument("--regenerate-milestone", action="store_true",
                         help="対象季の永世称号の特集記事が既にあっても作り直す（記事の誤りを修正する場合）")
+    parser.add_argument("--regenerate-newcomer", action="store_true",
+                        help="対象季の新人リーグ記事が既にあっても作り直す（掲載日時は元のまま）")
     parser.add_argument("--regenerate-column", action="store_true",
                         help="対象季の連勝コラムが既にあっても作り直す（記事の誤りを修正する場合。掲載日時は元のまま）")
     parser.add_argument("--regenerate-upset", action="store_true",
