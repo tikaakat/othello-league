@@ -327,6 +327,39 @@ def _pick_rookie_of_year(data_dir, season, rosters, main_league_rows, title_resu
     }
 
 
+def _lineage_map(data_dir):
+    """個体ID→{name, master_id, clan_root_id}（現役・引退済みとも）"""
+    out = {}
+    for league_members in load_json(os.path.join(data_dir, "rosters.json"), {}).values():
+        for ind in league_members:
+            out[ind["id"]] = {"name": ind.get("display_name"), "master_id": ind.get("parent_a_id"),
+                              "clan_root_id": ind.get("clan_root_id")}
+    for r in load_json(os.path.join(data_dir, "season_state.json"), {}).get("retired_archive", []):
+        out.setdefault(r["id"], {"name": r.get("display_name"), "master_id": r.get("parent_a_id"),
+                                 "clan_root_id": r.get("clan_root_id")})
+    return out
+
+
+def _lineage_relation(lineage, challenger_id, holder_id):
+    """タイトル戦の挑戦者と保持者の師弟・同門関係を、記事に盛り込める一文にする（無ければNone）。
+    一門は現在の所属（独立後の一門）で判定する"""
+    c, h = lineage.get(challenger_id), lineage.get(holder_id)
+    if not c or not h:
+        return None
+    cn, hn = c["name"], h["name"]
+    if c["master_id"] == holder_id:
+        return f"師弟対決：挑戦者{cn}は保持者{hn}の弟子"
+    if h["master_id"] == challenger_id:
+        return f"師弟対決：保持者{hn}は挑戦者{cn}の弟子"
+    if c["master_id"] and c["master_id"] == h["master_id"]:
+        master = lineage.get(c["master_id"], {}).get("name") or "同じ師匠"
+        return f"兄弟弟子対決：両者とも{master}の弟子"
+    if c["clan_root_id"] and c["clan_root_id"] == h["clan_root_id"]:
+        founder = lineage.get(c["clan_root_id"], {}).get("name") or "同じ開祖"
+        return f"同門対決：両者とも{founder}一門"
+    return None
+
+
 def gather_season_facts(data_dir, season):
     """指定シーズンの対局結果から、記事生成に使う構造化データ（事実）を集める。
     タイトル戦の勝者側（奪取なら挑戦者、防衛ならホルダー）のIDを
@@ -350,6 +383,7 @@ def gather_season_facts(data_dir, season):
 
     title_results = []
     related = []  # [(id, name), ...]（勝者のみ、重複は後で除去）
+    lineage = _lineage_map(data_dir)
     for t in TITLE_NAMES:
         rows = [m for m in matches if m.get("league") == t]
         if not rows:
@@ -368,6 +402,7 @@ def gather_season_facts(data_dir, season):
                 related.append((holder_id, holder_name))
             continue
         a_id, b_id = rows[0]["individual_a_id"], rows[0]["individual_b_id"]
+        relation = _lineage_relation(lineage, a_id, b_id)
         win_a = sum(1 for r in rows if r["result"] == "win")
         loss_a = sum(1 for r in rows if r["result"] == "loss")
         challenger_won = win_a > loss_a
@@ -379,6 +414,7 @@ def gather_season_facts(data_dir, season):
             "challenger_name": names.get(a_id, a_id), "holder_name": names.get(b_id, b_id),
             "challenger_wins": win_a, "holder_wins": loss_a,
             "result": "奪取" if challenger_won else "防衛",
+            "lineage_relation": relation,
         })
         related.append((winner_id, names.get(winner_id, winner_id)))
 
@@ -483,7 +519,9 @@ def build_prompt(facts):
             f"・{tr['title']}：{TITLE_QUALIFY_PATH[tr['title']]}として挑戦した"
             f"{tr['challenger_name']} {tr['challenger_wins']}-{tr['holder_wins']} "
             f"保持者{tr['holder_name']} → {tr['result']}（{tr['result']}した側（{tr['winner_name']}）の性別：{_gender_label(tr['winner_gender'])}。"
-            f"{tr['winner_name']}の{tr['title']}保持は{_title_count_label(tr.get('winner_title_total'))}）"
+            f"{tr['winner_name']}の{tr['title']}保持は{_title_count_label(tr.get('winner_title_total'))}"
+            + (f"。{tr['lineage_relation']}" if tr.get("lineage_relation") else "")
+            + "）"
         )
     mv = facts["movements"]
     lines.append("")
@@ -558,6 +596,8 @@ def build_prompt(facts):
         f"以上の事実だけをもとに、第{facts['season']}季のダイジェスト記事を書いてください。"
         "データに無い出来事・数字は書かないこと。"
         "今季MVP・新人王がいる場合は、本文の中でひと言触れること（見出しにする必要はない）。"
+        "タイトル戦に師弟対決・兄弟弟子対決・同門対決とあるものは、その関係にも触れて物語性を持たせること"
+        "（データに無い師弟・同門関係は書かないこと）。"
         "リーグ戦については、Aリーグに関わる昇格・降格だけ名前を挙げて触れればよい。"
         "B〜Dリーグ内の入れ替えは、件数だけ一言触れる程度で十分（個別の名前は渡していないので書けない）。"
         f"{TITLE_RULES_NOTE}"
