@@ -146,7 +146,7 @@ function is_eternal_title($title, $total, $consec) {
 // 通算ではなく「現在の段になってから何勝したか」で判定する：
 //   起点：新人は4段スタート。ただし第1季創設メンバーは、その季点の所属リーグの
 //     最低段位（Cリーグ5段・Bリーグ6段・Aリーグ7段）からスタートする
-//     （新人リーグ経由の入団者と違い、Dリーグから積み上げる過程が無いため）
+//     （新人リーグ経由でDリーグにデビューする選手と違い、Dリーグから積み上げる過程が無いため）
 //   勝数：現在の段になってからの勝数（タイトル戦を含む全対局）が、次の段への
 //     必要勝数（5段へ+40 / 6段へ+50 / 7段へ+60 / 8段へ+80 / 9段へ+100）に達するたびに1段ずつ昇段
 //     （第1〜12季の実績では1季あたり平均6〜7.5勝（タイトル戦・予選込み）。以前の
@@ -457,11 +457,11 @@ function build_records($pdo) {
         return array_slice($list, 0, RECORDS_TOP_N);
     };
 
-    // 1) Aリーグ最速到達（Dリーグから入団した選手のみ。入団からA初在籍までの季数。最短はD→C→B→Aの3季）
+    // 1) Aリーグ最速到達（Dリーグでデビューした選手のみ。デビューからA初在籍までの季数。最短はD→C→B→Aの3季）
     $fastest = [];
     foreach ($firstA as $id => $sa) {
         if (($firstLeague[$id] ?? null) !== 'D') continue;
-        $fastest[] = $entry($id, $sa - $first[$id], "第{$first[$id]}季入団→第{$sa}季A") + ['_sort' => $sa];
+        $fastest[] = $entry($id, $sa - $first[$id], "第{$first[$id]}季デビュー→第{$sa}季A") + ['_sort' => $sa];
     }
     $fastest = $topBy($fastest, fn($a, $b) => $a['value'] <=> $b['value'] ?: $a['_sort'] <=> $b['_sort']);
     foreach ($fastest as &$f) unset($f['_sort']);
@@ -532,7 +532,7 @@ function build_records($pdo) {
     unset($w);
 
     return [
-        ['key' => 'fastest_a', 'label' => 'Aリーグ最速到達', 'unit' => '季', 'note' => 'Dリーグ入団からAリーグ初在籍までの季数（最短3季）', 'rows' => $fastest],
+        ['key' => 'fastest_a', 'label' => 'Aリーグ最速到達', 'unit' => '季', 'note' => 'Dリーグでのデビューから、Aリーグに初めて在籍するまでの季数（最短3季）', 'rows' => $fastest],
         ['key' => 'a_seasons', 'label' => 'Aリーグ在籍', 'unit' => '季', 'note' => 'Aリーグの通算在籍季数', 'rows' => $countList($aCount)],
         ['key' => 'suzaku_seasons', 'label' => '朱雀紅白リーグ在籍', 'unit' => '季', 'note' => '朱雀紅白リーグの通算在籍季数（朱雀位保持中を含む）', 'rows' => $countList($suzakuCount)],
         ['key' => 'title_total', 'label' => 'タイトル通算', 'unit' => '期', 'note' => '全タイトルの通算保持期数', 'rows' => $titleList],
