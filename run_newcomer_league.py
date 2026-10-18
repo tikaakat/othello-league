@@ -423,7 +423,16 @@ def main():
     }
     retired_master_names = {r["id"]: r["display_name"] for r in (state.get("retired_archive") or [])}
 
-    registry = NameRegistry()
+    # 名前の台帳は本戦側（season_state.jsonのname_registry）を引き継ぎ、さらに現役・引退・
+    # 持ち越し中の候補の名前も登録する。以前は毎回まっさらな台帳で作っていたため、
+    # 既存の選手と同じ名前の新人が生まれていた（第24季の小池陽介）
+    registry = NameRegistry.from_dict(state.get("name_registry", {}))
+    registry.register_existing(
+        [ind.display_name for ind in pool]
+        + [r.get("display_name") for r in (state.get("retired_archive") or [])]
+        + [c.get("name") for c in retry_pool]
+        + [s.get("name") for s in submissions]
+    )
     winner_entries, standings, match_log, next_retry_pool, playoff_log = run_newcomer_league(
         submissions, slots_needed, registry, retry_pool=retry_pool,
         pool=pool, titleholder_ids=titleholder_ids, retired_master_names=retired_master_names,

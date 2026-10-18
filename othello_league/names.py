@@ -95,6 +95,17 @@ class NameRegistry:
         display_name = full_name if n == 1 else f"{full_name}{n}"
         return display_name, gender
 
+    def register_existing(self, display_names):
+        """既に使われている表示名（「藤井聡太」「藤井聡太2」等）を台帳に反映し、以後の
+        generate()がそれらと重複しないようにする。末尾の連番は「その名前の何人目か」を表す"""
+        for name in display_names:
+            if not name:
+                continue
+            m = re.match(r"^(.*?)(\d+)$", name)
+            base, n = (m.group(1), int(m.group(2))) if m else (name, 1)
+            if n > self.counts.get(base, 0):
+                self.counts[base] = n
+
     def to_dict(self):
         return dict(self.counts)
 
