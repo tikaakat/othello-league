@@ -1614,6 +1614,7 @@ function wireRosterCommon(el) {
 // 「最高Elo」「タイトル獲得数」の2つの単純なTOP10ランキングだけに絞って見せる。
 // APIは1回だけ取得し、指標の切り替えはクライアント側の再ソートで行う
 let _hofData = null;
+let _hofRecords = [];  // 歴代記録（api.phpのbuild_records）。殿堂の指標チップに続けて並べる
 let _hofMetric = 'peak_elo';
 const HOF_METRICS = {
   peak_elo: { label: '最高Elo', value: p => p.peak_elo, format: v => Math.round(v) },
@@ -1622,7 +1623,7 @@ const HOF_METRICS = {
 
 async function renderHallOfFame() {
   setActiveNav('hof');
-  setPageMeta('殿堂', '歴代最高Elo・タイトル獲得数でランキングする、サーキットオセロリーグの殿堂。現役・引退を問わず歴代の全選手が対象。');
+  setPageMeta('殿堂', '歴代最高Elo・タイトル獲得数のランキングと、Aリーグ最速到達・連続保持などの歴代記録をまとめた、サーキットオセロリーグの殿堂。');
   const el = document.getElementById('content');
   el.innerHTML = skeletonHtml();
   if (!_hofData) {
@@ -1631,6 +1632,7 @@ async function renderHallOfFame() {
       const data = await res.json();
       if (!data.ranking) throw new Error('not found');
       _hofData = data.ranking;
+      _hofRecords = data.records || [];
     } catch (e) {
       el.innerHTML = '<div class="empty">殿堂の読み込みに失敗しました</div>';
       return;
@@ -1641,25 +1643,42 @@ async function renderHallOfFame() {
 
 function renderHallOfFameBody() {
   const el = document.getElementById('content');
+  const record = _hofRecords.find(r => r.key === _hofMetric);
   const metric = HOF_METRICS[_hofMetric];
-  let top = _hofData.slice().sort((a, b) => metric.value(b) - metric.value(a));
-  if (_hofMetric === 'title_count') top = top.filter(p => metric.value(p) > 0);
-  top = top.slice(0, 10);
+  let top;
+  if (record) {
+    // 記録：api.php側で並べ替え済みの上位10件をそのまま使う（同値は同順位）
+    top = record.rows.map(r => ({
+      id: r.individual_id, display_name: r.display_name, retired: r.retired,
+      valueLabel: `${r.value}${record.unit}`, detail: r.detail, _v: r.value,
+    }));
+  } else {
+    top = _hofData.slice().sort((a, b) => metric.value(b) - metric.value(a));
+    if (_hofMetric === 'title_count') top = top.filter(p => metric.value(p) > 0);
+    top = top.slice(0, 10).map(p => ({ ...p, valueLabel: String(metric.format(metric.value(p))), _v: metric.value(p) }));
+  }
+  const ranks = [];
+  top.forEach((p, i) => { ranks.push(i > 0 && p._v === top[i - 1]._v ? ranks[i - 1] : i + 1); });
+  const chips = [
+    ...Object.entries(HOF_METRICS).map(([key, m]) => [key, m.label]),
+    ..._hofRecords.map(r => [r.key, r.label]),
+  ];
 
   el.innerHTML = `
     <h1 class="profile-name" style="font-size:1.1rem;">殿堂</h1>
     <div class="profile-sub" style="margin-bottom:10px;">現役・引退を問わず、歴代の選手をランキング</div>
     <div class="chip-row" style="margin-bottom:10px;">
-      ${Object.entries(HOF_METRICS).map(([key, m]) => `
-        <button class="chip-btn ${key === _hofMetric ? 'active' : ''}" data-hof-metric="${key}">${escapeHtml(m.label)}</button>
+      ${chips.map(([key, label]) => `
+        <button class="chip-btn ${key === _hofMetric ? 'active' : ''}" data-hof-metric="${key}">${escapeHtml(label)}</button>
       `).join('')}
     </div>
+    ${record && record.note ? `<div style="color:var(--text-dim); font-size:0.78rem; margin-bottom:6px;">${escapeHtml(record.note)}</div>` : ''}
     <div class="ranking-box">
       ${top.length === 0 ? '<div style="color:var(--text-dim); font-size:0.85rem; padding:4px 0;">該当する選手がいません</div>' : top.map((p, i) => `
         <div class="ranking-row" data-goto-individual="${escapeHtml(p.id)}">
-          <span class="ranking-rank">${i + 1}</span>
-          <span class="ranking-title">${escapeHtml(p.display_name)}${p.retired ? '<span style="color:var(--text-dim); font-size:0.72rem;">（引退）</span>' : ''}${(p.eternal_titles || []).length ? ' <span style="color:var(--accent-dark); font-size:0.72rem;">永世</span>' : ''}</span>
-          <span class="ranking-likes">${escapeHtml(String(metric.format(metric.value(p))))}</span>
+          <span class="ranking-rank">${ranks[i]}</span>
+          <span class="ranking-title">${escapeHtml(p.display_name)}${p.retired ? '<span style="color:var(--text-dim); font-size:0.72rem;">（引退）</span>' : ''}${(p.eternal_titles || []).length ? ' <span style="color:var(--accent-dark); font-size:0.72rem;">永世</span>' : ''}${p.detail ? `<span style="display:block; color:var(--text-dim); font-size:0.72rem;">${escapeHtml(p.detail)}</span>` : ''}</span>
+          <span class="ranking-likes">${escapeHtml(p.valueLabel)}</span>
         </div>`).join('')}
     </div>`;
 

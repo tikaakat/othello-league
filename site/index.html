@@ -2200,9 +2200,9 @@ document.addEventListener('click', (e) => {
 // 殿堂タブ内の副タブ。1回のAPI取得結果をキャッシュし、切り替え時は再取得せず表示だけ差し替える。
 // 従来はElo・タイトル数・対局数・勝利数・負け数・勝率が別々のサブタブ（＝別々の上位N件）だったが、
 // 同じ人物でも指標ごとに対象集合が揃わず不便なため、1つの並び替え可能な表（ranking）に統合した
-const HOF_VIEWS = ['ranking', 'matchup', 'retired', 'awakened'];
+const HOF_VIEWS = ['ranking', 'records', 'matchup', 'retired', 'awakened'];
 const HOF_VIEW_LABELS = {
-  ranking: '総合ランキング', matchup: '同一カード対戦', retired: '引退者一覧', awakened: '覚醒個体一覧',
+  ranking: '総合ランキング', records: '記録', matchup: '同一カード対戦', retired: '引退者一覧', awakened: '覚醒個体一覧',
 };
 let _hofActiveView = 'ranking';
 let _hofData = null;
@@ -2322,6 +2322,33 @@ function renderHofView(el, view) {
           <td style="white-space:nowrap;">${r.title_count > 0 ? `<span class="chip gold">${r.title_count}期</span>` : '-'}</td></tr>`;
       };
       html = renderCollapsibleTable(headHtml, retired, rowFn, 20, null, true);
+    }
+  } else if (view === 'records') {
+    // 歴代記録（api.phpのbuild_records）。記録ごとに上位10件を表で並べる（同値は同順位）
+    const records = hofData.records || [];
+    if (records.length === 0) {
+      html = '<div class="empty">まだ記録がありません</div>';
+    } else {
+      html = records.map(rec => {
+        const rows = rec.rows || [];
+        let body;
+        if (rows.length === 0) {
+          body = '<div class="empty" style="margin:4px 0 0;">該当者なし</div>';
+        } else {
+          const ranks = competitionRanks(rows, r => r.value);
+          body = `<table><tbody>${rows.map((r, i) => `<tr data-id="${escapeHtml(r.individual_id)}">
+              <td style="width:2.2em; color:var(--text-dim);">${ranks[i]}</td>
+              <td style="white-space:nowrap;">${escapeHtml(r.display_name)}${r.retired ? '<span style="color:var(--text-dim); font-size:0.7rem;">（引退）</span>' : ''}</td>
+              <td class="elo-val" style="white-space:nowrap;">${r.value}${escapeHtml(rec.unit)}</td>
+              <td style="color:var(--text-dim); font-size:0.74rem;">${escapeHtml(r.detail || '')}</td>
+            </tr>`).join('')}</tbody></table>`;
+        }
+        return `<div style="margin-bottom:18px;">
+            <h4 style="font-size:0.8rem; color:var(--amber); border-bottom:1px solid var(--navy-700); padding-bottom:4px; margin-bottom:2px;">${escapeHtml(rec.label)}</h4>
+            <div style="font-size:0.7rem; color:var(--text-dim); margin-bottom:4px;">${escapeHtml(rec.note || '')}</div>
+            ${body}
+          </div>`;
+      }).join('');
     }
   } else if (view === 'awakened') {
     const awakened = awakenedData.awakened || [];

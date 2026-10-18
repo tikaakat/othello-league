@@ -426,6 +426,121 @@ function compute_age($initial_age, $total_seasons) {
 // $titlesDoneBefore：同じ季のうち、このブラケットより前に決着しているタイトル（季内の実行順は
 // 青龍→朱雀→白虎→玄武）。これらはその季の結果（奪取・防衛）を反映した保持者で表示する
 // （例：玄武戦の時点では、同じ季に白虎を奪取した選手が既に白虎保持者）
+// 殿堂の「記録」：standings・title_historyから都度集計する歴代記録（新しいテーブルは持たない）。
+// 各記録は上位10件。名前は最新季のstandingsの表示名、引退者はretired=1
+const RECORDS_TOP_N = 10;
+function build_records($pdo) {
+    $retired = array_flip($pdo->query("SELECT id FROM retired_archive")->fetchAll(PDO::FETCH_COLUMN));
+    $rows = $pdo->query(
+        "SELECT season, league, individual_id, display_name, win, loss FROM standings ORDER BY season ASC"
+    )->fetchAll();
+    $name = []; $first = []; $firstLeague = []; $firstA = []; $aCount = []; $suzakuCount = [];
+    foreach ($rows as $r) {
+        $id = $r['individual_id']; $lg = $r['league']; $s = (int)$r['season'];
+        $name[$id] = $r['display_name'];
+        if (in_array($lg, ['A', 'B', 'C', 'D'], true)) {
+            if (!isset($first[$id])) { $first[$id] = $s; $firstLeague[$id] = $lg; }
+            if ($lg === 'A') {
+                $aCount[$id] = ($aCount[$id] ?? 0) + 1;
+                if (!isset($firstA[$id])) $firstA[$id] = $s;
+            }
+        } elseif ($lg === '朱雀紅組' || $lg === '朱雀白組') {
+            $suzakuCount[$id] = ($suzakuCount[$id] ?? 0) + 1;
+        }
+    }
+    $entry = function ($id, $value, $detail) use ($name, $retired) {
+        return ['individual_id' => $id, 'display_name' => $name[$id] ?? $id, 'retired' => isset($retired[$id]) ? 1 : 0,
+                'value' => $value, 'detail' => $detail];
+    };
+    $topBy = function (array $list, callable $cmp) {
+        usort($list, $cmp);
+        return array_slice($list, 0, RECORDS_TOP_N);
+    };
+
+    // 1) Aリーグ最速到達（Dリーグから入団した選手のみ。入団からA初在籍までの季数。最短はD→C→B→Aの3季）
+    $fastest = [];
+    foreach ($firstA as $id => $sa) {
+        if (($firstLeague[$id] ?? null) !== 'D') continue;
+        $fastest[] = $entry($id, $sa - $first[$id], "第{$first[$id]}季入団→第{$sa}季A") + ['_sort' => $sa];
+    }
+    $fastest = $topBy($fastest, fn($a, $b) => $a['value'] <=> $b['value'] ?: $a['_sort'] <=> $b['_sort']);
+    foreach ($fastest as &$f) unset($f['_sort']);
+    unset($f);
+
+    // 2) Aリーグ在籍季数 / 3) 朱雀紅白リーグ在籍季数（朱雀位保持中の季も含む）
+    $countList = function (array $counts) use ($entry, $topBy) {
+        $list = [];
+        foreach ($counts as $id => $c) $list[] = $entry($id, $c, '');
+        return $topBy($list, fn($a, $b) => $b['value'] <=> $a['value']);
+    };
+
+    // 4) タイトル通算期数 / 5) 同一タイトル最長連続保持
+    $th = $pdo->query("SELECT season, title, holder_id, holder_name FROM title_history WHERE holder_id IS NOT NULL ORDER BY title, season ASC")->fetchAll();
+    $titleTotal = []; $titleBreakdown = []; $streaks = [];
+    $curTitle = null; $curHolder = null; $curLen = 0; $curStart = 0; $prevSeason = null;
+    $flush = function () use (&$streaks, &$curTitle, &$curHolder, &$curLen, &$curStart, &$prevSeason) {
+        if ($curHolder !== null && $curLen >= 2) {
+            $streaks[] = ['id' => $curHolder, 'title' => $curTitle, 'len' => $curLen, 'from' => $curStart, 'to' => $prevSeason];
+        }
+    };
+    foreach ($th as $t) {
+        $id = $t['holder_id']; $s = (int)$t['season'];
+        if (!isset($name[$id])) $name[$id] = $t['holder_name'];
+        $titleTotal[$id] = ($titleTotal[$id] ?? 0) + 1;
+        $titleBreakdown[$id][$t['title']] = ($titleBreakdown[$id][$t['title']] ?? 0) + 1;
+        if ($t['title'] === $curTitle && $id === $curHolder && $prevSeason !== null && $s === $prevSeason + 1) {
+            $curLen++;
+        } else {
+            $flush();
+            $curTitle = $t['title']; $curHolder = $id; $curLen = 1; $curStart = $s;
+        }
+        $prevSeason = $s;
+    }
+    $flush();
+    $titleList = [];
+    foreach ($titleTotal as $id => $c) {
+        $parts = [];
+        foreach ($titleBreakdown[$id] as $title => $n) $parts[] = "{$title}{$n}";
+        $titleList[] = $entry($id, $c, implode('・', $parts));
+    }
+    $titleList = $topBy($titleList, fn($a, $b) => $b['value'] <=> $a['value']);
+    $streakList = [];
+    foreach ($streaks as $st) {
+        $streakList[] = $entry($st['id'], $st['len'], "{$st['title']}（第{$st['from']}〜{$st['to']}季）");
+    }
+    $streakList = $topBy($streakList, fn($a, $b) => $b['value'] <=> $a['value']);
+
+    // 6) 1季の最多勝（リーグ戦・タイトル戦・予選などその季の全対局。リーグ戦は1人8局のため、
+    //    リーグ戦だけだと8勝0敗が大量に並んでしまう）
+    $winsBy = []; $lossBy = [];
+    foreach ($pdo->query("SELECT season, individual_a_id, individual_b_id, result FROM matches") as $m) {
+        if ($m['result'] === 'draw' || $m['individual_b_id'] === null) continue;
+        $w = $m['result'] === 'win' ? $m['individual_a_id'] : $m['individual_b_id'];
+        $l = $m['result'] === 'win' ? $m['individual_b_id'] : $m['individual_a_id'];
+        $key = $m['season'] . '|'; 
+        $winsBy[$key . $w] = ($winsBy[$key . $w] ?? 0) + 1;
+        $lossBy[$key . $l] = ($lossBy[$key . $l] ?? 0) + 1;
+    }
+    $winList = [];
+    foreach ($winsBy as $k => $w) {
+        [$season, $id] = explode('|', $k, 2);
+        $l = $lossBy[$k] ?? 0;
+        $winList[] = $entry($id, $w, "第{$season}季 {$w}勝{$l}敗") + ['_sort' => (int)$season];
+    }
+    $winList = $topBy($winList, fn($a, $b) => $b['value'] <=> $a['value'] ?: $a['_sort'] <=> $b['_sort']);
+    foreach ($winList as &$w) unset($w['_sort']);
+    unset($w);
+
+    return [
+        ['key' => 'fastest_a', 'label' => 'Aリーグ最速到達', 'unit' => '季', 'note' => 'Dリーグ入団からAリーグ初在籍までの季数（最短3季）', 'rows' => $fastest],
+        ['key' => 'a_seasons', 'label' => 'Aリーグ在籍', 'unit' => '季', 'note' => 'Aリーグの通算在籍季数', 'rows' => $countList($aCount)],
+        ['key' => 'suzaku_seasons', 'label' => '朱雀紅白リーグ在籍', 'unit' => '季', 'note' => '朱雀紅白リーグの通算在籍季数（朱雀位保持中を含む）', 'rows' => $countList($suzakuCount)],
+        ['key' => 'title_total', 'label' => 'タイトル通算', 'unit' => '期', 'note' => '全タイトルの通算保持期数', 'rows' => $titleList],
+        ['key' => 'title_streak', 'label' => '連続保持', 'unit' => '期', 'note' => '同じタイトルの最長連続保持（2期以上）', 'rows' => $streakList],
+        ['key' => 'season_wins', 'label' => '1季最多勝', 'unit' => '勝', 'note' => '1季の全対局（リーグ戦・タイトル戦・予選）での勝数', 'rows' => $winList],
+    ];
+}
+
 function build_bracket_participant_info($pdo, $season, $ids, $titlesDoneBefore = []) {
     $info = [];
     if (!$ids) return $info;
@@ -2421,6 +2536,7 @@ switch ($action) {
         json_out([
             'ranking' => $result, 'min_games_for_rate' => $CUMULATIVE_MIN_GAMES_FOR_RATE,
             'by_matchup' => $byMatchup,
+            'records' => build_records($pdo),
         ]);
         break;
 
