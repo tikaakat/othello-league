@@ -53,6 +53,10 @@ on:
         description: "trueにすると、対象季のダイジェスト記事が既にあっても作り直す（記事の誤りを修正する場合）"
         required: false
         default: "false"
+      regenerate_newcomer:
+        description: "trueにすると、対象季の新人リーグ記事が既にあっても作り直す（掲載日時は元のまま）"
+        required: false
+        default: "false"
       regenerate_column:
         description: "trueにすると、対象季の連勝コラムが既にあっても作り直す（掲載日時は元のまま）"
         required: false
@@ -109,6 +113,9 @@ jobs:
 
           if [ "${{ github.event.inputs.regenerate_milestone }}" = "true" ]; then
             REGEN_ARG="$REGEN_ARG --regenerate-milestone"
+          fi
+          if [ "${{ github.event.inputs.regenerate_newcomer }}" = "true" ]; then
+            REGEN_ARG="$REGEN_ARG --regenerate-newcomer"
           fi
           if [ "${{ github.event.inputs.regenerate_column }}" = "true" ]; then
             REGEN_ARG="$REGEN_ARG --regenerate-column"
