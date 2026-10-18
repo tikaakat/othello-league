@@ -22,7 +22,7 @@ import random
 import re
 
 from othello_league.league import (
-    _build_character_creation_individual, _pick_master, MASTER_MIN_AGE,
+    _build_character_creation_individual, _pick_master, MASTER_MIN_AGE, D_NEWCOMER_INTAKE,
 )
 from othello_league.random_league import run_random_league
 from othello_league.play import play_decisive_match
@@ -408,7 +408,9 @@ def main():
     submissions = submissions[:NEWCOMER_SUBMISSION_CAP]
     print(f"[DEBUG] 当日投稿分: {len(submissions)}件", flush=True)
 
-    slots_needed = state.get("pending_newcomer_slots", 0)
+    # 受け入れ枠は毎季固定（D_NEWCOMER_INTAKE）なので、本戦が記録したpending_newcomer_slotsではなく
+    # 定数を直接使う（本戦の実行中に定数を変えた場合も、新人リーグ側に即座に反映されるように）
+    slots_needed = D_NEWCOMER_INTAKE
     print(f"[DEBUG] 今夜のDリーグ新規参入枠: {slots_needed}名", flush=True)
 
     retry_pool = load_newcomer_candidate_pool(args.data_dir)
