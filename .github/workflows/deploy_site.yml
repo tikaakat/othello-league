@@ -70,6 +70,7 @@ on:
           - "fix_demotion_won_event_20261012"
           - "fix_backfill_demotion_reset_20261012"
           - "sync_retired_clan_roots"
+          - "fix_newcomer_duplicate_name_20261018"
         default: ""
       create_dir:
         description: "デプロイの代わりに、lab.spia-net.com直下（othello-league/の1つ上）に相対パスでディレクトリを作成する（例: othello-news）。「..」や先頭「/」は不可"
@@ -331,6 +332,13 @@ jobs:
                 # for_season_2.jsonを直しただけではDB側の表示が直らず、ここで直接UPDATEする
                 SQL_LIST=(
                   "UPDATE newcomer_league_standings SET master_id = NULL, master_name = NULL WHERE for_season = 2 AND individual_id IN ('CCNL-000', 'CCNL-001');"
+                )
+                ;;
+              fix_newcomer_duplicate_name_20261018)
+                # 新人リーグが名前の台帳を引き継いでいなかったため、第24季から出走する新人が
+                # 現役の小池陽介（CC17-001）と同名になっていた。新人側を「小池陽介2」に改める
+                SQL_LIST=(
+                  "UPDATE newcomer_league_standings SET display_name = '小池陽介2' WHERE for_season = 24 AND display_name = '小池陽介';"
                 )
                 ;;
               sync_retired_clan_roots)
