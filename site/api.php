@@ -444,9 +444,15 @@ function build_records($pdo) {
                 $aCount[$id] = ($aCount[$id] ?? 0) + 1;
                 if (!isset($firstA[$id])) $firstA[$id] = $s;
             }
-        } elseif ($lg === '朱雀紅組' || $lg === '朱雀白組') {
-            $suzakuCount[$id] = ($suzakuCount[$id] ?? 0) + 1;
         }
+    }
+    // 朱雀紅白リーグの在籍はstandingsではなくsuzaku_group_standingsに記録されている
+    // （防衛専念枠だった季も在籍に含める。個体ページの通算在籍期数と同じ数え方）
+    foreach ($pdo->query(
+        "SELECT individual_id, COUNT(*) AS c FROM suzaku_group_standings
+         WHERE league IN ('朱雀紅組', '朱雀白組') GROUP BY individual_id"
+    ) as $r) {
+        $suzakuCount[$r['individual_id']] = (int)$r['c'];
     }
     $entry = function ($id, $value, $detail) use ($name, $retired) {
         return ['individual_id' => $id, 'display_name' => $name[$id] ?? $id, 'retired' => isset($retired[$id]) ? 1 : 0,
