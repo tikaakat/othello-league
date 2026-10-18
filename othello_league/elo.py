@@ -1,3 +1,11 @@
+# 一時的なK値の引き上げ倍率。第22季に評価ノイズを±10→±5に縮小した結果、選手同士の
+# 強さの関係が一部入れ替わり、変更前に付いたEloが実力を表しきれなくなった（第22〜23季、
+# Elo上位側の勝率が期待値を下回った）。Eloが新しい実力に早く追いつくよう、当面（第25季から
+# 10季程度）は1.5倍にする。第34季前後に勝率と期待値のずれ・レートのばらつきを測り直し、
+# 1.0に戻すか判断する
+K_TEMP_BOOST = 1.5
+
+
 def k_factor(total_seasons):
     """
     経験の浅い個体ほどレートの変動幅を大きくし、実力相応の値に早く収束させる。
@@ -14,10 +22,12 @@ def k_factor(total_seasons):
     逓減自体は維持し、数値だけ検証結果に合わせて下げた。
     """
     if total_seasons < 3:
-        return 18
+        base = 18
     elif total_seasons < 8:
-        return 13
-    return 10
+        base = 13
+    else:
+        base = 10
+    return round(base * K_TEMP_BOOST)
 
 
 def update_elo(rating_a, rating_b, outcome_a, k=None, total_seasons_a=None, total_seasons_b=None):
