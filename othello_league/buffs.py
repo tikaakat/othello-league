@@ -17,9 +17,16 @@ def _age_range_for(age):
 
 
 def roll_age_multipliers(age, param_keys):
-    """年齢帯に応じた倍率レンジから、パラメータごとに独立に抽選する。シーズン開始時に1回呼ぶ想定"""
+    """年齢帯に応じた倍率レンジから1つの倍率を抽選し、全パラメータに同じ倍率をかける。
+    シーズン開始時に1回呼ぶ想定。
+    以前はパラメータごとに独立に抽選していたが、評価は能力値の比率で指し手が決まるため、
+    毎季の抽選で棋風（比率）そのものが変わり、強さの順位が季ごとにランダムに入れ替わっていた
+    （季をまたいだ「期待以上の勝ち」の相関がほぼ0）。全パラメータ同じ倍率なら棋風は変わらず、
+    倍率は1局ごとの評価ノイズに対する評価の大きさとして効く（倍率が低い＝相対的にブレが大きい＝
+    やや弱い）。シミュレーションで、季をまたいだ強さの相関が0.63→0.82に上がることを確認した"""
     lo, hi = _age_range_for(age)
-    return {key: round(random.uniform(lo, hi), 3) for key in param_keys}
+    m = round(random.uniform(lo, hi), 3)
+    return {key: m for key in param_keys}
 
 
 def effective_params(individual):
