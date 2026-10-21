@@ -1,5 +1,49 @@
 [
   {
+    "name": "石塚さくら",
+    "gender": "female",
+    "type": "balanced",
+    "params": {
+      "corner_weight": 6.348,
+      "danger_zone_weight": 4.598,
+      "mobility_weight": 4.497,
+      "edge_stability_weight": 1.909,
+      "frontier_weight": 8.892,
+      "disc_weight": 4.255,
+      "parity_weight": 5.991,
+      "center_weight": 4.267
+    },
+    "awakened_param": null,
+    "auto_generated": true,
+    "age": 21,
+    "parent_a_id": "CC6-000",
+    "clan_root_id": "B0-010",
+    "generation": 2,
+    "volatility": 1.17
+  },
+  {
+    "name": "小松美紀",
+    "gender": "female",
+    "type": "corner",
+    "params": {
+      "corner_weight": 4.872,
+      "danger_zone_weight": 6.697,
+      "mobility_weight": 4.9,
+      "edge_stability_weight": 1.96,
+      "frontier_weight": 7.639,
+      "disc_weight": 4.043,
+      "parity_weight": 5.533,
+      "center_weight": 4.727
+    },
+    "awakened_param": null,
+    "auto_generated": true,
+    "age": 21,
+    "parent_a_id": "CC21-001",
+    "clan_root_id": "CC5-000",
+    "generation": 3,
+    "volatility": 1.49
+  },
+  {
     "name": "福田翔太",
     "gender": "male",
     "type": "balanced",
@@ -15,33 +59,11 @@
     },
     "awakened_param": null,
     "auto_generated": true,
-    "age": 21,
+    "age": 22,
     "parent_a_id": "CC17-000",
     "clan_root_id": "CC3-000",
     "generation": 3,
     "volatility": 1.69
-  },
-  {
-    "name": "望月浩之",
-    "gender": "male",
-    "type": "corner",
-    "params": {
-      "corner_weight": 17.43,
-      "danger_zone_weight": 8.56,
-      "mobility_weight": 1.905,
-      "edge_stability_weight": 2.232,
-      "frontier_weight": 6.984,
-      "disc_weight": 3.497,
-      "parity_weight": 8.432,
-      "center_weight": 2.235
-    },
-    "awakened_param": "corner_weight",
-    "auto_generated": true,
-    "age": 15,
-    "parent_a_id": "CC4-000",
-    "clan_root_id": "B0-010",
-    "generation": 2,
-    "volatility": 1.38
   },
   {
     "name": "松井光輝",
@@ -59,54 +81,32 @@
     },
     "awakened_param": "disc_weight",
     "auto_generated": true,
-    "age": 16,
+    "age": 17,
     "parent_a_id": "CC20-000",
     "clan_root_id": "B0-010",
     "generation": 3,
     "volatility": 1.53
   },
   {
-    "name": "大杉直樹",
+    "name": "水野直樹",
     "gender": "male",
-    "type": "defensive",
+    "type": "balanced",
     "params": {
-      "corner_weight": 6.503,
-      "danger_zone_weight": 7.074,
-      "mobility_weight": 3.203,
-      "edge_stability_weight": 3.444,
-      "frontier_weight": 5.168,
-      "disc_weight": 4.152,
-      "parity_weight": 8.545,
-      "center_weight": 2.502
+      "corner_weight": 5.925,
+      "danger_zone_weight": 5.173,
+      "mobility_weight": 5.58,
+      "edge_stability_weight": 2.847,
+      "frontier_weight": 7.859,
+      "disc_weight": 4.72,
+      "parity_weight": 5.178,
+      "center_weight": 3.264
     },
     "awakened_param": null,
     "auto_generated": true,
-    "age": 24,
-    "parent_a_id": "CC22-000",
+    "age": 19,
+    "parent_a_id": "CC28-002",
     "clan_root_id": "B0-010",
-    "generation": 3,
-    "volatility": 1.18
-  },
-  {
-    "name": "戸田祐介",
-    "gender": "male",
-    "type": "aggressive",
-    "params": {
-      "corner_weight": 5.675,
-      "danger_zone_weight": 6.033,
-      "mobility_weight": 3.651,
-      "edge_stability_weight": 4.119,
-      "frontier_weight": 4.112,
-      "disc_weight": 5.91,
-      "parity_weight": 5.398,
-      "center_weight": 3.734
-    },
-    "awakened_param": null,
-    "auto_generated": true,
-    "age": 20,
-    "parent_a_id": "B0-004",
-    "clan_root_id": "B0-004",
-    "generation": 1,
-    "volatility": 1.64
+    "generation": 2,
+    "volatility": 1.48
   }
 ]
