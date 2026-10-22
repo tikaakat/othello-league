@@ -700,8 +700,14 @@ def generate_disciples(count, season, pool, name_registry, titleholder_ids=froze
 
 # 弟子が受け継ぐ能力の割合。残りはランダムな（リーグ平均的な合計の）能力で埋める。
 # 師匠の能力をほぼそのまま（±15%）受け継ぐ方式だと、最強の師匠の弟子がほぼ最強の能力で
-# 新人リーグに出てきて上位を独占してしまうため、強い一門の弟子は平均より強い程度に抑える
-DISCIPLE_INHERIT_RATIO = 0.6
+# 新人リーグに出てきて上位を独占してしまうため、強い一門の弟子は平均より強い程度に抑える。
+# 割合は能力ごとに独立して抽選する（平均6割）。当初は全能力一律6割だったが、それだと弟子の強さが
+# 師匠を中心にほぼ揃ってしまい、師匠と違う配分の組み合わせ（＝師匠を超える型）が生まれにくかった。
+# シミュレーション（師匠2人×弟子40人×24局）では、一律6割に比べて弟子の平均はやや下がる
+# （-1〜2ポイント）が、弟子どうしの差が広がって上振れした弟子が強くなった（上位4人の平均
+# +1〜4ポイント）。新人リーグで上位だけが昇級するので、昇級者はやや強くなる方向に働く
+DISCIPLE_INHERIT_RATIO_MIN = 0.2
+DISCIPLE_INHERIT_RATIO_MAX = 1.0
 DISCIPLE_BASELINE_SUM = 40.0  # ランダム部分の能力合計（現役選手の能力合計の平均程度）
 
 
@@ -712,12 +718,13 @@ def _baseline_params():
 
 
 def mutate_params(master):
-    """師匠の能力をDISCIPLE_INHERIT_RATIOの割合で受け継ぎ、残りをランダムな能力で埋め、
-    さらに±5%の揺らぎを加える"""
+    """師匠の能力を能力ごとに抽選した割合（DISCIPLE_INHERIT_RATIO_MIN〜MAX）で受け継ぎ、
+    残りをランダムな能力で埋め、さらに±5%の揺らぎを加える"""
     baseline = _baseline_params()
     child_params = {}
     for k in PARAM_KEYS:
-        mixed = DISCIPLE_INHERIT_RATIO * master.params.get(k, 1.0) + (1 - DISCIPLE_INHERIT_RATIO) * baseline[k]
+        ratio = random.uniform(DISCIPLE_INHERIT_RATIO_MIN, DISCIPLE_INHERIT_RATIO_MAX)
+        mixed = ratio * master.params.get(k, 1.0) + (1 - ratio) * baseline[k]
         child_params[k] = max(0.1, round(mixed * random.uniform(0.95, 1.05), 3))
 
     return child_params, master.generation + 1
