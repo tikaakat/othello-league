@@ -2411,10 +2411,17 @@ async function loadNewcomerLeague(forSeason) {
     const prevSeason = idx >= 0 && idx + 1 < seasons.length ? seasons[idx + 1] : null;
     const nextSeason = idx > 0 ? seasons[idx - 1] : null;
 
-    let html = `<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-      <button id="newcomer-prev" ${prevSeason ? '' : 'disabled'} style="background:var(--navy-800); color:var(--cyan); border:1px solid var(--navy-700); padding:4px 10px; cursor:pointer;">◀ 前回</button>
-      <div style="font-size:0.8rem; color:var(--text-dim);">第${resData.for_season}季 新人リーグ（応募${resData.meta.submission_count}名 / 昇格枠${resData.meta.slots_needed}名・昇格者は第${resData.for_season}季からDリーグ出走）</div>
-      <button id="newcomer-next" ${nextSeason ? '' : 'disabled'} style="background:var(--navy-800); color:var(--cyan); border:1px solid var(--navy-700); padding:4px 10px; cursor:pointer;">次回 ▶</button>
+    // 季が増えるほど前回/次回で1つずつ送るのが手間になるため、プルダウンでも直接選べるようにする。
+    // 新人リーグの実施季は飛び番がありうるので、1〜最新ではなく実際に結果がある季（available_seasons）だけを並べる
+    const seasonOptions = seasons.map(s =>
+      `<option value="${s}" ${s === resData.for_season ? 'selected' : ''}>第${s}季</option>`).join('');
+
+    let html = `<div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:10px;">
+      <button id="newcomer-prev" ${prevSeason ? '' : 'disabled'} style="background:var(--navy-800); color:var(--cyan); border:1px solid var(--navy-700); padding:4px 10px; cursor:pointer; white-space:nowrap; flex-shrink:0;">◀ 前回</button>
+      <div style="font-size:0.8rem; color:var(--text-dim); text-align:center;">
+        <select id="newcomer-season-select" style="background:var(--navy-800); color:var(--cyan); border:1px solid var(--navy-700); padding:4px 8px; font-size:0.8rem; border-radius:3px;">${seasonOptions}</select>
+        新人リーグ（応募${resData.meta.submission_count}名 / 昇格枠${resData.meta.slots_needed}名・昇格者は第${resData.for_season}季からDリーグ出走）</div>
+      <button id="newcomer-next" ${nextSeason ? '' : 'disabled'} style="background:var(--navy-800); color:var(--cyan); border:1px solid var(--navy-700); padding:4px 10px; cursor:pointer; white-space:nowrap; flex-shrink:0;">次回 ▶</button>
     </div>`;
 
     if (resData.standings.length === 0) {
@@ -2452,6 +2459,8 @@ async function loadNewcomerLeague(forSeason) {
     }));
     if (prevSeason) document.getElementById('newcomer-prev').addEventListener('click', () => navigateTo('newcomer/' + prevSeason));
     if (nextSeason) document.getElementById('newcomer-next').addEventListener('click', () => navigateTo('newcomer/' + nextSeason));
+    const newcomerSeasonSelect = document.getElementById('newcomer-season-select');
+    if (newcomerSeasonSelect) newcomerSeasonSelect.addEventListener('change', () => navigateTo('newcomer/' + newcomerSeasonSelect.value));
   } catch (e) {
     el.innerHTML = `<div class="empty">読み込み失敗: ${escapeHtml(String(e))}</div>`;
   }
