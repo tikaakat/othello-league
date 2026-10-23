@@ -100,6 +100,12 @@
     background: var(--card); color: var(--text-dim); border: 1px solid var(--border); cursor: pointer;
   }
   .chip-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .chip-select {
+    font-size: 0.72rem; font-weight: 700; padding: 5px 10px; border-radius: 12px;
+    background: var(--card); color: var(--text-dim); border: 1px solid var(--border); cursor: pointer;
+  }
+  .chip-select.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .chip-select option, .chip-select optgroup { background: var(--card); color: var(--text); }
 
   .filter-banner {
     display: flex; align-items: center; justify-content: space-between; gap: 10px;
@@ -693,10 +699,29 @@ async function renderFeed(filter) {
   }
 
   const seasons = [...new Set(allArticles.map(a => a.season).filter(s => s != null))].sort((a, b) => b - a);
+  // 季が増えてチップが何行にも折り返し見づらくなったため、直近の季だけチップで並べ、
+  // それより前の季は10季ごとにまとめたプルダウンから選ぶ
+  const RECENT_SEASON_CHIPS = 5;
+  const activeSeason = filter && filter.type === 'season' ? filter.value : null;
+  const recentSeasons = seasons.slice(0, RECENT_SEASON_CHIPS);
+  const olderSeasons = seasons.slice(RECENT_SEASON_CHIPS);
+  let olderSelect = '';
+  if (olderSeasons.length) {
+    const groups = {};
+    olderSeasons.forEach(s => { const g = Math.floor((s - 1) / 10); (groups[g] = groups[g] || []).push(s); });
+    const optgroups = Object.keys(groups).map(Number).sort((a, b) => b - a).map(g =>
+      `<optgroup label="第${g * 10 + 1}〜${g * 10 + 10}季">${groups[g].map(s =>
+        `<option value="${s}" ${s === activeSeason ? 'selected' : ''}>第${s}季</option>`).join('')}</optgroup>`).join('');
+    const olderActive = activeSeason != null && olderSeasons.includes(activeSeason);
+    olderSelect = `<select class="chip-select ${olderActive ? 'active' : ''}" aria-label="過去の季を選ぶ"
+        onchange="if (this.value) navigateTo('season/' + this.value)">
+        <option value="" ${olderActive ? '' : 'selected'}>過去の季 ▾</option>${optgroups}</select>`;
+  }
   const seasonChips = seasons.length > 1 ? `<div class="chip-row">
       <button class="chip-btn ${!filter ? 'active' : ''}" onclick="navigateTo('')">すべて</button>
-      ${seasons.map(s => `<button class="chip-btn ${filter && filter.type === 'season' && filter.value === s ? 'active' : ''}"
+      ${recentSeasons.map(s => `<button class="chip-btn ${s === activeSeason ? 'active' : ''}"
         onclick="navigateTo('season/${s}')">第${s}季</button>`).join('')}
+      ${olderSelect}
     </div>` : '';
 
   // 絞り込みなしのトップでのみ、人気記事ランキング（いいね数上位）とフォロー中の個体を表示する
