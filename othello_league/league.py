@@ -16,6 +16,7 @@ D_TO_C_PROMOTE = 3   # D→C昇格人数（C→D降格人数と揃え、Cリー�
 
 RETIREMENT_AGE = 60
 D_DEMOTION_POINT_LIMIT = 3  # Dリーグでの降級点がこの数に達すると強制引退（連続でなくてもよい）
+D_DEMOTION_POINT_FLOOR = 1  # 勝ち越し・救済で減らせる下限。1点目はCへ昇級するまで消えない
 C_TO_D_RELEGATE = 3  # C→D降格人数（B→Cと同数）
 
 # Dリーグの新人受け入れ枠（新人リーグの募集人数）。
@@ -186,7 +187,13 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
     #     居座れる不備があったため、点として積み重ねる方式に変更した。
     #     ただし積み上がる一方では救いが無さすぎるため、勝ち越した季・
     #     demotion_relief_ids該当（白虎トーナメント出場・玄武ブロック優勝）の季は
-    #     それぞれ1点減らす（複数該当すれば重複して減らしてよい。0未満にはしない）。
+    #     それぞれ1点減らす（複数該当すれば重複して減らしてよい）。
+    #     ただし消せるのは2点目以降のみで、1点目はCへ昇級するまで消えない（将棋のC級2組の
+    #     降級点に倣う）。以前は0点まで戻せたため、負け越しと勝ち越しを繰り返して1点を
+    #     行き来しながらDに長く居座る個体が多く、Dリーグの人数が膨らんでいた
+    #     （過去41季の結果で当てはめると、Dの人数は1季あたり3〜4人減る見込み）。
+    #     同じ季に負け越しと救済（relief）が重なった場合は、従来どおり相殺して点を増やさない
+    #     （タイトル保持者等の保護中に、負け越しで消えない1点目が付いてしまわないようにする）。
     #     この判定は「今季も引き続きDに在籍していた個体（d_remain）」のみを対象にする。
     #     今季Cから降格してきた個体（c_relegate_to_d・c_relegate_overflow）は、
     #     まだDでの対局実績が無い（直前の成績はC所属時のもの）ため対象外とし、
@@ -214,14 +221,19 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
         lost_more = ind.loss_this_season > ind.win_this_season
         won_more = ind.win_this_season > ind.loss_this_season
         relief = ind.id in demotion_relief_ids
-        delta = 0
-        if lost_more:
-            delta += 1
-        elif won_more:
-            delta -= 1
-        if relief:
-            delta -= 1
-        ind.demotion_points = min(max(0, before + delta), D_DEMOTION_POINT_LIMIT)
+        gain = 1 if lost_more else 0
+        reductions = (1 if won_more else 0) + (1 if relief else 0)
+        # 同じ季の負け越しと救済は相殺する
+        offset = min(gain, reductions)
+        gain -= offset
+        reductions -= offset
+        points = before + gain
+        # 減らせるのは2点目以降のみ（1点以上持っていれば1点は残る）
+        reduced_to = max(min(points, D_DEMOTION_POINT_FLOOR), points - reductions)
+        ind.demotion_points = min(reduced_to, D_DEMOTION_POINT_LIMIT)
+        # 結果タブの「-点1」表示用：勝ち越し・救済で実際に点が減った（または負け越しを相殺した）か
+        won_reduced = won_more and reduced_to < points
+        relief_applied = relief and (offset > 0 or reduced_to < points - (1 if won_reduced else 0))
         # gained（青龍戦リーグで負け越して+1）・relief（玄武ブロック優勝等で-1）は、
         # 同じ季に両方起きて相殺され見た目の点数が変わらないこともあるため、
         # 片方だけでなく両方が起きたことを別々に結果タブへ出せるよう、
@@ -241,12 +253,12 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
                 parts.append(f"gained{before}")
             # 勝ち越して-1点（0点まで減らなかった場合）。0点まで減った場合は上のclearedで表示される。
             # これが無いと、勝ち越しで減ったのに結果タブに何も表示されず、点数だけが黙って減って見える
-            if won_more and before > 0:
+            if won_reduced:
                 parts.append(f"won{before}")
             # relief単独（今季負け越していない）で既に0点だった場合は、実質的に
             # 何も変化していないため表示しない（relieveする対象の点が無かった）。
             # gainedと同様、結果タブのハイライト表示用に「持っていた点数」を埋め込む
-            if relief and (before > 0 or lost_more):
+            if relief_applied:
                 parts.append(f"relief{before}")
             if parts:
                 demotion_events[ind.id] = "_".join(parts)
