@@ -45,16 +45,21 @@ def _order_moves(moves):
     return sorted(moves, key=lambda mv: -_STATIC_WEIGHTS[mv])
 
 
+def _neighbors(sq):
+    row, col = divmod(sq, 8)
+    return tuple((row + dr) * 8 + (col + dc) for dr in (-1, 0, 1) for dc in (-1, 0, 1)
+                 if (dr or dc) and 0 <= row + dr < 8 and 0 <= col + dc < 8)
+
+
+# 各マスの隣接マス（起動時に一度だけ計算。_is_frontierで毎回盤端を判定し直さないため）
+_NEIGHBORS = tuple(_neighbors(sq) for sq in range(64))
+
+
 def _is_frontier(bd, sq):
     """空きマスに隣接している（＝将来ひっくり返されるリスクがある）かどうか"""
-    row, col = divmod(sq, 8)
-    for dr in (-1, 0, 1):
-        for dc in (-1, 0, 1):
-            if dr == 0 and dc == 0:
-                continue
-            r, c = row + dr, col + dc
-            if 0 <= r < 8 and 0 <= c < 8 and bd[r * 8 + c] == B.EMPTY:
-                return True
+    for n in _NEIGHBORS[sq]:
+        if bd[n] == B.EMPTY:
+            return True
     return False
 
 
@@ -95,8 +100,16 @@ def evaluate(bd, color, params, noise_scale=1.0):
     edge_stability_score = 100 * (my_edge - opp_edge) / total_edge if total_edge > 0 else 0
 
     # --- 開放度（空きマスに隣接する自分の石が多いほど不利、という考え方） ---
-    my_frontier = sum(1 for sq in range(64) if bd[sq] == color and _is_frontier(bd, sq))
-    opp_frontier = sum(1 for sq in range(64) if bd[sq] == opp and _is_frontier(bd, sq))
+    my_frontier = opp_frontier = 0
+    for sq in range(64):
+        v = bd[sq]
+        if v == B.EMPTY:
+            continue
+        if _is_frontier(bd, sq):
+            if v == color:
+                my_frontier += 1
+            else:
+                opp_frontier += 1
     total_frontier = my_frontier + opp_frontier
     frontier_score = 100 * (opp_frontier - my_frontier) / total_frontier if total_frontier > 0 else 0
 
@@ -150,10 +163,12 @@ def evaluate(bd, color, params, noise_scale=1.0):
 
 
 def minimax(bd, color, depth, alpha, beta, maximizing_color, params, noise_scale=1.0):
-    moves = B.legal_moves(bd, color)
-
+    # 末端（depth == 0）では合法手を使わないので、列挙する前に評価して返す
+    # （以前は末端でも合法手を列挙しており、その分だけ無駄に時間がかかっていた。結果は同じ）
     if depth == 0:
         return evaluate(bd, maximizing_color, params, noise_scale), None
+
+    moves = B.legal_moves(bd, color)
 
     if not moves:
         opp_moves = B.legal_moves(bd, B.opponent(color))
