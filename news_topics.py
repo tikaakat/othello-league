@@ -18,7 +18,7 @@ import os
 from collections import Counter, defaultdict
 
 LEAGUES = ("A", "B", "C", "D")
-TITLE_NAMES = ["青龍", "朱雀", "白虎", "玄武"]
+TITLE_NAMES = ["麒麟", "青龍", "朱雀", "白虎", "玄武"]
 
 # 直近この季数に使ったテーマは避ける（話題がよほど大きければ選ばれうるよう、点数を下げるだけにする）
 RECENT_TOPIC_SEASONS = 3
@@ -281,7 +281,7 @@ def topic_first_title(ctx):
         cid = e.get("challenger_id")
         if not cid or sum(before.get(cid, {}).values()) > 0:
             continue
-        score = 55 + {"青龍": 15, "朱雀": 10, "白虎": 5, "玄武": 0}.get(e["title"], 0)
+        score = 55 + {"麒麟": 15, "青龍": 15, "朱雀": 10, "白虎": 5, "玄武": 0}.get(e["title"], 0)
         if best is None or score > best[0]:
             best = (score, e)
     if best is None:

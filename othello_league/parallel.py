@@ -38,10 +38,8 @@ def _get_pool():
     return _POOL
 
 
-def _match_worker(args):
+def _match_play(params_a, params_b, vol_a, vol_b, a_is_black, depth, attempts):
     """1対局（引き分け時の再戦を含む）を打つ。個体オブジェクトは渡さず、必要な値だけ受け取る"""
-    params_a, params_b, vol_a, vol_b, a_is_black, depth, attempts, seed = args
-    random.seed(seed)
     games = []
     a_black = a_white = 0
     for _ in range(attempts):
@@ -64,15 +62,69 @@ def _match_worker(args):
     return "draw", games, a_black, a_white
 
 
-def run_matches(pairs, depth=4, allow_rematch=True, decisive=False, max_decisive_attempts=100):
+def _call_worker(args):
+    fn, fargs, seed = args
+    random.seed(seed)
+    return fn(*fargs)
+
+
+def run_jobs(jobs):
+    """jobs（(fn, args) のリスト）を別プロセスで同時に実行し、結果を元の順で返す。
+    乱数の種は元の並び順でメインプロセス側から配るため、並列数を変えても同じ結果になる。
+    fn はモジュールの最上位で定義された関数であること（別プロセスへ渡すため）"""
+    seeded = [(fn, tuple(args), random.randrange(2 ** 31)) for fn, args in jobs]
+    if _workers() > 1 and len(seeded) > 1:
+        return _get_pool().map(_call_worker, seeded, chunksize=1)
+    state = random.getstate()
+    outs = [_call_worker(j) for j in seeded]
+    random.setstate(state)
+    return outs
+
+
+def run_calls(fn, arglist):
+    return run_jobs([(fn, args) for args in arglist])
+
+
+# ------------------------------------------------------------
+# 同時進行の仕組み。リーグ戦・トーナメントなどの各イベントを「次に同時に指せる対局（job）の一覧」を
+# yieldし、結果の一覧を受け取って先へ進むジェネレータとして書く。drive() は複数のイベントの
+# 「次の一手」をまとめて1度に並列実行するので、リーグ戦とタイトル戦の予選のように互いに依存しない
+# イベントを同時に進められ、どれかが終盤で対局数が減ってもCPUが遊ばない
+# ------------------------------------------------------------
+def drive(*gens):
+    """イベントのジェネレータを同時に進め、それぞれの戻り値を並べて返す"""
+    results = [None] * len(gens)
+    pending = {}
+    for i, g in enumerate(gens):
+        try:
+            pending[i] = next(g)
+        except StopIteration as e:
+            results[i] = e.value
+    while pending:
+        order = list(pending)
+        outs = run_jobs([job for i in order for job in pending[i]])
+        pos = 0
+        for i in order:
+            n = len(pending[i])
+            try:
+                pending[i] = gens[i].send(outs[pos:pos + n])
+            except StopIteration as e:
+                results[i] = e.value
+                del pending[i]
+            pos += n
+    return results
+
+
+def match_waves(pairs, depth=4, allow_rematch=True, decisive=False, max_decisive_attempts=100):
     """
     pairs（(ind_a, ind_b)のリスト）を、1局ずつ順番に play_league_match / play_decisive_match を
-    呼んだのと同じ規則で対局し、[(outcome_a, games), ...] を元の並び順で返す。
+    呼んだのと同じ規則で対局し、[(outcome_a, games), ...] を元の並び順で返す（yield from で使う）。
     個体の black_count / white_count も同じように更新する。
     decisive=True なら引き分けを許さず決着まで打ち直す（play_decisive_match相当）。
+      - 先後の割り振り：各対局の両者について、それより前に並んでいる対局がすべて終わってから決める
+        （同じ個体が出る対局は、前の対局が終わるまで始めない）
     """
     attempts = max_decisive_attempts if decisive else (MAX_REMATCH_ATTEMPTS if allow_rematch else 1)
-    seeds = [random.randrange(2 ** 31) for _ in pairs]
     results = [None] * len(pairs)
     remaining = list(range(len(pairs)))
     while remaining:
@@ -94,16 +146,9 @@ def run_matches(pairs, depth=4, allow_rematch=True, decisive=False, max_decisive
                 a_is_black = False
             else:
                 a_is_black = random.choice([True, False])
-            jobs.append((effective_params(a), effective_params(b), a.volatility, b.volatility,
-                         a_is_black, depth, attempts, seeds[i]))
-        if _workers() > 1 and len(jobs) > 1:
-            outs = _get_pool().map(_match_worker, jobs, chunksize=1)
-        else:
-            # 同じプロセスで打つ場合も、対局用に乱数の種を設定し直すので、呼び出し側の乱数の流れを
-            # 並列で打った場合と揃えるため、前後で乱数の状態を退避・復元する
-            state = random.getstate()
-            outs = [_match_worker(j) for j in jobs]
-            random.setstate(state)
+            jobs.append((_match_play, (effective_params(a), effective_params(b), a.volatility, b.volatility,
+                                       a_is_black, depth, attempts)))
+        outs = yield jobs
         for i, (outcome_a, games, a_black, a_white) in zip(wave, outs):
             a, b = pairs[i]
             a.black_count += a_black; b.white_count += a_black
@@ -111,3 +156,8 @@ def run_matches(pairs, depth=4, allow_rematch=True, decisive=False, max_decisive
             results[i] = (outcome_a, games)
         remaining = rest
     return results
+
+
+def run_matches(pairs, depth=4, allow_rematch=True, decisive=False, max_decisive_attempts=100):
+    """match_waves を単独で実行する"""
+    return drive(match_waves(pairs, depth, allow_rematch, decisive, max_decisive_attempts))[0]

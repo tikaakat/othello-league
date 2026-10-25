@@ -3,11 +3,15 @@ import random
 import time
 
 from .play import play_decisive_match
-from .parallel import run_matches
+from .parallel import run_matches, match_waves, drive
 from .elo import update_elo
 
 
-def run_round_robin(members, depth=4, league_name="A", log_prefix="A", seed_order=None,
+def run_round_robin(*args, **kwargs):
+    return drive(round_robin_gen(*args, **kwargs))[0]
+
+
+def round_robin_gen(members, depth=4, league_name="A", log_prefix="A", seed_order=None,
                     suzaku_tiebreak=None, relegate_n=0):
     """
     総当たり戦（Aリーグ、および朱雀戦の紅白リーグで使用）。全ペアが1回ずつ対局する。
@@ -29,7 +33,8 @@ def run_round_robin(members, depth=4, league_name="A", log_prefix="A", seed_orde
     start = time.time()
 
     # 個体が重ならない対局をまとめて並列に打つ（先後の割り振り・乱数は1局ずつ打った場合と同じ規則。結果は元の順に反映）
-    all_results = run_matches(pairs, depth=depth, allow_rematch=False)
+    # （ジェネレータとして書いてあり、parallel.drive で他のリーグ戦・タイトル戦の予選と同時に進められる）
+    all_results = yield from match_waves(pairs, depth=depth, allow_rematch=False)
     for i, ((ind_a, ind_b), (outcome_a, games)) in enumerate(zip(pairs, all_results), 1):
         ind_a.elo, ind_b.elo = update_elo(
             ind_a.elo, ind_b.elo, outcome_a,

@@ -1,7 +1,7 @@
 import random
 import time
 
-from .parallel import run_matches
+from .parallel import match_waves, drive
 from .elo import update_elo
 
 
@@ -86,7 +86,20 @@ def _build_schedule(ids, games_per_individual):
     return [tuple(p) for p in (base_pairs | extra_pairs)]
 
 
-def run_random_league(members, games_per_individual=8, depth=4, league_name="B", seed_order=None, allow_rematch=True):
+def plan_random_league(member_ids, games_per_individual=8):
+    """組み合わせ（IDの組のリスト・対局順）を決める。季の初めに公開できるよう、前の季の終わりに呼ぶ。
+    member_idsには、まだ入団していない新人の仮の枠（NEW1等）を含めてよい"""
+    pairs = _build_schedule(list(member_ids), games_per_individual)
+    random.shuffle(pairs)
+    return [list(p) for p in pairs]
+
+
+def run_random_league(*args, **kwargs):
+    return drive(random_league_gen(*args, **kwargs))[0]
+
+
+def random_league_gen(members, games_per_individual=8, depth=4, league_name="B", seed_order=None, allow_rematch=True,
+                      planned_pairs=None, slot_ids=None):
     """
     B/C/Dリーグの対戦方式。スイス方式（得点ベースの組み合わせ）ではなく、
     季ごとにランダムに相手を割り振り、各個体がちょうど games_per_individual
@@ -94,6 +107,9 @@ def run_random_league(members, games_per_individual=8, depth=4, league_name="B",
     全員と総当たりはせず、毎季ランダムな対戦カードになるため波乱が起きやすい。
     seed_order: 同点時のタイブレークに使う順序（前季順位継承）のID列。
     指定が無い場合は、後方互換のためElo順にフォールバックする。
+    planned_pairs: 前の季の終わりに plan_random_league で決めて公開した組み合わせ。新人の仮の枠は
+    slot_ids（枠名→ID）で置き換え、いなくなった選手・埋まらなかった枠を含む対局は行わない。
+    無ければこの場で決める。
     戻り値: (順位確定済みリスト, 対局ログ, 勝ち点, 個体ごとの勝敗分dict)
     """
     by_id = {ind.id: ind for ind in members}
@@ -107,12 +123,22 @@ def run_random_league(members, games_per_individual=8, depth=4, league_name="B",
     else:
         seed_rank = {iid: -by_id[iid].elo for iid in by_id}  # 後方互換フォールバック
 
-    pairs = _build_schedule(list(by_id.keys()), games_per_individual)
-    random.shuffle(pairs)
+    if planned_pairs is not None:
+        slot_ids = slot_ids or {}
+        pairs = [(slot_ids.get(a, a), slot_ids.get(b, b)) for a, b in planned_pairs]
+        pairs = [(a, b) for a, b in pairs if a in by_id and b in by_id]
+        # 公開した組み合わせに入っていない選手（予定外に加わった新人など）は、この場で相手を決める
+        missing = [i for i in by_id if not any(i in p for p in pairs)]
+        if missing:
+            pairs += _build_schedule(missing, games_per_individual) if len(missing) > 1 else []
+    else:
+        pairs = _build_schedule(list(by_id.keys()), games_per_individual)
+        random.shuffle(pairs)
     print(f"    {league_name}リーグ（ランダム{games_per_individual}戦・{len(pairs)}局）")
 
     # 個体が重ならない対局をまとめて並列に打つ（先後の割り振り・乱数は1局ずつ打った場合と同じ規則。結果は元の順に反映）
-    all_results = run_matches([(by_id[a], by_id[b]) for a, b in pairs], depth=depth, allow_rematch=allow_rematch)
+    # （ジェネレータとして書いてあり、parallel.drive で他のリーグ戦・タイトル戦の予選と同時に進められる）
+    all_results = yield from match_waves([(by_id[a], by_id[b]) for a, b in pairs], depth=depth, allow_rematch=allow_rematch)
     for j, ((a_id, b_id), (outcome_a, games)) in enumerate(zip(pairs, all_results), 1):
         ind_a, ind_b = by_id[a_id], by_id[b_id]
 

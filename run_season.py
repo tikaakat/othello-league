@@ -10,15 +10,17 @@ from othello_league.league import (
 )
 from othello_league.buffs import effective_params, roll_age_multipliers
 from othello_league.skills import ensure_skills, roll_form, season_growth, veteran_skills, BOOK_PARAMS
-from othello_league.round_robin import run_round_robin
-from othello_league.random_league import run_random_league
+from othello_league.round_robin import run_round_robin, round_robin_gen
+from othello_league.random_league import run_random_league, random_league_gen, plan_random_league
 from othello_league.title import (
     run_seiryuu_challenge,
     run_suzaku_group_stage, run_suzaku_challenger_decision,
     determine_suzaku_qualifiers, assign_suzaku_groups, run_suzaku_challenge,
-    determine_byakko_challenger, run_byakko_challenge,
-    determine_genbu_challenger, run_genbu_challenge,
+    byakko_challenger_gen, run_byakko_challenge,
+    genbu_challenger_gen, run_genbu_challenge,
     plan_byakko_bracket, plan_genbu_bracket, NEWCOMER_SLOT_PREFIX,
+    plan_kirin_bracket, kirin_challenger_gen, run_kirin_challenge, KIRIN_DEPTH, QUALIFIER_SLOT_PREFIX,
+    drive,
     SEIRYUU_LEAGUE_DEPTH, SEIRYUU_TITLE_DEPTH,
     SUZAKU_LEAGUE_DEPTH, SUZAKU_TITLE_DEPTH,
     BYAKKO_LEAGUE_DEPTH, BYAKKO_TITLE_DEPTH,
@@ -161,41 +163,37 @@ def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_b
     champion_ind = next((ind for ind in a_roster if ind.id == seiryuu_holder_id), None) if seiryuu_holder_id else None
     competing_A = [ind for ind in a_roster if champion_ind is None or ind.id != champion_ind.id]
 
-    print("  --- Aリーグ（総当たり） ---" + ("　※青龍在位者は防衛専念枠のため対局免除" if champion_ind else ""))
+    # A〜Dリーグの対局と、白虎・玄武・麒麟の挑戦者決定戦（組み合わせは季の初めに決まっている）を
+    # まとめて同時に進める（parallel.drive：各イベントの「次に指せる対局」を1度に並列実行するので、
+    # どれかのイベントの終盤で対局が減ってもCPUが遊ばない）。B〜Dリーグの組み合わせも前の季の終わりに
+    # 決めて公開したもの（新人の仮の枠は入団した新人に置き換える）を使う
+    planned = state.get("planned_brackets") or {}
+    if planned.get("season") != season:
+        planned = {}
+    league_pairs = planned.get("leagues") or {}
+    newcomer_ids = planned.get("newcomer_ids") or {}
+    print("  --- A〜Dリーグ・白虎/玄武/麒麟の挑戦者決定戦（同時進行） ---" + ("　※青龍在位者はAリーグの対局免除" if champion_ind else ""))
     # 同点（1位タイ含む）は前季順位の高い方を上位とする（B〜Dと同じ扱い。順位決定戦は行わない）
-    ranked_competing_A, log_A, _, record_A = run_round_robin(
+    league_gens = [round_robin_gen(
         competing_A, depth=depth, seed_order=_build_seed_order(rosters["A"], "A", prev_standings_by_id),
-    )
-    match_log += log_A
+    )]
+    for lg in ("B", "C", "D"):
+        league_gens.append(random_league_gen(
+            rosters[lg], games_per_individual=swiss_rounds, depth=depth, league_name=lg,
+            seed_order=_build_seed_order(rosters[lg], lg, prev_standings_by_id),
+            allow_rematch=False, planned_pairs=league_pairs.get(lg), slot_ids=newcomer_ids,
+        ))
+    tournament_members = [ind for lg in ("A", "B", "C", "D") for ind in rosters[lg]]
+    outs = drive(*league_gens, *title_tournament_gens(tournament_members, state, season))
+    (ranked_competing_A, log_A, _, record_A), (ranked_B, log_B, _, record_B), \
+        (ranked_C, log_C, _, record_C), (ranked_D, log_D, _, record_D) = outs[:4]
+    title_tournament_outs = outs[4:]
+    match_log += log_A + log_B + log_C + log_D
 
     # 公式Aリーグ順位：青龍在位者がいれば1位に据え、以降は総当たり結果を続ける
     ranked_A = ([champion_ind] + ranked_competing_A) if champion_ind else ranked_competing_A
     if champion_ind:
         record_A[champion_ind.id] = {"win": 0, "loss": 0, "draw": 0}  # 対局免除のため記録なし
-
-    print("  --- Bリーグ（ランダム対戦） ---")
-    ranked_B, log_B, _, record_B = run_random_league(
-        rosters["B"], games_per_individual=swiss_rounds, depth=depth, league_name="B",
-        seed_order=_build_seed_order(rosters["B"], "B", prev_standings_by_id),
-        allow_rematch=False,
-    )
-    match_log += log_B
-
-    print("  --- Cリーグ（ランダム対戦） ---")
-    ranked_C, log_C, _, record_C = run_random_league(
-        rosters["C"], games_per_individual=swiss_rounds, depth=depth, league_name="C",
-        seed_order=_build_seed_order(rosters["C"], "C", prev_standings_by_id),
-        allow_rematch=False,
-    )
-    match_log += log_C
-
-    print("  --- Dリーグ（ランダム対戦） ---")
-    ranked_D, log_D, _, record_D = run_random_league(
-        rosters["D"], games_per_individual=swiss_rounds, depth=depth, league_name="D",
-        seed_order=_build_seed_order(rosters["D"], "D", prev_standings_by_id),
-        allow_rematch=False,
-    )
-    match_log += log_D
 
     all_records = {**record_A, **record_B, **record_C, **record_D}
 
@@ -242,7 +240,7 @@ def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_b
     all_members = ranked_A + ranked_B + ranked_C + ranked_D
     title_results, title_extra_match_log, suzaku_group_snapshot, title_extra_protected_ids, title_demotion_relief_ids = _run_title_matches(
         ranked_A, ranked_competing_A, champion_ind, ranked_B, ranked_C, ranked_D, all_members, state, season,
-        suzaku_tiebreak=suzaku_tiebreak,
+        suzaku_tiebreak=suzaku_tiebreak, title_tournament_outs=title_tournament_outs,
     )
     title_match_log = _title_results_to_match_log(title_results, season)
     match_log += title_match_log
@@ -410,8 +408,40 @@ def _title_results_to_match_log(title_results, season):
     return entries
 
 
+def title_tournament_gens(all_members, state, season):
+    """白虎・玄武・麒麟の挑戦者決定戦（予選・トーナメント）のジェネレータを作る。
+    組み合わせは季の初めに決まっていて（前の季の終わりに公開したもの）、リーグ戦の結果にも互いの結果にも
+    よらないので、リーグ戦と同時に進められる（parallel.drive）。番勝負は _run_title_matches で行う"""
+    titleholders = state.setdefault("titleholders", {"青龍": None, "白虎": None, "玄武": None, "朱雀": None})
+    titleholders.setdefault("麒麟", None)
+    last_dethroned = state.setdefault("last_dethroned", {"白虎": None, "玄武": None})
+    last_dethroned.setdefault("麒麟", None)
+    holder_id = lambda title: (titleholders.get(title) or {}).get("id")
+    # 季の初めに公開した組み合わせ（前の季の終了時点で決めたもの）があればそれを使う
+    planned = state.get("planned_brackets") or {}
+    if planned.get("season") != season:
+        planned = {}
+    kirin_plan = planned.get("麒麟") or plan_kirin_bracket(
+        all_members, exclude_id=holder_id("麒麟"), groups=state.get("kirin_groups"),
+        guaranteed_id=last_dethroned.get("麒麟"),
+    )
+    return [
+        byakko_challenger_gen(
+            all_members, exclude_id=holder_id("白虎"), depth=BYAKKO_LEAGUE_DEPTH, top_n=16,
+            guaranteed_id=last_dethroned.get("白虎"), planned=planned.get("白虎"),
+        ),
+        genbu_challenger_gen(
+            all_members, exclude_id=holder_id("玄武"), depth=GENBU_LEAGUE_DEPTH, bracket_size=64,
+            titleholder_ids={info["id"] for info in titleholders.values() if info and info.get("id")},
+            guaranteed_final_id=last_dethroned.get("玄武"),
+            planned=planned.get("玄武"), newcomer_ids=planned.get("newcomer_ids"),
+        ),
+        kirin_challenger_gen(all_members, kirin_plan, newcomer_ids=planned.get("newcomer_ids"), depth=KIRIN_DEPTH),
+    ]
+
+
 def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ranked_C, ranked_D, all_members, state, season,
-                       suzaku_tiebreak=None):
+                       suzaku_tiebreak=None, title_tournament_outs=None):
     results = []
     extra_match_log = []  # タイトル戦のうち、title_history（保持者の記録）には載せない付随対局（朱雀の紅白リーグ戦等）
     suzaku_group_snapshot = []  # 朱雀紅白リーグの順位・残留/陥落を、サイト側が独自に再計算せず正確に表示できるよう記録する
@@ -438,6 +468,8 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
         
     titleholders = state.setdefault("titleholders", {"青龍": None, "白虎": None, "玄武": None, "朱雀": None})
     titleholder_params = state.setdefault("titleholder_params", {"青龍": None, "白虎": None, "玄武": None, "朱雀": None})
+    titleholders.setdefault("麒麟", None)
+    titleholder_params.setdefault("麒麟", None)
 
     def _current_holder_params(title, holder_ind):
         # 在位者も挑戦者と同じく、毎季の年齢補正を反映した「今季の能力」で戦う
@@ -451,6 +483,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
     # 前季このタイトルを失冠した個体のid（白虎・玄武のみ対応）。前季失冠が無かった、
     # または1季前のため既に使い切った場合はNoneになる（優遇は失冠した直後の1季限り）
     last_dethroned = state.setdefault("last_dethroned", {"白虎": None, "玄武": None})
+    last_dethroned.setdefault("麒麟", None)
 
     # 引退免除対象の拡大用：この季の各タイトル戦の挑戦者（青龍・朱雀・白虎・玄武）を集める
     # （在位者と同様、年齢・Dリーグ降級点による強制引退から一時的に保護する。
@@ -710,15 +743,10 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
     # ============================================================
     # 白虎：Elo上位16名（前年白虎在位者は防衛専念枠として除外）による正式シードトーナメント
     # ============================================================
-    byakko_holder_id = (titleholders.get("白虎") or {}).get("id")
-    # 季の初めに公開した組み合わせ（前の季の終了時点で決めたもの）があればそれを使う
-    planned = state.get("planned_brackets") or {}
-    if planned.get("season") != season:
-        planned = {}
-    challenger, bracket_log, byakko_entrants = determine_byakko_challenger(
-        all_members, exclude_id=byakko_holder_id, depth=BYAKKO_LEAGUE_DEPTH, top_n=16,
-        guaranteed_id=last_dethroned.get("白虎"), planned=planned.get("白虎"),
-    )
+    # 白虎・玄武・麒麟の挑戦者決定戦は、季の初めにリーグ戦と同時に済ませてある（run_one_season）。
+    # ここでは番勝負とEloの記録を棋戦ごとに順に行う
+    byakko_out, genbu_out, kirin_out = title_tournament_outs
+    challenger, bracket_log, byakko_entrants = byakko_out
     extra_protected_ids.add(challenger.id)
     demotion_relief_ids.update(ind.id for ind in byakko_entrants)
     # 失冠優遇は1季限りなので、使ったかどうかに関わらずここでリセットする
@@ -779,13 +807,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
     # ============================================================
     # 玄武：完全ランダム抽選トーナメント（ブラケットサイズ64、Elo上位者はバイ）
     # ============================================================
-    genbu_holder_id = (titleholders.get("玄武") or {}).get("id")
-    genbu_seed_titleholder_ids = {info["id"] for info in titleholders.values() if info and info.get("id")}
-    challenger, bracket_log, genbu_block_champions = determine_genbu_challenger(
-        all_members, exclude_id=genbu_holder_id, depth=GENBU_LEAGUE_DEPTH, bracket_size=64,
-        titleholder_ids=genbu_seed_titleholder_ids, guaranteed_final_id=last_dethroned.get("玄武"),
-        planned=planned.get("玄武"), newcomer_ids=planned.get("newcomer_ids"),
-    )
+    challenger, bracket_log, genbu_block_champions = genbu_out
     extra_protected_ids.add(challenger.id)
     demotion_relief_ids.update(ind.id for ind in genbu_block_champions)
     # 失冠優遇は1季限りなので、使ったかどうかに関わらずここでリセットする
@@ -842,7 +864,68 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
             "bracket": bracket_log,
         })
 
+    # ============================================================
+    # 麒麟：組別の予選→本戦（ベスト4から敗者復活あり）→挑戦者決定戦→7番勝負
+    # ============================================================
+    challenger, bracket_log, next_kirin_groups, kirin_entrants = kirin_out
+    state["kirin_groups"] = next_kirin_groups
+    extra_protected_ids.add(challenger.id)
+    demotion_relief_ids.update(ind.id for ind in kirin_entrants)
+    last_dethroned["麒麟"] = None
+    for matchup in bracket_log:
+        ind_a, ind_b = all_members_by_id.get(matchup["a"]), all_members_by_id.get(matchup["b"])
+        if ind_a and ind_b:
+            _update_elo_per_decided_games(ind_a, ind_b, matchup.get("games", []))
+
+    if titleholders.get("麒麟") is None:
+        titleholders["麒麟"] = {"id": challenger.id, "name": challenger.display_name}
+        titleholder_params["麒麟"] = effective_params(challenger)
+        print(f"  ★ 麒麟 初代襲名: {challenger.display_name}")
+        results.append({
+            "title": "麒麟", "season": season, "event": "初代襲名",
+            "new_holder": challenger.display_name, "holder_id": challenger.id, "bracket": bracket_log,
+        })
+    else:
+        defending_holder = titleholders["麒麟"]
+        defending_ind = all_members_by_id.get(defending_holder["id"])
+        result = run_kirin_challenge(
+            challenger, _current_holder_params("麒麟", defending_ind), depth=KIRIN_DEPTH,
+            titleholder_volatility=defending_ind.volatility if defending_ind else 1.0,
+        )
+        print(f"  麒麟戦: {challenger.display_name} {result['challenger_wins']}-{result['titleholder_wins']}"
+              f" → {'奪取！' if result['won'] else '防衛'}")
+        if defending_ind is not None:
+            _update_elo_per_game(challenger, defending_ind, result["games"])
+        if result["won"]:
+            titleholders["麒麟"] = {"id": challenger.id, "name": challenger.display_name}
+            titleholder_params["麒麟"] = effective_params(challenger)
+            holder_name, holder_id = challenger.display_name, challenger.id
+            # 奪取された旧保持者は、来季は1組として本戦から出場する
+            last_dethroned["麒麟"] = defending_holder["id"]
+        else:
+            holder_name, holder_id = defending_holder["name"], defending_holder["id"]
+        results.append({
+            "title": "麒麟", "season": season, **result,
+            "challenger_name": challenger.display_name,
+            "holder_name": holder_name, "holder_id": holder_id,
+            "defender_id": defending_holder["id"],
+            "bracket": bracket_log,
+        })
+
     return results, extra_match_log, suzaku_group_snapshot, extra_protected_ids, demotion_relief_ids
+
+
+def _update_elo_per_decided_games(ind_a, ind_b, games):
+    """予選・トーナメントの1対戦（決着まで打ち直した全局）を1局ずつEloに反映する"""
+    for g in games:
+        if g["result"] == "draw":
+            outcome_a = "draw"
+        else:
+            outcome_a = "win" if (g["result"] == "black") == g["x_was_black"] else "loss"
+        ind_a.elo, ind_b.elo = update_elo(
+            ind_a.elo, ind_b.elo, outcome_a,
+            total_seasons_a=ind_a.total_seasons, total_seasons_b=ind_b.total_seasons,
+        )
 
 
 SUZAKU_GROUP_LEAGUES = ("朱雀紅組", "朱雀白組")
@@ -874,9 +957,10 @@ def _load_suzaku_tiebreak(data_dir, season):
 UPCOMING_BRACKETS_FILE = "upcoming_brackets.json"
 
 
-def plan_next_brackets(rosters, state, next_season, newcomer_slots):
-    """次の季の白虎戦・玄武戦の組み合わせを、この季の終了時点（Elo・所属リーグ）で決めて state に記録する。
-    季の初めから組み合わせを公開するため。玄武戦の新人の枠は「NEW1」等の仮の枠にしておき、新人が決まったら当てはめる"""
+def plan_next_brackets(rosters, state, next_season, newcomer_slots, games_per_individual=8):
+    """次の季のB〜Dリーグ・白虎戦・玄武戦・麒麟戦の組み合わせを、この季の終了時点（Elo・所属リーグ・麒麟戦の組）で決めて
+    state に記録する。季の初めから組み合わせを公開するため。新人の枠は「NEW1」等の仮の枠にしておき、
+    新人が決まったら当てはめる"""
     members = [ind for league in LEAGUE_TIERS for ind in sorted(rosters[league], key=lambda ind: -ind.elo)]
     titleholders = state.get("titleholders") or {}
     last_dethroned = state.get("last_dethroned") or {}
@@ -888,6 +972,17 @@ def plan_next_brackets(rosters, state, next_season, newcomer_slots):
         "玄武": plan_genbu_bracket(members, exclude_id=holder_id("玄武"), bracket_size=64,
                                   titleholder_ids={info["id"] for info in titleholders.values() if info and info.get("id")},
                                   guaranteed_final_id=last_dethroned.get("玄武"), newcomer_slots=newcomer_slots),
+        "麒麟": plan_kirin_bracket(members, exclude_id=holder_id("麒麟"), groups=state.get("kirin_groups"),
+                                  guaranteed_id=last_dethroned.get("麒麟"), newcomer_slots=newcomer_slots),
+        # B〜Dリーグ（ランダム対戦）の組み合わせ。Dリーグには新人の仮の枠も入れておく
+        "leagues": {
+            lg: plan_random_league(
+                [ind.id for ind in rosters[lg]]
+                + ([f"{NEWCOMER_SLOT_PREFIX}{k + 1}" for k in range(newcomer_slots)] if lg == "D" else []),
+                games_per_individual,
+            )
+            for lg in ("B", "C", "D")
+        },
         "newcomer_ids": {},
     }
 
@@ -933,6 +1028,22 @@ def write_upcoming_brackets(data_dir, state, rosters):
                   "guaranteed_final": slot(last_dethroned.get("玄武")),
                   "slots": [slot(p) for p in planned["玄武"]]},
     }
+    out["leagues"] = {lg: [[slot(a), slot(b)] for a, b in pairs] for lg, pairs in (planned.get("leagues") or {}).items()}
+    kirin = planned.get("麒麟")
+    if kirin:
+        def main_slot(pid):
+            if pid and pid.startswith(QUALIFIER_SLOT_PREFIX):
+                k = int(pid[len(QUALIFIER_SLOT_PREFIX):]) - 1
+                group = kirin["prelim"][k]["group"]
+                in_group = sum(1 for b in kirin["prelim"][:k] if b["group"] == group)
+                return {"qualifier": k, "group": group, "block_in_group": in_group}
+            return slot(pid)
+        out["kirin"] = {
+            "holder": titleholders.get("麒麟"),
+            "group1": [slot(p) for p in kirin["groups"]["1"]],
+            "prelim": [{"group": b["group"], "slots": [slot(p) for p in b["slots"]]} for b in kirin["prelim"]],
+            "main": [main_slot(p) for p in kirin["main"]],
+        }
     with open(os.path.join(data_dir, UPCOMING_BRACKETS_FILE), "w", encoding="utf-8") as f:
         json.dump(out, f, ensure_ascii=False, indent=2)
 
@@ -1052,7 +1163,7 @@ def main():
         # 新人リーグ（次回AM/PM実行）で何名を昇格させるかの目安として、今季確定した
         # 新人受け入れ枠数（毎季固定）を記録しておく（次シーズン開始前にrecruit_d_league()で補充される）
         state["pending_newcomer_slots"] = vacancy
-        plan_next_brackets(rosters, state, season + 1, vacancy)
+        plan_next_brackets(rosters, state, season + 1, vacancy, args.swiss_rounds)
         write_upcoming_brackets(args.data_dir, state, rosters)
 
         save_rosters(args.data_dir, rosters)

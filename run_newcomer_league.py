@@ -371,7 +371,7 @@ def relabel_if_stale(data_dir, marker_path=RESULT_MARKER_PATH):
 
 
 def fill_upcoming_newcomers(data_dir, target_season, winner_entries):
-    """結果サイトに出している次の季の玄武戦の組み合わせで、新人枠（NEW1, NEW2, ...）に勝者の名前を入れる。
+    """結果サイトに出している次の季のDリーグ・玄武戦・麒麟戦の組み合わせで、新人枠（NEW1, NEW2, ...）に勝者の名前を入れる。
     本戦の季の初めに、実際に入団した新人で改めて書き直される（入団順＝勝者の並び順）"""
     path = os.path.join(data_dir, "upcoming_brackets.json")
     if not os.path.exists(path):
@@ -381,7 +381,12 @@ def fill_upcoming_newcomers(data_dir, target_season, winner_entries):
     if upcoming.get("season") != target_season:
         return
     names = [w.get("name") for w in winner_entries]
-    for slot in upcoming.get("genbu", {}).get("slots", []):
+    slots = list(upcoming.get("genbu", {}).get("slots", []))
+    for block in (upcoming.get("kirin") or {}).get("prelim", []):
+        slots += block.get("slots", [])
+    for pair in (upcoming.get("leagues") or {}).get("D", []):
+        slots += pair
+    for slot in slots:
         if slot and slot.get("newcomer"):
             k = int(slot["newcomer"][3:]) - 1
             slot["name"] = names[k] if k < len(names) else None

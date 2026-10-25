@@ -5,21 +5,22 @@ from . import board as B
 from . import engine as E
 from .buffs import effective_params
 from .round_robin import run_round_robin
+from .parallel import run_calls, drive
 
-# 各タイトル戦の探索深さ設定。
-# 「LEAGUE」は日々大量にこなす対局に使う深さ（青龍はAリーグ総当たり自体が実質の予選なので
-# Aリーグ全体、朱雀は紅白総当たり＋挑戦者決定戦＋陥落者補充の入れ替え予選、白虎・玄武は
-# それぞれの予選トーナメント）。「TITLE」は在位者への挑戦（本戦）に使う深さ。
-# 予選・本戦で探索時間の差を大きくしすぎない方針のため、タイトルごとの格に応じて設定する
-# （青龍＝名人格が最も深く、朱雀・白虎・玄武の順に浅くする）
+# 各タイトル戦の探索深さ。1つの棋戦の中では、予選・リーグ・挑戦者決定戦・番勝負まで同じ深さで指す
+# （番勝負だけ深くすると、予選やリーグで強い選手と番勝負で強い選手が別物になり、
+# 終盤力・定跡などの個性の効き方も棋戦の中で変わってしまうため）。棋戦の格（序列）が上ほど深い：
+# 麒麟・青龍（竜王・名人格）4、朱雀・白虎 3、玄武（早指し）2。
+# 「LEAGUE」「TITLE」の2つの名前は、呼び出し側との互換のために残している（値は同じ）
 SEIRYUU_LEAGUE_DEPTH = 4
-SEIRYUU_TITLE_DEPTH = 5
+SEIRYUU_TITLE_DEPTH = 4
 SUZAKU_LEAGUE_DEPTH = 3
-SUZAKU_TITLE_DEPTH = 5
+SUZAKU_TITLE_DEPTH = 3
 BYAKKO_LEAGUE_DEPTH = 3
-BYAKKO_TITLE_DEPTH = 4
+BYAKKO_TITLE_DEPTH = 3
 GENBU_LEAGUE_DEPTH = 2
-GENBU_TITLE_DEPTH = 3
+GENBU_TITLE_DEPTH = 2
+KIRIN_DEPTH = 4
 
 
 def _play_one_game(params_black, params_white, depth, noise_black=1.0, noise_white=1.0):
@@ -66,38 +67,46 @@ def run_best_of_n_match(params_a, params_b, wins_needed, depth, noise_a=1.0, noi
     MAX_GAMES_SAFETY = 500
 
     while a_wins < wins_needed and b_wins < wins_needed and game_num < MAX_GAMES_SAFETY:
-        a_is_black = (game_num % 2 == 0)
-        if a_is_black:
-            result, black, white, moves = _play_one_game(params_a, params_b, depth, noise_a, noise_b)
-        else:
-            result, black, white, moves = _play_one_game(params_b, params_a, depth, noise_b, noise_a)
-
-        if result == "draw":
-            outcome_for_log = "draw"
-            note = "　（引き分け。先取数には加算せず）"
-        else:
-            a_won_this_game = (result == "black") == a_is_black
-            if a_won_this_game:
-                a_wins += 1
-                outcome_for_log = "a"
+        # 決着までに必要になりうる局数（引き分けが無ければ最大これだけ）をまとめて同時に指し、
+        # 先頭から順に数えて決着した時点で残りは捨てる（1局ずつ順に指した場合と同じ結果の分布になる）
+        batch = (wins_needed - a_wins) + (wins_needed - b_wins) - 1
+        args = []
+        for k in range(batch):
+            if (game_num + k) % 2 == 0:
+                args.append((params_a, params_b, depth, noise_a, noise_b))
             else:
-                b_wins += 1
-                outcome_for_log = "b"
-            note = ""
+                args.append((params_b, params_a, depth, noise_b, noise_a))
+        outs = run_calls(_play_one_game, args)
+        for result, black, white, moves in outs:
+            if a_wins >= wins_needed or b_wins >= wins_needed:
+                break
+            a_is_black = (game_num % 2 == 0)
+            if result == "draw":
+                outcome_for_log = "draw"
+                note = "　（引き分け。先取数には加算せず）"
+            else:
+                a_won_this_game = (result == "black") == a_is_black
+                if a_won_this_game:
+                    a_wins += 1
+                    outcome_for_log = "a"
+                else:
+                    b_wins += 1
+                    outcome_for_log = "b"
+                note = ""
 
-        games_log.append({
-            "game_num": game_num + 1, "a_was_black": a_is_black,
-            "black": black, "white": white, "winner": outcome_for_log,
-            "moves": moves,
-        })
-        if outcome_for_log == "draw":
-            print(f"      第{game_num + 1}局: 引き分け（{black}-{black}）{note}"
-                  f"　現在 挑戦者{a_wins}勝 - ホルダー{b_wins}勝")
-        else:
-            winner_label = "挑戦者" if outcome_for_log == "a" else "ホルダー"
-            print(f"      第{game_num + 1}局: {winner_label}の勝ち（{black}-{white}）"
-                  f"　現在 挑戦者{a_wins}勝 - ホルダー{b_wins}勝")
-        game_num += 1
+            games_log.append({
+                "game_num": game_num + 1, "a_was_black": a_is_black,
+                "black": black, "white": white, "winner": outcome_for_log,
+                "moves": moves,
+            })
+            if outcome_for_log == "draw":
+                print(f"      第{game_num + 1}局: 引き分け（{black}-{black}）{note}"
+                      f"　現在 挑戦者{a_wins}勝 - ホルダー{b_wins}勝")
+            else:
+                winner_label = "挑戦者" if outcome_for_log == "a" else "ホルダー"
+                print(f"      第{game_num + 1}局: {winner_label}の勝ち（{black}-{white}）"
+                      f"　現在 挑戦者{a_wins}勝 - ホルダー{b_wins}勝")
+            game_num += 1
 
     return a_wins > b_wins, a_wins, b_wins, games_log
 
@@ -140,6 +149,37 @@ def _play_until_decided(params_x, params_y, depth, noise_x=1.0, noise_y=1.0, max
         x_is_black = not x_is_black
     # 安全策（実質到達しない想定）：それでも決着しなければXを勝者扱いにする
     return True, games
+
+
+# ============================================================
+# トーナメントを並列に進める仕組み（parallel.drive）。
+# 各トーナメントは「次に指す対局の一覧」をyieldし、結果の一覧を受け取って先へ進むジェネレータとして書く。
+# 白虎・玄武・麒麟のように組み合わせが季の初めに決まっている棋戦は、リーグ戦と同時に進められる。
+# 対局は個体の状態を変えない（Eloの更新は呼び出し側が後で記録順に行う）ので、同じ個体が
+# 別の棋戦の対局に同時に出ていても結果は変わらない
+# ============================================================
+def _round(pairs, depth, log, tags=None):
+    """1回戦分の対局（Noneの相手は不戦勝）。勝者の一覧を返す（yield from で使う）"""
+    real = [(k, x, y) for k, (x, y) in enumerate(pairs) if x is not None and y is not None]
+    jobs = [(_play_until_decided, (effective_params(x), effective_params(y), depth, x.volatility, y.volatility))
+            for _, x, y in real]
+    outs = (yield jobs) if jobs else []
+    winners = [x if x is not None else y for x, y in pairs]
+    for (k, x, y), (x_won, games) in zip(real, outs):
+        w = x if x_won else y
+        winners[k] = w
+        log.append({"a": x.id, "b": y.id, "winner": w.id, "games": games, **(tags(k) if tags else {})})
+    return winners
+
+
+def _knockout(bracket, depth, log, tags=None):
+    """単純なトーナメント（Noneは不在＝相手は不戦勝）。優勝者を返す（yield from で使う）"""
+    rnd = 1
+    while len(bracket) > 1:
+        pairs = [(bracket[i], bracket[i + 1]) for i in range(0, len(bracket), 2)]
+        bracket = yield from _round(pairs, depth, log, (lambda k, r=rnd: tags(k, r)) if tags else None)
+        rnd += 1
+    return bracket[0]
 
 
 # ============================================================
@@ -223,41 +263,22 @@ def determine_suzaku_qualifiers(all_members, exclude_ids=frozenset(), depth=1, n
     for ind in unseeded:
         min(blocks, key=len).append(ind)
 
-    bracket_log = []
-
-    def single_game(ind_x, ind_y):
-        if ind_x is None:
-            return ind_y
-        if ind_y is None:
-            return ind_x
-        x_won, games = _play_until_decided(
-            effective_params(ind_x), effective_params(ind_y), depth,
-            noise_x=ind_x.volatility, noise_y=ind_y.volatility,
-        )
-        winner_ind = ind_x if x_won else ind_y
-        bracket_log.append({
-            "a": ind_x.id, "b": ind_y.id, "winner": winner_ind.id, "games": games,
-        })
-        return winner_ind
-
-    winners = []
+    # 各ブロックのトーナメントを並べ、同じ回戦をまとめて同時に対局する
+    brackets = []
     for block in blocks:
         if not block:
             continue
-        n = len(block)
         bracket_size = 1
-        while bracket_size < n:
+        while bracket_size < len(block):
             bracket_size *= 2
-        slots = block + [None] * (bracket_size - n)
-        order = _bracket_seed_order(bracket_size)
-        round_members = [slots[i] for i in order]
-        while len(round_members) > 1:
-            next_round = []
-            for i in range(0, len(round_members), 2):
-                next_round.append(single_game(round_members[i], round_members[i + 1]))
-            round_members = next_round
-        winners.append(round_members[0])
-
+        slots = block + [None] * (bracket_size - len(block))
+        brackets.append([slots[i] for i in _bracket_seed_order(bracket_size)])
+    bracket_log = []
+    winners = drive(*[_knockout(b, depth, bracket_log, lambda k, r, blk=blk: {"_block": blk}) for blk, b in enumerate(brackets)])
+    # 記録はブロックごとにまとめる（以前の1ブロックずつ順に指していた頃と同じ並び）
+    bracket_log.sort(key=lambda m: m["_block"])
+    for m in bracket_log:
+        del m["_block"]
     return winners, bracket_log
 
 
@@ -293,7 +314,7 @@ def assign_suzaku_groups(returning, new_qualifiers, size_per_group=5):
 def run_suzaku_challenge(challenger, titleholder_params, depth=1, titleholder_volatility=1.0):
     challenger_params = effective_params(challenger)
     won, c_wins, t_wins, games = run_best_of_n_match(
-        challenger_params, titleholder_params, wins_needed=3, depth=depth,
+        challenger_params, titleholder_params, wins_needed=4, depth=depth,
         noise_a=challenger.volatility, noise_b=titleholder_volatility,
     )
     return {
@@ -339,7 +360,7 @@ def plan_byakko_bracket(all_members, exclude_id=None, top_n=16, guaranteed_id=No
     return [slots[i] for i in _bracket_seed_order(bracket_size)]
 
 
-def determine_byakko_challenger(all_members, exclude_id=None, depth=1, top_n=16, guaranteed_id=None, planned=None):
+def byakko_challenger_gen(all_members, exclude_id=None, depth=1, top_n=16, guaranteed_id=None, planned=None):
     """
     Elo上位top_n名（既定16名）による正式シードトーナメント。
     前年白虎在位者（exclude_id）は防衛専念枠のため、この母集団からは除外する。
@@ -355,35 +376,14 @@ def determine_byakko_challenger(all_members, exclude_id=None, depth=1, top_n=16,
     bracketed = [by_id.get(pid) if pid else None for pid in planned]
 
     bracket_log = []
-
-    def single_game(ind_x, ind_y):
-        if ind_x is None:
-            return ind_y
-        if ind_y is None:
-            return ind_x
-        x_won, games = _play_until_decided(
-            effective_params(ind_x), effective_params(ind_y), depth,
-            noise_x=ind_x.volatility, noise_y=ind_y.volatility,
-        )
-        winner_ind = ind_x if x_won else ind_y
-        bracket_log.append({
-            "a": ind_x.id, "b": ind_y.id, "winner": winner_ind.id, "games": games,
-        })
-        return winner_ind
-
-    round_members = bracketed
-    while len(round_members) > 1:
-        next_round = []
-        for i in range(0, len(round_members), 2):
-            winner = single_game(round_members[i], round_members[i + 1])
-            next_round.append(winner)
-        round_members = next_round
-
-    challenger = round_members[0]
-    # 引退免除判定（白虎戦トーナメント出場者）用に、実際の出場16名をそのまま返す
-    # （bracket_logから復元すると、バイ（1回戦不戦勝）で1回も対局しなかった個体を
-    #  見逃す恐れがあるため、母集団のrankedをそのまま使う）
+    challenger = yield from _knockout(bracketed, depth, bracket_log)
+    # 引退免除判定（白虎戦トーナメント出場者）用に、実際の出場者をそのまま返す
+    # （bracket_logから復元すると、バイ（1回戦不戦勝）で1回も対局しなかった個体を見逃すため）
     return challenger, bracket_log, [ind for ind in bracketed if ind is not None]
+
+
+def determine_byakko_challenger(*args, **kwargs):
+    return drive(byakko_challenger_gen(*args, **kwargs))[0]
 
 
 def run_byakko_challenge(challenger, titleholder_params, depth=1, titleholder_volatility=1.0):
@@ -426,7 +426,7 @@ def plan_genbu_bracket(all_members, exclude_id=None, bracket_size=64, titleholde
     return [seed_list[i] for i in _bracket_seed_order(bracket_size)]
 
 
-def determine_genbu_challenger(all_members, exclude_id=None, depth=1, bracket_size=64, num_blocks=4,
+def genbu_challenger_gen(all_members, exclude_id=None, depth=1, bracket_size=64, num_blocks=4,
                                 titleholder_ids=frozenset(), guaranteed_final_id=None, planned=None,
                                 newcomer_ids=None):
     """
@@ -472,38 +472,18 @@ def determine_genbu_challenger(all_members, exclude_id=None, depth=1, bracket_si
 
     bracket_log = []
 
-    def single_game(ind_x, ind_y, stage, block=None):
-        if ind_x is None:
-            return ind_y
-        if ind_y is None:
-            return ind_x
-        x_won, games = _play_until_decided(
-            effective_params(ind_x), effective_params(ind_y), depth,
-            noise_x=ind_x.volatility, noise_y=ind_y.volatility,
-        )
-        winner_ind = ind_x if x_won else ind_y
-        entry = {"a": ind_x.id, "b": ind_y.id, "winner": winner_ind.id, "games": games, "stage": stage}
-        if block is not None:
-            entry["block"] = block
-        bracket_log.append(entry)
-        return winner_ind
-
-    # --- ブロック段階（予選）：num_blocks名に絞られるまで ---
+    # --- ブロック段階（予選）：num_blocks名に絞られるまで。同じ回戦はまとめて同時に対局する ---
     round_members = bracketed
     while len(round_members) > num_blocks:
         num_pairs = len(round_members) // 2
         pairs_per_block = max(1, num_pairs // num_blocks)
-        next_round = []
-        for i in range(0, len(round_members), 2):
-            pair_i = i // 2
-            winner = single_game(round_members[i], round_members[i + 1], "block", pair_i // pairs_per_block)
-            next_round.append(winner)
-        round_members = next_round
+        pairs = [(round_members[i], round_members[i + 1]) for i in range(0, len(round_members), 2)]
+        round_members = yield from _round(pairs, depth, bracket_log,
+                                          lambda k: {"stage": "block", "block": k // pairs_per_block})
     block_champions = list(round_members)
 
     # --- 前季失冠者の本戦合流（予選スキップ） ---
-    final_pool = list(block_champions)
-    guaranteed_ind = None
+    final_pool = [ind for ind in block_champions if ind is not None]
     if guaranteed_final_id is not None:
         guaranteed_ind = next(
             (ind for ind in all_members
@@ -514,18 +494,13 @@ def determine_genbu_challenger(all_members, exclude_id=None, depth=1, bracket_si
         if guaranteed_ind is not None:
             final_pool.append(guaranteed_ind)
 
-    # --- 挑戦者決定リーグ戦（本戦） ---
-    # ブロック優勝者（通常num_blocks名）＋（いれば）前季失冠者の総当たりで挑戦者を決める。
-    # 前季失冠者が合流する季だけ人数が+1されるため、以前は決勝トーナメントの人数が
-    # 2の累乗にならずバイが発生していた。総当たり方式なら人数に関わらず組めるため、
-    # 合流の有無でブロック数等を変える必要がなく、常に同じ仕組みで扱える
+    # --- 挑戦者決定リーグ戦（本戦）：ブロック優勝者（＋前季失冠者）の総当たり。全対局を同時に指す ---
+    # 前季失冠者が合流する季だけ人数が+1されるが、総当たりなら人数に関わらず同じ仕組みで扱える
     final_score = {ind.id: 0.0 for ind in final_pool}
-    for ind_x, ind_y in itertools.combinations(final_pool, 2):
-        winner_ind = single_game(ind_x, ind_y, "final")
-        if winner_ind.id == ind_x.id:
-            final_score[ind_x.id] += 1.0
-        else:
-            final_score[ind_y.id] += 1.0
+    combos = list(itertools.combinations(final_pool, 2))
+    winners = yield from _round(combos, depth, bracket_log, lambda k: {"stage": "final"})
+    for w in winners:
+        final_score[w.id] += 1.0
 
     ranked = sorted(final_pool, key=lambda ind: -final_score[ind.id])
 
@@ -535,15 +510,20 @@ def determine_genbu_challenger(all_members, exclude_id=None, depth=1, bracket_si
     tied_for_first = [ind for ind in ranked if final_score[ind.id] == top_score]
     while len(tied_for_first) > 1:
         tie_score = {ind.id: 0.0 for ind in tied_for_first}
-        for ind_x, ind_y in itertools.combinations(tied_for_first, 2):
-            winner_ind = single_game(ind_x, ind_y, "final_playoff")
-            tie_score[winner_ind.id] += 1.0
+        combos = list(itertools.combinations(tied_for_first, 2))
+        winners = yield from _round(combos, depth, bracket_log, lambda k: {"stage": "final_playoff"})
+        for w in winners:
+            tie_score[w.id] += 1.0
         tied_for_first = sorted(tied_for_first, key=lambda ind: -tie_score[ind.id])
         new_top = tie_score[tied_for_first[0].id]
         tied_for_first = [ind for ind in tied_for_first if tie_score[ind.id] == new_top]
 
     challenger = tied_for_first[0]
     return challenger, bracket_log, block_champions
+
+
+def determine_genbu_challenger(*args, **kwargs):
+    return drive(genbu_challenger_gen(*args, **kwargs))[0]
 
 
 def run_genbu_challenge(challenger, titleholder_params, depth=1, titleholder_volatility=1.0):
@@ -559,100 +539,161 @@ def run_genbu_challenge(challenger, titleholder_params, depth=1, titleholder_vol
 
 
 # ============================================================
-# 麒麟戦：棋王戦方式。Aリーグ以外は予選（ブロック別トーナメント）から、Aリーグ所属・前期本戦ベスト4・
-# 前期失冠者は本戦（挑戦者決定トーナメント）から出場する。本戦はベスト4から「2敗失格」で、
-# 準決勝・決勝の敗者は敗者復活戦に回る。挑戦者決定戦は、本戦優勝者は1勝、敗者復活戦優勝者は2連勝で挑戦権を得る
+# 麒麟戦（序列1位、竜王格）：竜王戦の「組」と棋王戦の「敗者復活」を組み合わせた方式。7番勝負。
+# - 組は麒麟戦の成績だけで毎季決め直す（所属リーグやEloとは無関係）。
+#   1組（8名）は本戦から出場。2組（16名）と3組（残り全員・新人を含む）は、それぞれ組ごとの予選
+#   （ブロック別トーナメント）を戦い、各ブロックの優勝者が本戦に進む。
+#   次の季の1組＝本戦ベスト8、2組＝本戦1回戦の敗者＋予選ブロック決勝の敗者、残りは3組。
+#   組の成績がまだ無い最初の季だけ、Aリーグ所属を1組の代わりにする。
+# - 本戦は16名のトーナメント。ベスト4からは2敗で失格：準決勝・決勝の敗者は敗者復活戦に回り、
+#   本戦優勝者と敗者復活戦の優勝者が挑戦者決定戦を行う（本戦優勝者は1勝、敗者復活側は2連勝が必要）。
+# - 組み合わせは前の季の終わりに決めて公開する（plan_kirin_bracket）。前季の失冠者は1組として本戦から出る
 # ============================================================
-KIRIN_PRELIM_DEPTH = 2
-KIRIN_MAIN_DEPTH = 3
-KIRIN_TITLE_DEPTH = 4
 KIRIN_MAIN_SIZE = 16
+KIRIN_GROUP1_SIZE = 8
+QUALIFIER_SLOT_PREFIX = "Q"  # 本戦の組み合わせで、予選ブロックの優勝者が入る枠（Q1, Q2, ...＝予選の1, 2, ...番目のブロック）
 
 
-def determine_kirin_challenger(league_members, exclude_id=None, prev_best4_ids=(), guaranteed_id=None,
-                               prelim_depth=KIRIN_PRELIM_DEPTH, main_depth=KIRIN_MAIN_DEPTH, main_size=KIRIN_MAIN_SIZE):
-    """league_members：{"A": [...], "B": [...], ...}（各リーグ内は成績順）。
-    戻り値：(挑戦者, 対局記録, 本戦ベスト4のIDリスト)"""
-    log = []
-
-    def game(x, y, stage, **extra):
-        if x is None:
-            return y
-        if y is None:
-            return x
-        x_won, games = _play_until_decided(effective_params(x), effective_params(y),
-                                           prelim_depth if stage == "prelim" else main_depth,
-                                           noise_x=x.volatility, noise_y=y.volatility)
-        w = x if x_won else y
-        log.append({"a": x.id, "b": y.id, "winner": w.id, "games": games, "stage": stage, **extra})
-        return w
-
-    everyone = [ind for lg in ("A", "B", "C", "D") for ind in league_members.get(lg, []) if ind.id != exclude_id]
-    seed_ids = {ind.id for ind in league_members.get("A", [])} | set(prev_best4_ids)
-    if guaranteed_id:
-        seed_ids.add(guaranteed_id)
-    seeds = sorted([ind for ind in everyone if ind.id in seed_ids], key=lambda ind: -ind.elo)[:main_size - 2]
-    seed_set = {ind.id for ind in seeds}
-    prelim_pool = [ind for ind in everyone if ind.id not in seed_set]
-
-    # --- 予選：本戦の残り枠の数だけブロックを作り、各ブロックのトーナメント優勝者が本戦へ ---
-    num_blocks = main_size - len(seeds)
-    ranked_pool = sorted(prelim_pool, key=lambda ind: -ind.elo)
-    blocks = [ranked_pool[k::num_blocks] for k in range(num_blocks)]  # 実力が偏らないよう、Elo順に各ブロックへ配る
-    qualifiers = []
-    for b, members in enumerate(blocks):
+def _deal_blocks(ids, num_blocks):
+    """予選のブロック分け（ランダム）。各ブロックをトーナメントの並び（不在はNone）にして返す"""
+    ids = list(ids)
+    random.shuffle(ids)
+    blocks = [ids[k::num_blocks] for k in range(num_blocks)]
+    out = []
+    for members in blocks:
         size = 1
         while size < len(members):
             size *= 2
         slots = members + [None] * (size - len(members))
-        bracket = [slots[i] for i in _bracket_seed_order(size)]
-        rnd = 1
-        while len(bracket) > 1:
-            bracket = [game(bracket[i], bracket[i + 1], "prelim", block=b, round=rnd) for i in range(0, len(bracket), 2)]
-            rnd += 1
-        if bracket[0] is not None:
-            qualifiers.append(bracket[0])
+        out.append([slots[i] for i in _bracket_seed_order(size)])
+    return out
 
-    # --- 本戦：シード（Elo順）を標準シード配置し、予選通過者は残りの枠へ ---
-    entrants = seeds + qualifiers
-    size = 1
-    while size < len(entrants):
-        size *= 2
-    slots = entrants + [None] * (size - len(entrants))
-    bracket = [slots[i] for i in _bracket_seed_order(size)]
+
+def plan_kirin_bracket(all_members, exclude_id=None, groups=None, guaranteed_id=None, newcomer_slots=0):
+    """麒麟戦の組み合わせを決める。all_membersはA→B→C→Dの順。groupsは前季の結果による組
+    {"1": [ID...（成績順）], "2": [ID...]}（無ければAリーグ所属を1組とする）。
+    戻り値：{"groups": {"1": [...], "2": [...], "3": [...]}, "prelim": [{"group": 2or3, "slots": [...]}, ...],
+            "main": [ID または "Q1" 等 または None ...]}"""
+    present = [ind.id for ind in all_members if ind.id != exclude_id]
+    present_set = set(present)
+    if groups is None:
+        g1 = [ind.id for ind in all_members if ind.league == "A" and ind.id != exclude_id]
+        g2 = []
+    else:
+        g1 = [i for i in groups.get("1", []) if i in present_set]
+        g2 = [i for i in groups.get("2", []) if i in present_set and i not in g1]
+    if guaranteed_id and guaranteed_id in present_set and guaranteed_id not in g1:
+        g1.insert(0, guaranteed_id)
+        g2 = [i for i in g2 if i != guaranteed_id]
+    overflow, g1 = g1[KIRIN_MAIN_SIZE - 2:], g1[:KIRIN_MAIN_SIZE - 2]
+    g2 = overflow + g2
+    in12 = set(g1) | set(g2)
+    g3 = [i for i in present if i not in in12] + [f"{NEWCOMER_SLOT_PREFIX}{k + 1}" for k in range(newcomer_slots)]
+
+    needed = KIRIN_MAIN_SIZE - len(g1)
+    q2 = min(needed // 2, len(g2) // 2) if len(g2) >= 2 else 0
+    if q2 == 0:
+        g3, g2 = g2 + g3, []
+    q3 = needed - q2
+    prelim = [{"group": 2, "slots": b} for b in (_deal_blocks(g2, q2) if q2 else [])]
+    prelim += [{"group": 3, "slots": b} for b in _deal_blocks(g3, q3)]
+
+    entrants = g1 + [f"{QUALIFIER_SLOT_PREFIX}{k + 1}" for k in range(needed)]
+    slots = entrants + [None] * (KIRIN_MAIN_SIZE - len(entrants))
+    main = [slots[i] for i in _bracket_seed_order(KIRIN_MAIN_SIZE)]
+    return {"groups": {"1": g1, "2": g2, "3": [i for i in g3 if not i.startswith(NEWCOMER_SLOT_PREFIX)]},
+            "prelim": prelim, "main": main}
+
+
+def kirin_challenger_gen(all_members, plan, newcomer_ids=None, depth=KIRIN_DEPTH):
+    """plan（plan_kirin_bracket の戻り値）どおりに予選・本戦・敗者復活戦・挑戦者決定戦を行う。
+    戻り値：(挑戦者, 対局記録, 次の季の組 {"1": [...], "2": [...]}, 本戦出場者)"""
+    by_id = {ind.id: ind for ind in all_members}
+    newcomer_ids = newcomer_ids or {}
+    resolve = lambda pid: by_id.get(newcomer_ids.get(pid, pid)) if pid else None
+    log = []
+
+    # --- 予選：全ブロックの同じ回戦をまとめて同時に対局する ---
+    blocks = [[resolve(pid) for pid in b["slots"]] for b in plan["prelim"]]
+    block_final_losers = []
+    rnd = 1
+    while any(len(b) > 1 for b in blocks):
+        pairs, owner = [], []
+        for bi, b in enumerate(blocks):
+            if len(b) > 1:
+                for i in range(0, len(b), 2):
+                    pairs.append((b[i], b[i + 1]))
+                    owner.append(bi)
+        # 段階はDBのstage列に入るため短い文字列にする（予選：prelim{組}-{回戦}、ブロック番号はblock）
+        stage = lambda k: {"stage": f"prelim{plan['prelim'][owner[k]]['group']}-{rnd}", "block": owner[k]}
+        winners = yield from _round(pairs, depth, log, stage)
+        new_blocks = [list(b) for b in blocks]
+        for bi in set(owner):
+            new_blocks[bi] = []
+        for k, (bi, w) in enumerate(zip(owner, winners)):
+            new_blocks[bi].append(w)
+            if len(blocks[bi]) == 2:  # ブロック決勝
+                x, y = pairs[k]
+                if x is not None and y is not None:
+                    block_final_losers.append(y if w is x else x)
+        blocks = new_blocks
+        rnd += 1
+    qualifiers = [b[0] if b else None for b in blocks]
+
+    # --- 本戦：ベスト4まで ---
+    def main_slot(pid):
+        if pid and pid.startswith(QUALIFIER_SLOT_PREFIX):
+            k = int(pid[len(QUALIFIER_SLOT_PREFIX):]) - 1
+            return qualifiers[k] if k < len(qualifiers) else None
+        return resolve(pid)
+    bracket = [main_slot(pid) for pid in plan["main"]]
+    entrants = [ind for ind in bracket if ind is not None]
+    first_round_losers, qf_losers = [], []
     rnd = 1
     while len(bracket) > 4:
-        bracket = [game(bracket[i], bracket[i + 1], "main", round=rnd) for i in range(0, len(bracket), 2)]
+        pairs = [(bracket[i], bracket[i + 1]) for i in range(0, len(bracket), 2)]
+        winners = yield from _round(pairs, depth, log, lambda k, r=rnd: {"stage": f"main{r}"})
+        losers = [y if w is x else x for (x, y), w in zip(pairs, winners) if x is not None and y is not None]
+        (first_round_losers if rnd == 1 else qf_losers).extend(losers)
+        bracket = winners
         rnd += 1
+
     best4 = [ind for ind in bracket if ind is not None]
+    if len(best4) < 4:  # 人数不足（実質起きない）：そのままトーナメントで決める
+        challenger = yield from _knockout(bracket, depth, log, lambda k, r: {"stage": f"main{rnd - 1 + r}"})
+        next_groups = {"1": [challenger.id] + [i.id for i in best4 if i is not challenger] + [i.id for i in qf_losers],
+                       "2": [i.id for i in first_round_losers + block_final_losers]}
+        return challenger, log, next_groups, entrants
 
-    # --- ベスト4から2敗失格 ---
-    if len(best4) < 4:  # 人数不足（実質起きない）：通常のトーナメントで決める
-        while len(bracket) > 1:
-            bracket = [game(bracket[i], bracket[i + 1], "main", round=rnd) for i in range(0, len(bracket), 2)]
-            rnd += 1
-        return bracket[0], log, [ind.id for ind in best4]
-    semi_w = [game(bracket[0], bracket[1], "semifinal"), game(bracket[2], bracket[3], "semifinal")]
-    semi_l = [bracket[0] if semi_w[0] is bracket[1] else bracket[1], bracket[2] if semi_w[1] is bracket[3] else bracket[3]]
-    winner = game(semi_w[0], semi_w[1], "final")
-    final_loser = semi_w[1] if winner is semi_w[0] else semi_w[0]
-    repechage = game(semi_l[0], semi_l[1], "repechage", round=1)
-    repechage = game(repechage, final_loser, "repechage", round=2)
-
-    # --- 挑戦者決定戦：本戦優勝者は1勝、敗者復活戦優勝者は2連勝が必要 ---
+    # --- ベスト4から2敗失格：準決勝 → 決勝と敗者復活1回戦（同時）→ 敗者復活決勝 → 挑戦者決定戦 ---
+    semis = [(bracket[0], bracket[1]), (bracket[2], bracket[3])]
+    sw = yield from _round(semis, depth, log, lambda k: {"stage": "semifinal"})
+    sl = [y if w is x else x for (x, y), w in zip(semis, sw)]
+    w2 = yield from _round([(sw[0], sw[1]), (sl[0], sl[1])], depth, log,
+                           lambda k: {"stage": "final"} if k == 0 else {"stage": "rep1"})
+    winner, rep = w2
+    final_loser = sw[1] if winner is sw[0] else sw[0]
+    rep_semi_loser = sl[1] if rep is sl[0] else sl[0]
+    rep_final = yield from _round([(rep, final_loser)], depth, log, lambda k: {"stage": "rep2"})
+    rep_winner = rep_final[0]
+    rep_runner_up = final_loser if rep_winner is rep else rep
     challenger = winner
-    for k in (1, 2):
-        w = game(winner, repechage, "challenger_decision", game_no=k)
+    for game_no in (1, 2):
+        w = (yield from _round([(winner, rep_winner)], depth, log,
+                               lambda k: {"stage": f"decision{game_no}"}))[0]
         if w is winner:
             break
-        if k == 2:
-            challenger = repechage
-    return challenger, log, [ind.id for ind in best4]
+        if game_no == 2:
+            challenger = rep_winner
+    other = rep_winner if challenger is winner else winner
+    order = [challenger, other, rep_runner_up, rep_semi_loser] + qf_losers
+    next_groups = {"1": [i.id for i in order], "2": [i.id for i in first_round_losers + block_final_losers]}
+    return challenger, log, next_groups, entrants
 
 
-def run_kirin_challenge(challenger, titleholder_params, depth=KIRIN_TITLE_DEPTH, titleholder_volatility=1.0):
+def run_kirin_challenge(challenger, titleholder_params, depth=KIRIN_DEPTH, titleholder_volatility=1.0):
     won, c_wins, t_wins, games = run_best_of_n_match(
-        effective_params(challenger), titleholder_params, wins_needed=3, depth=depth,
+        effective_params(challenger), titleholder_params, wins_needed=4, depth=depth,
         noise_a=challenger.volatility, noise_b=titleholder_volatility,
     )
     return {
