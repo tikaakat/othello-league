@@ -2,7 +2,8 @@ import itertools
 import random
 import time
 
-from .play import play_league_match, play_decisive_match
+from .play import play_decisive_match
+from .parallel import run_matches
 from .elo import update_elo
 
 
@@ -27,8 +28,9 @@ def run_round_robin(members, depth=4, league_name="A", log_prefix="A", seed_orde
     total = len(pairs)
     start = time.time()
 
-    for i, (ind_a, ind_b) in enumerate(pairs, 1):
-        outcome_a, games = play_league_match(ind_a, ind_b, depth=depth, allow_rematch=False)
+    # 個体が重ならない対局をまとめて並列に打つ（先後の割り振り・乱数は1局ずつ打った場合と同じ規則。結果は元の順に反映）
+    all_results = run_matches(pairs, depth=depth, allow_rematch=False)
+    for i, ((ind_a, ind_b), (outcome_a, games)) in enumerate(zip(pairs, all_results), 1):
         ind_a.elo, ind_b.elo = update_elo(
             ind_a.elo, ind_b.elo, outcome_a,
             total_seasons_a=ind_a.total_seasons, total_seasons_b=ind_b.total_seasons,
