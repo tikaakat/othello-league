@@ -5,7 +5,7 @@ from . import board as B
 from . import engine as E
 from .buffs import effective_params
 from .round_robin import run_round_robin
-from .parallel import run_calls
+from .parallel import run_calls, drive
 
 # 各タイトル戦の探索深さ。1つの棋戦の中では、予選・リーグ・挑戦者決定戦・番勝負まで同じ深さで指す
 # （番勝負だけ深くすると、予選やリーグで強い選手と番勝負で強い選手が別物になり、
@@ -152,54 +152,24 @@ def _play_until_decided(params_x, params_y, depth, noise_x=1.0, noise_y=1.0, max
 
 
 # ============================================================
-# トーナメントを並列に進める仕組み。
+# トーナメントを並列に進める仕組み（parallel.drive）。
 # 各トーナメントは「次に指す対局の一覧」をyieldし、結果の一覧を受け取って先へ進むジェネレータとして書く。
-# drive() は複数のトーナメントの「次の回戦」をまとめて1度に同時対局させるので、
-# 白虎・玄武・麒麟のように組み合わせが季の初めに決まっている棋戦は、同時に進められる。
+# 白虎・玄武・麒麟のように組み合わせが季の初めに決まっている棋戦は、リーグ戦と同時に進められる。
 # 対局は個体の状態を変えない（Eloの更新は呼び出し側が後で記録順に行う）ので、同じ個体が
 # 別の棋戦の対局に同時に出ていても結果は変わらない
 # ============================================================
 def _round(pairs, depth, log, tags=None):
     """1回戦分の対局（Noneの相手は不戦勝）。勝者の一覧を返す（yield from で使う）"""
     real = [(k, x, y) for k, (x, y) in enumerate(pairs) if x is not None and y is not None]
-    outs = (yield [(x, y, depth) for _, x, y in real]) if real else []
+    jobs = [(_play_until_decided, (effective_params(x), effective_params(y), depth, x.volatility, y.volatility))
+            for _, x, y in real]
+    outs = (yield jobs) if jobs else []
     winners = [x if x is not None else y for x, y in pairs]
     for (k, x, y), (x_won, games) in zip(real, outs):
         w = x if x_won else y
         winners[k] = w
         log.append({"a": x.id, "b": y.id, "winner": w.id, "games": games, **(tags(k) if tags else {})})
     return winners
-
-
-def _play_requests(reqs):
-    return run_calls(_play_until_decided, [
-        (effective_params(x), effective_params(y), depth, x.volatility, y.volatility) for x, y, depth in reqs
-    ])
-
-
-def drive(*gens):
-    """トーナメントのジェネレータを同時に進め、それぞれの戻り値を並べて返す"""
-    results = [None] * len(gens)
-    pending = {}
-    for i, g in enumerate(gens):
-        try:
-            pending[i] = next(g)
-        except StopIteration as e:
-            results[i] = e.value
-    while pending:
-        order = list(pending)
-        flat = [req for i in order for req in pending[i]]
-        outs = _play_requests(flat)
-        pos = 0
-        for i in order:
-            n = len(pending[i])
-            try:
-                pending[i] = gens[i].send(outs[pos:pos + n])
-            except StopIteration as e:
-                results[i] = e.value
-                del pending[i]
-            pos += n
-    return results
 
 
 def _knockout(bracket, depth, log, tags=None):
