@@ -141,7 +141,14 @@ def topic_retirement(ctx):
         return None
     rid, name = r["individual_id"], r["display_name"]
     archived = next((x for x in ctx["state"].get("retired_archive", []) if x.get("id") == rid), {})
-    lines = [f"{name}が今季限りで引退した（今季は{r['league']}リーグで{_record(r['win'], r['loss'], r.get('draw', 0))}）。"]
+    if r["win"] + r["loss"] + r.get("draw", 0) > 0:
+        lines = [f"{name}が今季限りで引退した（今季は{r['league']}リーグで{_record(r['win'], r['loss'], r.get('draw', 0))}）。"]
+    else:
+        # 青龍在位者はAリーグの総当たりを免除される（防衛専念枠）。0勝0敗をわざわざ書かせない
+        lines = [f"{name}が今季限りで引退した。"]
+    held = [t for t, info in (ctx["state"].get("titleholders") or {}).items() if info and info.get("id") == rid]
+    if held:
+        lines.append(f"{name}は引退の時点で{ '・'.join(held) }のタイトルを保持していた。")
     if archived.get("retirement_reason"):
         lines.append(f"引退の理由：{archived['retirement_reason']}。")
     if tc:
@@ -174,30 +181,31 @@ def topic_riser(ctx):
              f"レートを前季から約{round(gain)}上げた（今季終了時{round(r['elo'])}）。"]
     if r.get("movement") == "promoted" or "promoted" in (r.get("movement") or ""):
         lines.append(f"{name}は来季、上のリーグへ昇級する。")
-    p = ctx["params"].get(rid, {})
-    if p.get("_endgame") is not None:
-        lines.append(f"{name}の終盤力（空きマスがこの数以下になると読みを1手深くする力）は{round(p['_endgame'])}マス。")
     return dict(topic="成長株", score=30 + int(gain // 4), lines=lines, subject=f"{name}の躍進",
                 tags=["コラム", f"{r['league']}リーグ"], related_individual_ids=[rid], related_individual_names=[name])
 
 
 def topic_form(ctx):
-    """調子：今季「絶好調」「絶不調」だった選手のうち、成績にもはっきり表れた人"""
+    """調子：実力者（Aリーグ在籍・タイトル保持者・レート上位10人）の絶不調／絶好調。
+    下位の選手の不調はニュースにならないので取り上げない"""
     season = ctx["season"]
+    rows = _main_rows(ctx["standings"][season])
+    top_ids = {r["individual_id"] for r in sorted(rows, key=lambda r: -r["elo"])[:10]}
+    holder_ids = {info.get("id") for info in (ctx["state"].get("titleholders") or {}).values() if info}
     best = None
-    for r in _main_rows(ctx["standings"][season]):
-        p = ctx["params"].get(r["individual_id"], {})
-        form = p.get("_form")
+    for r in rows:
+        rid = r["individual_id"]
+        if not (r["league"] == "A" or rid in top_ids or rid in holder_ids):
+            continue
+        form = ctx["params"].get(rid, {}).get("_form")
         games = r["win"] + r["loss"]
         if form is None or games < 6:
             continue
         rate = r["win"] / games
-        if form >= 3 and rate >= 0.7:
-            s = 30 + int((rate - 0.5) * 60) + int(form * 2)
-            kind = "絶好調"
-        elif form <= -3 and rate <= 0.3:
-            s = 30 + int((0.5 - rate) * 60) + int(-form * 2)
-            kind = "絶不調"
+        if form <= -3 and rate <= 0.35:
+            s, kind = 35 + int((0.5 - rate) * 80), "絶不調"
+        elif form >= 3 and rate >= 0.8:
+            s, kind = 30 + int((rate - 0.5) * 60), "絶好調"
         else:
             continue
         if best is None or s > best[0]:
@@ -206,9 +214,10 @@ def topic_form(ctx):
         return None
     s, r, kind = best
     rid, name = r["individual_id"], r["display_name"]
-    lines = [f"{name}（{r['league']}リーグ）は今季の調子が「{kind}」で、成績は{_record(r['win'], r['loss'], r.get('draw', 0))}だった。",
-             "（調子は季ごとの好不調で、その季の終盤力＝読みを深くし始めるタイミングが上下する）"]
-    return dict(topic="調子", score=s, lines=lines, subject=f"{name}の{kind}の季",
+    status = "タイトル保持者" if rid in holder_ids else ("Aリーグ" if r["league"] == "A" else "レート上位")
+    lines = [f"{name}（{r['league']}リーグ、{status}の実力者）は今季{'不振' if kind == '絶不調' else '好調'}で、"
+             f"成績は{_record(r['win'], r['loss'], r.get('draw', 0))}だった。"]
+    return dict(topic="調子", score=s, lines=lines, subject=f"実力者{name}の{'不振' if kind == '絶不調' else '快進撃'}",
                 tags=["コラム", f"{r['league']}リーグ"], related_individual_ids=[rid], related_individual_names=[name])
 
 
@@ -236,8 +245,7 @@ def topic_clan(ctx):
         return None
     e = evs[0]
     founder = ctx["names"].get(e.get("from_clan_id"), e.get("from_clan_id"))
-    lines = [f"{e['name']}が、弟子・孫弟子を引き連れて{founder}一門から独立し、自らを開祖とする一門を興した。",
-             "（本人と弟子・孫弟子以下が合わせて6人以上になると独立する）"]
+    lines = [f"{e['name']}が、弟子・孫弟子を引き連れて{founder}一門から独立し、自らを開祖とする一門を興した。"]
     return dict(topic="一門", score=55, lines=lines, subject=f"{e['name']}一門の独立",
                 tags=["コラム", "一門"], related_individual_ids=[e["id"]], related_individual_names=[e["name"]])
 
@@ -262,7 +270,67 @@ def topic_title_milestone(ctx):
                 tags=["コラム", "記録"], related_individual_ids=[pid], related_individual_names=[name])
 
 
-TOPIC_FUNCS = [topic_rivalry, topic_retirement, topic_riser, topic_form, topic_fall, topic_clan, topic_title_milestone]
+def topic_first_title(ctx):
+    """初戴冠：今季の番勝負で、それまでタイトル獲得の無かった選手が初めてタイトルを獲った"""
+    season, state = ctx["season"], ctx["state"]
+    before = _title_counts(state, season - 1)
+    best = None
+    for e in state.get("title_history", []):
+        if e.get("season") != season or not e.get("won"):
+            continue
+        cid = e.get("challenger_id")
+        if not cid or sum(before.get(cid, {}).values()) > 0:
+            continue
+        score = 55 + {"青龍": 15, "朱雀": 10, "白虎": 5, "玄武": 0}.get(e["title"], 0)
+        if best is None or score > best[0]:
+            best = (score, e)
+    if best is None:
+        return None
+    score, e = best
+    cid = e["challenger_id"]; name = ctx["names"].get(cid, e.get("challenger_name", cid))
+    holder = ctx["names"].get(e.get("defender_id"), "") if e.get("defender_id") else ""
+    lines = [f"{name}が{e['title']}戦の番勝負で" + (f"{holder}を" if holder else "") +
+             f"{e.get('challenger_wins')}勝{e.get('titleholder_wins')}敗で破り、初めてタイトルを獲得した。"]
+    nth = ctx["seasons_played"].get(cid)
+    if nth:
+        lines.append(f"{name}にとっては在籍{nth}季目での初タイトルだった。")
+    return dict(topic="初戴冠", score=score, lines=lines, subject=f"{name}の初タイトル",
+                tags=["コラム", e["title"]], related_individual_ids=[cid] + ([e["defender_id"]] if e.get("defender_id") else []),
+                related_individual_names=[name] + ([holder] if holder else []))
+
+
+def topic_master_disciple(ctx):
+    """師弟対決：今季、師匠と弟子が直接対局した（番勝負・挑戦者決定の対局を優先）"""
+    season, parents = ctx["season"], ctx["parents"]
+    best = None
+    for m in ctx["matches"][season]:
+        a, b, r = m.get("individual_a_id"), m.get("individual_b_id"), m.get("result")
+        if not (a and b) or r not in ("win", "loss"):
+            continue
+        if parents.get(a) == b:
+            master, disciple = b, a
+        elif parents.get(b) == a:
+            master, disciple = a, b
+        else:
+            continue
+        winner = a if r == "win" else b
+        big = m.get("league") not in LEAGUES
+        score = 35 + (20 if big else 0) + (10 if winner == disciple else 0)
+        if best is None or score > best[0]:
+            best = (score, master, disciple, winner, m.get("league"))
+    if best is None:
+        return None
+    score, master, disciple, winner, league = best
+    nm, nd = ctx["names"].get(master, master), ctx["names"].get(disciple, disciple)
+    lines = [f"{ctx['stage_label'](league)}で、師匠の{nm}と弟子の{nd}が対局し、{ctx['names'].get(winner, winner)}が勝った。"]
+    if winner == disciple:
+        lines.append(f"弟子の{nd}が師匠に勝った（恩返し）。")
+    return dict(topic="師弟対決", score=score, lines=lines, subject=f"師匠{nm}と弟子{nd}の対局",
+                tags=["コラム", "師弟"], related_individual_ids=[master, disciple], related_individual_names=[nm, nd])
+
+
+TOPIC_FUNCS = [topic_rivalry, topic_retirement, topic_riser, topic_form, topic_fall, topic_clan, topic_title_milestone,
+               topic_first_title, topic_master_disciple]
 
 
 def build_context(data_dir, season, stage_label):
@@ -280,8 +348,15 @@ def build_context(data_dir, season, stage_label):
     for rows in standings.values():
         for r in rows:
             names[r["individual_id"]] = r["display_name"]
+    parents = {i["id"]: i.get("parent_a_id") for v in rosters.values() for i in v}
+    parents.update({x["id"]: x.get("parent_a_id") for x in state.get("retired_archive", []) if x["id"] not in parents})
+    seasons_played = Counter()
+    for s in range(1, season + 1):
+        for r in _main_rows(_standings(data_dir, s)) if s not in standings else _main_rows(standings[s]):
+            seasons_played[r["individual_id"]] += 1
     return dict(season=season, state=state, params=params, standings=standings, matches=matches, names=names,
-                title_counts=_title_counts(state, season), stage_label=stage_label)
+                title_counts=_title_counts(state, season), stage_label=stage_label, parents=parents,
+                seasons_played=seasons_played)
 
 
 def recent_topics(articles, season):
