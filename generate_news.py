@@ -912,6 +912,8 @@ def variety_note(articles, fmt=None, focus=None):
         note += f"\n書き方の型：{fmt[0]}（{fmt[1]}）。"
     if focus:
         note += f"\n今回の切り口：{focus}。"
+    note += ("\nリーグの内部の仕組み（終盤力・定跡・調子・降級点などのルールの定義や数値の意味）は説明しないこと。"
+             "ファンが読む選手の物語として書くこと。")
     titles = news_topics.recent_titles(articles)
     if titles:
         note += ("\n直近の記事の見出しは次のとおり。見出し・書き出し・締めの言い回しがこれらと似ないようにすること"
@@ -1012,11 +1014,11 @@ def _column_candidates(data_dir, season):
     cands = []
     streak = gather_column_facts(data_dir, season)
     if streak:
-        cands.append(dict(topic="連勝", score=6 * streak["streak"], prompt=lambda f=streak: build_column_prompt(f),
+        cands.append(dict(topic="連勝", score=4 * streak["streak"], prompt=lambda f=streak: build_column_prompt(f),
                           facts=streak, label=f"{streak['name']}の{streak['streak']}連勝", tags=["コラム"]))
     upset = gather_upset_facts(data_dir, season)
     if upset:
-        cands.append(dict(topic="波乱", score=25 + upset["elo_gap"] // 8, prompt=lambda f=upset: build_upset_prompt(f),
+        cands.append(dict(topic="波乱", score=10 + upset["elo_gap"] // 10, prompt=lambda f=upset: build_upset_prompt(f),
                           facts=upset, label=f"{upset['winner_name']}が{upset['loser_name']}に勝った一局", tags=["コラム"]))
     ctx = news_topics.build_context(data_dir, season, _match_stage_label)
     for fn in news_topics.TOPIC_FUNCS:
