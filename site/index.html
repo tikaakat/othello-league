@@ -2360,7 +2360,7 @@ function renderHofView(el, view) {
       html = renderCollapsibleTable(headHtml, retired, rowFn, 20, null, true);
     }
   } else if (view === 'records') {
-    // 歴代記録（api.phpのbuild_records）。記録ごとに上位10件を表で並べる（同値は同順位）
+    // 歴代記録（api.phpのbuild_records）。記録ごとに上位10件（10位と同率がいれば全員）を表で並べる（同値は同順位）
     const records = hofData.records || [];
     if (records.length === 0) {
       html = '<div class="empty">まだ記録がありません</div>';

@@ -1690,7 +1690,7 @@ function renderHallOfFameBody() {
   const metric = HOF_METRICS[_hofMetric];
   let top;
   if (record) {
-    // 記録：api.php側で並べ替え済みの上位10件をそのまま使う（同値は同順位）
+    // 記録：api.php側で並べ替え済みの上位10件（10位と同率がいれば全員）をそのまま使う（同値は同順位）
     top = record.rows.map(r => ({
       id: r.individual_id, display_name: r.display_name, retired: r.retired,
       valueLabel: `${r.value}${record.unit}`, detail: r.detail, _v: r.value,
@@ -1698,7 +1698,10 @@ function renderHallOfFameBody() {
   } else {
     top = _hofData.slice().sort((a, b) => metric.value(b) - metric.value(a));
     if (_hofMetric === 'title_count') top = top.filter(p => metric.value(p) > 0);
-    top = top.slice(0, 10).map(p => ({ ...p, valueLabel: String(metric.format(metric.value(p))), _v: metric.value(p) }));
+    // 上位10人。10位と同じ値の選手が続く場合は、同率としてまとめて載せる
+    let n = Math.min(top.length, 10);
+    while (n > 0 && n < top.length && metric.value(top[n]) === metric.value(top[n - 1])) n++;
+    top = top.slice(0, n).map(p => ({ ...p, valueLabel: String(metric.format(metric.value(p))), _v: metric.value(p) }));
   }
   const ranks = [];
   top.forEach((p, i) => { ranks.push(i > 0 && p._v === top[i - 1]._v ? ranks[i - 1] : i + 1); });

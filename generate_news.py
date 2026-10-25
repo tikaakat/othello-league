@@ -799,7 +799,7 @@ def is_eternal_title(title, total, consec):
     if title == "朱雀":
         return consec >= 5 or total >= 10
     if title == "玄武":
-        return total >= 10
+        return consec >= 5 or total >= 8
     return consec >= 5  # 白虎
 
 
