@@ -20,6 +20,8 @@ import json
 import os
 import subprocess
 
+import news_topics
+
 DEFAULT_MODEL = "sonnet"
 TITLE_NAMES = ["青龍", "朱雀", "白虎", "玄武"]
 # タイトルの格（青龍＝名人格が最高、玄武が最も格下）。MVPは今季獲得・防衛したタイトルの
@@ -902,6 +904,31 @@ def build_milestone_prompt(facts):
     return "\n".join(lines)
 
 
+def variety_note(articles, fmt=None, focus=None):
+    """記事が毎季同じ書き方・同じ見出しの型にならないよう、プロンプトの末尾に付ける指示。
+    直近の記事の見出しを見せて似た言い回しを避けさせ、書き方の型・切り口を指定する"""
+    note = ""
+    if fmt:
+        note += f"\n書き方の型：{fmt[0]}（{fmt[1]}）。"
+    if focus:
+        note += f"\n今回の切り口：{focus}。"
+    titles = news_topics.recent_titles(articles)
+    if titles:
+        note += ("\n直近の記事の見出しは次のとおり。見出し・書き出し・締めの言い回しがこれらと似ないようにすること"
+                 "（「○○、N連勝」「約Nポイント差を越えて」のような同じ型の見出しを繰り返さない）：\n"
+                 + "\n".join(f"・{t}" for t in titles))
+    return note + "\n"
+
+
+# まとめ記事の切り口（季ごとに持ち回り）
+DIGEST_FOCUSES = [
+    "タイトル戦の勝者（奪取・防衛した側）を中心に",
+    "タイトル戦で敗れた側・惜しくも届かなかった選手にも光を当てて",
+    "MVP・新人王など今季の顔ぶれを中心に",
+    "タイトルの勢力図（誰が何冠を持っているか）の変化を中心に",
+]
+
+
 def run_claude(prompt, model=DEFAULT_MODEL, persona_path=PERSONA_PATH):
     with open(persona_path, "r", encoding="utf-8") as f:
         persona = f.read()
@@ -932,8 +959,9 @@ def run_claude(prompt, model=DEFAULT_MODEL, persona_path=PERSONA_PATH):
     return json.loads(text)
 
 
-def generate_article(facts, model=DEFAULT_MODEL):
-    return run_claude(build_prompt(facts), model=model)
+def generate_article(facts, model=DEFAULT_MODEL, articles=None):
+    focus = DIGEST_FOCUSES[facts.get("season", 0) % len(DIGEST_FOCUSES)]
+    return run_claude(build_prompt(facts) + variety_note(articles or [], focus=focus), model=model)
 
 
 def save_article(articles_path, articles, article):
@@ -957,7 +985,7 @@ def try_generate_digest(args, season, articles_path, articles):
         return
 
     print(f"[DEBUG] 第{season}季のダイジェストを生成します（model={args.model}）", flush=True)
-    generated = generate_article(facts, model=args.model)
+    generated = generate_article(facts, model=args.model, articles=articles)
 
     if existing is not None:
         # 作り直し：同じidの記事を置き換える（いいね等はidに紐づくため引き継がれる。
@@ -976,68 +1004,89 @@ def try_generate_digest(args, season, articles_path, articles):
     })
 
 
-def try_generate_column(args, season, articles_path, articles):
-    article_id = f"s{season}-column"
-    existing = next((a for a in articles if a.get("id") == article_id), None)
-    if existing is not None and not getattr(args, "regenerate_column", False):
-        print(f"[DEBUG] 第{season}季のコラムは既に生成済みです（{article_id}）。スキップします", flush=True)
-        return
-
-    facts = gather_column_facts(args.data_dir, season)
-    if facts is None:
-        print(f"[DEBUG] 第{season}季はコラムにするネタ（{MIN_COLUMN_STREAK}連勝以上）が見つかりません。スキップします", flush=True)
-        return
-
-    print(f"[DEBUG] 第{season}季のコラムを生成します（{facts['name']}の{facts['streak']}連勝、model={args.model}）", flush=True)
-    generated = run_claude(build_column_prompt(facts), model=args.model, persona_path=COLUMN_PERSONA_PATH)
-
-    if existing is not None:
-        # 作り直し：同じid・同じ掲載日時のまま置き換える（いいね等はidに紐づくため引き継がれる）
-        articles.remove(existing)
-    save_article(articles_path, articles, {
-        "id": article_id, "type": "column", "season": season, "author": AUTHOR_COLUMN,
-        "title": generated["title"], "summary": generated["summary"], "body": generated["body"],
-        "published_at": (existing or {}).get("published_at")
-        or datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
-        "related_individual_ids": facts["related_individual_ids"],
-        "related_individual_names": facts["related_individual_names"],
-        "tags": generated.get("tags") or ["コラム"],
-        "generated_by": args.model,
-    })
+COLUMNS_PER_SEASON = 2
 
 
-def try_generate_upset(args, season, articles_path, articles):
-    article_id = f"s{season}-upset"
-    existing = next((a for a in articles if a.get("id") == article_id), None)
-    if existing is not None and not getattr(args, "regenerate_upset", False):
-        print(f"[DEBUG] 第{season}季の波乱の一局コラムは既に生成済みです（{article_id}）。スキップします", flush=True)
-        return
+def _column_candidates(data_dir, season):
+    """コラムの候補（news_topics.pyの各テーマ＋従来の連勝・波乱の一局）を、話題の大きさ付きで集める"""
+    cands = []
+    streak = gather_column_facts(data_dir, season)
+    if streak:
+        cands.append(dict(topic="連勝", score=6 * streak["streak"], prompt=lambda f=streak: build_column_prompt(f),
+                          facts=streak, label=f"{streak['name']}の{streak['streak']}連勝", tags=["コラム"]))
+    upset = gather_upset_facts(data_dir, season)
+    if upset:
+        cands.append(dict(topic="波乱", score=25 + upset["elo_gap"] // 8, prompt=lambda f=upset: build_upset_prompt(f),
+                          facts=upset, label=f"{upset['winner_name']}が{upset['loser_name']}に勝った一局", tags=["コラム"]))
+    ctx = news_topics.build_context(data_dir, season, _match_stage_label)
+    for fn in news_topics.TOPIC_FUNCS:
+        t = fn(ctx)
+        if t:
+            cands.append(dict(topic=t["topic"], score=t["score"], prompt=lambda t=t, season=season: build_topic_prompt(season, t),
+                              facts=t, label=t["subject"], tags=t["tags"]))
+    return cands
 
-    facts = gather_upset_facts(args.data_dir, season)
-    if facts is None:
-        print(f"[DEBUG] 第{season}季は波乱の一局にするネタ（Elo差{MIN_UPSET_ELO_GAP}以上での下克上）が見つかりません。スキップします", flush=True)
-        return
 
-    print(
-        f"[DEBUG] 第{season}季の波乱の一局コラムを生成します"
-        f"（{facts['winner_name']}が{facts['loser_name']}に勝利、Elo差約{facts['elo_gap']}、model={args.model}）",
-        flush=True,
+def build_topic_prompt(season, t):
+    lines = [f"第{season}季の事実データ（これ以外の出来事は起きていない）:", ""]
+    lines += [f"・{x}" for x in t["lines"]]
+    lines.append("")
+    lines.append(
+        f"以上の事実だけをもとに、{t['subject']}を主題にした、記者個人のコラム記事を書いてください"
+        "（ダイジェスト記事とは別の、短い読み物）。データに無い出来事・数字・発言は書かないこと。"
+        f"{TITLE_RULES_NOTE}"
+        f"{CAREER_PROMPT_NOTE}"
+        f"{GENDER_PROMPT_NOTE}"
+        "出力は次のJSON形式のみ（説明文やコードフェンスなど、他のテキストは一切含めない）：\n"
+        '{"title": "見出し", "summary": "1〜2文の要約", "body": "本文（200〜350字程度）", '
+        '"tags": ["コラム", "関係するリーグ名・タイトル名..."]}'
     )
-    generated = run_claude(build_upset_prompt(facts), model=args.model, persona_path=COLUMN_PERSONA_PATH)
+    return "\n".join(lines)
 
-    if existing is not None:
-        # 作り直し：同じid・同じ掲載日時のまま置き換える（いいね等はidに紐づくため引き継がれる）
-        articles.remove(existing)
-    save_article(articles_path, articles, {
-        "id": article_id, "type": "column", "season": season, "author": AUTHOR_COLUMN,
-        "title": generated["title"], "summary": generated["summary"], "body": generated["body"],
-        "published_at": (existing or {}).get("published_at")
-        or datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
-        "related_individual_ids": facts["related_individual_ids"],
-        "related_individual_names": facts["related_individual_names"],
-        "tags": generated.get("tags") or ["コラム"],
-        "generated_by": args.model,
-    })
+
+def try_generate_columns(args, season, articles_path, articles):
+    """季ごとのコラム（最大COLUMNS_PER_SEASON本）。テーマは話題の大きさで選び、直近の季に使ったテーマは
+    点数を下げて避ける。書き方の型も持ち回りにする（以前は毎季「連勝」「波乱の一局」で固定だった）"""
+    regenerate = getattr(args, "regenerate_column", False) or getattr(args, "regenerate_upset", False)
+    ids = [f"s{season}-column", f"s{season}-column2"]
+    existing = [a for a in articles if a.get("id") in ids or a.get("id") == f"s{season}-upset"]
+    if existing and not regenerate:
+        print(f"[DEBUG] 第{season}季のコラムは既に生成済みです。スキップします", flush=True)
+        return
+    cands = _column_candidates(args.data_dir, season)
+    used = news_topics.recent_topics([a for a in articles if a not in existing], season)
+    for c in cands:
+        c["adj"] = c["score"] - (news_topics.RECENT_TOPIC_PENALTY if c["topic"] in used else 0)
+    cands.sort(key=lambda c: -c["adj"])
+    chosen, seen = [], set()
+    for c in cands:
+        if c["topic"] in seen:
+            continue
+        chosen.append(c); seen.add(c["topic"])
+        if len(chosen) == COLUMNS_PER_SEASON:
+            break
+    print("[DEBUG] コラム候補：" + "、".join(f"{c['topic']}（{c['adj']}点：{c['label']}）" for c in cands), flush=True)
+    if not chosen:
+        print(f"[DEBUG] 第{season}季はコラムにするネタが見つかりません。スキップします", flush=True)
+        return
+    old_by_id = {a["id"]: a for a in existing}
+    for a in existing:
+        articles.remove(a)
+    for k, (c, article_id) in enumerate(zip(chosen, ids)):
+        fmt = news_topics.pick_format(articles, season, k)
+        print(f"[DEBUG] 第{season}季のコラム{k + 1}を生成します（テーマ：{c['topic']}、{c['label']}、型：{fmt[0]}、model={args.model}）", flush=True)
+        generated = run_claude(c["prompt"]() + variety_note(articles, fmt=fmt), model=args.model, persona_path=COLUMN_PERSONA_PATH)
+        prev = old_by_id.get(article_id) or (old_by_id.get(f"s{season}-upset") if k == 1 else None)
+        save_article(articles_path, articles, {
+            "id": article_id, "type": "column", "season": season, "author": AUTHOR_COLUMN, "topic": c["topic"],
+            "title": generated["title"], "summary": generated["summary"], "body": generated["body"],
+            "published_at": (prev or {}).get("published_at")
+            or datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
+            "related_individual_ids": c["facts"]["related_individual_ids"],
+            "related_individual_names": c["facts"]["related_individual_names"],
+            "tags": generated.get("tags") or c["tags"],
+            "generated_by": args.model,
+        })
 
 
 def try_generate_milestone(args, season, articles_path, articles):
@@ -1169,7 +1218,7 @@ def try_generate_newcomer(args, season, articles_path, articles):
         return
 
     print(f"[DEBUG] 第{season}季の新人リーグ記事を生成します（model={args.model}）", flush=True)
-    generated = run_claude(build_newcomer_prompt(facts), model=args.model, persona_path=PERSONA_PATH)
+    generated = run_claude(build_newcomer_prompt(facts) + variety_note(articles), model=args.model, persona_path=PERSONA_PATH)
 
     # 新人リーグは、新人が出走する季の本戦より前に行われる。保険として本戦の後に生成した場合も、
     # 一覧で本戦記事より前に並ぶよう、その季のダイジェストより前の日時にする
@@ -1207,9 +1256,9 @@ def main():
     parser.add_argument("--regenerate-newcomer", action="store_true",
                         help="対象季の新人リーグ記事が既にあっても作り直す（掲載日時は元のまま）")
     parser.add_argument("--regenerate-column", action="store_true",
-                        help="対象季の連勝コラムが既にあっても作り直す（記事の誤りを修正する場合。掲載日時は元のまま）")
+                        help="対象季のコラム（2本）が既にあっても作り直す（記事の誤りを修正する場合。掲載日時は元のまま）")
     parser.add_argument("--regenerate-upset", action="store_true",
-                        help="対象季の波乱の一局コラムが既にあっても作り直す（記事の誤りを修正する場合。掲載日時は元のまま）")
+                        help="--regenerate-columnと同じ（旧「波乱の一局」コラム用の指定。今はコラム2本をまとめて作り直す）")
     parser.add_argument("--newcomer-only", action="store_true",
                         help="対象季（＝新人が出走する季）の新人リーグ記事だけを生成する。新人リーグ（newcomer_league.yml）の"
                              "直後に、その回の記事をすぐ出すために使う")
@@ -1231,8 +1280,7 @@ def main():
     # 新人リーグ記事は通常、新人リーグ直後の--newcomer-only実行で生成済み。その実行が
     # 失敗していた場合の保険としてここでも試みる（既に生成済みなら何もしない）
     try_generate_newcomer(args, season, articles_path, articles)
-    try_generate_column(args, season, articles_path, articles)
-    try_generate_upset(args, season, articles_path, articles)
+    try_generate_columns(args, season, articles_path, articles)
     try_generate_milestone(args, season, articles_path, articles)
 
 
