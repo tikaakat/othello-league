@@ -869,6 +869,14 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
     # ============================================================
     challenger, bracket_log, next_kirin_groups, kirin_entrants = kirin_out
     state["kirin_groups"] = next_kirin_groups
+    # 組の在籍期数（同じ組に連続で何期いるか。組み合わせ表示用）
+    backfill_kirin_tenure(state)
+    old_tenure = state.get("kirin_tenure") or {}
+    state["kirin_tenure"] = {
+        iid: {"group": g, "seasons": (old_tenure[iid]["seasons"] + 1
+                                       if old_tenure.get(iid, {}).get("group") == g else 1)}
+        for g in ("1", "2") for iid in next_kirin_groups.get(g, [])
+    }
     extra_protected_ids.add(challenger.id)
     demotion_relief_ids.update(ind.id for ind in kirin_entrants)
     last_dethroned["麒麟"] = None
@@ -1002,12 +1010,44 @@ def assign_planned_newcomers(state, season, new_disciples):
         genbu[genbu.index(None)] = ind.id
 
 
+def backfill_kirin_tenure(state):
+    """組の在籍期数（kirin_tenure）を記録し始める前の季の分を、麒麟戦の対局記録から復元する（1回限り）。
+    各季の次の組は、1組＝本戦の準々決勝に出た8名、2組＝本戦1回戦の敗者＋予選ブロック決勝の敗者"""
+    if "kirin_tenure" in state:
+        return
+    tenure = {}
+    for t in sorted((x for x in state.get("title_history", []) if x["title"] == "麒麟"), key=lambda x: x["season"]):
+        log = [m for m in t.get("bracket", []) if m.get("games")]
+        best8 = {i for m in log if m.get("stage") == "main2" for i in (m["a"], m["b"])}
+        losers = [m["b"] if m["winner"] == m["a"] else m["a"] for m in log if m.get("stage") == "main1"]
+        last_round = {}
+        for m in log:
+            st = m.get("stage", "")
+            if st.startswith("prelim"):
+                key = (st.split("-")[0], m.get("block"))
+                last_round[key] = max(last_round.get(key, 0), int(st.split("-")[1]))
+        for m in log:
+            st = m.get("stage", "")
+            if st.startswith("prelim") and int(st.split("-")[1]) == last_round[(st.split("-")[0], m.get("block"))]:
+                losers.append(m["b"] if m["winner"] == m["a"] else m["a"])
+        new = {}
+        for g, ids in (("1", best8), ("2", losers)):
+            for iid in ids:
+                new[iid] = {"group": g, "seasons": tenure[iid]["seasons"] + 1 if tenure.get(iid, {}).get("group") == g else 1}
+        tenure = new
+    state["kirin_tenure"] = tenure
+
+
 def write_upcoming_brackets(data_dir, state, rosters):
     """組み合わせを結果サイト表示用に書き出す（名前・所属リーグ・Eloつき）"""
     planned = state.get("planned_brackets")
     if not planned:
         return
-    info = {ind.id: {"id": ind.id, "name": ind.display_name, "league": league, "elo": round(ind.elo)}
+    # elo_rank：現役全体でのEloの順位（白虎戦の出場条件などを示すため）
+    by_elo = sorted((ind for league in LEAGUE_TIERS for ind in rosters[league]), key=lambda ind: -ind.elo)
+    elo_rank = {ind.id: k + 1 for k, ind in enumerate(by_elo)}
+    info = {ind.id: {"id": ind.id, "name": ind.display_name, "league": league, "elo": round(ind.elo),
+                     "elo_rank": elo_rank[ind.id]}
             for league in LEAGUE_TIERS for ind in rosters[league]}
     newcomer_ids = planned.get("newcomer_ids") or {}
 
@@ -1038,9 +1078,31 @@ def write_upcoming_brackets(data_dir, state, rosters):
                 in_group = sum(1 for b in kirin["prelim"][:k] if b["group"] == group)
                 return {"qualifier": k, "group": group, "block_in_group": in_group}
             return slot(pid)
+        backfill_kirin_tenure(state)
+        tenure = state.get("kirin_tenure") or {}
+
+        def group1_entry(pid):
+            # 1組に入っている理由と、1組の在籍期数
+            e = dict(slot(pid) or {})
+            if pid == last_dethroned.get("麒麟"):
+                e["reason"] = "前季失冠"
+            elif not state.get("kirin_groups"):
+                e["reason"] = "Aリーグ所属（初回）"
+            else:
+                e["reason"] = "前季本戦ベスト8"
+            t = tenure.get(pid)
+            e["tenure"] = t["seasons"] if t and t["group"] == "1" else 1
+            return e
+
+        def group2_entry(pid):
+            e = dict(slot(pid) or {})
+            t = tenure.get(pid)
+            e["tenure"] = t["seasons"] if t and t["group"] == "2" else 1
+            return e
         out["kirin"] = {
             "holder": titleholders.get("麒麟"),
-            "group1": [slot(p) for p in kirin["groups"]["1"]],
+            "group1": [group1_entry(p) for p in kirin["groups"]["1"]],
+            "group2": [group2_entry(p) for p in kirin["groups"]["2"]],
             "prelim": [{"group": b["group"], "slots": [slot(p) for p in b["slots"]]} for b in kirin["prelim"]],
             "main": [main_slot(p) for p in kirin["main"]],
         }
