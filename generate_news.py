@@ -23,11 +23,11 @@ import subprocess
 import news_topics
 
 DEFAULT_MODEL = "sonnet"
-TITLE_NAMES = ["青龍", "朱雀", "白虎", "玄武"]
-# タイトルの格（青龍＝名人格が最高、玄武が最も格下）。MVPは今季獲得・防衛したタイトルの
+TITLE_NAMES = ["麒麟", "青龍", "朱雀", "白虎", "玄武"]
+# タイトルの格（麒麟・青龍＝竜王・名人格が最高、玄武が最も格下）。MVPは今季獲得・防衛したタイトルの
 # この点数の合計で選ぶ。青龍は最高格だが、単冠が二冠（最低でも玄武3＋白虎4＝7）を
 # 上回らないよう、各タイトルの差を小さくしてある（4/3/2/1だと青龍単冠4が白虎＋玄武の3を上回っていた）
-TITLE_PRESTIGE = {"青龍": 6, "朱雀": 5, "白虎": 4, "玄武": 3}
+TITLE_PRESTIGE = {"麒麟": 6, "青龍": 6, "朱雀": 5, "白虎": 4, "玄武": 3}
 _NEWS_SITE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "news-site")
 PERSONA_PATH = os.path.join(_NEWS_SITE_DIR, "persona.md")
 # コラム・特集は、ダイジェスト（犬飼）とは別の記者（東堂）が書く
@@ -67,6 +67,9 @@ def _gender_label(gender):
 # 例えば「Aリーグ1位だから青龍を襲名した」のに「青龍襲名に加え、Aリーグでも好成績」のように
 # 同じ一つの実績を別々の功績として並べてしまう
 TITLE_QUALIFY_PATH = {
+    "麒麟": ("麒麟戦の挑戦者決定戦の勝者（麒麟戦独自の組分けで、1組は本戦から、2組・3組は組ごとの予選トーナメントを"
+             "勝ち抜いて本戦16名のトーナメントへ。ベスト4からは2敗で失格の敗者復活戦があり、本戦優勝者は1勝、"
+             "敗者復活戦の勝者は2連勝で挑戦権を得る）"),
     "青龍": "Aリーグ（青龍戦リーグ）の総当たり1位",
     "朱雀": "朱雀紅白リーグの紅組1位・白組1位による挑戦者決定戦の勝者",
     "白虎": "Elo上位16名による白虎トーナメントの優勝者",
@@ -754,6 +757,14 @@ def _match_stage_label(league, stage=None):
     白虎予選や、紅白リーグの入れ替え戦である朱雀予選が「〜予選リーグ」のように誤って書かれていた"""
     if league in TITLE_NAMES:
         return f"{league}戦の番勝負（タイトル保持者と挑戦者によるタイトル戦本番）"
+    if league == "麒麟予選":
+        if stage and stage.startswith("prelim"):
+            return f"麒麟戦の{stage[6]}組予選（ブロック別トーナメント）"
+        if stage and stage.startswith("rep"):
+            return "麒麟戦の敗者復活戦"
+        if stage and stage.startswith("decision"):
+            return "麒麟戦の挑戦者決定戦（本戦優勝者は1勝、敗者復活戦の勝者は2連勝で挑戦権）"
+        return "麒麟戦の本戦トーナメント"
     if league == "白虎予選":
         return "白虎戦の挑戦者決定トーナメント（Elo上位16名による）"
     if league == "玄武予選":
@@ -798,6 +809,8 @@ def is_eternal_title(title, total, consec):
     複製は無いため、season_state.json（title_history）から都度計算する）"""
     if title == "青龍":
         return total >= 5
+    if title == "麒麟":
+        return consec >= 5 or total >= 7
     if title == "朱雀":
         return consec >= 5 or total >= 10
     if title == "玄武":

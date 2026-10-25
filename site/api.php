@@ -106,9 +106,13 @@ function resolve_newcomer_real_ids($pdo, $rows) {
     return $rows;
 }
 
-// 4大タイトル（青龍・朱雀・白虎・玄武）。旧タイトル名（陸王・海王・空王）はシミュレーション側で
-// 移行済みのため、サイト側はこの新名称のみを扱う
-const TITLE_NAMES_LIST = ['青龍', '朱雀', '白虎', '玄武'];
+// 5大タイトル。序列順（麒麟・青龍が竜王・名人格の最上位）。旧タイトル名（陸王・海王・空王）は
+// シミュレーション側で移行済みのため、サイト側はこの新名称のみを扱う
+const TITLE_NAMES_LIST = ['麒麟', '青龍', '朱雀', '白虎', '玄武'];
+// 1季の中でタイトル戦が決着する順（run_season.pyの実行順）
+const TITLE_SEASON_ORDER = ['青龍', '朱雀', '白虎', '玄武', '麒麟'];
+// 獲得すると1期で八段になるタイトル（竜王・名人格）
+const TOP_TITLES = ['麒麟', '青龍'];
 
 // 1季の中での対局の進行順（run_season.pyの実行順：A〜Dリーグ→青龍→朱雀（紅白決定戦→紅白リーグ→
 // 紅白リーグの同率決定戦→挑戦者決定戦→番勝負→翌季の紅白リーグ入れ替え予選）→白虎（予選→番勝負）→玄武（予選→番勝負））。
@@ -126,6 +130,8 @@ const MATCH_STAGE_ORDER_SQL = "CASE m.league
     WHEN '白虎' THEN 9
     WHEN '玄武予選' THEN 10
     WHEN '玄武' THEN 11
+    WHEN '麒麟予選' THEN 12
+    WHEN '麒麟' THEN 13
     ELSE 0 END";
 
 // 永世称号の判定基準（タイトルごとに異なる）
@@ -134,8 +140,10 @@ const MATCH_STAGE_ORDER_SQL = "CASE m.league
 //   白虎＝連続5期
 //   玄武＝連続5期 または 通算8期（決勝の読みが最も浅く保持者が入れ替わりやすいため、
 //         当初の通算10期では誰も届かなかった。朱雀と同じ形で通算の基準を下げた）
+//   麒麟＝連続5期 または 通算7期（竜王と同じ）
 function is_eternal_title($title, $total, $consec) {
     if ($title === '青龍') return $total >= 5;
+    if ($title === '麒麟') return $consec >= 5 || $total >= 7;
     if ($title === '朱雀') return $consec >= 5 || $total >= 10;
     if ($title === '玄武') return $consec >= 5 || $total >= 8;
     return $consec >= 5; // 白虎
@@ -354,7 +362,7 @@ function calc_dan_bulk($pdo, array $ids, array $currentLeagueById = []) {
     // 初登場は5段の下限、6段昇段後の登場は7段の候補として使う（simulate_dan_progression側で判定）
     $challengeStmt = $pdo->prepare(
         "SELECT DISTINCT individual_a_id AS pid, season FROM matches
-         WHERE individual_a_id IN ($placeholders) AND league IN ('青龍', '朱雀', '白虎', '玄武')"
+         WHERE individual_a_id IN ($placeholders) AND league IN ('麒麟', '青龍', '朱雀', '白虎', '玄武')"
     );
     $challengeStmt->execute($ids);
     $challengeSeasonsById = [];
@@ -373,12 +381,14 @@ function calc_dan_bulk($pdo, array $ids, array $currentLeagueById = []) {
             $nonWinCandidates[] = ['season' => min($challengeSeasons), 'dan' => 5, 'reason' => 'タイトル挑戦'];
         }
         $byTitle = $titleSeasonsByIndivTitle[$id] ?? [];
-        if (isset($byTitle['青龍'])) {
-            $nonWinCandidates[] = ['season' => min($byTitle['青龍']), 'dan' => 8, 'reason' => '青龍位獲得'];
+        foreach (TOP_TITLES as $top) {
+            if (isset($byTitle[$top])) {
+                $nonWinCandidates[] = ['season' => min($byTitle[$top]), 'dan' => 8, 'reason' => "{$top}位獲得"];
+            }
         }
         $otherEvents = [];
         foreach ($byTitle as $title => $seasons) {
-            if ($title === '青龍') continue;
+            if (in_array($title, TOP_TITLES, true)) continue;
             foreach ($seasons as $s) { $otherEvents[] = [$s, $title]; }
         }
         if (count($otherEvents) >= 2) {
@@ -1265,7 +1275,8 @@ switch ($action) {
         // 他タイトル通算2期に達した季・永世称号を初めて満たした季を求める
         $nonWinCandidates = [];
         $titleWinEvents = []; // [['season'=>, 'title'=>], ...]（全タイトル。タイトル獲得による6/7段判定に使う）
-        $seiryuFirstSeason = null;
+        $seiryuFirstSeason = null; // 麒麟・青龍（TOP_TITLES）のどちらかを初めて獲得した季
+        $topTitleFirst = null;
         $otherTitleEvents = []; // [[season, title], ...]（朱雀・白虎・玄武）
         $eternalTitlesRow = []; // 現時点で永世称号の基準を満たしているタイトル名の一覧（簡易個体ページ表示用）
         foreach (TITLE_NAMES_LIST as $title) {
@@ -1287,8 +1298,11 @@ switch ($action) {
             $titleRanges[] = ['title' => $title, 'ranges' => $rangeText, 'total' => count($mySeasons)];
             $titleTotalsByTitle[$title] = count($mySeasons);
 
-            if ($title === '青龍') {
-                $seiryuFirstSeason = min($mySeasons);
+            if (in_array($title, TOP_TITLES, true)) {
+                if ($seiryuFirstSeason === null || min($mySeasons) < $seiryuFirstSeason) {
+                    $seiryuFirstSeason = min($mySeasons);
+                    $topTitleFirst = $title;
+                }
             } else {
                 foreach ($mySeasons as $s) { $otherTitleEvents[] = [$s, $title]; }
             }
@@ -1320,7 +1334,7 @@ switch ($action) {
         }
         $titleTotalSeasons = array_sum(array_column($titleRanges, 'total'));
         if ($seiryuFirstSeason !== null) {
-            $nonWinCandidates[] = ['season' => $seiryuFirstSeason, 'dan' => 8, 'reason' => '青龍位獲得'];
+            $nonWinCandidates[] = ['season' => $seiryuFirstSeason, 'dan' => 8, 'reason' => "{$topTitleFirst}位獲得"];
         }
         if (!empty($otherTitleEvents)) {
             usort($otherTitleEvents, fn($a, $b) => $a[0] <=> $b[0]);
@@ -1358,7 +1372,7 @@ switch ($action) {
         // 初登場は5段の下限（$nonWinCandidates）、6段昇段後の登場は7段の候補（$challengeEvents）として使う
         $challengeStmt = $pdo->prepare(
             "SELECT DISTINCT season FROM matches
-             WHERE individual_a_id = :id AND league IN ('青龍', '朱雀', '白虎', '玄武')"
+             WHERE individual_a_id = :id AND league IN ('麒麟', '青龍', '朱雀', '白虎', '玄武')"
         );
         $challengeStmt->execute(['id' => $id]);
         $challengeEvents = array_map('intval', array_column($challengeStmt->fetchAll(), 'season'));
@@ -1499,7 +1513,7 @@ switch ($action) {
 
     // --------------------------------------------------------
     case 'titles':
-        $title_order = "FIELD(title, '青龍', '朱雀', '白虎', '玄武')";
+        $title_order = "FIELD(title, '麒麟', '青龍', '朱雀', '白虎', '玄武')";
         $current = $pdo->query(
             "SELECT title, holder_name, holder_id, event_type, season
              FROM title_history t1
@@ -1843,7 +1857,7 @@ switch ($action) {
         // 指定タイトル（青龍/朱雀/白虎/玄武）の全シーズン分の記録を、挑戦者名・番勝負スコア付きで返す
         $title = $_GET['title'] ?? '';
         if (!in_array($title, TITLE_NAMES_LIST, true)) {
-            json_error('title（青龍/朱雀/白虎/玄武）が必要です');
+            json_error('title（麒麟/青龍/朱雀/白虎/玄武）が必要です');
         }
 
         $histStmt = $pdo->prepare(
@@ -1909,7 +1923,7 @@ switch ($action) {
         $season = (int)($_GET['season'] ?? 0);
         $title = $_GET['title'] ?? '';
         if ($season <= 0 || !in_array($title, TITLE_NAMES_LIST)) {
-            json_error('season と title（青龍/朱雀/白虎/玄武）が必要です');
+            json_error('season と title（麒麟/青龍/朱雀/白虎/玄武）が必要です');
         }
 
         // 朱雀戦：紅白リーグ制（青龍〜玄武のブラケット方式とは形式が異なるため、専用に組み立てて返す）
@@ -2199,8 +2213,8 @@ switch ($action) {
         // 開始前時点のElo。全タイトル共通の表示形式（名前の左にリーグアイコン、右に(Elo)）に
         // 揃えるため、朱雀の予選ブラケットも含めて共通ヘルパーで組み立てる
         // このタイトルより前に同じ季に決着したタイトル（青龍→朱雀→白虎→玄武の順）の結果を反映する
-        $titleOrderIdx = array_search($title, TITLE_NAMES_LIST, true);
-        $titlesDoneBefore = $titleOrderIdx === false ? [] : array_slice(TITLE_NAMES_LIST, 0, $titleOrderIdx);
+        $titleOrderIdx = array_search($title, TITLE_SEASON_ORDER, true);
+        $titlesDoneBefore = $titleOrderIdx === false ? [] : array_slice(TITLE_SEASON_ORDER, 0, $titleOrderIdx);
         $participantInfo = build_bracket_participant_info($pdo, $season, array_unique(array_filter(array_merge(
             array_column($bracket, 'individual_a_id'), array_column($bracket, 'individual_b_id')
         ))), $titlesDoneBefore);
@@ -2462,7 +2476,7 @@ switch ($action) {
         if ($ids) {
             $challengeStmt = $pdo->prepare(
                 "SELECT DISTINCT individual_a_id AS pid, season, league AS title FROM matches
-                 WHERE individual_a_id IN ($placeholders) AND league IN ('青龍', '朱雀', '白虎', '玄武')"
+                 WHERE individual_a_id IN ($placeholders) AND league IN ('麒麟', '青龍', '朱雀', '白虎', '玄武')"
             );
             $challengeStmt->execute($ids);
             foreach ($challengeStmt->fetchAll() as $c) {

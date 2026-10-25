@@ -111,3 +111,23 @@ def run_matches(pairs, depth=4, allow_rematch=True, decisive=False, max_decisive
             results[i] = (outcome_a, games)
         remaining = rest
     return results
+
+
+def _call_worker(args):
+    fn, fargs, seed = args
+    random.seed(seed)
+    return fn(*fargs)
+
+
+def run_calls(fn, arglist):
+    """fn(*args) を args ごとに別プロセスで同時に実行し、結果を元の順で返す（タイトル戦の対局用）。
+    乱数の種は元の並び順でメインプロセス側から配るため、並列数を変えても同じ結果になる。
+    fn はモジュールの最上位で定義された関数であること（別プロセスへ渡すため）"""
+    seeds = [random.randrange(2 ** 31) for _ in arglist]
+    jobs = [(fn, tuple(args), seed) for args, seed in zip(arglist, seeds)]
+    if _workers() > 1 and len(jobs) > 1:
+        return _get_pool().map(_call_worker, jobs, chunksize=1)
+    state = random.getstate()
+    outs = [_call_worker(j) for j in jobs]
+    random.setstate(state)
+    return outs

@@ -163,7 +163,7 @@
 
 <div class="header">
   <h1>CIRCUIT OTHELLO LEAGUE</h1>
-  <p>選手たちがリーグ戦・タイトル戦を戦い抜き、青龍・朱雀・白虎・玄武の座を目指す</p>
+  <p>選手たちがリーグ戦・タイトル戦を戦い抜き、麒麟・青龍・朱雀・白虎・玄武の座を目指す</p>
 </div>
 
 <div class="tabs" id="primary-tabs">
@@ -185,6 +185,7 @@
 <div class="panel hidden" id="tab-suzaku"><div id="suzaku-content" class="loading">読み込み中...</div></div>
 <div class="panel hidden" id="tab-byakko"><div id="byakko-content" class="loading">読み込み中...</div></div>
 <div class="panel hidden" id="tab-genbu"><div id="genbu-content" class="loading">読み込み中...</div></div>
+<div class="panel hidden" id="tab-kirin"><div id="kirin-content" class="loading">読み込み中...</div></div>
 <div class="panel hidden" id="tab-hof"><div id="hof-content" class="loading">読み込み中...</div></div>
 <div class="panel hidden" id="tab-awards"><div id="awards-content" class="loading">読み込み中...</div></div>
 <div class="panel hidden" id="tab-newcomer_create"><div id="newcomer_create-content" class="loading">読み込み中...</div></div>
@@ -220,6 +221,7 @@ const tabPanels = {
   suzaku: document.getElementById('tab-suzaku'),
   byakko: document.getElementById('tab-byakko'),
   genbu: document.getElementById('tab-genbu'),
+  kirin: document.getElementById('tab-kirin'),
   hof: document.getElementById('tab-hof'),
   awards: document.getElementById('tab-awards'),
   newcomer_create: document.getElementById('tab-newcomer_create'),
@@ -238,11 +240,11 @@ const tabPanels = {
 const TAB_GROUPS = {
   leagues: {
     label: 'リーグ', tabs: ['leagues', 'suzaku_league', 'cup_draw'],
-    subLabels: { leagues: '青龍戦リーグ表', suzaku_league: '朱雀戦紅白リーグ表', cup_draw: '白虎戦・玄武戦の組み合わせ' },
+    subLabels: { leagues: '青龍戦リーグ表', suzaku_league: '朱雀戦紅白リーグ表', cup_draw: 'タイトル戦の組み合わせ' },
   },
   results: {
-    label: '結果', tabs: ['seiryuu', 'suzaku', 'byakko', 'genbu', 'awards', 'matches'],
-    subLabels: { seiryuu: '青龍戦', suzaku: '朱雀戦', byakko: '白虎戦', genbu: '玄武戦', awards: '表彰', matches: '対局記録' },
+    label: '結果', tabs: ['kirin', 'seiryuu', 'suzaku', 'byakko', 'genbu', 'awards', 'matches'],
+    subLabels: { kirin: '麒麟戦', seiryuu: '青龍戦', suzaku: '朱雀戦', byakko: '白虎戦', genbu: '玄武戦', awards: '表彰', matches: '対局記録' },
   },
   titles: {
     label: 'タイトル', tabs: ['titles'],
@@ -435,6 +437,7 @@ function render(hash, isPopstate) {
   else if (base === 'suzaku') { showTab('suzaku'); loadTitleOnlyPanel('suzaku', '朱雀', param ? parseInt(param, 10) : null); }
   else if (base === 'byakko') { showTab('byakko'); loadTitleOnlyPanel('byakko', '白虎', param ? parseInt(param, 10) : null); }
   else if (base === 'genbu') { showTab('genbu'); loadTitleOnlyPanel('genbu', '玄武', param ? parseInt(param, 10) : null); }
+  else if (base === 'kirin') { showTab('kirin'); loadTitleOnlyPanel('kirin', '麒麟', param ? parseInt(param, 10) : null); }
   else if (base === 'hof') { showTab('hof'); loadHallOfFame(); }
   else if (base === 'awards') { showTab('awards'); loadAwards(param ? parseInt(param, 10) : null); }
   else if (base === 'newcomer_create') { showTab('newcomer_create'); loadNewcomerCreate(); }
@@ -477,7 +480,7 @@ function ageCell(age) {
 }
 
 const TITLE_NAMES = new Set([
-  '青龍', '朱雀', '白虎', '玄武', '青龍予選', '朱雀予選', '白虎予選', '玄武予選',
+  '麒麟', '青龍', '朱雀', '白虎', '玄武', '麒麟予選', '青龍予選', '朱雀予選', '白虎予選', '玄武予選',
   '朱雀紅組', '朱雀白組', '朱雀紅組-playoff', '朱雀白組-playoff', '朱雀挑戦者決定戦', '朱雀紅白決定戦',
 ]);
 function leagueTag(league) {
@@ -488,7 +491,8 @@ function leagueTag(league) {
 // ---------------- リーグ ----------------
 // 現在のタイトル保持者マップ（全ページで使い回す）
 let CURRENT_TITLEHOLDERS = { by_id: {}, by_name: {} };
-const TITLE_ORDER = ['青龍', '朱雀', '白虎', '玄武'];
+const TITLE_ORDER = ['麒麟', '青龍', '朱雀', '白虎', '玄武']; // 序列順（麒麟・青龍が最上位）
+const CROWN_LABELS = { 2: '二冠', 3: '三冠', 4: '四冠', 5: '五冠' };
 
 function crownLabel(id, name) {
   // id基準でのみ判定する（同姓同名の別個体に誤ってタイトル表示が付くのを防ぐため、
@@ -499,8 +503,7 @@ function crownLabel(id, name) {
   let label;
   if (titles.length === 1) label = titles[0];
   else if (titles.length === 2) label = '二冠';
-  else if (titles.length === 3) label = '三冠';
-  else label = '四冠';
+  else label = CROWN_LABELS[titles.length] || '五冠';
   return `<span style="display:inline-block; font-family:'Orbitron',sans-serif; font-size:0.62rem; font-weight:700; color:var(--navy-950); background:linear-gradient(135deg,#ffd24f,#ff9d4f); padding:1px 6px; border-radius:2px; margin-right:6px;">${escapeHtml(label)}</span>`;
 }
 
@@ -535,7 +538,7 @@ function renderDanHistory(history) {
 function titleOrDanBadge(titles, dan) {
   titles = TITLE_ORDER.filter(t => (titles || []).includes(t));
   if (titles.length > 0) {
-    const label = titles.length === 1 ? titles[0] : (titles.length === 2 ? '二冠' : (titles.length === 3 ? '三冠' : '四冠'));
+    const label = titles.length === 1 ? titles[0] : (CROWN_LABELS[titles.length] || '五冠');
     return `<span style="display:inline-block; font-family:'Orbitron',sans-serif; font-size:0.62rem; font-weight:700; color:var(--navy-950); background:linear-gradient(135deg,#ffd24f,#ff9d4f); padding:1px 6px; border-radius:2px; margin-left:6px;">${escapeHtml(label)}</span>`;
   }
   if (dan !== null && dan !== undefined) {
@@ -623,13 +626,16 @@ async function loadLeagues() {
   }
 }
 
-// リーグタブのサブタブ「白虎戦・玄武戦の組み合わせ」：前の季の終了時点（Elo・所属リーグ）で決めた
+// リーグタブのサブタブ「タイトル戦の組み合わせ」（白虎・玄武・麒麟）：前の季の終了時点（Elo・所属リーグ）で決めた
 // 今季の組み合わせを表示する。シミュレーター（run_season.py）がリポジトリに書き出すJSONを直接読む
 // （DBには取り込んでいないため）。玄武戦の新人枠は、新人リーグの結果が出たら名前が入る
 const UPCOMING_BRACKETS_URL = 'https://raw.githubusercontent.com/tikaakat/othello-league/main/data/upcoming_brackets.json';
 
 function cupDrawPlayerHtml(p) {
   if (!p) return '';
+  if (p.qualifier !== undefined) {
+    return `<span style="color:var(--text-dim);">${p.group}組予選 ブロック${p.block_in_group + 1}の勝者</span>`;
+  }
   if (p.newcomer) {
     const label = p.name ? escapeHtml(p.name) : '<span style="color:var(--text-dim);">新人リーグ結果待ち</span>';
     const tag = '<span style="font-size:0.62rem; color:var(--cyan); margin-left:4px;">（新人枠）</span>';
@@ -677,7 +683,7 @@ async function loadCupDrawPanel() {
     if (!res.ok) throw new Error('組み合わせはまだ発表されていません');
     const data = await res.json();
     const holderLine = (h) => h ? `在位：${escapeHtml(h.name)}（挑戦者決定戦には出場せず、挑戦者を待つ）` : '在位者なし';
-    let html = `<p style="font-size:0.72rem; color:var(--text-dim); margin-top:0;">前の季の終了時点のEloと所属リーグで決めた組み合わせです。</p>`;
+    let html = `<p style="font-size:0.72rem; color:var(--text-dim); margin-top:0;">前の季の終了時点で決めた組み合わせです（白虎・玄武はEloと所属リーグ、麒麟は前季の麒麟戦の成績による組で決定）。</p>`;
 
     const b = data.byakko;
     html += `<div class="league-block"><h3>第${data.season}季 白虎戦 挑戦者決定トーナメント（${b.slots.filter(Boolean).length}名）</h3>`;
@@ -695,6 +701,27 @@ async function loadCupDrawPanel() {
       html += cupDrawPairsHtml(g.slots.slice(k * blockSize, (k + 1) * blockSize));
     }
     html += '</div>';
+
+    const k = data.kirin;
+    if (k) {
+      const prelim2 = k.prelim.filter(b => b.group === 2), prelim3 = k.prelim.filter(b => b.group === 3);
+      const count = k.group1.length + k.prelim.reduce((n, b) => n + b.slots.filter(Boolean).length, 0);
+      html += `<div class="league-block"><h3>第${data.season}季 麒麟戦 挑戦者決定戦（${count}名）</h3>`;
+      html += `<p style="font-size:0.72rem; margin:2px 0 6px;">${holderLine(k.holder)}<br>
+        1組は本戦から、2組・3組は組ごとの予選（ブロック別トーナメント）の勝者が本戦へ。本戦はベスト4から2敗失格（敗者復活戦あり）。</p>`;
+      html += `<div style="font-size:0.72rem; color:var(--amber);">1組（${k.group1.length}名）</div>
+        <div style="font-size:0.72rem; margin:2px 0 8px;">${k.group1.map(cupDrawPlayerHtml).join('、')}</div>`;
+      html += '<div style="font-size:0.72rem; color:var(--amber);">本戦 1回戦</div>' + cupDrawPairsHtml(k.main);
+      [[prelim2, 2], [prelim3, 3]].forEach(([blocks, g]) => {
+        if (blocks.length === 0) return;
+        html += `<details style="margin-top:8px;"><summary style="cursor:pointer; font-size:0.72rem; color:var(--text-dim);">${g}組予選（${blocks.reduce((n, b) => n + b.slots.filter(Boolean).length, 0)}名・${blocks.length}ブロック）を表示</summary>`;
+        blocks.forEach((b, i) => {
+          html += `<div style="font-size:0.72rem; color:var(--amber); margin-top:8px;">ブロック${i + 1}</div>` + cupDrawPairsHtml(b.slots);
+        });
+        html += '</details>';
+      });
+      html += '</div>';
+    }
 
     el.innerHTML = html;
     el.querySelectorAll('[data-id]').forEach(e => e.addEventListener('click', () => navigateTo('individual/' + e.dataset.id)));
@@ -773,15 +800,15 @@ function renderTitlesPanel() {
 function renderCurrentHoldersView(el, data) {
   const currentList = (data && data.current) || [];
 
-  // 四冠：青龍・朱雀・白虎・玄武を同一人物が同時に保持しているかを判定する
+  // 五冠：麒麟・青龍・朱雀・白虎・玄武を同一人物が同時に保持しているかを判定する
   const holderCounts = {};
   currentList.forEach(t => { holderCounts[t.holder_name] = (holderCounts[t.holder_name] || 0) + 1; });
-  const grandSlamHolder = Object.keys(holderCounts).find(name => holderCounts[name] >= 4);
+  const grandSlamHolder = Object.keys(holderCounts).find(name => holderCounts[name] >= 5);
 
   let html = '';
   if (grandSlamHolder) {
     html += `<div style="text-align:center; margin-bottom:14px; padding:10px; border:1px solid var(--amber); background:linear-gradient(135deg, rgba(255,210,79,0.12), rgba(255,157,79,0.12));">
-      <span style="font-family:'Orbitron',sans-serif; font-size:0.85rem; font-weight:800; background:linear-gradient(135deg,#ffd24f,#ff9d4f); -webkit-background-clip:text; background-clip:text; color:transparent;">★★★★ 四冠 ★★★★</span>
+      <span style="font-family:'Orbitron',sans-serif; font-size:0.85rem; font-weight:800; background:linear-gradient(135deg,#ffd24f,#ff9d4f); -webkit-background-clip:text; background-clip:text; color:transparent;">★★★★★ 五冠 ★★★★★</span>
       <div style="font-size:0.82rem; margin-top:4px;">${escapeHtml(grandSlamHolder)}</div>
     </div>`;
   }
@@ -1493,7 +1520,7 @@ function fitBracketNameWithTag(name, tag, maxWidthPx, fontSize, bold) {
 // リーグごとのアイコン色（トーナメント表示で名前の左に添えるバッジに使う）
 const LEAGUE_BADGE_COLOR = { A: '#ffb648', B: '#4ff0ff', C: '#7ee787', D: '#8fa3bf' };
 // タイトル保持者の場合は、リーグアイコンの代わりにタイトルの頭文字を色付きで表示する
-const TITLE_BADGE_COLOR = { '青龍': '#4f9eff', '朱雀': '#ff5a5a', '白虎': '#f2f2f2', '玄武': '#b388ff' };
+const TITLE_BADGE_COLOR = { '麒麟': '#ffd24f', '青龍': '#4f9eff', '朱雀': '#ff5a5a', '白虎': '#f2f2f2', '玄武': '#b388ff' };
 const LEAGUE_BADGE_W = 15; // バッジ込みで名前欄から差し引く幅
 
 // info（{league, title}）を受け取り、タイトル保持者ならタイトルバッジ、そうでなければ
@@ -1697,6 +1724,51 @@ async function loadTitleOnlyPanel(titleKey, titleLabel, season) {
   }
 }
 
+// 麒麟戦：組別予選（2組・3組のブロック別トーナメント）→本戦トーナメント→敗者復活戦→挑戦者決定戦。
+// 対局のstage（prelim{組}-{回戦}／main{回戦}／semifinal／final／rep1・rep2／decision1・decision2）で振り分ける
+function kirinBracketHtml(bracket, participantInfo) {
+  const decided = m => m.result !== 'draw';
+  const name = (id, nm) => `<span data-id="${escapeHtml(id)}" style="cursor:pointer;">${escapeHtml(nm || id)}</span>`;
+  const line = (label, m) => {
+    const a = name(m.individual_a_id, m.individual_a_name), b = name(m.individual_b_id, m.individual_b_name);
+    const w = m.result === 'win' ? a : b;
+    return `<div style="font-size:0.74rem; margin:2px 0;"><span style="color:var(--text-dim);">${label}</span>　${a} vs ${b} → ${w}の勝ち</div>`;
+  };
+  let html = '';
+  const blocks = {};
+  bracket.filter(m => (m.stage || '').startsWith('prelim')).forEach(m => {
+    const group = m.stage.slice(6, 7);
+    const key = `${group}|${m.block_no}`;
+    (blocks[key] = blocks[key] || { group, block: +m.block_no, matches: [] }).matches.push(m);
+  });
+  const blockList = Object.values(blocks).sort((x, y) => x.block - y.block);
+  const main = bracket.filter(m => /^(main\d+|semifinal|final)$/.test(m.stage || ''));
+  if (main.length > 0) {
+    html += `<div style="font-size:0.7rem; color:var(--amber); margin-bottom:6px;">本戦トーナメント（1組＋予選通過者）</div>
+      <div style="margin-bottom:8px;">${renderBracketSVG(buildBracketTree(main), participantInfo)}</div>`;
+  }
+  const rep = bracket.filter(m => /^rep\d$/.test(m.stage || '') && decided(m));
+  const dec = bracket.filter(m => /^decision\d$/.test(m.stage || '') && decided(m));
+  if (rep.length > 0 || dec.length > 0) {
+    html += `<div style="font-size:0.7rem; color:var(--amber); margin:10px 0 4px;">敗者復活戦・挑戦者決定戦</div>
+      <div style="font-size:0.66rem; color:var(--text-dim); margin-bottom:4px;">ベスト4からは2敗で失格。挑戦者決定戦は、本戦優勝者は1勝、敗者復活戦の勝者は2連勝で挑戦権を得る</div>`;
+    rep.forEach(m => { html += line(m.stage === 'rep1' ? '敗者復活1回戦' : '敗者復活決勝', m); });
+    dec.forEach(m => { html += line(`挑戦者決定戦 第${m.stage.slice(-1)}局`, m); });
+  }
+  [['2', '2組予選'], ['3', '3組予選']].forEach(([g, label]) => {
+    const list = blockList.filter(b => b.group === g);
+    if (list.length === 0) return;
+    html += `<details style="margin-top:8px;"><summary style="cursor:pointer; font-size:0.72rem; color:var(--text-dim);">${label}（${list.length}ブロック）を表示</summary>
+      <div style="display:flex; flex-wrap:wrap; gap:18px; margin-top:8px;">`;
+    list.forEach((b, i) => {
+      html += `<div style="min-width:180px;"><div style="font-size:0.66rem; color:var(--text-dim); margin-bottom:4px;">ブロック${i + 1}</div>
+        ${renderBracketSVG(buildBracketTree(b.matches), participantInfo, false)}</div>`;
+    });
+    html += '</div></details>';
+  });
+  return html;
+}
+
 async function loadOneBracket(season, title, containerId = 'bracket-view') {
   const viewEl = document.getElementById(containerId);
   if (!viewEl) return; // 季を切り替えて別のwrapに差し替わった後の遅延応答は無視する
@@ -1866,6 +1938,8 @@ async function loadOneBracket(season, title, containerId = 'bracket-view') {
           html += `<div style="font-size:0.66rem; color:var(--text-dim); margin-bottom:4px;">
             太い色付き線＝勝ち上がりの流れ（不戦勝の枠位置までは復元していません）／名前の左のアイコン＝参加時点の所属リーグ（その季タイトル保持者は代わりにタイトルの色バッジ）、右の()＝参加時点のElo
           </div>`;
+        } else if (title === '麒麟' && bracket.length > 0) {
+          html += kirinBracketHtml(bracket, data.participant_info);
         } else if (bracket.length > 0) {
           const tree = buildBracketTree(bracket);
           html += `<div style="margin-bottom:8px;">${renderBracketSVG(tree, data.participant_info)}</div>
