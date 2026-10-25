@@ -1,6 +1,7 @@
 import argparse
 import json
 import os
+import math
 import random
 
 from othello_league.individual import LeagueIndividual
@@ -8,6 +9,7 @@ from othello_league.league import (
     relegate_and_retire, recruit_d_league, apply_clan_independence, LEAGUE_CAPACITY, RETIREMENT_AGE, D_INITIAL_ROSTER_SIZE,
 )
 from othello_league.buffs import effective_params, roll_age_multipliers
+from othello_league.skills import ensure_skills, roll_form, season_growth, veteran_skills, BOOK_PARAMS
 from othello_league.round_robin import run_round_robin
 from othello_league.random_league import run_random_league
 from othello_league.title import (
@@ -32,63 +34,72 @@ PARAM_KEYS = [
     "frontier_weight", "disc_weight", "parity_weight", "center_weight",
 ]
 
-# 初年度のみ適用する、リーグごとのパラメータ合計上限（傾斜配置）
-INITIAL_SUM_CAP = {"A": 50, "B": 45, "C": 40, "D": 35}
-
-
-def _random_params_with_cap(sum_cap):
-    """8パラメータをランダムに割り振り、合計がsum_capを超えないよう正規化する"""
-    raw = {k: random.uniform(0.5, 10.0) for k in PARAM_KEYS}
-    total = sum(raw.values())
-    scale = sum_cap / total if total > sum_cap else 1.0
-    return {k: round(v * scale, 3) for k, v in raw.items()}
-
-
 def _random_volatility():
     """ムラ気（隠しパラメータ）をランダムに生成する。0.3〜2.0の範囲、平均1.0程度"""
     return random.uniform(0.3, 2.0)
 
 
 def _random_initial_age():
-    """初年度メンバーの年齢：師弟の年齢制限（MASTER_MIN_AGE）とは無関係に、
-    18歳〜引退年齢直前までの実在しそうな年齢層を広く取り、最初から様々な世代がいる状態にする"""
+    """初年度メンバーの年齢：18歳〜引退年齢直前までの実在しそうな年齢層を広く取り、最初から様々な世代がいる状態にする"""
     return random.randint(18, RETIREMENT_AGE - 1)
 
 
-def bootstrap_rosters(registry):
-    """初回起動時：A/B/Cはランダム個体、Dは8大流派の開祖2名ずつで初期化する。
-    能力（パラメータ合計上限）はリーグが上がるほど高くなるよう傾斜配置するが、
-    年齢はリーグに関係なく幅広くランダムにする"""
-    rosters = {}
-    for league in ("A", "B", "C"):
-        cap = LEAGUE_CAPACITY[league]
-        members = []
-        for i in range(cap):
-            display_name, gender = registry.generate()
-            members.append(LeagueIndividual(
-                f"{league}0-{i:03d}", league,
-                params=_random_params_with_cap(INITIAL_SUM_CAP[league]),
-                display_name=display_name, gender=gender,
-                initial_age=_random_initial_age(),
-            ))
-        rosters[league] = members
-        for ind in rosters[league]:
-            ind.volatility = _random_volatility()
+def _seed_styles(data_dir):
+    """初期個体の棋風の元（data/seed_styles.json）。無ければ従来どおり完全ランダム"""
+    path = os.path.join(data_dir, "seed_styles.json")
+    if os.path.exists(path):
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f).get("styles") or []
+    return []
 
-    # Dリーグは、毎季固定D_NEWCOMER_INTAKE名の新人受け入れを前提に、
-    # 初年度はD_INITIAL_ROSTER_SIZE名の少人数スタートとする
-    d_members = []
-    for i in range(D_INITIAL_ROSTER_SIZE):
+
+def _estimated_strength(params):
+    """リーグの振り分け用の、強さの大まかな見積もり（レート換算）。
+    終盤力・定跡の効き目（skills.pyのシミュレーション値）と、棋風が強い配分にどれだけ近いかを足し合わせる"""
+    eg = params.get("_endgame", 0.0)
+    eg_elo = 67 * eg / 24 if eg <= 24 else 67 + (min(eg, 44) - 24) * (168 - 67) / 20
+    book = params.get("_book", 0)
+    book_elo = 113 * min(book, 16) / 16 + (10 * (min(book, 24) - 16) / 8 if book > 16 else 0)
+    a = [params[k] for k in PARAM_KEYS]; b = [BOOK_PARAMS[k] for k in PARAM_KEYS]
+    cos = sum(x * y for x, y in zip(a, b)) / math.sqrt(sum(x * x for x in a) * sum(y * y for y in b))
+    return eg_elo + book_elo + (cos - 0.94) * 1500
+
+
+def bootstrap_rosters(registry, data_dir="data"):
+    """初回起動（リーグを初期化して始め直すとき）の初期個体を作る。
+
+    以前はA/B/Cをリーグごとの能力合計上限で傾斜をつけた完全ランダムの個体で作っていたが、初期個体の棋風が
+    その後に生まれる個体よりかなり弱く（強い配分への近さ 0.78 対 0.93〜0.95）、初期の新人が無双する原因になっていた。
+    そこで、今の時代の選手の棋風（seed_styles.json）を元に少し崩した棋風で作り、年齢に応じて
+    これまでのキャリアで身につけた終盤力・定跡（skills.py）を持たせる。リーグは強さの見積もり順に振り分ける。
+    初期の新人は定跡をまだ知らないので、ベテランと戦えるようになるまで数季の下積みが要る"""
+    styles = _seed_styles(data_dir)
+    sizes = [("A", LEAGUE_CAPACITY["A"]), ("B", LEAGUE_CAPACITY["B"]), ("C", LEAGUE_CAPACITY["C"]), ("D", D_INITIAL_ROSTER_SIZE)]
+    members = []
+    for n in range(sum(size for _, size in sizes)):
+        if styles:
+            base = random.choice(styles)
+            params = {k: round(max(0.1, base[k] * random.uniform(0.8, 1.25)), 3) for k in PARAM_KEYS}
+        else:
+            params = {k: round(random.uniform(0.5, 10.0), 3) for k in PARAM_KEYS}
+        age = _random_initial_age()
+        params.update(veteran_skills(age))
         display_name, gender = registry.generate()
-        ind = LeagueIndividual(
-            f"D0-{i:03d}", "D",
-            params=_random_params_with_cap(INITIAL_SUM_CAP["D"]),
-            display_name=display_name, gender=gender,
-            initial_age=_random_initial_age(),
-        )
-        ind.volatility = _random_volatility()
-        d_members.append(ind)
-    rosters["D"] = d_members
+        members.append((params, age, display_name, gender))
+    members.sort(key=lambda m: -_estimated_strength(m[0]))
+    rosters, pos = {}, 0
+    for league, size in sizes:
+        rosters[league] = []
+        for i in range(size):
+            params, age, display_name, gender = members[pos]; pos += 1
+            ind = LeagueIndividual(
+                f"{league}0-{i:03d}", league, params=params,
+                display_name=display_name, gender=gender,
+                # initial_ageは「参入時の年齢」。初期個体は第1季の時点でこの年齢
+                initial_age=age,
+            )
+            ind.volatility = _random_volatility()
+            rosters[league].append(ind)
     return rosters
 
 
@@ -124,6 +135,10 @@ def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_b
     for league_list in rosters.values():
         for ind in league_list:
             ind.age_multipliers = roll_age_multipliers(ind.age, PARAM_KEYS)
+            # 終盤力・定跡（skills.py）を持たない個体（導入前からの個体）には年齢相応の値を与え、
+            # この季の調子（終盤力の上下）を抽選する
+            ensure_skills(ind)
+            roll_form(ind)
 
 # --- 旧タイトル名（陸王・空王）から新タイトル名（青龍・白虎）への1回限りの移行 ---
     old_th = state.get("titleholders")
@@ -241,6 +256,10 @@ def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_b
         rosters, season, titleholders=titleholders, suzaku_league_ids=suzaku_league_ids,
         extra_protected_ids=title_extra_protected_ids, demotion_relief_ids=title_demotion_relief_ids,
     )
+    # 季の終わりに、終盤力の成長・衰えと定跡の習得を反映する（年齢は relegate_and_retire で1つ進んでいる）
+    for league_list in rosters.values():
+        for ind in league_list:
+            season_growth(ind)
 
     # --- 昇降格・新規・引退マークを確定する ---
     retired_ids = {ind.id for ind in retired}
@@ -871,7 +890,7 @@ def main():
     print(f"[DEBUG] load_rosters結果: {'None（新規作成へ）' if rosters is None else 'ロード成功'}", flush=True)
     if rosters is None:
         print("初回起動：ロスターを新規作成します", flush=True)
-        rosters = bootstrap_rosters(registry)
+        rosters = bootstrap_rosters(registry, args.data_dir)
         state["name_registry"] = registry.to_dict()
 
     # キャラクリエイト機能：このプロセスが処理する最初のシーズンにのみ適用する
