@@ -1,6 +1,6 @@
 import time
 
-from .play import play_league_match
+from .parallel import run_matches
 from .elo import update_elo
 
 
@@ -118,11 +118,12 @@ def run_swiss_league(members, rounds=4, depth=4, league_name="B", seed_order=Non
             bye_name = getattr(by_id[bye_id], "display_name", None) or bye_id
             print(f"      {league_name}局-: {bye_name} はバイ（不戦勝）")
 
-        for j, (a_id, b_id) in enumerate(pairs, 1):
+        # 同じラウンドの対局は個体が重ならないので、まとめて並列に打つ（結果は元の順に反映）
+        round_results = run_matches([(by_id[a], by_id[b]) for a, b in pairs], depth=depth, allow_rematch=allow_rematch)
+        for j, ((a_id, b_id), (outcome_a, games)) in enumerate(zip(pairs, round_results), 1):
             played_pairs.add(frozenset((a_id, b_id)))
             ind_a, ind_b = by_id[a_id], by_id[b_id]
 
-            outcome_a, games = play_league_match(ind_a, ind_b, depth=depth, allow_rematch=allow_rematch)
             ind_a.elo, ind_b.elo = update_elo(
                 ind_a.elo, ind_b.elo, outcome_a,
                 total_seasons_a=ind_a.total_seasons, total_seasons_b=ind_b.total_seasons,

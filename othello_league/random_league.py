@@ -1,7 +1,7 @@
 import random
 import time
 
-from .play import play_league_match
+from .parallel import run_matches
 from .elo import update_elo
 
 
@@ -111,10 +111,11 @@ def run_random_league(members, games_per_individual=8, depth=4, league_name="B",
     random.shuffle(pairs)
     print(f"    {league_name}リーグ（ランダム{games_per_individual}戦・{len(pairs)}局）")
 
-    for j, (a_id, b_id) in enumerate(pairs, 1):
+    # 個体が重ならない対局をまとめて並列に打つ（先後の割り振り・乱数は1局ずつ打った場合と同じ規則。結果は元の順に反映）
+    all_results = run_matches([(by_id[a], by_id[b]) for a, b in pairs], depth=depth, allow_rematch=allow_rematch)
+    for j, ((a_id, b_id), (outcome_a, games)) in enumerate(zip(pairs, all_results), 1):
         ind_a, ind_b = by_id[a_id], by_id[b_id]
 
-        outcome_a, games = play_league_match(ind_a, ind_b, depth=depth, allow_rematch=allow_rematch)
         ind_a.elo, ind_b.elo = update_elo(
             ind_a.elo, ind_b.elo, outcome_a,
             total_seasons_a=ind_a.total_seasons, total_seasons_b=ind_b.total_seasons,
