@@ -2236,9 +2236,8 @@ async function loadSeiryuuPanel(season) {
         const leagueMatches = (data.league_matches || []).filter(m => m.league === lg);
         if (leagueMatches.length > 0) {
           const table = renderResultCrossTable(ordered, leagueMatches);
-          html += lg === 'A'
-            ? `<div style="font-size:0.72rem; color:var(--amber); margin:8px 0 4px;">対戦表（○勝ち ●負け △引き分け、行の選手から見た結果）</div>${table}`
-            : `<details style="margin-top:6px;"><summary style="cursor:pointer; font-size:0.72rem; color:var(--text-dim);">${lg}リーグの対戦表を表示</summary>${table}</details>`;
+          // Aリーグは最初から開いておき、B〜Dは閉じておく（どれも見出しを押すと開閉できる）
+          html += `<details style="margin-top:6px;"${lg === 'A' ? ' open' : ''}><summary style="cursor:pointer; font-size:0.72rem; color:var(--amber);">${lg}リーグの対戦表（○勝ち ●負け △引き分け、行の選手から見た結果）</summary>${table}</details>`;
         }
         html += '</div>';
       });
