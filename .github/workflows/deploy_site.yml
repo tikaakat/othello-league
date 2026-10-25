@@ -92,6 +92,7 @@ on:
           - "retirement_reasons"
           - "dup_check"
           - "consistency_dump"
+          - "schema_check"
         default: ""
 
 jobs:
@@ -527,6 +528,36 @@ jobs:
                     foreach ($pdo->query("SELECT * FROM $t ORDER BY id")->fetchAll(PDO::FETCH_ASSOC) as $r) {
                       unset($r["params_json"], $r["match_history"], $r["age_multipliers_json"]);
                       echo "ROW " . $t . " " . json_encode($r, JSON_UNESCAPED_UNICODE) . PHP_EOL;
+                    }
+                  }
+                '
+                ;;
+              schema_check)
+                # 新しいタイトル・段階名を追加する前の確認用：対局・タイトル履歴・順位表の列の型と、
+                # 取り込みスクリプト（import_from_github.php）のうち、タイトル名・段階（stage）・
+                # ブロック番号の扱いに関わる行だけを表示する（認証まわりの行は表示しない）
+                PHP_QUERY='
+                  foreach (["matches", "title_history", "standings"] as $t) {
+                    echo "--- columns: $t ---" . PHP_EOL;
+                    foreach ($pdo->query("SHOW COLUMNS FROM $t")->fetchAll(PDO::FETCH_ASSOC) as $c) {
+                      echo $c["Field"] . " " . $c["Type"] . " null=" . $c["Null"] . PHP_EOL;
+                    }
+                  }
+                  echo "--- matches: league/stage（直近の季） ---" . PHP_EOL;
+                  $max = (int)$pdo->query("SELECT MAX(season) FROM matches")->fetchColumn();
+                  foreach ($pdo->query("SELECT league, stage, COUNT(*) AS n FROM matches WHERE season = $max GROUP BY league, stage ORDER BY league, stage")->fetchAll() as $r) {
+                    echo $r["league"] . " / " . ($r["stage"] ?? "NULL") . " : " . $r["n"] . PHP_EOL;
+                  }
+                  $dir = dirname(get_included_files()[0]);
+                  foreach (["import_from_github.php", "import_from_colab.php"] as $f) {
+                    echo "--- $f（関係する行のみ） ---" . PHP_EOL;
+                    $lines = @file("$dir/$f");
+                    if (!$lines) { echo "(読めません)" . PHP_EOL; continue; }
+                    foreach ($lines as $i => $line) {
+                      if (preg_match("/key|pass|secret|token|password|dsn|mysql:/i", $line)) continue;
+                      if (preg_match("/stage|block|title|league|予選|青龍|玄武|白虎|朱雀/u", $line)) {
+                        echo ($i + 1) . ": " . rtrim($line) . PHP_EOL;
+                      }
                     }
                   }
                 '
