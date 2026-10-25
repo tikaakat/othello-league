@@ -177,7 +177,10 @@
 
 <div class="panel" id="tab-leagues"><div id="leagues-content" class="loading">読み込み中...</div></div>
 <div class="panel hidden" id="tab-suzaku_league"><div id="suzaku_league-content" class="loading">読み込み中...</div></div>
-<div class="panel hidden" id="tab-cup_draw"><div id="cup_draw-content" class="loading">読み込み中...</div></div>
+<div class="panel hidden" id="tab-draw_bd"><div id="draw_bd-content" class="loading">読み込み中...</div></div>
+<div class="panel hidden" id="tab-draw_kirin"><div id="draw_kirin-content" class="loading">読み込み中...</div></div>
+<div class="panel hidden" id="tab-draw_byakko"><div id="draw_byakko-content" class="loading">読み込み中...</div></div>
+<div class="panel hidden" id="tab-draw_genbu"><div id="draw_genbu-content" class="loading">読み込み中...</div></div>
 <div class="panel hidden" id="tab-titles"><div id="titles-content" class="loading">読み込み中...</div></div>
 <div class="panel hidden" id="tab-individual"><div id="individual-content" class="empty">リーグタブから個体を選択してください</div></div>
 <div class="panel hidden" id="tab-matches"><div id="matches-content" class="loading">読み込み中...</div></div>
@@ -214,7 +217,10 @@ const NEWS_SITE_BASE = 'https://lab.spia-net.com/othello-news/';
 const D_NEWCOMER_INTAKE = 3; // othello_league/league.py の D_NEWCOMER_INTAKE（毎季固定の新人受け入れ枠数）と一致させること
 const tabPanels = {
   leagues: document.getElementById('tab-leagues'), suzaku_league: document.getElementById('tab-suzaku_league'),
-  cup_draw: document.getElementById('tab-cup_draw'),
+  draw_bd: document.getElementById('tab-draw_bd'),
+  draw_kirin: document.getElementById('tab-draw_kirin'),
+  draw_byakko: document.getElementById('tab-draw_byakko'),
+  draw_genbu: document.getElementById('tab-draw_genbu'),
   titles: document.getElementById('tab-titles'), individual: document.getElementById('tab-individual'),
   matches: document.getElementById('tab-matches'),
   seiryuu: document.getElementById('tab-seiryuu'),
@@ -239,8 +245,11 @@ const tabPanels = {
 // （以前はsubViews系だけパネル内部に独自描画しており、タブ直下のsubLabels系と縦位置が揃っていなかった）
 const TAB_GROUPS = {
   leagues: {
-    label: 'リーグ', tabs: ['leagues', 'suzaku_league', 'cup_draw'],
-    subLabels: { leagues: '青龍戦リーグ表', suzaku_league: '朱雀戦紅白リーグ表', cup_draw: 'タイトル戦の組み合わせ' },
+    label: 'リーグ', tabs: ['leagues', 'draw_bd', 'suzaku_league', 'draw_kirin', 'draw_byakko', 'draw_genbu'],
+    subLabels: {
+      leagues: '青龍戦リーグ表', draw_bd: 'B〜Dリーグ対戦表', suzaku_league: '朱雀戦紅白リーグ表',
+      draw_kirin: '麒麟戦組み合わせ', draw_byakko: '白虎戦組み合わせ', draw_genbu: '玄武戦組み合わせ',
+    },
   },
   results: {
     label: '結果', tabs: ['kirin', 'seiryuu', 'suzaku', 'byakko', 'genbu', 'awards', 'matches'],
@@ -430,7 +439,7 @@ function render(hash, isPopstate) {
     loadGameBoard(param);
   } else if (base === 'leagues') { showTab('leagues'); loadLeagues(); }
   else if (base === 'suzaku_league') { showTab('suzaku_league'); loadSuzakuLeaguePanel(); }
-  else if (base === 'cup_draw') { showTab('cup_draw'); loadCupDrawPanel(); }
+  else if (['draw_bd', 'draw_kirin', 'draw_byakko', 'draw_genbu'].includes(base)) { showTab(base); loadCupDrawPanel(base); }
   else if (base === 'titles') { showTab('titles'); loadTitles(); }
   else if (base === 'matches') { showTab('matches'); loadMatches(); }
   else if (base === 'seiryuu') { showTab('seiryuu'); loadSeiryuuPanel(param ? parseInt(param, 10) : null); }
@@ -626,7 +635,7 @@ async function loadLeagues() {
   }
 }
 
-// リーグタブのサブタブ「タイトル戦の組み合わせ」（白虎・玄武・麒麟）：前の季の終了時点（Elo・所属リーグ）で決めた
+// リーグタブのサブタブ「B〜Dリーグ対戦表」「麒麟戦・白虎戦・玄武戦組み合わせ」：前の季の終了時点（Elo・所属リーグ）で決めた
 // 今季の組み合わせを表示する。シミュレーター（run_season.py）がリポジトリに書き出すJSONを直接読む
 // （DBには取り込んでいないため）。玄武戦の新人枠は、新人リーグの結果が出たら名前が入る
 const UPCOMING_BRACKETS_URL = 'https://raw.githubusercontent.com/tikaakat/othello-league/main/data/upcoming_brackets.json';
@@ -669,8 +678,9 @@ function cupDrawPairsHtml(slots) {
   return html;
 }
 
-async function loadCupDrawPanel() {
-  const el = document.getElementById('cup_draw-content');
+async function loadCupDrawPanel(kind) {
+  // kind：draw_bd（B〜Dリーグの対戦相手）／draw_kirin／draw_byakko／draw_genbu
+  const el = document.getElementById(`${kind}-content`);
   el.innerHTML = '<div class="loading">読み込み中...</div>';
   try {
     if (!CURRENT_TITLEHOLDERS.by_id || !Object.keys(CURRENT_TITLEHOLDERS.by_id).length) {
@@ -683,13 +693,21 @@ async function loadCupDrawPanel() {
     if (!res.ok) throw new Error('組み合わせはまだ発表されていません');
     const data = await res.json();
     const holderLine = (h) => h ? `在位：${escapeHtml(h.name)}（挑戦者決定戦には出場せず、挑戦者を待つ）` : '在位者なし';
-    let html = `<p style="font-size:0.72rem; color:var(--text-dim); margin-top:0;">前の季の終了時点で決めた組み合わせです（B〜Dリーグはランダム、白虎・玄武はEloと所属リーグ、麒麟は前季の麒麟戦の成績による組で決定）。</p>`;
+    const note = {
+      draw_bd: '前の季の終了時点でランダムに決めた組み合わせです（各選手8局）。新人の枠は、新人リーグの結果が出たら名前が入ります。',
+      draw_kirin: '前の季の終了時点で、前季の麒麟戦の成績による組で決めた組み合わせです。',
+      draw_byakko: '前の季の終了時点のEloで決めた組み合わせです。',
+      draw_genbu: '前の季の終了時点の所属リーグ・成績で決めた組み合わせです。',
+    }[kind];
+    let html = `<p style="font-size:0.72rem; color:var(--text-dim); margin-top:0;">${note}</p>`;
 
+    if (kind === 'draw_byakko') {
     const b = data.byakko;
     html += `<div class="league-block"><h3>第${data.season}季 白虎戦 挑戦者決定トーナメント（${b.slots.filter(Boolean).length}名）</h3>`;
     html += `<p style="font-size:0.72rem; margin:2px 0 6px;">${holderLine(b.holder)}</p>`;
     html += '<div style="font-size:0.72rem; color:var(--amber);">1回戦</div>' + cupDrawPairsHtml(b.slots) + '</div>';
 
+    } else if (kind === 'draw_genbu') {
     const g = data.genbu;
     const blockSize = g.slots.length / g.num_blocks;
     const entrants = g.slots.filter(Boolean).length + (g.guaranteed_final ? 1 : 0);
@@ -702,6 +720,7 @@ async function loadCupDrawPanel() {
     }
     html += '</div>';
 
+    } else if (kind === 'draw_bd') {
     // B〜Dリーグ（ランダム8戦）：選手ごとの対戦相手を並べる
     const leagues = data.leagues || {};
     ['B', 'C', 'D'].forEach(lg => {
@@ -716,13 +735,16 @@ async function loadCupDrawPanel() {
           opponents.get(keyOf(x)).list.push(y);
         });
       });
-      html += `<details class="league-block" style="margin-top:8px;"><summary style="cursor:pointer;"><h3 style="display:inline;">第${data.season}季 ${lg}リーグの対戦相手（${pairs.length}局）</h3></summary>
+      html += `<details class="league-block" style="margin-top:8px;"${lg === 'B' ? ' open' : ''}><summary style="cursor:pointer;"><h3 style="display:inline;">第${data.season}季 ${lg}リーグの対戦相手（${pairs.length}局）</h3></summary>
         <table><tbody>${[...opponents.values()].map(o => `<tr><td style="white-space:nowrap;">${cupDrawPlayerHtml(o.player)}</td>
           <td style="font-size:0.7rem;">${o.list.map(cupDrawPlayerHtml).join('、')}</td></tr>`).join('')}</tbody></table></details>`;
     });
 
+    } else if (kind === 'draw_kirin') {
     const k = data.kirin;
-    if (k) {
+    if (!k) {
+      html += '<div class="empty">まだ発表されていません</div>';
+    } else {
       const prelim2 = k.prelim.filter(b => b.group === 2), prelim3 = k.prelim.filter(b => b.group === 3);
       const count = k.group1.length + k.prelim.reduce((n, b) => n + b.slots.filter(Boolean).length, 0);
       html += `<div class="league-block"><h3>第${data.season}季 麒麟戦 挑戦者決定戦（${count}名）</h3>`;
@@ -740,6 +762,8 @@ async function loadCupDrawPanel() {
         html += '</details>';
       });
       html += '</div>';
+    }
+
     }
 
     el.innerHTML = html;
