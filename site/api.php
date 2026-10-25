@@ -427,7 +427,7 @@ function compute_age($initial_age, $total_seasons) {
 // 青龍→朱雀→白虎→玄武）。これらはその季の結果（奪取・防衛）を反映した保持者で表示する
 // （例：玄武戦の時点では、同じ季に白虎を奪取した選手が既に白虎保持者）
 // 殿堂の「記録」：standings・title_historyから都度集計する歴代記録（新しいテーブルは持たない）。
-// 各記録は上位10件。名前は最新季のstandingsの表示名、引退者はretired=1
+// 各記録は上位10件（10位と同率の選手がいれば全員）。名前は最新季のstandingsの表示名、引退者はretired=1
 const RECORDS_TOP_N = 10;
 function build_records($pdo) {
     $retired = array_flip($pdo->query("SELECT id FROM retired_archive")->fetchAll(PDO::FETCH_COLUMN));
@@ -460,7 +460,10 @@ function build_records($pdo) {
     };
     $topBy = function (array $list, callable $cmp) {
         usort($list, $cmp);
-        return array_slice($list, 0, RECORDS_TOP_N);
+        // 上位10件。10位と同じ値の選手が11位以下に続く場合は、同率としてまとめて載せる
+        $n = min(count($list), RECORDS_TOP_N);
+        while ($n > 0 && $n < count($list) && $list[$n]['value'] == $list[$n - 1]['value']) $n++;
+        return array_slice($list, 0, $n);
     };
 
     // 1) Aリーグ最速到達（Dリーグでデビューした選手のみ。デビューからA初在籍までの季数。最短はD→C→B→Aの3季）
