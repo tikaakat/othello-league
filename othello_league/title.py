@@ -348,7 +348,7 @@ def determine_byakko_challenger(all_members, exclude_id=None, depth=1, top_n=16,
     guaranteed_id分の1枠を確保する）。
     """
     # 組み合わせは季の初めに公開したもの（planned：前の季の終了時点で plan_byakko_bracket で決めたIDの並び）を使う。
-    # その後に引退した選手の枠は空き（相手は不戦勝）になる。plannedが無ければこの場で決める
+    # （引退は季の終わりにだけ起き、組み合わせはその後に決めるため、組み合わせの選手が欠けることは無い）。plannedが無ければこの場で決める
     by_id = {ind.id: ind for ind in all_members}
     if planned is None:
         planned = plan_byakko_bracket(all_members, exclude_id=exclude_id, top_n=top_n, guaranteed_id=guaranteed_id)
@@ -461,8 +461,8 @@ def determine_genbu_challenger(all_members, exclude_id=None, depth=1, bracket_si
     # 対局させてしまい、負けて敗退したにもかかわらずfinal_poolへ合流時に二重に扱われる上、
     # bye_count・シード優先度の算出も他の参加者分だけずれてしまう
     # 組み合わせは季の初めに公開したもの（planned：前の季の終了時点で plan_genbu_bracket で決めた並び）を使う。
-    # 新人枠（NEW1等）は、この季に実際に入った新人（newcomer_ids：枠名→ID）に置き換える。その後に引退した
-    # 選手や、埋まらなかった新人枠は空き（相手は不戦勝）になる。plannedが無ければこの場で決める
+    # 新人枠（NEW1等）は、この季に実際に入った新人（newcomer_ids：枠名→ID）に置き換える。新人が枠より
+    # 少なく埋まらなかった新人枠は空き（相手は不戦勝）になる。plannedが無ければこの場で決める
     by_id = {ind.id: ind for ind in all_members}
     if planned is None:
         planned = plan_genbu_bracket(all_members, exclude_id=exclude_id, bracket_size=bracket_size,

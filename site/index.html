@@ -677,7 +677,7 @@ async function loadCupDrawPanel() {
     if (!res.ok) throw new Error('組み合わせはまだ発表されていません');
     const data = await res.json();
     const holderLine = (h) => h ? `在位：${escapeHtml(h.name)}（挑戦者決定戦には出場せず、挑戦者を待つ）` : '在位者なし';
-    let html = `<p style="font-size:0.72rem; color:var(--text-dim); margin-top:0;">前の季の終了時点のEloと所属リーグで決めた組み合わせです。その後に引退した選手の相手は不戦勝になります。</p>`;
+    let html = `<p style="font-size:0.72rem; color:var(--text-dim); margin-top:0;">前の季の終了時点のEloと所属リーグで決めた組み合わせです。</p>`;
 
     const b = data.byakko;
     html += `<div class="league-block"><h3>第${data.season}季 白虎戦 挑戦者決定トーナメント（${b.slots.filter(Boolean).length}名）</h3>`;
