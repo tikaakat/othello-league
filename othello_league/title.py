@@ -556,3 +556,106 @@ def run_genbu_challenge(challenger, titleholder_params, depth=1, titleholder_vol
         "title": "玄武", "challenger_id": challenger.id, "won": won,
         "challenger_wins": c_wins, "titleholder_wins": t_wins, "games": games,
     }
+
+
+# ============================================================
+# 麒麟戦：棋王戦方式。Aリーグ以外は予選（ブロック別トーナメント）から、Aリーグ所属・前期本戦ベスト4・
+# 前期失冠者は本戦（挑戦者決定トーナメント）から出場する。本戦はベスト4から「2敗失格」で、
+# 準決勝・決勝の敗者は敗者復活戦に回る。挑戦者決定戦は、本戦優勝者は1勝、敗者復活戦優勝者は2連勝で挑戦権を得る
+# ============================================================
+KIRIN_PRELIM_DEPTH = 2
+KIRIN_MAIN_DEPTH = 3
+KIRIN_TITLE_DEPTH = 4
+KIRIN_MAIN_SIZE = 16
+
+
+def determine_kirin_challenger(league_members, exclude_id=None, prev_best4_ids=(), guaranteed_id=None,
+                               prelim_depth=KIRIN_PRELIM_DEPTH, main_depth=KIRIN_MAIN_DEPTH, main_size=KIRIN_MAIN_SIZE):
+    """league_members：{"A": [...], "B": [...], ...}（各リーグ内は成績順）。
+    戻り値：(挑戦者, 対局記録, 本戦ベスト4のIDリスト)"""
+    log = []
+
+    def game(x, y, stage, **extra):
+        if x is None:
+            return y
+        if y is None:
+            return x
+        x_won, games = _play_until_decided(effective_params(x), effective_params(y),
+                                           prelim_depth if stage == "prelim" else main_depth,
+                                           noise_x=x.volatility, noise_y=y.volatility)
+        w = x if x_won else y
+        log.append({"a": x.id, "b": y.id, "winner": w.id, "games": games, "stage": stage, **extra})
+        return w
+
+    everyone = [ind for lg in ("A", "B", "C", "D") for ind in league_members.get(lg, []) if ind.id != exclude_id]
+    seed_ids = {ind.id for ind in league_members.get("A", [])} | set(prev_best4_ids)
+    if guaranteed_id:
+        seed_ids.add(guaranteed_id)
+    seeds = sorted([ind for ind in everyone if ind.id in seed_ids], key=lambda ind: -ind.elo)[:main_size - 2]
+    seed_set = {ind.id for ind in seeds}
+    prelim_pool = [ind for ind in everyone if ind.id not in seed_set]
+
+    # --- 予選：本戦の残り枠の数だけブロックを作り、各ブロックのトーナメント優勝者が本戦へ ---
+    num_blocks = main_size - len(seeds)
+    ranked_pool = sorted(prelim_pool, key=lambda ind: -ind.elo)
+    blocks = [ranked_pool[k::num_blocks] for k in range(num_blocks)]  # 実力が偏らないよう、Elo順に各ブロックへ配る
+    qualifiers = []
+    for b, members in enumerate(blocks):
+        size = 1
+        while size < len(members):
+            size *= 2
+        slots = members + [None] * (size - len(members))
+        bracket = [slots[i] for i in _bracket_seed_order(size)]
+        rnd = 1
+        while len(bracket) > 1:
+            bracket = [game(bracket[i], bracket[i + 1], "prelim", block=b, round=rnd) for i in range(0, len(bracket), 2)]
+            rnd += 1
+        if bracket[0] is not None:
+            qualifiers.append(bracket[0])
+
+    # --- 本戦：シード（Elo順）を標準シード配置し、予選通過者は残りの枠へ ---
+    entrants = seeds + qualifiers
+    size = 1
+    while size < len(entrants):
+        size *= 2
+    slots = entrants + [None] * (size - len(entrants))
+    bracket = [slots[i] for i in _bracket_seed_order(size)]
+    rnd = 1
+    while len(bracket) > 4:
+        bracket = [game(bracket[i], bracket[i + 1], "main", round=rnd) for i in range(0, len(bracket), 2)]
+        rnd += 1
+    best4 = [ind for ind in bracket if ind is not None]
+
+    # --- ベスト4から2敗失格 ---
+    if len(best4) < 4:  # 人数不足（実質起きない）：通常のトーナメントで決める
+        while len(bracket) > 1:
+            bracket = [game(bracket[i], bracket[i + 1], "main", round=rnd) for i in range(0, len(bracket), 2)]
+            rnd += 1
+        return bracket[0], log, [ind.id for ind in best4]
+    semi_w = [game(bracket[0], bracket[1], "semifinal"), game(bracket[2], bracket[3], "semifinal")]
+    semi_l = [bracket[0] if semi_w[0] is bracket[1] else bracket[1], bracket[2] if semi_w[1] is bracket[3] else bracket[3]]
+    winner = game(semi_w[0], semi_w[1], "final")
+    final_loser = semi_w[1] if winner is semi_w[0] else semi_w[0]
+    repechage = game(semi_l[0], semi_l[1], "repechage", round=1)
+    repechage = game(repechage, final_loser, "repechage", round=2)
+
+    # --- 挑戦者決定戦：本戦優勝者は1勝、敗者復活戦優勝者は2連勝が必要 ---
+    challenger = winner
+    for k in (1, 2):
+        w = game(winner, repechage, "challenger_decision", game_no=k)
+        if w is winner:
+            break
+        if k == 2:
+            challenger = repechage
+    return challenger, log, [ind.id for ind in best4]
+
+
+def run_kirin_challenge(challenger, titleholder_params, depth=KIRIN_TITLE_DEPTH, titleholder_volatility=1.0):
+    won, c_wins, t_wins, games = run_best_of_n_match(
+        effective_params(challenger), titleholder_params, wins_needed=3, depth=depth,
+        noise_a=challenger.volatility, noise_b=titleholder_volatility,
+    )
+    return {
+        "title": "麒麟", "challenger_id": challenger.id, "won": won,
+        "challenger_wins": c_wins, "titleholder_wins": t_wins, "games": games,
+    }
