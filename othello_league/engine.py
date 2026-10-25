@@ -18,6 +18,7 @@ import math
 import random
 
 from . import board as B
+from .skills import BOOK_PARAMS
 
 CORNERS = {0, 7, 56, 63}
 X_SQUARES = {9, 14, 49, 54}       # 角の斜め隣（一番危険なマス）
@@ -208,10 +209,21 @@ def minimax(bd, color, depth, alpha, beta, maximizing_color, params, noise_scale
 
 
 def choose_move(bd, color, params, depth=5, noise_scale=1.0):
-    """個体のパラメータを使って1手選ぶ。noise_scaleは個体固有の「ムラ気」倍率"""
+    """個体のパラメータを使って1手選ぶ。noise_scaleは個体固有の「ムラ気」倍率。
+    paramsに終盤力（_endgame）・定跡（_book）があれば反映する（skills.py参照）：
+      - 序盤、定跡を知っている手数まで（空きマスが 60-定跡 以上）は、共通の強い評価・揺らぎなしで指す
+      - 空きマスが終盤力以下になったら、読みを1手深くする"""
     moves = B.legal_moves(bd, color)
     if not moves:
         return None
+    book = params.get("_book", 0)
+    endgame = params.get("_endgame", 0)
+    if book or endgame:
+        empty = bd.count(B.EMPTY)
+        if book and empty >= 60 - book:
+            params, noise_scale = BOOK_PARAMS, 0.0
+        elif endgame and empty <= endgame:
+            depth += 1
     _, move = minimax(bd, color, depth, -math.inf, math.inf, color, params, noise_scale)
     if move is None:
         move = random.choice(moves)

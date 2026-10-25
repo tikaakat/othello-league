@@ -2,6 +2,7 @@ import random
 
 from .individual import LeagueIndividual
 from .buffs import maybe_awaken
+from .skills import birth_skills
 from .names import NameRegistry, infer_gender
 
 # リーグの定員（Dリーグは「定員」ではなく、強制引退を起こさないための大きめのバッファ。
@@ -15,6 +16,7 @@ B_TO_C_RELEGATE = 3  # B→C降格人数（＝C→B昇格人数）
 D_TO_C_PROMOTE = 3   # D→C昇格人数（C→D降格人数と揃え、Cリーグの定員超過を防ぐ）
 
 RETIREMENT_AGE = 60
+RETIREMENT_AGE_HARD_CAP = 65  # 引退を免除されていても、この年齢でタイトル保持中でなければ引退する
 D_DEMOTION_POINT_LIMIT = 3  # Dリーグでの降級点がこの数に達すると強制引退（連続でなくてもよい）
 D_DEMOTION_POINT_FLOOR = 1  # 勝ち越し・救済で減らせる下限。1点目はCへ昇級するまで消えない
 C_TO_D_RELEGATE = 3  # C→D降格人数（B→Cと同数）
@@ -61,8 +63,8 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
 
     demotion_relief_idsが与えられた場合、Dリーグ降級点の判定（下記）で対象者の降級点を
     1点減らす（0未満にはしない）。この季の白虎トーナメント出場者（16名）・玄武ブロック
-    優勝者（4名）が対象。降級点による引退そのものは免除しない（減点のみ）が、
-    年齢引退は免除する。
+    優勝者（4名）が対象。降級点による引退そのものは免除しない（減点のみ）。
+    年齢引退も免除しない（以前は免除していたが、高齢の選手が残り続けるため改めた）。
 
     戻り値: (更新後のrosters dict, 引退者リスト, 来季のDリーグ新人受け入れ枠数
              （D_NEWCOMER_INTAKEの固定値）, 降級点イベント（individual_id => "gained"/"cleared"）)
@@ -108,22 +110,17 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
     d_promote_to_c = D[:dc_n]
     d_remain = D[dc_n:]
 
-    # --- 年齢引退の免除。
-    #     protected_ids（タイトル保持者・朱雀紅白リーグ在籍者・挑戦者）は年齢引退と
-    #     D降級点引退の両方を免除する。以下は年齢引退のみ免除する（降級点は通常どおり）：
-    #     ・Aリーグ所属者（ただし今季Aから降格する個体は除く）
-    #     ・今季BからAへ昇格する個体（来季A所属になるため）
-    #     ・この季の白虎トーナメント出場者・玄武ブロック優勝者（demotion_relief_ids。
-    #       降級点の-1救済とあわせて、年齢引退もさせない） ---
+    # --- 年齢引退の免除は、タイトル保持者・朱雀紅白リーグ在籍者・この季の挑戦者（protected_ids）に限る。
+    #     以前はAリーグ在籍者・Aへの昇格者・白虎トーナメント出場者・玄武ブロック優勝者も免除しており、
+    #     実績のある高齢の選手が60歳を過ぎてもAリーグに残り続けていた（Aの9人中5人が60歳以上の季もあった）。
+    #     さらに、免除されていても RETIREMENT_AGE_HARD_CAP（65歳）に達したら、タイトル保持中でない限り引退する ---
     age_exempt_ids = set(protected_ids)
-    age_exempt_ids.update(ind.id for ind in a_remain)
-    age_exempt_ids.update(ind.id for ind in b_promote_to_a)
-    age_exempt_ids.update(demotion_relief_ids or set())
 
     age_retired = []
     aged_out_ids = set()
     for ind in A + B + C + D:
-        if ind.age >= RETIREMENT_AGE and ind.id not in age_exempt_ids:
+        exempt = ind.id in age_exempt_ids if ind.age < RETIREMENT_AGE_HARD_CAP else ind.id in titleholder_ids
+        if ind.age >= RETIREMENT_AGE and not exempt:
             ind.retired = True
             ind.retirement_reason = f"{RETIREMENT_AGE}歳の年齢規定により引退"
             # 引退する個体も今季は実際に対局しているので、在籍シーズン数に数える
@@ -621,6 +618,7 @@ def _build_character_creation_individual(request, season, index, master=None):
         custom_params = request.get("params")
         params = (_character_creation_params_from_custom(custom_params) if isinstance(custom_params, dict) else None) \
             or _character_creation_params(request.get("type", "balanced"))
+        params.update(birth_skills(master.params if master is not None else None))
         params, awakened_key = maybe_awaken(params, individual_id=ind_id, chance=CHARACTER_CREATION_AWAKENING_CHANCE)
 
         master_id = master.id if master is not None else None
@@ -683,6 +681,7 @@ def generate_disciples(count, season, pool, name_registry, titleholder_ids=froze
             # 新規開祖は、既存の一門（世代を重ねて強化されてきた血統）に対抗できるよう、
             # 旧レンジ（0.5〜5.0、平均2.75）よりやや強めのベースラインで生成する
             params = {k: round(random.uniform(1.0, 7.0), 3) for k in PARAM_KEYS}
+            params.update(birth_skills())
             gen = 0
             master_id = None
             clan_root_id = ind_id
@@ -738,5 +737,7 @@ def mutate_params(master):
         ratio = random.uniform(DISCIPLE_INHERIT_RATIO_MIN, DISCIPLE_INHERIT_RATIO_MAX)
         mixed = ratio * master.params.get(k, 1.0) + (1 - ratio) * baseline[k]
         child_params[k] = max(0.1, round(mixed * random.uniform(0.95, 1.05), 3))
+    # 終盤力・定跡（skills.py）：終盤力は師匠から2割受け継ぎ、定跡は0から覚える
+    child_params.update(birth_skills(master.params))
 
     return child_params, master.generation + 1

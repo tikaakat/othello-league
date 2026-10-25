@@ -959,6 +959,18 @@ async function setupLikeButton(btn) {
 // 選手ファンページ：このサイトでの「応援」はあくまで個体単位のものなので、
 // 応援（コメント付き）・基本情報・関連記事をここに集約し、メインの導線にする。
 // 詳しいデータ（対局履歴・系譜・Elo推移等）を見たい人だけがデータサイトへ進む
+// 因縁の相手（天敵・お得意様・ライバル）。選び方は結果サイトのapi.php（individual）を参照
+function rivalsSectionHtml(rivals) {
+  if (!rivals) return '';
+  const kinds = [['nemesis', '天敵'], ['favorite', 'お得意様'], ['rival', 'ライバル']];
+  const rows = kinds.filter(([k]) => (rivals[k] || []).length).map(([k, label]) =>
+    `<div class="profile-title-row"><b>${label}</b>：` +
+    rivals[k].map(o => `<span class="ind-chip" data-goto-individual="${escapeHtml(o.pid)}">${escapeHtml(o.opponent_name || o.pid)}</span>` +
+      `<span style="color:var(--text-dim); font-size:0.78rem;">（${o.win}勝${o.loss}敗${o.draw ? o.draw + '分' : ''}）</span>`).join('　') +
+    `</div>`).join('');
+  return rows ? `<div class="profile-section"><h4>因縁の相手</h4>${rows}</div>` : '';
+}
+
 async function renderIndividualProfile(id) {
   setActiveNav('feed');
   const el = document.getElementById('content');
@@ -1005,6 +1017,7 @@ async function renderIndividualProfile(id) {
       <div>
         <h1 class="profile-name">${escapeHtml(name)}</h1>
         <div class="profile-sub">${statusLine}　Elo ${Math.round(ind.elo_rating)}（最高 ${Math.round(ind.peak_elo ?? ind.elo_rating)}）<span class="dan-badge">${danLabel(ind.dan)}</span></div>
+        ${skillsLine(ind.params)}
         <div><button class="follow-btn" id="follow-btn"></button></div>
       </div>
     </div>
@@ -1030,6 +1043,8 @@ async function renderIndividualProfile(id) {
       ${renderDanHistory(ind.dan_history)}
     </div>
 
+    ${rivalsSectionHtml(data.rivals)}
+
     <div class="profile-section">
       <h4>関連記事</h4>
       ${mentionsHtml}
@@ -1043,6 +1058,9 @@ async function renderIndividualProfile(id) {
 
   el.querySelectorAll('[data-article-link]').forEach(elm => {
     elm.addEventListener('click', () => navigateTo('article/' + encodeURIComponent(elm.dataset.articleLink)));
+  });
+  el.querySelectorAll('[data-goto-individual]').forEach(elm => {
+    elm.addEventListener('click', () => navigateTo('individual/' + encodeURIComponent(elm.dataset.gotoIndividual)));
   });
 
   setupProfileCheer(id);
@@ -1981,7 +1999,17 @@ function renderRules() {
       投稿された新人は、本人の設定した能力のまま弟子入りする）。実力のある選手ほど弟子を持ちやすいが、1回の新人リーグで同じ師匠に付く弟子は2人まで。<br>
       一門は、師弟関係をたどった先に同じ開祖を持つ選手たちのまとまり。
       本人と弟子・孫弟子以下（引退した者も含む）が合わせて6人以上になった選手は、弟子たちを引き連れて独立し、自分を開祖とする新しい一門を興す。<br>
-      まれに、能力が大きく伸びた「神童」が現れることもある。
+      まれに、終盤力が一気に伸びた「神童」が現れることもある。
+    </div>
+
+    <h3>終盤力・定跡・調子</h3>
+    <div class="sec">
+      能力（棋風）とは別に、選手は次の力を持っている。<br>
+      ・<b>終盤力</b>：空きマスがこの数以下になると、読みを1手深くする。生まれつきは低く、伸び方には大きな個人差がある。
+      30歳ごろまで伸び、50歳を過ぎると衰えていく。師匠からも少し受け継ぐ。<br>
+      ・<b>定跡</b>：序盤のこの手数までは、よく知られた定跡どおりに指す。対局を重ねるほど覚えていき、年を取っても衰えない。
+      デビューしたばかりの新人は定跡をほとんど知らないため、ベテランと渡り合えるようになるまで数季の下積みが要る。<br>
+      ・<b>調子</b>：季ごとの好不調。その季の終盤力が上下する。好不調の波の大きさは選手によって違う。
     </div>
 
     <h3>引退</h3>
@@ -1990,8 +2018,7 @@ function renderRules() {
       Dリーグには「降級点」制度もあり、負け越しが続くと実力や在籍年数に関わらず引退となる
       （負け越すと1点。勝ち越すと1点減り、白虎トーナメント出場・玄武戦ブロック優勝でも1点減るが、減らせるのは2点目以降で、1点目はCリーグへ昇級するまで消えない。3点で引退）。<br>
       タイトル保持者・朱雀紅白リーグ在籍者・その季のタイトル挑戦者は、どちらの引退条件も猶予される。
-      Aリーグ所属選手（その季に降格する選手を除く）・Aリーグへ昇格する選手・白虎トーナメント出場者・
-      玄武戦ブロック優勝者は、60歳での引退が猶予される。
+      ただし65歳に達したら、タイトルを保持していない限り引退する。
     </div>
 
     <h3>タイトル戦</h3>

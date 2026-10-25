@@ -797,6 +797,7 @@ async function loadIndividualDetail(id) {
     </div>`;
 
     html += `<div style="display:flex; justify-content:center; margin-bottom:16px;">${renderRadarChart(p)}</div>`;
+    html += skillsHtml(p);
 
     html += `<h4 style="font-size:0.78rem; color:var(--amber); border-bottom:1px solid var(--navy-700); padding-bottom:4px;">系譜</h4>`;
     html += renderLineage(data.ancestors, data.children);
@@ -836,7 +837,7 @@ async function loadIndividualDetail(id) {
     el.querySelectorAll('.lineage-link').forEach(span => span.addEventListener('click', () => navigateTo('individual/' + span.dataset.id)));
 
     renderRecord(data.record);
-    renderOpponentRecords(data.opponent_records);
+    renderOpponentRecords(data.opponent_records, data.rivals);
     renderTitleRecord(data.title_ranges, data.title_total_seasons);
     renderChallengeRecord(data.challenge_ranges, data.challenge_total_seasons);
     renderRecentMatches(data.matches, ind.id);
@@ -853,7 +854,26 @@ function paramLabel(key) {
     corner_weight: '角', danger_zone_weight: '危険マス回避', mobility_weight: '機動力',
     edge_stability_weight: '辺の安定', frontier_weight: '開放度', disc_weight: '石数',
     parity_weight: 'パリティ', center_weight: '中央支配',
+    _endgame: '終盤力',
   }[key] || key;
+}
+
+// 終盤力・定跡・調子（othello_league/skills.py）。導入前の個体（値が無い）は表示しない
+function formLabel(form) {
+  if (form >= 3) return '絶好調';
+  if (form >= 1) return '好調';
+  if (form <= -3) return '絶不調';
+  if (form <= -1) return '不調';
+  return '普通';
+}
+function skillsHtml(p) {
+  if (p._endgame === undefined) return '';
+  const form = p._form || 0;
+  return `<dl class="params-grid" style="max-width:320px; margin:0 auto 16px;">
+    <dt>終盤力</dt><dd>空き${Math.round(p._endgame)}マスから深読み</dd>
+    <dt>定跡</dt><dd>${p._book || 0}手目まで</dd>
+    <dt>今季の調子</dt><dd>${formLabel(form)}</dd>
+  </dl>`;
 }
 
 // ---------------- 八角形レーダーチャート ----------------
@@ -971,7 +991,22 @@ function renderRecord(record) {
   </div>`;
 }
 
-function renderOpponentRecords(opponentRecords) {
+// 因縁の相手（天敵・お得意様・ライバル）。選び方はapi.phpのindividualを参照
+const RIVAL_KINDS = [
+  ['nemesis', '天敵', '#ff7a7a'],
+  ['favorite', 'お得意様', 'var(--cyan)'],
+  ['rival', 'ライバル', 'var(--amber)'],
+];
+function rivalsHtml(rivals) {
+  if (!rivals) return '';
+  const rows = RIVAL_KINDS.filter(([k]) => (rivals[k] || []).length).map(([k, label, color]) =>
+    `<div style="margin:2px 0;"><span style="display:inline-block; min-width:5em; color:${color}; font-weight:700;">${label}</span>` +
+    rivals[k].map(o => `<span class="rival-link" data-id="${escapeHtml(o.pid)}" style="cursor:pointer; margin-right:10px;">${escapeHtml(o.opponent_name || o.pid)}<span style="color:var(--text-dim); font-size:0.72rem;">（${o.win}勝${o.loss}敗${o.draw ? o.draw + '分' : ''}）</span></span>`).join('') +
+    `</div>`).join('');
+  return rows ? `<div style="font-size:0.78rem; margin-bottom:8px;">${rows}</div>` : '';
+}
+
+function renderOpponentRecords(opponentRecords, rivals) {
   const el = document.getElementById('ind-opponents');
   if (!el) return;
   if (!opponentRecords || opponentRecords.length === 0) { el.innerHTML = '<div style="color:var(--text-dim);">対局記録なし</div>'; return; }
@@ -991,7 +1026,7 @@ function renderOpponentRecords(opponentRecords) {
     </tr>`;
   }
 
-  let html = '<table><thead><tr><th>対戦相手</th><th>勝</th><th>敗</th><th>分</th><th>対局数</th></tr></thead><tbody>';
+  let html = rivalsHtml(rivals) + '<table><thead><tr><th>対戦相手</th><th>勝</th><th>敗</th><th>分</th><th>対局数</th></tr></thead><tbody>';
   topRows.forEach(o => { html += rowHtml(o); });
   html += '</tbody></table>';
 
@@ -1006,6 +1041,7 @@ function renderOpponentRecords(opponentRecords) {
 
   el.innerHTML = html;
   el.querySelectorAll('tr[data-id]').forEach(tr => tr.addEventListener('click', () => navigateTo('individual/' + tr.dataset.id)));
+  el.querySelectorAll('.rival-link').forEach(sp => sp.addEventListener('click', () => navigateTo('individual/' + sp.dataset.id)));
 
   const toggle = el.querySelector('.opponents-toggle');
   if (toggle) {

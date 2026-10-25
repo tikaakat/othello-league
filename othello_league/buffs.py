@@ -1,5 +1,7 @@
 import random
 
+from .skills import ENDGAME_KEY, effective_endgame, awaken_endgame
+
 AGE_BUFF_RANGES = [
     (0, 29, (0.95, 1.20)),
     (30, 39, (0.90, 1.10)),
@@ -35,25 +37,29 @@ def effective_params(individual):
     age_mult = getattr(individual, "age_multipliers", None)
     if age_mult:
         params = {k: v * age_mult.get(k, 1.0) for k, v in params.items()}
+    if ENDGAME_KEY in params:
+        # 終盤力はその季の調子で上下する（skills.py）
+        params = dict(params)
+        params[ENDGAME_KEY] = effective_endgame(individual)
     return params
 
 
 # ============================================================
-# 覚醒：ごく稀に、通常の変異幅を超えて1パラメータが大きく伸びる
+# 覚醒：ごく稀に、終盤力が一気に伸びる（skills.py）
 # ============================================================
 AWAKENING_CHANCE = 0.06  # 6%（1回の新人リーグで平均1.5人程度。3%では新人リーグを勝ち抜く覚醒個体がほとんど出なかったため引き上げ）
 AWAKENING_MULTIPLIER_RANGE = (1.8, 3.0)
 
 
 def maybe_awaken(params, individual_id=None, chance=AWAKENING_CHANCE):
-    """paramsのコピーに対し、chanceの確率で1パラメータを大きく突破させる。(新パラメータ, 突破したキー名 or None) を返す"""
+    """paramsのコピーに対し、chanceの確率で覚醒させる。(新パラメータ, 覚醒したキー名 or None) を返す。
+    以前は8つの能力のどれか1つを大きく伸ばしていたが、強さは能力の比率で決まるため比率が崩れるだけで
+    強さの突破にならなかった。終盤力（skills.py）が一気に伸びる形に改めた"""
     if random.random() >= chance:
         return dict(params), None
 
     awakened = dict(params)
-    key = random.choice(list(awakened.keys()))
-    mult = random.uniform(*AWAKENING_MULTIPLIER_RANGE)
-    awakened[key] = round(awakened.get(key, 1.0) * mult, 3)
+    awaken_endgame(awakened)
     if individual_id:
-        print(f"  ★★★ 覚醒！ {individual_id} の「{key}」が突破しました（×{mult:.2f}）")
-    return awakened, key
+        print(f"  ★★★ 覚醒！ {individual_id} の終盤力が {awakened[ENDGAME_KEY]:.1f} に伸びました")
+    return awakened, ENDGAME_KEY
