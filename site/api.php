@@ -459,12 +459,18 @@ function build_records($pdo) {
         return ['individual_id' => $id, 'display_name' => $name[$id] ?? $id, 'retired' => isset($retired[$id]) ? 1 : 0,
                 'value' => $value, 'detail' => $detail];
     };
+    // 上位10件。10位と同じ値の選手が11位以下に続く場合は、同率としてまとめて載せる。
+    // サイト側で「現役のみ」に切り替えられるよう、現役だけで数えた上位（rows_active）も返す
     $topBy = function (array $list, callable $cmp) {
         usort($list, $cmp);
-        // 上位10件。10位と同じ値の選手が11位以下に続く場合は、同率としてまとめて載せる
-        $n = min(count($list), RECORDS_TOP_N);
-        while ($n > 0 && $n < count($list) && $list[$n]['value'] == $list[$n - 1]['value']) $n++;
-        return array_slice($list, 0, $n);
+        foreach ($list as &$r) unset($r['_sort']);
+        unset($r);
+        $cut = function (array $sorted) {
+            $n = min(count($sorted), RECORDS_TOP_N);
+            while ($n > 0 && $n < count($sorted) && $sorted[$n]['value'] == $sorted[$n - 1]['value']) $n++;
+            return array_slice($sorted, 0, $n);
+        };
+        return ['rows' => $cut($list), 'rows_active' => $cut(array_values(array_filter($list, fn($r) => !$r['retired'])))];
     };
 
     // 1) Aリーグ最速到達（Dリーグでデビューした選手のみ。デビューからA初在籍までの季数。最短はD→C→B→Aの3季）
@@ -474,8 +480,6 @@ function build_records($pdo) {
         $fastest[] = $entry($id, $sa - $first[$id], "第{$first[$id]}季デビュー→第{$sa}季A") + ['_sort' => $sa];
     }
     $fastest = $topBy($fastest, fn($a, $b) => $a['value'] <=> $b['value'] ?: $a['_sort'] <=> $b['_sort']);
-    foreach ($fastest as &$f) unset($f['_sort']);
-    unset($f);
 
     // 2) Aリーグ在籍季数 / 3) 朱雀紅白リーグ在籍季数（朱雀位保持中の季も含む）
     $countList = function (array $counts) use ($entry, $topBy) {
@@ -538,16 +542,14 @@ function build_records($pdo) {
         $winList[] = $entry($id, $w, "第{$season}季 {$w}勝{$l}敗") + ['_sort' => (int)$season];
     }
     $winList = $topBy($winList, fn($a, $b) => $b['value'] <=> $a['value'] ?: $a['_sort'] <=> $b['_sort']);
-    foreach ($winList as &$w) unset($w['_sort']);
-    unset($w);
 
     return [
-        ['key' => 'fastest_a', 'label' => 'Aリーグ最速到達', 'unit' => '季', 'note' => 'Dリーグでのデビューから、Aリーグに初めて在籍するまでの季数（最短3季）', 'rows' => $fastest],
-        ['key' => 'a_seasons', 'label' => 'Aリーグ在籍', 'unit' => '季', 'note' => 'Aリーグの通算在籍季数', 'rows' => $countList($aCount)],
-        ['key' => 'suzaku_seasons', 'label' => '朱雀紅白リーグ在籍', 'unit' => '季', 'note' => '朱雀紅白リーグの通算在籍季数（朱雀位保持中を含む）', 'rows' => $countList($suzakuCount)],
-        ['key' => 'title_total', 'label' => 'タイトル通算', 'unit' => '期', 'note' => '全タイトルの通算保持期数', 'rows' => $titleList],
-        ['key' => 'title_streak', 'label' => '連続保持', 'unit' => '期', 'note' => '同じタイトルの最長連続保持（2期以上）', 'rows' => $streakList],
-        ['key' => 'season_wins', 'label' => '1季最多勝', 'unit' => '勝', 'note' => '1季の全対局（リーグ戦・タイトル戦・予選）での勝数', 'rows' => $winList],
+        ['key' => 'fastest_a', 'label' => 'Aリーグ最速到達', 'unit' => '季', 'note' => 'Dリーグでのデビューから、Aリーグに初めて在籍するまでの季数（最短3季）'] + $fastest,
+        ['key' => 'a_seasons', 'label' => 'Aリーグ在籍', 'unit' => '季', 'note' => 'Aリーグの通算在籍季数'] + $countList($aCount),
+        ['key' => 'suzaku_seasons', 'label' => '朱雀紅白リーグ在籍', 'unit' => '季', 'note' => '朱雀紅白リーグの通算在籍季数（朱雀位保持中を含む）'] + $countList($suzakuCount),
+        ['key' => 'title_total', 'label' => 'タイトル通算', 'unit' => '期', 'note' => '全タイトルの通算保持期数'] + $titleList,
+        ['key' => 'title_streak', 'label' => '連続保持', 'unit' => '期', 'note' => '同じタイトルの最長連続保持（2期以上）'] + $streakList,
+        ['key' => 'season_wins', 'label' => '1季最多勝', 'unit' => '勝', 'note' => '1季の全対局（リーグ戦・タイトル戦・予選）での勝数'] + $winList,
     ];
 }
 
@@ -2371,15 +2373,14 @@ switch ($action) {
         // 殿堂ランキング（現役・引退を問わず）。1本のテーブルにElo・タイトル数・対局数・勝敗・勝率を
         // 全て載せ、サイト側で列ヘッダクリックによる並び替えができるようにする（従来は指標ごとに
         // 別々のサブタブ＝別々の上位N件クエリだったが、それだと同じ人物でも指標間で対象集合が
-        // 揃わず不便だったため統一した）。全個体数が極端に多くなった場合の保険として上限だけ設ける
+        // 揃わず不便だったため統一した）。現役のみの表示にも使うため現役は全員を返し、引退者だけ上限を設ける
         $stmt = $pdo->query(
-            "SELECT id, display_name, clan_root_id, elo_rating, peak_elo, total_seasons, initial_age, league, 0 AS retired
-             FROM individuals WHERE retired = 0
+            "(SELECT id, display_name, clan_root_id, elo_rating, peak_elo, total_seasons, initial_age, league, 0 AS retired
+              FROM individuals WHERE retired = 0)
              UNION ALL
-             SELECT id, display_name, clan_root_id, elo_rating, peak_elo, total_seasons, initial_age, league, 1 AS retired
-             FROM retired_archive
-             ORDER BY peak_elo DESC
-             LIMIT 300"
+             (SELECT id, display_name, clan_root_id, elo_rating, peak_elo, total_seasons, initial_age, league, 1 AS retired
+              FROM retired_archive ORDER BY peak_elo DESC LIMIT 300)
+             ORDER BY peak_elo DESC"
         );
         $ranked = $stmt->fetchAll();
 

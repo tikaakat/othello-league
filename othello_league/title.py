@@ -322,14 +322,9 @@ def _bracket_seed_order(n):
     return result
 
 
-def determine_byakko_challenger(all_members, exclude_id=None, depth=1, top_n=16, guaranteed_id=None):
-    """
-    Elo上位top_n名（既定16名）による正式シードトーナメント。
-    前年白虎在位者（exclude_id）は防衛専念枠のため、この母集団からは除外する。
-    guaranteed_idが与えられた場合（前季このタイトルを失冠した個体のid）、その個体は
-    現在のEloに関わらず無条件でトーナメント入りする（Elo下位からtop_n-1名のみをElo選抜し、
-    guaranteed_id分の1枠を確保する）。
-    """
+def plan_byakko_bracket(all_members, exclude_id=None, top_n=16, guaranteed_id=None):
+    """白虎トーナメントの組み合わせ（ID・空き枠Noneの並び）を決める。季の初めに組み合わせを公開できるよう、
+    前の季の終了時点で呼ぶ（その時点のEloで上位top_n名を選ぶ。前季に失冠した選手は無条件で出場）"""
     pool = [ind for ind in all_members if ind.id != exclude_id]
     guaranteed_ind = next((ind for ind in pool if ind.id == guaranteed_id), None) if guaranteed_id else None
     elo_pool = [ind for ind in pool if guaranteed_ind is None or ind.id != guaranteed_ind.id]
@@ -337,15 +332,27 @@ def determine_byakko_challenger(all_members, exclude_id=None, depth=1, top_n=16,
     ranked = sorted(elo_pool, key=lambda ind: -ind.elo)[:elo_quota]
     if guaranteed_ind is not None:
         ranked.append(guaranteed_ind)
-
-    n = len(ranked)
     bracket_size = 1
-    while bracket_size < n:
+    while bracket_size < len(ranked):
         bracket_size *= 2
-    slots = ranked + [None] * (bracket_size - n)
+    slots = [ind.id for ind in ranked] + [None] * (bracket_size - len(ranked))
+    return [slots[i] for i in _bracket_seed_order(bracket_size)]
 
-    order = _bracket_seed_order(bracket_size)
-    bracketed = [slots[i] for i in order]
+
+def determine_byakko_challenger(all_members, exclude_id=None, depth=1, top_n=16, guaranteed_id=None, planned=None):
+    """
+    Elo上位top_n名（既定16名）による正式シードトーナメント。
+    前年白虎在位者（exclude_id）は防衛専念枠のため、この母集団からは除外する。
+    guaranteed_idが与えられた場合（前季このタイトルを失冠した個体のid）、その個体は
+    現在のEloに関わらず無条件でトーナメント入りする（Elo下位からtop_n-1名のみをElo選抜し、
+    guaranteed_id分の1枠を確保する）。
+    """
+    # 組み合わせは季の初めに公開したもの（planned：前の季の終了時点で plan_byakko_bracket で決めたIDの並び）を使う。
+    # （引退は季の終わりにだけ起き、組み合わせはその後に決めるため、組み合わせの選手が欠けることは無い）。plannedが無ければこの場で決める
+    by_id = {ind.id: ind for ind in all_members}
+    if planned is None:
+        planned = plan_byakko_bracket(all_members, exclude_id=exclude_id, top_n=top_n, guaranteed_id=guaranteed_id)
+    bracketed = [by_id.get(pid) if pid else None for pid in planned]
 
     bracket_log = []
 
@@ -376,7 +383,7 @@ def determine_byakko_challenger(all_members, exclude_id=None, depth=1, top_n=16,
     # 引退免除判定（白虎戦トーナメント出場者）用に、実際の出場16名をそのまま返す
     # （bracket_logから復元すると、バイ（1回戦不戦勝）で1回も対局しなかった個体を
     #  見逃す恐れがあるため、母集団のrankedをそのまま使う）
-    return challenger, bracket_log, ranked
+    return challenger, bracket_log, [ind for ind in bracketed if ind is not None]
 
 
 def run_byakko_challenge(challenger, titleholder_params, depth=1, titleholder_volatility=1.0):
@@ -395,8 +402,33 @@ def run_byakko_challenge(challenger, titleholder_params, depth=1, titleholder_vo
 # 玄武戦：完全ランダム抽選トーナメント（ブラケットサイズ64、Elo上位者は1回戦バイ）。
 # 超早指し戦
 # ============================================================
+NEWCOMER_SLOT_PREFIX = "NEW"  # 玄武戦の組み合わせで、新人リーグの勝者が入る予定の枠（NEW1, NEW2, ...）
+
+
+def plan_genbu_bracket(all_members, exclude_id=None, bracket_size=64, titleholder_ids=frozenset(),
+                       guaranteed_final_id=None, newcomer_slots=0):
+    """玄武戦の組み合わせ（ID・新人枠「NEW1」等・空き枠Noneの並び）を決める。季の初めに公開できるよう、
+    前の季の終了時点で呼ぶ。all_membersはA→B→C→Dの順（各リーグ内は成績順）で渡す。
+    新人リーグの勝者が入る予定の枠は、優先度が最も低い参加者として抽選に含める"""
+    pool = [ind.id for ind in all_members if ind.id != exclude_id and ind.id != guaranteed_final_id]
+    pool += [f"{NEWCOMER_SLOT_PREFIX}{k + 1}" for k in range(newcomer_slots)]
+    n = len(pool)
+    while bracket_size < n:
+        bracket_size *= 2
+    bye_count = bracket_size - n
+    rank_by_id = {ind.id: i for i, ind in enumerate(all_members)}
+    not_ranked = len(all_members)
+    priority_ranked = sorted(pool, key=lambda pid: (0 if pid in titleholder_ids else 1, rank_by_id.get(pid, not_ranked)))
+    seeded = priority_ranked[:bye_count]
+    rest = priority_ranked[bye_count:]
+    random.shuffle(rest)
+    seed_list = seeded + rest + [None] * bye_count
+    return [seed_list[i] for i in _bracket_seed_order(bracket_size)]
+
+
 def determine_genbu_challenger(all_members, exclude_id=None, depth=1, bracket_size=64, num_blocks=4,
-                                titleholder_ids=frozenset(), guaranteed_final_id=None):
+                                titleholder_ids=frozenset(), guaranteed_final_id=None, planned=None,
+                                newcomer_ids=None):
     """
     全所属個体が参加する、ほぼ完全ランダムの抽選トーナメント。
     バイ（1回戦不戦勝＝2回戦から登場）の人数は bracket_size - 参加人数 で自動算出し、
@@ -428,32 +460,15 @@ def determine_genbu_challenger(all_members, exclude_id=None, depth=1, bracket_si
     # pool自体から除く（exclude_idと同様）。除かずにいると予選ブロックの通常参加者として
     # 対局させてしまい、負けて敗退したにもかかわらずfinal_poolへ合流時に二重に扱われる上、
     # bye_count・シード優先度の算出も他の参加者分だけずれてしまう
-    pool = [ind for ind in all_members if ind.id != exclude_id and ind.id != guaranteed_final_id]
-    n = len(pool)
-    # 玄武戦は全所属個体が参加する。参加人数が枠を超えた場合は誰も除外せず、
-    # 枠を2倍ずつ広げて全員を収める（ブロック数は変えず、各ブロックの人数が増える）
-    while bracket_size < n:
-        bracket_size *= 2
-
-    bye_count = bracket_size - n
-    # 所属リーグとその季の順位（A→B→C→D、リーグ内は成績順）をタイブレークに使う
-    rank_by_id = {ind.id: i for i, ind in enumerate(all_members)}
-    not_ranked = len(all_members)
-
-    def seed_priority(ind):
-        is_titleholder = ind.id in titleholder_ids
-        return (0 if is_titleholder else 1, rank_by_id.get(ind.id, not_ranked))
-
-    priority_ranked = sorted(pool, key=seed_priority)
-    seeded = priority_ranked[:bye_count]   # 優先度上位bye_count名：1回戦バイ（2回戦から登場）
-    rest = priority_ranked[bye_count:]     # 残り：完全ランダムに1回戦を組む
-    random.shuffle(rest)
-
-    # 標準シード配置で、上位シード（バイ勢）を互いに離れた山に均等配置する。
-    # Noneは「不在」を表し、Noneと当たった側が不戦勝で2回戦へ進む。
-    seed_list = seeded + rest + [None] * bye_count
-    order = _bracket_seed_order(bracket_size)
-    bracketed = [seed_list[i] for i in order]
+    # 組み合わせは季の初めに公開したもの（planned：前の季の終了時点で plan_genbu_bracket で決めた並び）を使う。
+    # 新人枠（NEW1等）は、この季に実際に入った新人（newcomer_ids：枠名→ID）に置き換える。新人が枠より
+    # 少なく埋まらなかった新人枠は空き（相手は不戦勝）になる。plannedが無ければこの場で決める
+    by_id = {ind.id: ind for ind in all_members}
+    if planned is None:
+        planned = plan_genbu_bracket(all_members, exclude_id=exclude_id, bracket_size=bracket_size,
+                                     titleholder_ids=titleholder_ids, guaranteed_final_id=guaranteed_final_id)
+    newcomer_ids = newcomer_ids or {}
+    bracketed = [by_id.get(newcomer_ids.get(pid, pid)) if pid else None for pid in planned]
 
     bracket_log = []
 
@@ -539,5 +554,108 @@ def run_genbu_challenge(challenger, titleholder_params, depth=1, titleholder_vol
     )
     return {
         "title": "玄武", "challenger_id": challenger.id, "won": won,
+        "challenger_wins": c_wins, "titleholder_wins": t_wins, "games": games,
+    }
+
+
+# ============================================================
+# 麒麟戦：棋王戦方式。Aリーグ以外は予選（ブロック別トーナメント）から、Aリーグ所属・前期本戦ベスト4・
+# 前期失冠者は本戦（挑戦者決定トーナメント）から出場する。本戦はベスト4から「2敗失格」で、
+# 準決勝・決勝の敗者は敗者復活戦に回る。挑戦者決定戦は、本戦優勝者は1勝、敗者復活戦優勝者は2連勝で挑戦権を得る
+# ============================================================
+KIRIN_PRELIM_DEPTH = 2
+KIRIN_MAIN_DEPTH = 3
+KIRIN_TITLE_DEPTH = 4
+KIRIN_MAIN_SIZE = 16
+
+
+def determine_kirin_challenger(league_members, exclude_id=None, prev_best4_ids=(), guaranteed_id=None,
+                               prelim_depth=KIRIN_PRELIM_DEPTH, main_depth=KIRIN_MAIN_DEPTH, main_size=KIRIN_MAIN_SIZE):
+    """league_members：{"A": [...], "B": [...], ...}（各リーグ内は成績順）。
+    戻り値：(挑戦者, 対局記録, 本戦ベスト4のIDリスト)"""
+    log = []
+
+    def game(x, y, stage, **extra):
+        if x is None:
+            return y
+        if y is None:
+            return x
+        x_won, games = _play_until_decided(effective_params(x), effective_params(y),
+                                           prelim_depth if stage == "prelim" else main_depth,
+                                           noise_x=x.volatility, noise_y=y.volatility)
+        w = x if x_won else y
+        log.append({"a": x.id, "b": y.id, "winner": w.id, "games": games, "stage": stage, **extra})
+        return w
+
+    everyone = [ind for lg in ("A", "B", "C", "D") for ind in league_members.get(lg, []) if ind.id != exclude_id]
+    seed_ids = {ind.id for ind in league_members.get("A", [])} | set(prev_best4_ids)
+    if guaranteed_id:
+        seed_ids.add(guaranteed_id)
+    seeds = sorted([ind for ind in everyone if ind.id in seed_ids], key=lambda ind: -ind.elo)[:main_size - 2]
+    seed_set = {ind.id for ind in seeds}
+    prelim_pool = [ind for ind in everyone if ind.id not in seed_set]
+
+    # --- 予選：本戦の残り枠の数だけブロックを作り、各ブロックのトーナメント優勝者が本戦へ ---
+    num_blocks = main_size - len(seeds)
+    ranked_pool = sorted(prelim_pool, key=lambda ind: -ind.elo)
+    blocks = [ranked_pool[k::num_blocks] for k in range(num_blocks)]  # 実力が偏らないよう、Elo順に各ブロックへ配る
+    qualifiers = []
+    for b, members in enumerate(blocks):
+        size = 1
+        while size < len(members):
+            size *= 2
+        slots = members + [None] * (size - len(members))
+        bracket = [slots[i] for i in _bracket_seed_order(size)]
+        rnd = 1
+        while len(bracket) > 1:
+            bracket = [game(bracket[i], bracket[i + 1], "prelim", block=b, round=rnd) for i in range(0, len(bracket), 2)]
+            rnd += 1
+        if bracket[0] is not None:
+            qualifiers.append(bracket[0])
+
+    # --- 本戦：シード（Elo順）を標準シード配置し、予選通過者は残りの枠へ ---
+    entrants = seeds + qualifiers
+    size = 1
+    while size < len(entrants):
+        size *= 2
+    slots = entrants + [None] * (size - len(entrants))
+    bracket = [slots[i] for i in _bracket_seed_order(size)]
+    rnd = 1
+    while len(bracket) > 4:
+        bracket = [game(bracket[i], bracket[i + 1], "main", round=rnd) for i in range(0, len(bracket), 2)]
+        rnd += 1
+    best4 = [ind for ind in bracket if ind is not None]
+
+    # --- ベスト4から2敗失格 ---
+    if len(best4) < 4:  # 人数不足（実質起きない）：通常のトーナメントで決める
+        while len(bracket) > 1:
+            bracket = [game(bracket[i], bracket[i + 1], "main", round=rnd) for i in range(0, len(bracket), 2)]
+            rnd += 1
+        return bracket[0], log, [ind.id for ind in best4]
+    semi_w = [game(bracket[0], bracket[1], "semifinal"), game(bracket[2], bracket[3], "semifinal")]
+    semi_l = [bracket[0] if semi_w[0] is bracket[1] else bracket[1], bracket[2] if semi_w[1] is bracket[3] else bracket[3]]
+    winner = game(semi_w[0], semi_w[1], "final")
+    final_loser = semi_w[1] if winner is semi_w[0] else semi_w[0]
+    repechage = game(semi_l[0], semi_l[1], "repechage", round=1)
+    repechage = game(repechage, final_loser, "repechage", round=2)
+
+    # --- 挑戦者決定戦：本戦優勝者は1勝、敗者復活戦優勝者は2連勝が必要 ---
+    challenger = winner
+    for k in (1, 2):
+        w = game(winner, repechage, "challenger_decision", game_no=k)
+        if w is winner:
+            break
+        if k == 2:
+            challenger = repechage
+    return challenger, log, [ind.id for ind in best4]
+
+
+def run_kirin_challenge(challenger, titleholder_params, depth=KIRIN_TITLE_DEPTH, titleholder_volatility=1.0):
+    won, c_wins, t_wins, games = run_best_of_n_match(
+        effective_params(challenger), titleholder_params, wins_needed=3, depth=depth,
+        noise_a=challenger.volatility, noise_b=titleholder_volatility,
+    )
+    return {
+        "title": "麒麟", "challenger_id": challenger.id, "won": won,
         "challenger_wins": c_wins, "titleholder_wins": t_wins, "games": games,
     }

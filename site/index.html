@@ -177,6 +177,7 @@
 
 <div class="panel" id="tab-leagues"><div id="leagues-content" class="loading">読み込み中...</div></div>
 <div class="panel hidden" id="tab-suzaku_league"><div id="suzaku_league-content" class="loading">読み込み中...</div></div>
+<div class="panel hidden" id="tab-cup_draw"><div id="cup_draw-content" class="loading">読み込み中...</div></div>
 <div class="panel hidden" id="tab-titles"><div id="titles-content" class="loading">読み込み中...</div></div>
 <div class="panel hidden" id="tab-individual"><div id="individual-content" class="empty">リーグタブから個体を選択してください</div></div>
 <div class="panel hidden" id="tab-matches"><div id="matches-content" class="loading">読み込み中...</div></div>
@@ -212,6 +213,7 @@ const NEWS_SITE_BASE = 'https://lab.spia-net.com/othello-news/';
 const D_NEWCOMER_INTAKE = 3; // othello_league/league.py の D_NEWCOMER_INTAKE（毎季固定の新人受け入れ枠数）と一致させること
 const tabPanels = {
   leagues: document.getElementById('tab-leagues'), suzaku_league: document.getElementById('tab-suzaku_league'),
+  cup_draw: document.getElementById('tab-cup_draw'),
   titles: document.getElementById('tab-titles'), individual: document.getElementById('tab-individual'),
   matches: document.getElementById('tab-matches'),
   seiryuu: document.getElementById('tab-seiryuu'),
@@ -235,8 +237,8 @@ const tabPanels = {
 // （以前はsubViews系だけパネル内部に独自描画しており、タブ直下のsubLabels系と縦位置が揃っていなかった）
 const TAB_GROUPS = {
   leagues: {
-    label: 'リーグ', tabs: ['leagues', 'suzaku_league'],
-    subLabels: { leagues: '青龍戦リーグ表', suzaku_league: '朱雀戦紅白リーグ表' },
+    label: 'リーグ', tabs: ['leagues', 'suzaku_league', 'cup_draw'],
+    subLabels: { leagues: '青龍戦リーグ表', suzaku_league: '朱雀戦紅白リーグ表', cup_draw: '白虎戦・玄武戦の組み合わせ' },
   },
   results: {
     label: '結果', tabs: ['seiryuu', 'suzaku', 'byakko', 'genbu', 'awards', 'matches'],
@@ -426,6 +428,7 @@ function render(hash, isPopstate) {
     loadGameBoard(param);
   } else if (base === 'leagues') { showTab('leagues'); loadLeagues(); }
   else if (base === 'suzaku_league') { showTab('suzaku_league'); loadSuzakuLeaguePanel(); }
+  else if (base === 'cup_draw') { showTab('cup_draw'); loadCupDrawPanel(); }
   else if (base === 'titles') { showTab('titles'); loadTitles(); }
   else if (base === 'matches') { showTab('matches'); loadMatches(); }
   else if (base === 'seiryuu') { showTab('seiryuu'); loadSeiryuuPanel(param ? parseInt(param, 10) : null); }
@@ -617,6 +620,86 @@ async function loadLeagues() {
     el.querySelectorAll('tr[data-id]').forEach(tr => tr.addEventListener('click', () => navigateTo('individual/' + tr.dataset.id)));
   } catch (e) {
     el.innerHTML = `<div class="empty">読み込み失敗: ${escapeHtml(String(e))}</div>`;
+  }
+}
+
+// リーグタブのサブタブ「白虎戦・玄武戦の組み合わせ」：前の季の終了時点（Elo・所属リーグ）で決めた
+// 今季の組み合わせを表示する。シミュレーター（run_season.py）がリポジトリに書き出すJSONを直接読む
+// （DBには取り込んでいないため）。玄武戦の新人枠は、新人リーグの結果が出たら名前が入る
+const UPCOMING_BRACKETS_URL = 'https://raw.githubusercontent.com/tikaakat/othello-league/main/data/upcoming_brackets.json';
+
+function cupDrawPlayerHtml(p) {
+  if (!p) return '';
+  if (p.newcomer) {
+    const label = p.name ? escapeHtml(p.name) : '<span style="color:var(--text-dim);">新人リーグ結果待ち</span>';
+    const tag = '<span style="font-size:0.62rem; color:var(--cyan); margin-left:4px;">（新人枠）</span>';
+    return p.id ? `<span data-id="${escapeHtml(p.id)}" style="cursor:pointer;">${label}</span>${tag}` : label + tag;
+  }
+  const titles = (p.id && CURRENT_TITLEHOLDERS.by_id && CURRENT_TITLEHOLDERS.by_id[p.id]) || [];
+  const meta = p.league ? `<span style="font-size:0.62rem; color:var(--text-dim); margin-left:4px;">${p.league}・${p.elo}</span>` : '';
+  return `<span data-id="${escapeHtml(p.id)}" style="cursor:pointer;">${escapeHtml(p.name || p.id)}</span>${titleOrDanBadge(titles)}${meta}`;
+}
+
+function cupDrawPairsHtml(slots) {
+  // 相手のいない枠（シード・欠場）は1回戦が無く2回戦から登場するため、対戦カードとは分けて並べる
+  const seeds = [];
+  let html = '<table><tbody>';
+  let no = 0;
+  for (let i = 0; i + 1 < slots.length; i += 2) {
+    const [x, y] = [slots[i], slots[i + 1]];
+    if (!x || !y) {
+      if (x || y) seeds.push(x || y);
+      continue;
+    }
+    no += 1;
+    html += `<tr><td class="rank-num" style="width:2.5em;">${no}</td>
+      <td>${cupDrawPlayerHtml(x)}</td><td style="color:var(--text-dim); width:2em; text-align:center;">vs</td>
+      <td>${cupDrawPlayerHtml(y)}</td></tr>`;
+  }
+  html += '</tbody></table>';
+  if (seeds.length) {
+    html = `<div style="font-size:0.72rem; margin:4px 0;"><span style="color:var(--text-dim);">2回戦から登場：</span>${seeds.map(cupDrawPlayerHtml).join('、')}</div>` + (no ? html : '');
+  }
+  return html;
+}
+
+async function loadCupDrawPanel() {
+  const el = document.getElementById('cup_draw-content');
+  el.innerHTML = '<div class="loading">読み込み中...</div>';
+  try {
+    if (!CURRENT_TITLEHOLDERS.by_id || !Object.keys(CURRENT_TITLEHOLDERS.by_id).length) {
+      try {
+        const lres = await fetch(`${API_BASE}?action=leagues`);
+        CURRENT_TITLEHOLDERS = (await lres.json()).titleholders || CURRENT_TITLEHOLDERS;
+      } catch (e) { /* 称号バッジが付かないだけなので続行する */ }
+    }
+    const res = await fetch(UPCOMING_BRACKETS_URL, { cache: 'no-store' });
+    if (!res.ok) throw new Error('組み合わせはまだ発表されていません');
+    const data = await res.json();
+    const holderLine = (h) => h ? `在位：${escapeHtml(h.name)}（挑戦者決定戦には出場せず、挑戦者を待つ）` : '在位者なし';
+    let html = `<p style="font-size:0.72rem; color:var(--text-dim); margin-top:0;">前の季の終了時点のEloと所属リーグで決めた組み合わせです。</p>`;
+
+    const b = data.byakko;
+    html += `<div class="league-block"><h3>第${data.season}季 白虎戦 挑戦者決定トーナメント（${b.slots.filter(Boolean).length}名）</h3>`;
+    html += `<p style="font-size:0.72rem; margin:2px 0 6px;">${holderLine(b.holder)}</p>`;
+    html += '<div style="font-size:0.72rem; color:var(--amber);">1回戦</div>' + cupDrawPairsHtml(b.slots) + '</div>';
+
+    const g = data.genbu;
+    const blockSize = g.slots.length / g.num_blocks;
+    const entrants = g.slots.filter(Boolean).length + (g.guaranteed_final ? 1 : 0);
+    html += `<div class="league-block"><h3>第${data.season}季 玄武戦 挑戦者決定戦（${entrants}名）</h3>`;
+    html += `<p style="font-size:0.72rem; margin:2px 0 6px;">${holderLine(g.holder)}<br>
+      ${g.num_blocks}つのブロックのトーナメントの優勝者${g.guaranteed_final ? `と、前季失冠の${cupDrawPlayerHtml(g.guaranteed_final)}（本戦から出場）` : ''}が、総当たりの本戦で挑戦者を決めます。</p>`;
+    for (let k = 0; k < g.num_blocks; k++) {
+      html += `<div style="font-size:0.72rem; color:var(--amber); margin-top:8px;">${'ABCDEFGH'[k]}ブロック</div>`;
+      html += cupDrawPairsHtml(g.slots.slice(k * blockSize, (k + 1) * blockSize));
+    }
+    html += '</div>';
+
+    el.innerHTML = html;
+    el.querySelectorAll('[data-id]').forEach(e => e.addEventListener('click', () => navigateTo('individual/' + e.dataset.id)));
+  } catch (e) {
+    el.innerHTML = `<div class="empty">${escapeHtml(String(e.message || e))}</div>`;
   }
 }
 
@@ -2228,6 +2311,11 @@ let _hofActiveView = 'ranking';
 let _hofData = null;
 // 総合ランキング表の並び替え状態（列ヘッダクリックで変更）。dirは-1が降順、1が昇順
 let _hofRankingSort = { key: 'peak_elo', dir: -1 };
+let _hofActiveOnly = false; // 総合ランキング・記録を現役選手だけに絞るか
+function hofScopeButtonsHtml() {
+  const btn = (active, label) => `<button class="subtab-btn hof-scope-btn${_hofActiveOnly === active ? ' active' : ''}" data-active-only="${active}">${label}</button>`;
+  return `<div style="margin-bottom:6px;">${btn(false, '全員')}${btn(true, '現役のみ')}</div>`;
+}
 
 async function loadHallOfFame() {
   const el = document.getElementById('hof-content');
@@ -2262,9 +2350,10 @@ function renderHofView(el, view) {
   if (view === 'ranking') {
     // Elo・対局数・勝敗・勝率・タイトル数を1つの表にまとめ、列ヘッダクリックで並び替える
     // （以前は指標ごとに別サブタブ＝別々の上位N件で、同じ人物でも指標間の対象集合が揃わなかった）
-    const ranking = hofData.ranking || [];
+    const ranking = (hofData.ranking || []).filter(p => !_hofActiveOnly || !p.retired);
+    html = hofScopeButtonsHtml();
     if (ranking.length === 0) {
-      html = '<div class="empty">まだ記録がありません</div>';
+      html += '<div class="empty">まだ記録がありません</div>';
     } else {
       const cols = [
         { key: 'dan', label: '段位' },
@@ -2305,7 +2394,7 @@ function renderHofView(el, view) {
           <td style="white-space:nowrap;">${eternalIcon(p.eternal_titles)}${escapeHtml(p.display_name)}${ageNote}${p.retired ? '<span style="color:var(--text-dim); font-size:0.68rem;">（引退）</span>' : ''}</td>
           ${cols.map(c => `<td style="white-space:nowrap;${c.key === sort.key ? ' color:var(--amber);' : ''}">${cellFor(p, c.key)}</td>`).join('')}</tr>`;
       };
-      html = `<div style="font-size:0.68rem; color:var(--text-dim); margin-bottom:6px;">列見出しをクリックすると並び替え（勝率は${hofData.min_games_for_rate}対局以上が対象。横スクロールで全項目を表示）</div>`;
+      html += `<div style="font-size:0.68rem; color:var(--text-dim); margin-bottom:6px;">列見出しをクリックすると並び替え（勝率は${hofData.min_games_for_rate}対局以上が対象。横スクロールで全項目を表示）</div>`;
       html += renderCollapsibleTable(headHtml, sorted, rowFn, 15, null, true);
     }
   } else if (view === 'matchup') {
@@ -2349,8 +2438,8 @@ function renderHofView(el, view) {
     if (records.length === 0) {
       html = '<div class="empty">まだ記録がありません</div>';
     } else {
-      html = records.map(rec => {
-        const rows = rec.rows || [];
+      html = hofScopeButtonsHtml() + records.map(rec => {
+        const rows = (_hofActiveOnly ? rec.rows_active : rec.rows) || [];
         let body;
         if (rows.length === 0) {
           body = '<div class="empty" style="margin:4px 0 0;">該当者なし</div>';
@@ -2395,6 +2484,10 @@ function renderHofView(el, view) {
       _hofRankingSort = { key, dir: -1 };
     }
     renderHofView(el, 'ranking');
+  }));
+  el.querySelectorAll('.hof-scope-btn').forEach(btn => btn.addEventListener('click', () => {
+    _hofActiveOnly = btn.dataset.activeOnly === 'true';
+    renderHofView(el, view);
   }));
 }
 

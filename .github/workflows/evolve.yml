@@ -172,6 +172,7 @@ jobs:
             fi
 
             git add data/rosters.json data/season_state.json data/matches data/standings
+            git add data/upcoming_brackets.json 2>/dev/null || true
             # run_season.py側はnewcomer_winners.json（新人リーグの勝者ファイル）を
             # 読み込み後にローカルで削除するが、ここでcommit対象に含めておかないと
             # 削除がpushされず、次回のバッチ（fresh checkout）でまだ残っている古い
@@ -197,6 +198,7 @@ jobs:
                 retry_cmd git fetch origin main || break
                 git reset --mixed origin/main
                 git add data/rosters.json data/season_state.json data/matches data/standings
+            git add data/upcoming_brackets.json 2>/dev/null || true
                 git add data/newcomer_winners.json 2>/dev/null || true
                 if git diff --staged --quiet; then
                   echo "最新のmainに既に同じ内容が反映されていました（他の実行と重複した可能性）"
