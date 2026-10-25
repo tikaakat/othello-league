@@ -370,6 +370,25 @@ def relabel_if_stale(data_dir, marker_path=RESULT_MARKER_PATH):
         json.dump(payload, f, ensure_ascii=False, indent=2)
 
 
+def fill_upcoming_newcomers(data_dir, target_season, winner_entries):
+    """結果サイトに出している次の季の玄武戦の組み合わせで、新人枠（NEW1, NEW2, ...）に勝者の名前を入れる。
+    本戦の季の初めに、実際に入団した新人で改めて書き直される（入団順＝勝者の並び順）"""
+    path = os.path.join(data_dir, "upcoming_brackets.json")
+    if not os.path.exists(path):
+        return
+    with open(path, "r", encoding="utf-8") as f:
+        upcoming = json.load(f)
+    if upcoming.get("season") != target_season:
+        return
+    names = [w.get("name") for w in winner_entries]
+    for slot in upcoming.get("genbu", {}).get("slots", []):
+        if slot and slot.get("newcomer"):
+            k = int(slot["newcomer"][3:]) - 1
+            slot["name"] = names[k] if k < len(names) else None
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(upcoming, f, ensure_ascii=False, indent=2)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-dir", default="data")
@@ -446,6 +465,7 @@ def main():
     with open(winners_path, "w", encoding="utf-8") as f:
         json.dump(winner_entries, f, ensure_ascii=False, indent=2)
     print(f"[DEBUG] 新人リーグ勝者: {len(winner_entries)}名を{winners_path}に保存しました", flush=True)
+    fill_upcoming_newcomers(args.data_dir, target_season, winner_entries)
 
     os.makedirs(os.path.join(args.data_dir, "newcomer_league"), exist_ok=True)
     with open(result_path, "w", encoding="utf-8") as f:

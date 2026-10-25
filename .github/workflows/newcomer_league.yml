@@ -81,6 +81,7 @@ jobs:
           # 他の任意ファイルと同様に存在しなくても失敗しないようにする
           git add data/newcomer_winners.json data/newcomer_league 2>/dev/null || true
           git add data/newcomer_candidate_pool.json 2>/dev/null || true
+          git add data/upcoming_brackets.json 2>/dev/null || true
           if ! git diff --staged --quiet; then
             git commit -m "Newcomer league results [skip ci]"
 
@@ -112,6 +113,7 @@ jobs:
 
               git add data/newcomer_winners.json data/newcomer_league 2>/dev/null || true
               git add data/newcomer_candidate_pool.json 2>/dev/null || true
+              git add data/upcoming_brackets.json 2>/dev/null || true
               if git diff --staged --quiet; then
                 echo "最新のmainに既に同じ内容が反映されていました（他の実行と重複した可能性）"
                 PUSHED=1

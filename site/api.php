@@ -2371,15 +2371,14 @@ switch ($action) {
         // 殿堂ランキング（現役・引退を問わず）。1本のテーブルにElo・タイトル数・対局数・勝敗・勝率を
         // 全て載せ、サイト側で列ヘッダクリックによる並び替えができるようにする（従来は指標ごとに
         // 別々のサブタブ＝別々の上位N件クエリだったが、それだと同じ人物でも指標間で対象集合が
-        // 揃わず不便だったため統一した）。全個体数が極端に多くなった場合の保険として上限だけ設ける
+        // 揃わず不便だったため統一した）。現役のみの表示にも使うため現役は全員を返し、引退者だけ上限を設ける
         $stmt = $pdo->query(
-            "SELECT id, display_name, clan_root_id, elo_rating, peak_elo, total_seasons, initial_age, league, 0 AS retired
-             FROM individuals WHERE retired = 0
+            "(SELECT id, display_name, clan_root_id, elo_rating, peak_elo, total_seasons, initial_age, league, 0 AS retired
+              FROM individuals WHERE retired = 0)
              UNION ALL
-             SELECT id, display_name, clan_root_id, elo_rating, peak_elo, total_seasons, initial_age, league, 1 AS retired
-             FROM retired_archive
-             ORDER BY peak_elo DESC
-             LIMIT 300"
+             (SELECT id, display_name, clan_root_id, elo_rating, peak_elo, total_seasons, initial_age, league, 1 AS retired
+              FROM retired_archive ORDER BY peak_elo DESC LIMIT 300)
+             ORDER BY peak_elo DESC"
         );
         $ranked = $stmt->fetchAll();
 

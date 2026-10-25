@@ -18,6 +18,7 @@ from othello_league.title import (
     determine_suzaku_qualifiers, assign_suzaku_groups, run_suzaku_challenge,
     determine_byakko_challenger, run_byakko_challenge,
     determine_genbu_challenger, run_genbu_challenge,
+    plan_byakko_bracket, plan_genbu_bracket, NEWCOMER_SLOT_PREFIX,
     SEIRYUU_LEAGUE_DEPTH, SEIRYUU_TITLE_DEPTH,
     SUZAKU_LEAGUE_DEPTH, SUZAKU_TITLE_DEPTH,
     BYAKKO_LEAGUE_DEPTH, BYAKKO_TITLE_DEPTH,
@@ -710,9 +711,13 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
     # 白虎：Elo上位16名（前年白虎在位者は防衛専念枠として除外）による正式シードトーナメント
     # ============================================================
     byakko_holder_id = (titleholders.get("白虎") or {}).get("id")
+    # 季の初めに公開した組み合わせ（前の季の終了時点で決めたもの）があればそれを使う
+    planned = state.get("planned_brackets") or {}
+    if planned.get("season") != season:
+        planned = {}
     challenger, bracket_log, byakko_entrants = determine_byakko_challenger(
         all_members, exclude_id=byakko_holder_id, depth=BYAKKO_LEAGUE_DEPTH, top_n=16,
-        guaranteed_id=last_dethroned.get("白虎"),
+        guaranteed_id=last_dethroned.get("白虎"), planned=planned.get("白虎"),
     )
     extra_protected_ids.add(challenger.id)
     demotion_relief_ids.update(ind.id for ind in byakko_entrants)
@@ -779,6 +784,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
     challenger, bracket_log, genbu_block_champions = determine_genbu_challenger(
         all_members, exclude_id=genbu_holder_id, depth=GENBU_LEAGUE_DEPTH, bracket_size=64,
         titleholder_ids=genbu_seed_titleholder_ids, guaranteed_final_id=last_dethroned.get("玄武"),
+        planned=planned.get("玄武"), newcomer_ids=planned.get("newcomer_ids"),
     )
     extra_protected_ids.add(challenger.id)
     demotion_relief_ids.update(ind.id for ind in genbu_block_champions)
@@ -865,6 +871,72 @@ def _load_suzaku_tiebreak(data_dir, season):
     return {"prev_rank": prev_rank, "tenure": tenure}
 
 
+UPCOMING_BRACKETS_FILE = "upcoming_brackets.json"
+
+
+def plan_next_brackets(rosters, state, next_season, newcomer_slots):
+    """次の季の白虎戦・玄武戦の組み合わせを、この季の終了時点（Elo・所属リーグ）で決めて state に記録する。
+    季の初めから組み合わせを公開するため。玄武戦の新人の枠は「NEW1」等の仮の枠にしておき、新人が決まったら当てはめる"""
+    members = [ind for league in LEAGUE_TIERS for ind in sorted(rosters[league], key=lambda ind: -ind.elo)]
+    titleholders = state.get("titleholders") or {}
+    last_dethroned = state.get("last_dethroned") or {}
+    holder_id = lambda title: (titleholders.get(title) or {}).get("id")
+    state["planned_brackets"] = {
+        "season": next_season,
+        "白虎": plan_byakko_bracket(members, exclude_id=holder_id("白虎"), top_n=16,
+                                   guaranteed_id=last_dethroned.get("白虎")),
+        "玄武": plan_genbu_bracket(members, exclude_id=holder_id("玄武"), bracket_size=64,
+                                  titleholder_ids={info["id"] for info in titleholders.values() if info and info.get("id")},
+                                  guaranteed_final_id=last_dethroned.get("玄武"), newcomer_slots=newcomer_slots),
+        "newcomer_ids": {},
+    }
+
+
+def assign_planned_newcomers(state, season, new_disciples):
+    """季の初めに入った新人を、玄武戦の組み合わせの新人枠（NEW1, NEW2, ...）に入団順で当てはめる。
+    新人が枠より多ければ、余った新人は空き枠（不戦勝の相手）に入れる"""
+    planned = state.get("planned_brackets") or {}
+    if planned.get("season") != season:
+        return
+    genbu = planned["玄武"]
+    slots = [pid for pid in genbu if pid and pid.startswith(NEWCOMER_SLOT_PREFIX)]
+    planned["newcomer_ids"] = {slot: ind.id for slot, ind in zip(slots, new_disciples)}
+    for ind in new_disciples[len(slots):]:
+        if None not in genbu:
+            break
+        genbu[genbu.index(None)] = ind.id
+
+
+def write_upcoming_brackets(data_dir, state, rosters):
+    """組み合わせを結果サイト表示用に書き出す（名前・所属リーグ・Eloつき）"""
+    planned = state.get("planned_brackets")
+    if not planned:
+        return
+    info = {ind.id: {"id": ind.id, "name": ind.display_name, "league": league, "elo": round(ind.elo)}
+            for league in LEAGUE_TIERS for ind in rosters[league]}
+    newcomer_ids = planned.get("newcomer_ids") or {}
+
+    def slot(pid):
+        if not pid:
+            return None
+        if pid.startswith(NEWCOMER_SLOT_PREFIX):
+            filled = info.get(newcomer_ids.get(pid))
+            return {"newcomer": pid, **(filled or {"id": None, "name": None})}
+        return info.get(pid) or {"id": pid, "name": None}
+
+    titleholders = state.get("titleholders") or {}
+    last_dethroned = state.get("last_dethroned") or {}
+    out = {
+        "season": planned["season"],
+        "byakko": {"holder": titleholders.get("白虎"), "slots": [slot(p) for p in planned["白虎"]]},
+        "genbu": {"holder": titleholders.get("玄武"), "num_blocks": 4,
+                  "guaranteed_final": slot(last_dethroned.get("玄武")),
+                  "slots": [slot(p) for p in planned["玄武"]]},
+    }
+    with open(os.path.join(data_dir, UPCOMING_BRACKETS_FILE), "w", encoding="utf-8") as f:
+        json.dump(out, f, ensure_ascii=False, indent=2)
+
+
 def main():
     import sys, os as _os
     print(f"[DEBUG] run_season.py 開始。Python: {sys.version}", flush=True)
@@ -937,6 +1009,8 @@ def main():
             auto_fill_vacancy=(season != 1),
         )
         state["name_registry"] = registry.to_dict()
+        assign_planned_newcomers(state, season, new_disciples)
+        write_upcoming_brackets(args.data_dir, state, rosters)
         if new_disciples:
             print(f"[DEBUG] 第{season}季開始前にDリーグへ{len(new_disciples)}名補充しました", flush=True)
         if recruit_retired:
@@ -978,6 +1052,8 @@ def main():
         # 新人リーグ（次回AM/PM実行）で何名を昇格させるかの目安として、今季確定した
         # 新人受け入れ枠数（毎季固定）を記録しておく（次シーズン開始前にrecruit_d_league()で補充される）
         state["pending_newcomer_slots"] = vacancy
+        plan_next_brackets(rosters, state, season + 1, vacancy)
+        write_upcoming_brackets(args.data_dir, state, rosters)
 
         save_rosters(args.data_dir, rosters)
         save_match_log(args.data_dir, season, match_log)
