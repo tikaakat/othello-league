@@ -132,11 +132,12 @@ const MATCH_STAGE_ORDER_SQL = "CASE m.league
 //   青龍＝通算5期（連続でなくてよい）
 //   朱雀＝連続5期 または 通算10期
 //   白虎＝連続5期
-//   玄武＝通算10期（連続でなくてよい）
+//   玄武＝連続5期 または 通算8期（決勝の読みが最も浅く保持者が入れ替わりやすいため、
+//         当初の通算10期では誰も届かなかった。朱雀と同じ形で通算の基準を下げた）
 function is_eternal_title($title, $total, $consec) {
     if ($title === '青龍') return $total >= 5;
     if ($title === '朱雀') return $consec >= 5 || $total >= 10;
-    if ($title === '玄武') return $total >= 10;
+    if ($title === '玄武') return $consec >= 5 || $total >= 8;
     return $consec >= 5; // 白虎
 }
 
