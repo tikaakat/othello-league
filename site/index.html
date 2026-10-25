@@ -837,7 +837,7 @@ async function loadIndividualDetail(id) {
     el.querySelectorAll('.lineage-link').forEach(span => span.addEventListener('click', () => navigateTo('individual/' + span.dataset.id)));
 
     renderRecord(data.record);
-    renderOpponentRecords(data.opponent_records, data.rivals);
+    renderOpponentRecords(data.opponent_records);
     renderTitleRecord(data.title_ranges, data.title_total_seasons);
     renderChallengeRecord(data.challenge_ranges, data.challenge_total_seasons);
     renderRecentMatches(data.matches, ind.id);
@@ -991,22 +991,7 @@ function renderRecord(record) {
   </div>`;
 }
 
-// 因縁の相手（天敵・お得意様・ライバル）。選び方はapi.phpのindividualを参照
-const RIVAL_KINDS = [
-  ['nemesis', '天敵', '#ff7a7a'],
-  ['favorite', 'お得意様', 'var(--cyan)'],
-  ['rival', 'ライバル', 'var(--amber)'],
-];
-function rivalsHtml(rivals) {
-  if (!rivals) return '';
-  const rows = RIVAL_KINDS.filter(([k]) => (rivals[k] || []).length).map(([k, label, color]) =>
-    `<div style="margin:2px 0;"><span style="display:inline-block; min-width:5em; color:${color}; font-weight:700;">${label}</span>` +
-    rivals[k].map(o => `<span class="rival-link" data-id="${escapeHtml(o.pid)}" style="cursor:pointer; margin-right:10px;">${escapeHtml(o.opponent_name || o.pid)}<span style="color:var(--text-dim); font-size:0.72rem;">（${o.win}勝${o.loss}敗${o.draw ? o.draw + '分' : ''}）</span></span>`).join('') +
-    `</div>`).join('');
-  return rows ? `<div style="font-size:0.78rem; margin-bottom:8px;">${rows}</div>` : '';
-}
-
-function renderOpponentRecords(opponentRecords, rivals) {
+function renderOpponentRecords(opponentRecords) {
   const el = document.getElementById('ind-opponents');
   if (!el) return;
   if (!opponentRecords || opponentRecords.length === 0) { el.innerHTML = '<div style="color:var(--text-dim);">対局記録なし</div>'; return; }
@@ -1026,7 +1011,7 @@ function renderOpponentRecords(opponentRecords, rivals) {
     </tr>`;
   }
 
-  let html = rivalsHtml(rivals) + '<table><thead><tr><th>対戦相手</th><th>勝</th><th>敗</th><th>分</th><th>対局数</th></tr></thead><tbody>';
+  let html = '<table><thead><tr><th>対戦相手</th><th>勝</th><th>敗</th><th>分</th><th>対局数</th></tr></thead><tbody>';
   topRows.forEach(o => { html += rowHtml(o); });
   html += '</tbody></table>';
 
@@ -1041,7 +1026,6 @@ function renderOpponentRecords(opponentRecords, rivals) {
 
   el.innerHTML = html;
   el.querySelectorAll('tr[data-id]').forEach(tr => tr.addEventListener('click', () => navigateTo('individual/' + tr.dataset.id)));
-  el.querySelectorAll('.rival-link').forEach(sp => sp.addEventListener('click', () => navigateTo('individual/' + sp.dataset.id)));
 
   const toggle = el.querySelector('.opponents-toggle');
   if (toggle) {
