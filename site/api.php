@@ -1716,10 +1716,18 @@ switch ($action) {
             // プルダウンでの季選択用（フロント側で1〜latest_seasonの選択肢を作る）
             $latestSeason = (int)$pdo->query("SELECT MAX(season) FROM standings")->fetchColumn();
 
+            // リーグ戦の対局結果（結果タブの対戦表＝総当たり表用）。勝敗だけを返す
+            $lmStmt = $pdo->prepare(
+                "SELECT id, league, individual_a_id AS a, individual_b_id AS b, result FROM matches
+                 WHERE season = :season AND league IN ('A', 'B', 'C', 'D') ORDER BY id ASC"
+            );
+            $lmStmt->execute(['season' => $season]);
+
             json_out([
                 'standings' => $rows, 'season' => $season, 'rikuou' => $rikuou_entry,
                 'titleholders' => $seasonTitleholders, 'dan' => $danById,
                 'latest_season' => $latestSeason,
+                'league_matches' => $lmStmt->fetchAll(),
             ]);
         } elseif (isset($_GET['individual_id'])) {
             $iid = $_GET['individual_id'];
