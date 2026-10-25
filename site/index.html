@@ -2311,7 +2311,11 @@ let _hofActiveView = 'ranking';
 let _hofData = null;
 // 総合ランキング表の並び替え状態（列ヘッダクリックで変更）。dirは-1が降順、1が昇順
 let _hofRankingSort = { key: 'peak_elo', dir: -1 };
-let _hofActiveOnly = false; // 総合ランキングを現役選手だけに絞るか
+let _hofActiveOnly = false; // 総合ランキング・記録を現役選手だけに絞るか
+function hofScopeButtonsHtml() {
+  const btn = (active, label) => `<button class="subtab-btn hof-scope-btn${_hofActiveOnly === active ? ' active' : ''}" data-active-only="${active}">${label}</button>`;
+  return `<div style="margin-bottom:6px;">${btn(false, '全員')}${btn(true, '現役のみ')}</div>`;
+}
 
 async function loadHallOfFame() {
   const el = document.getElementById('hof-content');
@@ -2347,8 +2351,7 @@ function renderHofView(el, view) {
     // Elo・対局数・勝敗・勝率・タイトル数を1つの表にまとめ、列ヘッダクリックで並び替える
     // （以前は指標ごとに別サブタブ＝別々の上位N件で、同じ人物でも指標間の対象集合が揃わなかった）
     const ranking = (hofData.ranking || []).filter(p => !_hofActiveOnly || !p.retired);
-    const scopeBtn = (active, label) => `<button class="subtab-btn hof-scope-btn${_hofActiveOnly === active ? ' active' : ''}" data-active-only="${active}">${label}</button>`;
-    html = `<div style="margin-bottom:6px;">${scopeBtn(false, '全員')}${scopeBtn(true, '現役のみ')}</div>`;
+    html = hofScopeButtonsHtml();
     if (ranking.length === 0) {
       html += '<div class="empty">まだ記録がありません</div>';
     } else {
@@ -2435,8 +2438,8 @@ function renderHofView(el, view) {
     if (records.length === 0) {
       html = '<div class="empty">まだ記録がありません</div>';
     } else {
-      html = records.map(rec => {
-        const rows = rec.rows || [];
+      html = hofScopeButtonsHtml() + records.map(rec => {
+        const rows = (_hofActiveOnly ? rec.rows_active : rec.rows) || [];
         let body;
         if (rows.length === 0) {
           body = '<div class="empty" style="margin:4px 0 0;">該当者なし</div>';
@@ -2484,7 +2487,7 @@ function renderHofView(el, view) {
   }));
   el.querySelectorAll('.hof-scope-btn').forEach(btn => btn.addEventListener('click', () => {
     _hofActiveOnly = btn.dataset.activeOnly === 'true';
-    renderHofView(el, 'ranking');
+    renderHofView(el, view);
   }));
 }
 
