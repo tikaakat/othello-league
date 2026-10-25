@@ -959,6 +959,18 @@ async function setupLikeButton(btn) {
 // 選手ファンページ：このサイトでの「応援」はあくまで個体単位のものなので、
 // 応援（コメント付き）・基本情報・関連記事をここに集約し、メインの導線にする。
 // 詳しいデータ（対局履歴・系譜・Elo推移等）を見たい人だけがデータサイトへ進む
+// 因縁の相手（天敵・お得意様・ライバル）。選び方は結果サイトのapi.php（individual）を参照
+function rivalsSectionHtml(rivals) {
+  if (!rivals) return '';
+  const kinds = [['nemesis', '天敵'], ['favorite', 'お得意様'], ['rival', 'ライバル']];
+  const rows = kinds.filter(([k]) => (rivals[k] || []).length).map(([k, label]) =>
+    `<div class="profile-title-row"><b>${label}</b>：` +
+    rivals[k].map(o => `<span class="ind-chip" data-goto-individual="${escapeHtml(o.pid)}">${escapeHtml(o.opponent_name || o.pid)}</span>` +
+      `<span style="color:var(--text-dim); font-size:0.78rem;">（${o.win}勝${o.loss}敗${o.draw ? o.draw + '分' : ''}）</span>`).join('　') +
+    `</div>`).join('');
+  return rows ? `<div class="profile-section"><h4>因縁の相手</h4>${rows}</div>` : '';
+}
+
 async function renderIndividualProfile(id) {
   setActiveNav('feed');
   const el = document.getElementById('content');
@@ -1030,6 +1042,8 @@ async function renderIndividualProfile(id) {
       ${renderDanHistory(ind.dan_history)}
     </div>
 
+    ${rivalsSectionHtml(data.rivals)}
+
     <div class="profile-section">
       <h4>関連記事</h4>
       ${mentionsHtml}
@@ -1043,6 +1057,9 @@ async function renderIndividualProfile(id) {
 
   el.querySelectorAll('[data-article-link]').forEach(elm => {
     elm.addEventListener('click', () => navigateTo('article/' + encodeURIComponent(elm.dataset.articleLink)));
+  });
+  el.querySelectorAll('[data-goto-individual]').forEach(elm => {
+    elm.addEventListener('click', () => navigateTo('individual/' + encodeURIComponent(elm.dataset.gotoIndividual)));
   });
 
   setupProfileCheer(id);
