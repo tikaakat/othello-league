@@ -132,7 +132,7 @@ def _play_until_decided(params_x, params_y, depth, noise_x=1.0, noise_y=1.0, max
     予選（トーナメント・ラダー）は勝者を1人に絞る必要があるため、この方式を使う。
     全ての対局（引き分けも含む）を記録し、最後に決着した対局の勝者を返す。
     """
-    x_is_black = True
+    x_is_black = random.random() < 0.5 if __import__("os").environ.get("SIM_RANDOM_COLOR") else True
     games = []
     for _ in range(max_attempts):
         if x_is_black:

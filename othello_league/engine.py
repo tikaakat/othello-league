@@ -216,12 +216,14 @@ def choose_move(bd, color, params, depth=5, noise_scale=1.0):
     moves = B.legal_moves(bd, color)
     if not moves:
         return None
+    if bd.count(B.EMPTY) > 60 - int(__import__("os").environ.get("SIM_RANDOM_OPENING", "0")):
+        return random.choice(moves)
     book = params.get("_book", 0)
     endgame = params.get("_endgame", 0)
     if book or endgame:
         empty = bd.count(B.EMPTY)
         if book and empty >= 60 - book:
-            params, noise_scale = BOOK_PARAMS, 0.0
+            params, noise_scale = BOOK_PARAMS, float(__import__("os").environ.get("SIM_BOOK_NOISE", "0"))
         elif endgame and empty <= endgame:
             depth += 1
     _, move = minimax(bd, color, depth, -math.inf, math.inf, color, params, noise_scale)
