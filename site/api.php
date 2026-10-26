@@ -2228,7 +2228,15 @@ switch ($action) {
                     }
                 }
                 $genbuFinalStandings = array_values($stats);
-                usort($genbuFinalStandings, fn($a, $b) => $b['win'] <=> $a['win']);
+                // 1位タイの決定戦（final_playoff）を行った場合は、勝敗が同じでも決定戦で勝った方を上の順位にする
+                $playoffWins = [];
+                foreach ($finalPlayoffTmp as $m) {
+                    if ($m['result'] === 'draw') continue;
+                    $w = $m['result'] === 'win' ? $m['individual_a_id'] : $m['individual_b_id'];
+                    $playoffWins[$w] = ($playoffWins[$w] ?? 0) + 1;
+                }
+                usort($genbuFinalStandings, fn($a, $b) => $b['win'] <=> $a['win']
+                    ?: ($playoffWins[$b['individual_id']] ?? 0) <=> ($playoffWins[$a['individual_id']] ?? 0));
                 $rank = 1;
                 foreach ($genbuFinalStandings as &$row) { $row['rank'] = $rank++; }
                 unset($row);
