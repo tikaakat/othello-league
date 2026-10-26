@@ -1837,7 +1837,9 @@ function defendCaptureLabel(challengerWins, holderWins) {
 
 // 番勝負を、両者の名前を行に並べた勝敗表（将棋の順位戦成績表のような形式）として組み立てる
 // 共通ヘルパー。gamesの各要素のresultはA（1人目）視点（win=Aの勝ち）とする
-function seriesTable(games, nameA, nameB) {
+function seriesTable(games, nameA, nameB, totals, finalSet) {
+  // totals：{a, b}＝番勝負の勝ち数（APIが数えたもの）。最終局の2局セットは2局で1勝と数えるため、
+  // 各局の○×を数えた数とは一致しない（例：3勝3敗→最終局2局セットを1勝1敗・石数で制して4勝3敗）
   if (!games || games.length === 0) return '';
   function markFor(result, isA) {
     if (result === 'draw') return { symbol: '△', color: 'var(--text-dim)' };
@@ -1846,6 +1848,7 @@ function seriesTable(games, nameA, nameB) {
     return won ? { symbol: '〇', color: 'var(--cyan)' } : { symbol: '✕', color: '#ff7a7a' };
   }
   function scoreLabel(isA) {
+    if (totals) return isA ? `${totals.a}勝${totals.b}敗` : `${totals.b}勝${totals.a}敗`;
     let w = 0, l = 0;
     games.forEach(g => {
       const m = markFor(g.result, isA);
@@ -1853,18 +1856,32 @@ function seriesTable(games, nameA, nameB) {
     });
     return `${w}勝${l}敗`;
   }
+  const setBg = 'background:rgba(255,182,72,0.10);';
   function rowHtml(name, isA) {
     const cells = games.map(g => {
       const m = markFor(g.result, isA);
-      return `<td style="text-align:center; color:${m.color}; font-weight:700; padding:2px 6px;">${m.symbol}</td>`;
+      return `<td style="text-align:center; color:${m.color}; font-weight:700; padding:2px 6px; ${g.final_set ? setBg : ''}">${m.symbol}</td>`;
     }).join('');
     return `<tr><td style="white-space:nowrap; padding-right:10px; font-size:0.78rem;">${escapeHtml(name || '?')}</td>${cells}<td style="padding-left:10px; color:var(--text-dim); font-size:0.72rem; white-space:nowrap;">${scoreLabel(isA)}</td></tr>`;
   }
-  const headerCells = games.map((g, i) => `<th style="text-align:center; font-weight:400; color:var(--text-dim); font-size:0.62rem; padding:2px 6px;">第${i + 1}局</th>`).join('');
+  let normalNo = 0, setNo = 0;
+  const headerCells = games.map(g => {
+    const label = g.final_set ? `最終${'①②③④⑤⑥'[setNo++] || ''}` : `第${++normalNo}局`;
+    return `<th style="text-align:center; font-weight:400; color:${g.final_set ? 'var(--amber)' : 'var(--text-dim)'}; font-size:0.62rem; padding:2px 6px; ${g.final_set ? setBg : ''}">${label}</th>`;
+  }).join('');
+  let note = '';
+  if (finalSet) {
+    const winner = escapeHtml((finalSet.a_won ? nameA : nameB) || '');
+    const how = finalSet.a_wins !== finalSet.b_wins
+      ? `${finalSet.a_won ? finalSet.a_wins : finalSet.b_wins}勝${finalSet.a_won ? finalSet.b_wins : finalSet.a_wins}敗`
+      : `1勝1敗・石数の合計${Math.abs(finalSet.disc_margin)}個差`;
+    note = `<div style="font-size:0.66rem; color:var(--text-dim); text-align:center; margin-top:4px;">
+      ※あと1勝で並んだため、最終局は先後を入れ替えた2局セット（最終①②）で決着：${winner}の勝ち（${how}）。2局で1勝と数える</div>`;
+  }
   return `<div style="overflow-x:auto;"><table style="width:auto; margin:0 auto;">
     <thead><tr><th></th>${headerCells}<th></th></tr></thead>
     <tbody>${rowHtml(nameA, true)}${rowHtml(nameB, false)}</tbody>
-  </table></div>`;
+  </table></div>${note}`;
 }
 
 // 朱雀戦・白虎戦・玄武戦タブ（それぞれ独立したタブなので、タイトルごとに季送りナビだけ持たせる）
@@ -2030,7 +2047,7 @@ async function loadOneBracket(season, title, containerId = 'bracket-view') {
         if (decisionM.length > 0) {
           html += `<div style="padding:10px 0; border-top:1px solid rgba(24,34,56,0.6);">
             <div style="font-size:0.7rem; color:var(--amber); margin-bottom:6px; text-align:center;">挑戦者決定戦（紅組1位 vs 白組1位）</div>
-            ${seriesTable(decisionM, data.decision_red_name, data.decision_white_name)}
+            ${seriesTable(decisionM, data.decision_red_name, data.decision_white_name, { a: data.decision_red_wins, b: data.decision_white_wins }, data.decision_final_set)}
           </div>`;
         }
 
@@ -2039,7 +2056,7 @@ async function loadOneBracket(season, title, containerId = 'bracket-view') {
             <div style="font-size:0.7rem; color:var(--amber); margin-bottom:6px; text-align:center;">
               朱雀戦本戦　${defendCaptureLabel(data.challenger_wins, data.holder_wins)}
             </div>
-            ${seriesTable(finalM, data.challenger_name, data.holder_name)}
+            ${seriesTable(finalM, data.challenger_name, data.holder_name, { a: data.challenger_wins, b: data.holder_wins }, data.final_set)}
           </div>`;
         }
 
@@ -2126,7 +2143,7 @@ async function loadOneBracket(season, title, containerId = 'bracket-view') {
             <div style="font-size:0.7rem; color:var(--amber); margin-bottom:6px; text-align:center;">
               ${escapeHtml(title)}戦本戦　${defendCaptureLabel(data.challenger_wins, data.holder_wins)}
             </div>
-            ${seriesTable(finalGames, data.challenger_name, data.holder_name)}
+            ${seriesTable(finalGames, data.challenger_name, data.holder_name, { a: data.challenger_wins, b: data.holder_wins }, data.final_set)}
           </div>`;
         }
         html += '</div>';

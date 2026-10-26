@@ -563,6 +563,63 @@ function build_records($pdo) {
     ];
 }
 
+// 番勝負（タイトル戦本戦・朱雀の挑戦者決定戦）の勝ち数を数える。両者があと1勝で並んだ場合の最終局は、
+// 先後を入れ替えた2局セット（games_jsonにfinal_setの印）で、2局で1勝として数える（勝ち数→同じなら石数の合計）。
+// 各行にfinal_set（最終局の2局セットの対局か）を付け、games_jsonは取り除く。
+// 戻り値：[aの勝ち数, bの勝ち数, 最終局の情報（無ければnull）]
+function score_series(array &$rows) {
+    $a = 0; $b = 0; $set = [];
+    foreach ($rows as &$r) {
+        $games = json_decode($r['games_json'] ?? '[]', true) ?: [];
+        $g = $games[0] ?? [];
+        $r['final_set'] = !empty($g['final_set']);
+        unset($r['games_json']);
+        if ($r['final_set']) {
+            $set[] = ['result' => $r['result'], 'g' => $g];
+        } elseif ($r['result'] === 'win') {
+            $a++;
+        } elseif ($r['result'] === 'loss') {
+            $b++;
+        }
+    }
+    unset($r);
+    $setInfo = null;
+    if ($set) {
+        $sa = count(array_filter($set, fn($x) => $x['result'] === 'win'));
+        $sb = count(array_filter($set, fn($x) => $x['result'] === 'loss'));
+        $margin = 0;
+        foreach ($set as $x) {
+            $g = $x['g'];
+            if (isset($g['black'], $g['white'])) {
+                $margin += ($g['black'] - $g['white']) * (!empty($g['a_was_black']) ? 1 : -1);
+            }
+        }
+        $aWon = $sa !== $sb ? $sa > $sb : $margin > 0;
+        if ($aWon) $a++; else $b++;
+        $setInfo = ['a_won' => $aWon, 'a_wins' => $sa, 'b_wins' => $sb, 'disc_margin' => $margin];
+    }
+    return [$a, $b, $setInfo];
+}
+
+function fetch_series($pdo, $season, $league) {
+    $stmt = $pdo->prepare(
+        "SELECT m.id, m.result, m.games_json,
+                COALESCE(ia.display_name, ra.display_name, m.individual_a_id) AS individual_a_name,
+                COALESCE(ib.display_name, rb.display_name, m.individual_b_id) AS individual_b_name,
+                COALESCE(ia.display_name, ra.display_name, m.individual_a_id) AS challenger_name,
+                COALESCE(ib.display_name, rb.display_name, m.individual_b_id) AS holder_name
+         FROM matches m
+         LEFT JOIN individuals ia ON ia.id = m.individual_a_id
+         LEFT JOIN retired_archive ra ON ra.id = m.individual_a_id
+         LEFT JOIN individuals ib ON ib.id = m.individual_b_id
+         LEFT JOIN retired_archive rb ON rb.id = m.individual_b_id
+         WHERE m.season = :season AND m.league = :league
+         ORDER BY m.id ASC"
+    );
+    $stmt->execute(['season' => $season, 'league' => $league]);
+    return $stmt->fetchAll();
+}
+
 function build_bracket_participant_info($pdo, $season, $ids, $titlesDoneBefore = []) {
     $info = [];
     if (!$ids) return $info;
@@ -1953,7 +2010,7 @@ switch ($action) {
                 return $groupStmt->fetchAll();
             };
 
-            $decisionMatches = $fetchGroup('朱雀挑戦者決定戦');
+            $decisionMatches = fetch_series($pdo, $season, '朱雀挑戦者決定戦');
             $qualifierMatches = $fetchGroup('朱雀予選');
             // 紅白リーグがまだ無い第1季のみ発生する「初代紅白メンバー決定トーナメント」。
             // 通常の入れ替え戦（朱雀予選）とは別リーグ名で記録しているため、別途取得する
@@ -2046,40 +2103,20 @@ switch ($action) {
 
             $decisionRedName = null;
             $decisionWhiteName = null;
-            $decisionRedWins = 0;
-            $decisionWhiteWins = 0;
+            [$decisionRedWins, $decisionWhiteWins, $decisionFinalSet] = score_series($decisionMatches);
             foreach ($decisionMatches as $g) {
                 if ($decisionRedName === null) {
                     $decisionRedName = $g['individual_a_name'];
                     $decisionWhiteName = $g['individual_b_name'];
                 }
-                if ($g['result'] === 'win') $decisionRedWins++;
-                elseif ($g['result'] === 'loss') $decisionWhiteWins++;
             }
 
             // 本戦（挑戦者 vs 朱雀ホルダー）の番勝負
-            $finalStmt = $pdo->prepare(
-                "SELECT m.id, m.result,
-                        COALESCE(ia.display_name, ra.display_name, m.individual_a_id) AS challenger_name,
-                        COALESCE(ib.display_name, rb.display_name, m.individual_b_id) AS holder_name
-                 FROM matches m
-                 LEFT JOIN individuals ia ON ia.id = m.individual_a_id
-                 LEFT JOIN retired_archive ra ON ra.id = m.individual_a_id
-                 LEFT JOIN individuals ib ON ib.id = m.individual_b_id
-                 LEFT JOIN retired_archive rb ON rb.id = m.individual_b_id
-                 WHERE m.season = :season AND m.league = :title
-                 ORDER BY m.id ASC"
-            );
-            $finalStmt->execute(['season' => $season, 'title' => $title]);
-            $finalGames = $finalStmt->fetchAll();
-
-            $challengerWins = 0;
-            $holderWins = 0;
+            $finalGames = fetch_series($pdo, $season, $title);
+            [$challengerWins, $holderWins, $finalSet] = score_series($finalGames);
             $challengerName = null;
             $holderName = null;
             foreach ($finalGames as $g) {
-                if ($g['result'] === 'win') $challengerWins++;
-                elseif ($g['result'] === 'loss') $holderWins++;
                 if ($challengerName === null) { $challengerName = $g['challenger_name']; $holderName = $g['holder_name']; }
             }
 
@@ -2101,11 +2138,12 @@ switch ($action) {
                 'decision_matches' => $decisionMatches,
                 'decision_red_name' => $decisionRedName, 'decision_white_name' => $decisionWhiteName,
                 'decision_red_wins' => $decisionRedWins, 'decision_white_wins' => $decisionWhiteWins,
+                'decision_final_set' => $decisionFinalSet,
                 'qualifier_bracket' => $qualifierMatches,
                 'qualifier_participant_info' => $qualifierParticipantInfo,
                 'bootstrap_bracket' => $bootstrapMatches,
                 'bootstrap_participant_info' => $bootstrapParticipantInfo,
-                'final_games' => $finalGames,
+                'final_games' => $finalGames, 'final_set' => $finalSet,
                 'challenger_name' => $challengerName, 'holder_name' => $holderName,
                 'challenger_wins' => $challengerWins, 'holder_wins' => $holderWins,
             ]);
@@ -2192,28 +2230,11 @@ switch ($action) {
         }
 
         // 本戦（挑戦者 vs ホルダー）の番勝負：全局を時系列で取得し、スコアカード表示用に整形する
-        $finalStmt = $pdo->prepare(
-            "SELECT m.id, m.result,
-                    COALESCE(ia.display_name, ra.display_name, m.individual_a_id) AS challenger_name,
-                    COALESCE(ib.display_name, rb.display_name, m.individual_b_id) AS holder_name
-             FROM matches m
-             LEFT JOIN individuals ia ON ia.id = m.individual_a_id
-             LEFT JOIN retired_archive ra ON ra.id = m.individual_a_id
-             LEFT JOIN individuals ib ON ib.id = m.individual_b_id
-             LEFT JOIN retired_archive rb ON rb.id = m.individual_b_id
-             WHERE m.season = :season AND m.league = :title
-             ORDER BY m.id ASC"
-        );
-        $finalStmt->execute(['season' => $season, 'title' => $title]);
-        $finalGames = $finalStmt->fetchAll();
-
-        $challengerWins = 0;
-        $holderWins = 0;
+        $finalGames = fetch_series($pdo, $season, $title);
+        [$challengerWins, $holderWins, $finalSet] = score_series($finalGames);
         $challengerName = null;
         $holderName = null;
         foreach ($finalGames as $g) {
-            if ($g['result'] === 'win') $challengerWins++;
-            elseif ($g['result'] === 'loss') $holderWins++;
             if ($challengerName === null) { $challengerName = $g['challenger_name']; $holderName = $g['holder_name']; }
         }
 
@@ -2232,7 +2253,7 @@ switch ($action) {
             'genbu_blocks' => $genbuBlocks,
             'genbu_final_standings' => $genbuFinalStandings,
             'genbu_final_playoff' => $genbuFinalPlayoff,
-            'final_games' => $finalGames,
+            'final_games' => $finalGames, 'final_set' => $finalSet,
             'challenger_name' => $challengerName,
             'holder_name' => $holderName,
             'challenger_wins' => $challengerWins,
