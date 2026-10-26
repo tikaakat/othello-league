@@ -2749,6 +2749,19 @@ function renderHofView(el, view) {
           body = '<div class="empty" style="margin:4px 0 0;">該当者なし</div>';
         } else {
           const ranks = competitionRanks(rows, r => r.value);
+          if (rec.key === 'title_total') {
+            // タイトル通算：タイトルごとの期数を列に並べた表（青龍・麒麟・朱雀・白虎・玄武の順）
+            const order = ['青龍', '麒麟', '朱雀', '白虎', '玄武'];
+            const cell = 'text-align:center; white-space:nowrap; padding:4px 3px; font-size:0.74rem;';
+            body = `<div style="overflow-x:auto;"><table><thead><tr><th>#</th><th>名前</th>${
+              order.map(t => `<th style="${cell} color:${TITLE_BADGE_COLOR[t] || 'inherit'};">${t}</th>`).join('')
+            }<th style="${cell}">計</th></tr></thead><tbody>${rows.map((r, i) => `<tr data-id="${escapeHtml(r.individual_id)}">
+              <td style="width:2.2em; color:var(--text-dim);">${ranks[i]}</td>
+              <td style="white-space:nowrap; font-size:0.76rem;">${escapeHtml(r.display_name)}${r.retired ? '<span style="color:var(--text-dim); font-size:0.66rem;">（引退）</span>' : ''}</td>
+              ${order.map(t => { const n = (r.breakdown || {})[t] || 0; return `<td style="${cell}${n ? '' : ' color:var(--text-dim);'}">${n || '-'}</td>`; }).join('')}
+              <td class="elo-val" style="${cell} font-weight:700;">${r.value}</td>
+            </tr>`).join('')}</tbody></table></div>`;
+          } else
           body = `<table><tbody>${rows.map((r, i) => `<tr data-id="${escapeHtml(r.individual_id)}">
               <td style="width:2.2em; color:var(--text-dim);">${ranks[i]}</td>
               <td style="white-space:nowrap;">${escapeHtml(r.display_name)}${r.retired ? '<span style="color:var(--text-dim); font-size:0.7rem;">（引退）</span>' : ''}</td>
