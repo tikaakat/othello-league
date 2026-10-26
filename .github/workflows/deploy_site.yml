@@ -93,6 +93,7 @@ on:
           - "dup_check"
           - "consistency_dump"
           - "schema_check"
+          - "perf_check"
         default: ""
 
 jobs:
@@ -559,6 +560,41 @@ jobs:
                         echo ($i + 1) . ": " . rtrim($line) . PHP_EOL;
                       }
                     }
+                  }
+                '
+                ;;
+              perf_check)
+                # 個体ページ等が遅いときの確認用：主なテーブルの行数・サイズ・インデックスと、
+                # 個体ページ（action=individual）の主なクエリの実行計画・所要時間、APIの応答時間を表示する
+                PHP_QUERY='
+                  foreach ($pdo->query("SHOW TABLE STATUS")->fetchAll(PDO::FETCH_ASSOC) as $t) {
+                    echo $t["Name"] . " rows=" . $t["Rows"] . " data=" . round($t["Data_length"] / 1048576, 1) . "MB index=" . round($t["Index_length"] / 1048576, 1) . "MB" . PHP_EOL;
+                  }
+                  foreach (["matches", "standings", "title_history", "individuals", "retired_archive"] as $t) {
+                    echo "--- index: $t ---" . PHP_EOL;
+                    foreach ($pdo->query("SHOW INDEX FROM $t")->fetchAll(PDO::FETCH_ASSOC) as $i) {
+                      echo $i["Key_name"] . " (" . $i["Column_name"] . ")" . PHP_EOL;
+                    }
+                  }
+                  $id = $pdo->query("SELECT individual_a_id FROM matches GROUP BY individual_a_id ORDER BY COUNT(*) DESC LIMIT 1")->fetchColumn();
+                  echo "--- 対局数の多い個体: $id ---" . PHP_EOL;
+                  $qs = [
+                    "or" => "SELECT individual_a_id, result FROM matches WHERE individual_a_id = ? OR individual_b_id = ?",
+                    "or_join" => "SELECT m.individual_a_id, m.result, COALESCE(ia.display_name, ra.display_name) FROM matches m LEFT JOIN individuals ia ON ia.id = m.individual_a_id LEFT JOIN retired_archive ra ON ra.id = m.individual_a_id WHERE m.individual_a_id = ? OR m.individual_b_id = ?",
+                    "recent30" => "SELECT m.id FROM matches m WHERE m.individual_a_id = ? OR m.individual_b_id = ? ORDER BY m.season DESC, m.id DESC LIMIT 30",
+                  ];
+                  foreach ($qs as $k => $q) {
+                    foreach ($pdo->query("EXPLAIN " . str_replace("?", $pdo->quote($id), $q))->fetchAll(PDO::FETCH_ASSOC) as $e) {
+                      echo "explain $k: table=" . $e["table"] . " type=" . $e["type"] . " key=" . ($e["key"] ?? "NULL") . " rows=" . $e["rows"] . " extra=" . ($e["Extra"] ?? "") . PHP_EOL;
+                    }
+                    $t0 = microtime(true);
+                    $st = $pdo->prepare($q); $st->execute([$id, $id]); $n = count($st->fetchAll());
+                    echo "time $k: " . round(microtime(true) - $t0, 3) . "s rows=$n" . PHP_EOL;
+                  }
+                  foreach (["individual&id=" . urlencode($id), "standings", "hall_of_fame", "clans"] as $a) {
+                    $t0 = microtime(true);
+                    $body = @file_get_contents("https://lab.spia-net.com/othello-league/api.php?action=$a");
+                    echo "api $a: " . round(microtime(true) - $t0, 2) . "s bytes=" . strlen((string)$body) . " head=" . substr((string)$body, 0, 80) . PHP_EOL;
                   }
                 '
                 ;;

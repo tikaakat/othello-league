@@ -163,7 +163,7 @@
 
 <div class="header">
   <h1>CIRCUIT OTHELLO LEAGUE</h1>
-  <p>選手たちがリーグ戦・タイトル戦を戦い抜き、麒麟・青龍・朱雀・白虎・玄武の座を目指す</p>
+  <p>選手たちがリーグ戦・タイトル戦を戦い抜き、青龍・麒麟・朱雀・白虎・玄武の座を目指す</p>
 </div>
 
 <div class="tabs" id="primary-tabs">
@@ -245,10 +245,10 @@ const tabPanels = {
 // （以前はsubViews系だけパネル内部に独自描画しており、タブ直下のsubLabels系と縦位置が揃っていなかった）
 const TAB_GROUPS = {
   leagues: {
-    label: 'リーグ', tabs: ['leagues', 'suzaku_league', 'draw_kirin', 'draw_byakko', 'draw_genbu'],
+    label: 'リーグ', tabs: ['leagues', 'draw_kirin', 'suzaku_league', 'draw_byakko', 'draw_genbu'],
     subLabels: {
       leagues: '青龍戦リーグ表', suzaku_league: '朱雀戦紅白リーグ表',
-      draw_kirin: '麒麟戦組み合わせ', draw_byakko: '白虎戦組み合わせ', draw_genbu: '玄武戦組み合わせ',
+      draw_kirin: '麒麟戦トーナメント表', draw_byakko: '白虎戦トーナメント表', draw_genbu: '玄武戦トーナメント表',
     },
   },
   results: {
@@ -490,7 +490,7 @@ function ageCell(age) {
 }
 
 const TITLE_NAMES = new Set([
-  '麒麟', '青龍', '朱雀', '白虎', '玄武', '麒麟予選', '青龍予選', '朱雀予選', '白虎予選', '玄武予選',
+  '青龍', '麒麟', '朱雀', '白虎', '玄武', '青龍予選', '麒麟予選', '朱雀予選', '白虎予選', '玄武予選',
   '朱雀紅組', '朱雀白組', '朱雀紅組-playoff', '朱雀白組-playoff', '朱雀挑戦者決定戦', '朱雀紅白決定戦',
 ]);
 function leagueTag(league) {
@@ -501,7 +501,7 @@ function leagueTag(league) {
 // ---------------- リーグ ----------------
 // 現在のタイトル保持者マップ（全ページで使い回す）
 let CURRENT_TITLEHOLDERS = { by_id: {}, by_name: {} };
-const TITLE_ORDER = ['麒麟', '青龍', '朱雀', '白虎', '玄武']; // 序列順（麒麟・青龍が最上位）
+const TITLE_ORDER = ['青龍', '麒麟', '朱雀', '白虎', '玄武']; // 表示順（青龍・麒麟が最上位）
 const CROWN_LABELS = { 2: '二冠', 3: '三冠', 4: '四冠', 5: '五冠' };
 
 function crownLabel(id, name) {
@@ -636,7 +636,7 @@ async function loadLeagues() {
       // B〜Dリーグ（ランダム8戦）の今季の対戦表（前の季の終わりに決めた組み合わせ）を折りたたみで添える
       const pairs = (upcoming && upcoming.season === data.next_season && upcoming.leagues) ? upcoming.leagues[lg] : null;
       if (pairs && pairs.length) {
-        html += `<details style="margin-top:6px;"><summary style="cursor:pointer; font-size:0.72rem; color:var(--amber);">${lg}リーグの対戦表（●＝対戦する組み合わせ）</summary>${renderPairsCrossTable(pairs)}</details>`;
+        html += `<details style="margin-top:6px;"><summary style="cursor:pointer; font-size:0.72rem; color:var(--amber);">${lg}リーグの対戦表（●＝対戦する組み合わせ）</summary>${renderPairsCrossTable(pairs, rows.map(r => r.id))}</details>`;
       }
       html += '</div>';
     });
@@ -783,14 +783,17 @@ function drawEntrantsTable(rows, cols) {
   }</tbody></table></div>`;
 }
 
-// B〜Dリーグの対戦表（総当たり表と同じ形の表で、当たる組み合わせに●を付ける。Elo順）
-function renderPairsCrossTable(pairs) {
+// B〜Dリーグの対戦表（総当たり表と同じ形の表で、当たる組み合わせに●を付ける）。
+// 並びはリーグ表と同じ順（order：IDの配列）。リーグ表に無い選手（新人枠）は後ろに置く
+function renderPairsCrossTable(pairs, order = []) {
   const keyOf = p => p.id || p.newcomer;
   const players = [], seen = new Set();
   pairs.forEach(pr => pr.forEach(p => {
     if (p && !seen.has(keyOf(p))) { seen.add(keyOf(p)); players.push(p); }
   }));
-  players.sort((a, b) => (b.elo || 0) - (a.elo || 0));
+  const pos = new Map(order.map((id, i) => [id, i]));
+  players.forEach((p, i) => { if (!pos.has(p.id)) pos.set(keyOf(p), order.length + i); });
+  players.sort((a, b) => pos.get(keyOf(a)) - pos.get(keyOf(b)));
   const index = new Map(players.map((p, i) => [keyOf(p), i]));
   const met = new Set();
   pairs.forEach(([a, b]) => {
