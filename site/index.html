@@ -662,7 +662,9 @@ function cupDrawPlayerHtml(p) {
 //   先に1局指してから1回戦に合流する形で描く（大半の出場者は1回戦から登場する）
 // - 1回戦より後から登場する出場者だけを「シード」と表示する
 // tagFn(p)：名前の右に添える短い補足（「Elo3位」等）。rootLabel：最後の箱に書く文言
-function renderDrawSVG(slots, rootLabel, tagFn) {
+function renderDrawSVG(slots, rootLabel, tagFn, opts = {}) {
+  // opts.isSeed(p)：段階シード（玄武戦）の場合に、シードの選手か。シードでない選手が登場する段を1回戦とし
+  // （それより前は予備戦）、シードの表示はtagFnに任せる
   function toTree(list) {
     const level = Math.log2(list.length);
     if (list.length === 1) return list[0] ? { leaf: true, p: list[0], entry: 0 } : null;
@@ -683,7 +685,9 @@ function renderDrawSVG(slots, rootLabel, tagFn) {
   // 最も多くの出場者が登場する段を「1回戦」とする（それより前の段は予備戦）
   const entryCount = {};
   leaves.forEach(l => { entryCount[l.entry] = (entryCount[l.entry] || 0) + 1; });
-  const mainStart = +Object.keys(entryCount).sort((a, b) => entryCount[b] - entryCount[a] || a - b)[0];
+  const mainStart = opts.isSeed
+    ? Math.max(0, ...leaves.filter(l => !opts.isSeed(l.p)).map(l => l.entry))
+    : +Object.keys(entryCount).sort((a, b) => entryCount[b] - entryCount[a] || a - b)[0];
   const maxLevel = root.leaf ? 0 : root.level;
   const roundName = (L) => {
     if (L <= mainStart) return '予備戦';
@@ -725,7 +729,7 @@ function renderDrawSVG(slots, rootLabel, tagFn) {
       info = { league: p.league, title: ((CURRENT_TITLEHOLDERS.by_id || {})[p.id] || [])[0] };
     }
     let tag = tagFn ? (tagFn(p) || '') : '';
-    if (n.entry > mainStart) tag = tag ? `シード・${tag}` : 'シード';
+    if (!opts.isSeed && n.entry > mainStart) tag = tag ? `シード・${tag}` : 'シード';
     if (n.entry < mainStart) tag = tag ? `予備戦・${tag}` : '予備戦';
     const badgeW = (info.league || info.title) ? LEAGUE_BADGE_W + 2 : 0;
     const label = fitBracketNameWithTag(name, tag, NAME_W - 10 - badgeW, 12, false);
@@ -841,12 +845,15 @@ async function loadCupDrawPanel(kind) {
     html += `<div class="league-block"><h3>第${data.season}季 玄武戦 挑戦者決定戦（${entrants}名）</h3>`;
     html += `<p style="font-size:0.72rem; margin:2px 0 6px;">${holderLine(g.holder)}<br>
       ${g.num_blocks}つのブロックのトーナメントの優勝者${g.guaranteed_final ? `と、前季失冠の${cupDrawPlayerHtml(g.guaranteed_final)}（本戦から出場）` : ''}が、総当たりの本戦で挑戦者を決めます。<br>
-      出場条件：全選手（在位者を除く）。各ブロック16枠で、枠を超えた分は「予備戦」で1局指してから1回戦に合流する。
-      予備戦に回るのは、タイトル保持者→Aリーグ→Bリーグ…（各リーグ内はElo順）の優先順で下位の選手。組み合わせは抽選。</p>`;
+      出場条件：全選手（在位者を除く）。シード：タイトル保持者は3回戦から、Aリーグの選手は2回戦から登場し、
+      ほかの選手（B〜D・新人）は1回戦から。シードの選手は4ブロックに均等に振り分け、それ以外は抽選。</p>`;
     for (let k = 0; k < g.num_blocks; k++) {
       html += `<div style="font-size:0.72rem; color:var(--amber); margin-top:8px;">${'ABCDEFGH'[k]}ブロック</div>`;
-      html += renderDrawSVG(g.slots.slice(k * blockSize, (k + 1) * blockSize), 'ブロック代表',
-        p => p.elo_rank ? `Elo${p.elo_rank}位` : '');
+      html += renderDrawSVG(g.slots.slice(k * blockSize, (k + 1) * blockSize), 'ブロック代表', p => {
+        const elo = p.elo_rank ? `Elo${p.elo_rank}位` : '';
+        if (((CURRENT_TITLEHOLDERS.by_id || {})[p.id] || []).length) return `保持者シード・${elo}`;
+        return p.league === 'A' ? `Aシード・${elo}` : elo;
+      }, { isSeed: p => p.league === 'A' || ((CURRENT_TITLEHOLDERS.by_id || {})[p.id] || []).length > 0 });
     }
     html += '</div>';
 

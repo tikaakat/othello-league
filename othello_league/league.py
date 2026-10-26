@@ -18,6 +18,7 @@ D_TO_C_PROMOTE = 3   # D→C昇格人数（C→D降格人数と揃え、Cリー�
 RETIREMENT_AGE = 60
 RETIREMENT_AGE_HARD_CAP = 65  # 引退を免除されていても、この年齢でタイトル保持中でなければ引退する
 D_DEMOTION_POINT_LIMIT = 3  # Dリーグでの降級点がこの数に達すると強制引退（連続でなくてもよい）
+D_DEMOTION_GRACE_SEASONS = 3  # デビューからこの季数は降級点を付けない
 D_DEMOTION_POINT_FLOOR = 1  # 勝ち越し・救済で減らせる下限。1点目はCへ昇級するまで消えない
 C_TO_D_RELEGATE = 3  # C→D降格人数（B→Cと同数）
 
@@ -214,7 +215,9 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
         # 判定する（win_this_season/loss_this_seasonはタイトル戦の前にA〜Dの結果だけで
         # セットされるため、玄武予選・玄武本戦等のタイトル戦の勝敗はここに混ざらない）
         lost_more = ind.loss_this_season > ind.win_this_season
-        if ind.total_seasons < int(__import__("os").environ.get("SIM_GRACE", "0")):
+        # デビューから D_DEMOTION_GRACE_SEASONS 季は、負け越しても降級点を付けない（若手が育つ前に
+        # 引退してしまうのを防ぐ。シミュレーションでは30歳未満の引退が16人→5人に減った）
+        if ind.total_seasons < D_DEMOTION_GRACE_SEASONS:
             lost_more = False
         won_more = ind.win_this_season > ind.loss_this_season
         relief = ind.id in demotion_relief_ids
