@@ -641,8 +641,8 @@ def run_genbu_challenge(challenger, titleholder_params, depth=1, titleholder_vol
 # ============================================================
 # 麒麟戦（序列1位、竜王格）：竜王戦の「組」と棋王戦の「敗者復活」を組み合わせた方式。7番勝負。
 # - 組は麒麟戦の成績だけで毎季決め直す（所属リーグやEloとは無関係）。
-#   1組（8名）は本戦から出場。2組（16名）と3組（残り全員・新人を含む）は、それぞれ組ごとの予選
-#   （ブロック別トーナメント）を戦い、各ブロックの優勝者が本戦に進む。予選の通過枠は2組に多く振る（KIRIN_GROUP2_SHARE）。
+#   1組（8名）は本戦から出場。2組（16名）と3組（残り全員・新人を含む）は予選（ブロック別トーナメント）を戦い、
+#   各ブロックの優勝者が本戦に進む。2組と3組は同じブロックに入り、2組は1つ後の回戦から登場する（シード）。
 #   次の季の1組＝本戦ベスト8、2組＝本戦1回戦の敗者＋予選ブロック決勝の敗者、残りは3組。
 #   組の成績がまだ無い最初の季だけ、Aリーグ所属を1組の代わりにする。
 # - 本戦は16名のトーナメント。ベスト4からは2敗で失格：準決勝・決勝の敗者は敗者復活戦に回り、
@@ -651,29 +651,27 @@ def run_genbu_challenge(challenger, titleholder_params, depth=1, titleholder_vol
 # ============================================================
 KIRIN_MAIN_SIZE = 16
 KIRIN_GROUP1_SIZE = 8
-KIRIN_GROUP2_SHARE = 0.75  # 予選の通過枠のうち2組に振る割合（残りは3組）
 QUALIFIER_SLOT_PREFIX = "Q"  # 本戦の組み合わせで、予選ブロックの優勝者が入る枠（Q1, Q2, ...＝予選の1, 2, ...番目のブロック）
 
 
-def _deal_blocks(ids, num_blocks):
-    """予選のブロック分け（ランダム）。各ブロックをトーナメントの並び（不在はNone）にして返す"""
-    ids = list(ids)
-    random.shuffle(ids)
-    blocks = [ids[k::num_blocks] for k in range(num_blocks)]
-    out = []
-    for members in blocks:
-        size = 1
-        while size < len(members):
-            size *= 2
-        slots = members + [None] * (size - len(members))
-        out.append([slots[i] for i in _bracket_seed_order(size)])
-    return out
+def _deal_seeded_blocks(g2, g3, num_blocks):
+    """予選のブロック分け（ランダム）。2組・3組を各ブロックに均等に振り、2組は3組より1つ後の回戦から登場させる。
+    各ブロックをトーナメントの並び（不在はNone）にして返す"""
+    g2, g3 = list(g2), list(g3)
+    random.shuffle(g2)
+    random.shuffle(g3)
+    blocks = [[] for _ in range(num_blocks)]
+    for k, pid in enumerate(g2):
+        blocks[k % num_blocks].append((pid, 1))
+    for k, pid in enumerate(g3):
+        blocks[(len(g2) + k) % num_blocks].append((pid, 0))
+    return [tiered_slots(b) if b else [None] for b in blocks]
 
 
 def plan_kirin_bracket(all_members, exclude_id=None, groups=None, guaranteed_id=None, newcomer_slots=0):
     """麒麟戦の組み合わせを決める。all_membersはA→B→C→Dの順。groupsは前季の結果による組
     {"1": [ID...（成績順）], "2": [ID...]}（無ければAリーグ所属を1組とする）。
-    戻り値：{"groups": {"1": [...], "2": [...], "3": [...]}, "prelim": [{"group": 2or3, "slots": [...]}, ...],
+    戻り値：{"groups": {"1": [...], "2": [...], "3": [...]}, "prelim": [{"group": 0, "slots": [...]}, ...],
             "main": [ID または "Q1" 等 または None ...]}"""
     present = [ind.id for ind in all_members if ind.id != exclude_id]
     present_set = set(present)
@@ -692,14 +690,7 @@ def plan_kirin_bracket(all_members, exclude_id=None, groups=None, guaranteed_id=
     g3 = [i for i in present if i not in in12] + [f"{NEWCOMER_SLOT_PREFIX}{k + 1}" for k in range(newcomer_slots)]
 
     needed = KIRIN_MAIN_SIZE - len(g1)
-    # 予選の通過枠は2組に多く振る（既定で8枠のうち6枠）。2組の選手が1組に上がりやすくなり、1組が固定されにくい
-    # （シミュレーションでは、2組→1組の昇格が1季あたり1.8人→3.3人、挑戦者のElo順位の中央値が12.5位→3.5位）
-    q2 = min(round(needed * KIRIN_GROUP2_SHARE), len(g2) // 2) if len(g2) >= 2 else 0
-    if q2 == 0:
-        g3, g2 = g2 + g3, []
-    q3 = needed - q2
-    prelim = [{"group": 2, "slots": b} for b in (_deal_blocks(g2, q2) if q2 else [])]
-    prelim += [{"group": 3, "slots": b} for b in _deal_blocks(g3, q3)]
+    prelim = [{"group": 0, "slots": b} for b in _deal_seeded_blocks(g2, g3, needed)]
 
     entrants = g1 + [f"{QUALIFIER_SLOT_PREFIX}{k + 1}" for k in range(needed)]
     slots = entrants + [None] * (KIRIN_MAIN_SIZE - len(entrants))

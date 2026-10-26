@@ -108,7 +108,7 @@ function resolve_newcomer_real_ids($pdo, $rows) {
 
 // 5大タイトル。序列順（麒麟・青龍が竜王・名人格の最上位）。旧タイトル名（陸王・海王・空王）は
 // シミュレーション側で移行済みのため、サイト側はこの新名称のみを扱う
-const TITLE_NAMES_LIST = ['麒麟', '青龍', '朱雀', '白虎', '玄武'];
+const TITLE_NAMES_LIST = ['青龍', '麒麟', '朱雀', '白虎', '玄武'];
 // 1季の中でタイトル戦が決着する順（run_season.pyの実行順）
 const TITLE_SEASON_ORDER = ['青龍', '朱雀', '白虎', '玄武', '麒麟'];
 // 獲得すると1期で八段になるタイトル（竜王・名人格）
@@ -1073,12 +1073,25 @@ switch ($action) {
         if ($founderIds) {
             $ph = implode(',', array_fill(0, count($founderIds), '?'));
             $fStmt = $pdo->prepare(
-                "SELECT id, display_name, 0 AS retired FROM individuals WHERE id IN ($ph)
+                "SELECT id, display_name, parent_a_id, 0 AS retired FROM individuals WHERE id IN ($ph) AND retired = 0
                  UNION ALL
-                 SELECT id, display_name, 1 AS retired FROM retired_archive WHERE id IN ($ph)"
+                 SELECT id, display_name, parent_a_id, 1 AS retired FROM retired_archive WHERE id IN ($ph)"
             );
             $fStmt->execute(array_merge($founderIds, $founderIds));
             foreach ($fStmt->fetchAll() as $row) { $founderMap[$row['id']] = $row; }
+        }
+        // 独立した一門の出どころ：開祖の師匠が属する一門（開祖の師匠のclan_root_id）
+        $parentIds = array_values(array_unique(array_filter(array_column($founderMap, 'parent_a_id'))));
+        $parentClan = [];
+        if ($parentIds) {
+            $ph = implode(',', array_fill(0, count($parentIds), '?'));
+            $pStmt = $pdo->prepare(
+                "SELECT id, clan_root_id FROM individuals WHERE id IN ($ph) AND retired = 0
+                 UNION ALL
+                 SELECT id, clan_root_id FROM retired_archive WHERE id IN ($ph)"
+            );
+            $pStmt->execute(array_merge($parentIds, $parentIds));
+            foreach ($pStmt->fetchAll() as $row) { $parentClan[$row['id']] = $row['clan_root_id']; }
         }
 
         $clans = [];
@@ -1091,6 +1104,7 @@ switch ($action) {
                 'member_count' => (int)$r['member_count'],
                 'active_count' => (int)$r['active_count'],
                 'best_peak_elo' => round((float)$r['best_peak_elo'], 1),
+                'origin_clan_root_id' => $parentClan[$founder['parent_a_id'] ?? ''] ?? null,
             ];
         }
         json_out(['clans' => $clans]);
@@ -1576,7 +1590,7 @@ switch ($action) {
 
     // --------------------------------------------------------
     case 'titles':
-        $title_order = "FIELD(title, '麒麟', '青龍', '朱雀', '白虎', '玄武')";
+        $title_order = "FIELD(title, '青龍', '麒麟', '朱雀', '白虎', '玄武')";
         $current = $pdo->query(
             "SELECT title, holder_name, holder_id, event_type, season
              FROM title_history t1
