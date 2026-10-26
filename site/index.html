@@ -2141,14 +2141,14 @@ async function loadOneBracket(season, title, containerId = 'bracket-view') {
   });
 }
 
-// リーグの対戦表（総当たり表の形）。rowsは順位順の選手、matchesは {id, a, b, result（aから見た勝敗）}。
+// リーグの対戦表（総当たり表の形。○勝ち ×負け △引き分け）。rowsは順位順の選手、matchesは {id, a, b, result（aから見た勝敗）}。
 // 1つの組み合わせで引き分けの指し直しがあった場合は、最後の対局の結果を表示する
 function renderResultCrossTable(rows, matches) {
   const index = new Map(rows.map((r, i) => [r.individual_id, i]));
   const cellOf = new Map();
   matches.forEach(m => {
     if (!index.has(m.a) || !index.has(m.b)) return;
-    const mark = { win: ['○', '●'], loss: ['●', '○'], draw: ['△', '△'] }[m.result] || ['', ''];
+    const mark = { win: ['○', '×'], loss: ['×', '○'], draw: ['△', '△'] }[m.result] || ['', ''];
     cellOf.set(`${m.a}|${m.b}`, { mark: mark[0], id: m.id });
     cellOf.set(`${m.b}|${m.a}`, { mark: mark[1], id: m.id });
   });
@@ -2160,7 +2160,7 @@ function renderResultCrossTable(rows, matches) {
     rows.forEach((c, j) => {
       if (i === j) { html += `<td style="${cell} background:rgba(255,255,255,0.08);"></td>`; return; }
       const v = cellOf.get(`${r.individual_id}|${c.individual_id}`);
-      const color = v && v.mark === '○' ? 'var(--cyan)' : (v && v.mark === '●' ? '#ff7a7a' : 'var(--text-dim)');
+      const color = v && v.mark === '△' ? 'var(--text-dim)' : 'var(--text-main)';
       html += v ? `<td data-match-id="${v.id}" style="${cell} color:${color}; cursor:pointer;" title="棋譜を見る">${v.mark}</td>` : `<td style="${cell}"></td>`;
     });
     html += `<td style="white-space:nowrap; font-size:0.7rem;">${r.win}勝${r.loss}敗${r.draw ? r.draw + '分' : ''}</td></tr>`;
@@ -2235,8 +2235,8 @@ async function loadSeiryuuPanel(season) {
         const leagueMatches = (data.league_matches || []).filter(m => m.league === lg);
         if (leagueMatches.length > 0) {
           const table = renderResultCrossTable(ordered, leagueMatches);
-          // Aリーグは最初から開いておき、B〜Dは閉じておく（どれも見出しを押すと開閉できる）
-          html += `<details style="margin-top:6px;"${lg === 'A' ? ' open' : ''}><summary style="cursor:pointer; font-size:0.72rem; color:var(--amber);">${lg}リーグの対戦表（○勝ち ●負け △引き分け、行の選手から見た結果）</summary>${table}</details>`;
+          // 対戦表は常に閉じておき、見出しを押すと開く
+          html += `<details style="margin-top:6px;"><summary style="cursor:pointer; font-size:0.72rem; color:var(--amber);">${lg}リーグの対戦表（○勝ち ×負け △引き分け、行の選手から見た結果）</summary>${table}</details>`;
         }
         html += '</div>';
       });
