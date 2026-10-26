@@ -530,7 +530,8 @@ function build_records($pdo) {
     foreach ($titleTotal as $id => $c) {
         $parts = [];
         foreach ($titleBreakdown[$id] as $title => $n) $parts[] = "{$title}{$n}";
-        $titleList[] = $entry($id, $c, implode('・', $parts));
+        // breakdown：タイトルごとの通算期数（サイト側でタイトル別の表にするため）
+        $titleList[] = $entry($id, $c, implode('・', $parts)) + ['breakdown' => $titleBreakdown[$id]];
     }
     $titleList = $topBy($titleList, fn($a, $b) => $b['value'] <=> $a['value']);
     $streakList = [];
