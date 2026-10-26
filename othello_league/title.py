@@ -54,8 +54,8 @@ def _play_one_game(params_black, params_white, depth, noise_black=1.0, noise_whi
 
 def run_best_of_n_match(params_a, params_b, wins_needed, depth, noise_a=1.0, noise_b=1.0):
     """
-    先取制のタイトル戦本戦。1局目の先後は抽選し、1局ごとに先後を入れ替える。
-    両者があと1勝で並んだら、最終局は先後を入れ替えた2局セット（勝ち数→石数の合計）で決める。
+    先取制のタイトル戦本戦。1局目の先後は抽選し、1局ごとに先後を入れ替える。勝ち数だけで決まる。
+    両者があと1勝で並んだら、最終局の先後は改めて抽選する（振り駒）。
     引き分けの局も「1局」として記録するが、先取数には加算しない（将棋の千日手と同様の扱い）。
     どちらかが規定数を先取するまで対局を続ける。
     戻り値: (challenger_won: bool, a_wins, b_wins, games_log)
@@ -70,42 +70,24 @@ def run_best_of_n_match(params_a, params_b, wins_needed, depth, noise_a=1.0, noi
     # （通常のプレイでは到達しない、十分大きな値）
     MAX_GAMES_SAFETY = 500
 
-    final_set = wins_needed - 1  # 両者がこの勝ち数に並んだら、最終局は先後を入れ替えた2局セットで決める
+    final_game = wins_needed - 1  # 両者がこの勝ち数に並んだら、次が最終局
     while a_wins < wins_needed and b_wins < wins_needed and game_num < MAX_GAMES_SAFETY:
-        if a_wins == b_wins == final_set:
-            # 最終局：1局だけだと黒番の側が有利なので、先後を入れ替えた2局を指し、勝ち数→石数の合計で決める
-            # （この2局で1勝とする。局数が奇数の番勝負で、先後の割り当てだけで決着がつくのを防ぐ）
-            x_won, set_games = _play_until_decided(params_a, params_b, depth, noise_a, noise_b)
-            for g in set_games:
-                won = g["result"] != "draw" and (g["result"] == "black") == g["x_was_black"]
-                lost = g["result"] != "draw" and not won
-                games_log.append({
-                    "game_num": game_num + 1, "a_was_black": g["x_was_black"],
-                    "black": g["black"], "white": g["white"],
-                    "winner": "a" if won else ("b" if lost else "draw"), "moves": g["moves"],
-                    "final_set": True,
-                })
-                game_num += 1
-            if x_won:
-                a_wins += 1
-            else:
-                b_wins += 1
-            print(f"      最終局（2局セット）: {'挑戦者' if x_won else 'ホルダー'}の勝ち　現在 挑戦者{a_wins}勝 - ホルダー{b_wins}勝")
-            break
-        # 決着（または最終局の2局セット）までに必要になりうる局数をまとめて同時に指し、
-        # 先頭から順に数えて決着した時点で残りは捨てる（1局ずつ順に指した場合と同じ結果の分布になる）
-        batch = max(1, (wins_needed - a_wins) + (wins_needed - b_wins) - 2)
-        args = []
-        for k in range(batch):
-            if ((game_num + k) % 2 == 0) == a_first_black:
-                args.append((params_a, params_b, depth, noise_a, noise_b))
-            else:
-                args.append((params_b, params_a, depth, noise_b, noise_a))
+        if a_wins == b_wins == final_game:
+            # 最終局：先後を改めて抽選する（振り駒）。局数が奇数の番勝負では、交互に指すと1局目の黒番の側が
+            # 黒番を1局多く持つことになるため、最後の1局の先後は抽選で決める（引き分けの指し直しも同様）
+            a_black_list = [random.random() < 0.5]
+        else:
+            # 決着（または最終局）までに必要になりうる局数をまとめて同時に指し、先頭から順に数えて
+            # 決着した時点で残りは捨てる（1局ずつ順に指した場合と同じ結果の分布になる）
+            batch = max(1, (wins_needed - a_wins) + (wins_needed - b_wins) - 2)
+            a_black_list = [((game_num + k) % 2 == 0) == a_first_black for k in range(batch)]
+        args = [(params_a, params_b, depth, noise_a, noise_b) if ab else (params_b, params_a, depth, noise_b, noise_a)
+                for ab in a_black_list]
         outs = run_calls(_play_one_game, args)
-        for result, black, white, moves in outs:
-            if a_wins >= wins_needed or b_wins >= wins_needed or a_wins == b_wins == final_set:
+        final_before = a_wins == b_wins == final_game
+        for a_is_black, (result, black, white, moves) in zip(a_black_list, outs):
+            if a_wins >= wins_needed or b_wins >= wins_needed or (not final_before and a_wins == b_wins == final_game):
                 break
-            a_is_black = (game_num % 2 == 0) == a_first_black
             if result == "draw":
                 outcome_for_log = "draw"
                 note = "　（引き分け。先取数には加算せず）"
