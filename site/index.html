@@ -656,7 +656,7 @@ const UPCOMING_BRACKETS_URL = 'https://raw.githubusercontent.com/tikaakat/othell
 function cupDrawPlayerHtml(p) {
   if (!p) return '';
   if (p.qualifier !== undefined) {
-    return `<span style="color:var(--text-dim);">${p.group}組予選 ブロック${p.block_in_group + 1}の勝者</span>`;
+    return `<span style="color:var(--text-dim);">${p.group ? p.group + '組' : ''}予選 ブロック${p.block_in_group + 1}の勝者</span>`;
   }
   if (p.newcomer) {
     const label = p.name ? escapeHtml(p.name) : '<span style="color:var(--text-dim);">新人リーグ結果待ち</span>';
@@ -735,7 +735,7 @@ function renderDrawSVG(slots, rootLabel, tagFn, opts = {}) {
     const p = n.p;
     let name, info = {}, color = 'var(--text-main)';
     if (p.qualifier !== undefined) {
-      name = `${p.group}組予選ブロック${p.block_in_group + 1}の勝者`; color = 'var(--text-dim)';
+      name = `${p.group ? p.group + '組' : ''}予選ブロック${p.block_in_group + 1}の勝者`; color = 'var(--text-dim)';
     } else if (p.newcomer) {
       name = p.name ? `${p.name}（新人）` : '新人（結果待ち）'; color = 'var(--cyan)';
     } else {
@@ -860,17 +860,18 @@ async function loadCupDrawPanel(kind) {
         html += '<div class="empty">まだ発表されていません</div>';
       } else {
         const g1ById = new Map(k.group1.map(p => [p.id, p]));
-        const prelim2 = k.prelim.filter(b => b.group === 2), prelim3 = k.prelim.filter(b => b.group === 3);
+        const g2Ids = new Set(k.group2.map(p => p.id));
         html += `<div class="league-block"><h3>第${data.season}季 麒麟戦</h3>`;
-        html += small(`${holderLine(k.holder)}／1組は本戦から、2組・3組は予選から。ベスト4から敗者復活あり`);
+        html += small(`${holderLine(k.holder)}／1組は本戦から、2組・3組は予選から（2組はシード）。ベスト4から敗者復活あり`);
         html += `<div style="font-size:0.72rem; color:var(--amber);">本戦</div>`
           + renderDrawSVG(k.main, '本戦優勝', p => p.qualifier !== undefined ? '' : (g1ById.has(p.id) ? `1組${g1ById.get(p.id).tenure || 1}期` : ''));
-        [[prelim2, 2], [prelim3, 3]].forEach(([blocks, g]) => {
-          if (blocks.length === 0) return;
-          html += `<details style="margin-top:8px;"><summary style="cursor:pointer; font-size:0.72rem; color:var(--amber);">${g}組予選（${blocks.length}ブロック）</summary>`;
+        const groupsOf = [...new Set(k.prelim.map(b => b.group))];
+        groupsOf.forEach(g => {
+          const blocks = k.prelim.filter(b => b.group === g);
+          html += `<details style="margin-top:8px;"><summary style="cursor:pointer; font-size:0.72rem; color:var(--amber);">${g ? g + '組' : ''}予選（${blocks.length}ブロック）</summary>`;
           blocks.forEach((b, i) => {
             html += `<div style="font-size:0.72rem; color:var(--text-dim); margin-top:8px;">ブロック${i + 1}</div>`
-              + renderDrawSVG(b.slots, '本戦へ', p => p.elo_rank ? `${p.elo_rank}位` : '');
+              + renderDrawSVG(b.slots, '本戦へ', p => (g2Ids.has(p.id) ? '2組・' : '') + (p.elo_rank ? `${p.elo_rank}位` : ''), { isSeed: p => g2Ids.has(p.id) });
           });
           html += '</details>';
         });
@@ -1888,7 +1889,7 @@ function kirinBracketHtml(bracket, participantInfo) {
     rep.forEach(m => { html += line(m.stage === 'rep1' ? '敗者復活1回戦' : '敗者復活決勝', m); });
     dec.forEach(m => { html += line(`挑戦者決定戦 第${m.stage.slice(-1)}局`, m); });
   }
-  [['2', '2組予選'], ['3', '3組予選']].forEach(([g, label]) => {
+  [['0', '予選（2組はシード）'], ['2', '2組予選'], ['3', '3組予選']].forEach(([g, label]) => {
     const list = blockList.filter(b => b.group === g);
     if (list.length === 0) return;
     html += `<details style="margin-top:8px;"><summary style="cursor:pointer; font-size:0.72rem; color:var(--text-dim);">${label}（${list.length}ブロック）を表示</summary>

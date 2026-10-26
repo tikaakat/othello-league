@@ -759,6 +759,8 @@ def _match_stage_label(league, stage=None):
         return f"{league}戦の番勝負（タイトル保持者と挑戦者によるタイトル戦本番）"
     if league == "麒麟予選":
         if stage and stage.startswith("prelim"):
+            if stage[6] == "0":
+                return "麒麟戦の予選（ブロック別トーナメント。2組はシードとして後の回戦から登場）"
             return f"麒麟戦の{stage[6]}組予選（ブロック別トーナメント）"
         if stage and stage.startswith("rep"):
             return "麒麟戦の敗者復活戦"
