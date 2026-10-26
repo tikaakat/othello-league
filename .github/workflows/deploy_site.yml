@@ -71,6 +71,7 @@ on:
           - "fix_backfill_demotion_reset_20261012"
           - "sync_retired_clan_roots"
           - "fix_newcomer_duplicate_name_20261018"
+          - "rename_numbered_names_20261027"
         default: ""
       create_dir:
         description: "デプロイの代わりに、lab.spia-net.com直下（othello-league/の1つ上）に相対パスでディレクトリを作成する（例: othello-news）。「..」や先頭「/」は不可"
@@ -342,6 +343,22 @@ jobs:
                 SQL_LIST=(
                   "UPDATE newcomer_league_standings SET display_name = '小池陽介2' WHERE for_season = 24 AND display_name = '小池陽介';"
                 )
+                ;;
+              rename_numbered_names_20261027)
+                # 同名を避けるための連番つきの名前（青山亜紀子2・小池陽介2）を、連番の無い別の名前に改める。
+                # data/配下のJSONは同じ対応表で書き換え済み。DB側は名前を持つ列を直接直す
+                SQL_LIST=()
+                for pair in "CC70-000:青山亜紀子2:青山杏子" "CC24-002:小池陽介2:小池亮"; do
+                  IFS=: read -r iid old new <<< "$pair"
+                  SQL_LIST+=(
+                    "UPDATE individuals SET display_name = '${new}' WHERE id = '${iid}';"
+                    "UPDATE retired_archive SET display_name = '${new}' WHERE id = '${iid}';"
+                    "UPDATE standings SET display_name = '${new}' WHERE individual_id = '${iid}';"
+                    "UPDATE title_history SET holder_name = '${new}' WHERE holder_name = '${old}';"
+                    "UPDATE newcomer_league_standings SET display_name = '${new}' WHERE display_name = '${old}';"
+                    "UPDATE newcomer_league_standings SET master_name = '${new}' WHERE master_name = '${old}';"
+                  )
+                done
                 ;;
               sync_retired_clan_roots)
                 # 一門の独立（apply_clan_independence）は引退済みの子孫のclan_root_idも付け替えるが、
