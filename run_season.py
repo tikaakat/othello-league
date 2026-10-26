@@ -1051,7 +1051,8 @@ def write_upcoming_brackets(data_dir, state, rosters):
     last_dethroned = state.get("last_dethroned") or {}
     out = {
         "season": planned["season"],
-        "byakko": {"holder": titleholders.get("白虎"), "slots": [slot(p) for p in planned["白虎"]]},
+        "byakko": {"holder": titleholders.get("白虎"), "guaranteed": last_dethroned.get("白虎"),
+                   "slots": [slot(p) for p in planned["白虎"]]},
         "genbu": {"holder": titleholders.get("玄武"), "num_blocks": 4,
                   "guaranteed_final": slot(last_dethroned.get("玄武")),
                   "slots": [slot(p) for p in planned["玄武"]]},
