@@ -642,7 +642,7 @@ def run_genbu_challenge(challenger, titleholder_params, depth=1, titleholder_vol
 # 麒麟戦（序列1位、竜王格）：竜王戦の「組」と棋王戦の「敗者復活」を組み合わせた方式。7番勝負。
 # - 組は麒麟戦の成績だけで毎季決め直す（所属リーグやEloとは無関係）。
 #   1組（8名）は本戦から出場。2組（16名）と3組（残り全員・新人を含む）は、それぞれ組ごとの予選
-#   （ブロック別トーナメント）を戦い、各ブロックの優勝者が本戦に進む。
+#   （ブロック別トーナメント）を戦い、各ブロックの優勝者が本戦に進む。予選の通過枠は2組に多く振る（KIRIN_GROUP2_SHARE）。
 #   次の季の1組＝本戦ベスト8、2組＝本戦1回戦の敗者＋予選ブロック決勝の敗者、残りは3組。
 #   組の成績がまだ無い最初の季だけ、Aリーグ所属を1組の代わりにする。
 # - 本戦は16名のトーナメント。ベスト4からは2敗で失格：準決勝・決勝の敗者は敗者復活戦に回り、
@@ -651,6 +651,7 @@ def run_genbu_challenge(challenger, titleholder_params, depth=1, titleholder_vol
 # ============================================================
 KIRIN_MAIN_SIZE = 16
 KIRIN_GROUP1_SIZE = 8
+KIRIN_GROUP2_SHARE = 0.75  # 予選の通過枠のうち2組に振る割合（残りは3組）
 QUALIFIER_SLOT_PREFIX = "Q"  # 本戦の組み合わせで、予選ブロックの優勝者が入る枠（Q1, Q2, ...＝予選の1, 2, ...番目のブロック）
 
 
@@ -691,7 +692,9 @@ def plan_kirin_bracket(all_members, exclude_id=None, groups=None, guaranteed_id=
     g3 = [i for i in present if i not in in12] + [f"{NEWCOMER_SLOT_PREFIX}{k + 1}" for k in range(newcomer_slots)]
 
     needed = KIRIN_MAIN_SIZE - len(g1)
-    q2 = min(needed // 2, len(g2) // 2) if len(g2) >= 2 else 0
+    # 予選の通過枠は2組に多く振る（既定で8枠のうち6枠）。2組の選手が1組に上がりやすくなり、1組が固定されにくい
+    # （シミュレーションでは、2組→1組の昇格が1季あたり1.8人→3.3人、挑戦者のElo順位の中央値が12.5位→3.5位）
+    q2 = min(round(needed * KIRIN_GROUP2_SHARE), len(g2) // 2) if len(g2) >= 2 else 0
     if q2 == 0:
         g3, g2 = g2 + g3, []
     q3 = needed - q2

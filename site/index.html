@@ -879,7 +879,7 @@ async function loadCupDrawPanel(kind) {
       const count = k.group1.length + k.prelim.reduce((n, b) => n + b.slots.filter(Boolean).length, 0);
       html += `<div class="league-block"><h3>第${data.season}季 麒麟戦 挑戦者決定戦（${count}名）</h3>`;
       html += `<p style="font-size:0.72rem; margin:2px 0 6px;">${holderLine(k.holder)}<br>
-        1組は本戦から、2組・3組は組ごとの予選（ブロック別トーナメント）の勝者が本戦へ。本戦はベスト4から2敗失格（敗者復活戦あり）。</p>`;
+        1組は本戦から、2組・3組は組ごとの予選（ブロック別トーナメント）の勝者が本戦へ（予選の通過枠は2組に多く、2組6・3組2が目安）。本戦はベスト4から2敗失格（敗者復活戦あり）。</p>`;
       // 本戦出場者（1組＋予選通過枠）を表で先に示す。山の番号は本戦トーナメントの上からの位置
       const mainRows = k.main.map((p, idx) => p ? { ...p, _pos: idx + 1 } : null).filter(Boolean);
       const g1ById = new Map(k.group1.map(p => [p.id, p]));
