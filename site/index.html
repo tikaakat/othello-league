@@ -245,9 +245,9 @@ const tabPanels = {
 // （以前はsubViews系だけパネル内部に独自描画しており、タブ直下のsubLabels系と縦位置が揃っていなかった）
 const TAB_GROUPS = {
   leagues: {
-    label: 'リーグ', tabs: ['leagues', 'draw_bd', 'suzaku_league', 'draw_kirin', 'draw_byakko', 'draw_genbu'],
+    label: 'リーグ', tabs: ['leagues', 'suzaku_league', 'draw_kirin', 'draw_byakko', 'draw_genbu'],
     subLabels: {
-      leagues: '青龍戦リーグ表', draw_bd: 'B〜Dリーグ対戦表', suzaku_league: '朱雀戦紅白リーグ表',
+      leagues: '青龍戦リーグ表', suzaku_league: '朱雀戦紅白リーグ表',
       draw_kirin: '麒麟戦組み合わせ', draw_byakko: '白虎戦組み合わせ', draw_genbu: '玄武戦組み合わせ',
     },
   },
@@ -439,7 +439,8 @@ function render(hash, isPopstate) {
     loadGameBoard(param);
   } else if (base === 'leagues') { showTab('leagues'); loadLeagues(); }
   else if (base === 'suzaku_league') { showTab('suzaku_league'); loadSuzakuLeaguePanel(); }
-  else if (['draw_bd', 'draw_kirin', 'draw_byakko', 'draw_genbu'].includes(base)) { showTab(base); loadCupDrawPanel(base); }
+  else if (['draw_kirin', 'draw_byakko', 'draw_genbu'].includes(base)) { showTab(base); loadCupDrawPanel(base); }
+  else if (base === 'draw_bd') { navigateTo('leagues'); }
   else if (base === 'titles') { showTab('titles'); loadTitles(); }
   else if (base === 'matches') { showTab('matches'); loadMatches(); }
   else if (base === 'seiryuu') { showTab('seiryuu'); loadSeiryuuPanel(param ? parseInt(param, 10) : null); }
@@ -584,6 +585,12 @@ async function loadLeagues() {
       } catch (e) { /* 取得に失敗しても空欄表示のまま続行する */ }
     }
 
+    let upcoming = null;
+    try {
+      const ures = await fetch(UPCOMING_BRACKETS_URL, { cache: 'no-store' });
+      if (ures.ok) upcoming = await ures.json();
+    } catch (e) { /* 対戦表が出ないだけなので続行する */ }
+
     let html = '';
     if (data.next_season) {
       html += `<h3 style="font-size:0.8rem; color:var(--amber); margin-top:0;">第${data.next_season}季 青龍戦・順位戦</h3>`;
@@ -625,11 +632,17 @@ async function loadLeagues() {
             <td style="color:var(--text-dim);">${label}</td><td>-</td><td>-</td></tr>`;
         }
       }
-      html += '</tbody></table></div>';
+      html += '</tbody></table>';
+      // B〜Dリーグ（ランダム8戦）の今季の対戦表（前の季の終わりに決めた組み合わせ）を折りたたみで添える
+      const pairs = (upcoming && upcoming.season === data.next_season && upcoming.leagues) ? upcoming.leagues[lg] : null;
+      if (pairs && pairs.length) {
+        html += `<details style="margin-top:6px;"><summary style="cursor:pointer; font-size:0.72rem; color:var(--amber);">${lg}リーグの対戦表（●＝対戦する組み合わせ）</summary>${renderPairsCrossTable(pairs)}</details>`;
+      }
+      html += '</div>';
     });
 
     el.innerHTML = html;
-    el.querySelectorAll('tr[data-id]').forEach(tr => tr.addEventListener('click', () => navigateTo('individual/' + tr.dataset.id)));
+    el.querySelectorAll('tr[data-id], [data-id]').forEach(tr => tr.addEventListener('click', () => navigateTo('individual/' + tr.dataset.id)));
   } catch (e) {
     el.innerHTML = `<div class="empty">読み込み失敗: ${escapeHtml(String(e))}</div>`;
   }
@@ -800,7 +813,7 @@ function renderPairsCrossTable(pairs) {
 }
 
 async function loadCupDrawPanel(kind) {
-  // kind：draw_bd（B〜Dリーグの対戦相手）／draw_kirin／draw_byakko／draw_genbu
+  // kind：draw_kirin／draw_byakko／draw_genbu
   const el = document.getElementById(`${kind}-content`);
   el.innerHTML = '<div class="loading">読み込み中...</div>';
   try {
@@ -813,108 +826,56 @@ async function loadCupDrawPanel(kind) {
     const res = await fetch(UPCOMING_BRACKETS_URL, { cache: 'no-store' });
     if (!res.ok) throw new Error('組み合わせはまだ発表されていません');
     const data = await res.json();
-    const holderLine = (h) => h ? `在位：${escapeHtml(h.name)}（挑戦者決定戦には出場せず、挑戦者を待つ）` : '在位者なし';
-    const note = {
-      draw_bd: '前の季の終了時点でランダムに決めた組み合わせです（各選手8局）。新人の枠は、新人リーグの結果が出たら名前が入ります。',
-      draw_kirin: '前の季の終了時点で、前季の麒麟戦の成績による組で決めた組み合わせです。',
-      draw_byakko: '前の季の終了時点のEloで決めた組み合わせです。',
-      draw_genbu: '前の季の終了時点の所属リーグ・成績で決めた組み合わせです。',
-    }[kind];
-    let html = `<p style="font-size:0.72rem; color:var(--text-dim); margin-top:0;">${note}</p>`;
+    // 説明は最低限にし、トーナメント表だけを示す（出場者の表は出さない）
+    const holderLine = (h) => h ? `在位：${escapeHtml(h.name)}` : '在位者なし';
+    const small = (t) => `<p style="font-size:0.7rem; color:var(--text-dim); margin:2px 0 6px;">${t}</p>`;
+    let html = '';
 
     if (kind === 'draw_byakko') {
-    const b = data.byakko;
-    html += `<div class="league-block"><h3>第${data.season}季 白虎戦 挑戦者決定トーナメント（${b.slots.filter(Boolean).length}名）</h3>`;
-    html += `<p style="font-size:0.72rem; margin:2px 0 6px;">${holderLine(b.holder)}<br>
-      出場条件：Eloの上位16名（在位者を除く）。前季の失冠者はEloに関わらず出場。<br>
-      組み合わせ：出場者内の順位で1位対16位、2位対15位…となるように配置（前季の失冠者は16位として扱う）。<br>
-      表の名前の右の（）：Elo順位（「失冠」＝前季の失冠者）。</p>`;
-    // 前季の失冠者（Eloに関わらず出場）は、Elo順位に関わらず最下位のシードとして組み合わせに入る
-    const isGuaranteed = p => b.guaranteed && p.id === b.guaranteed;
-    const byakkoEntrants = b.slots.filter(Boolean).slice().sort((x, y) => (x.elo_rank || 999) - (y.elo_rank || 999));
-    html += drawEntrantsTable(byakkoEntrants, [
-      ['Elo順位', p => (p.elo_rank ? `${p.elo_rank}位` : '-') + (isGuaranteed(p) ? '<br><span style="font-size:0.66rem; color:var(--amber);">前季失冠</span>' : '')],
-      ['名前', p => escapeHtml(p.name || p.id)],
-      ['所属', p => p.league ? `${p.league}リーグ` : '-'],
-      ['Elo', p => p.elo ?? '-'],
-    ]);
-    html += renderDrawSVG(b.slots, '挑戦者', p => isGuaranteed(p) ? `失冠・${p.elo_rank}位` : (p.elo_rank ? `${p.elo_rank}位` : '')) + '</div>';
+      const b = data.byakko;
+      const isGuaranteed = p => b.guaranteed && p.id === b.guaranteed;
+      html += `<div class="league-block"><h3>第${data.season}季 白虎戦</h3>`;
+      html += small(`${holderLine(b.holder)}／Elo上位16名（名前の右はElo順位）`);
+      html += renderDrawSVG(b.slots, '挑戦者', p => isGuaranteed(p) ? `失冠・${p.elo_rank}位` : (p.elo_rank ? `${p.elo_rank}位` : '')) + '</div>';
 
     } else if (kind === 'draw_genbu') {
-    const g = data.genbu;
-    const blockSize = g.slots.length / g.num_blocks;
-    const entrants = g.slots.filter(Boolean).length + (g.guaranteed_final ? 1 : 0);
-    html += `<div class="league-block"><h3>第${data.season}季 玄武戦 挑戦者決定戦（${entrants}名）</h3>`;
-    html += `<p style="font-size:0.72rem; margin:2px 0 6px;">${holderLine(g.holder)}<br>
-      ${g.num_blocks}つのブロックのトーナメントの優勝者${g.guaranteed_final ? `と、前季失冠の${cupDrawPlayerHtml(g.guaranteed_final)}（本戦から出場）` : ''}が、総当たりの本戦で挑戦者を決めます。<br>
-      出場条件：全選手（在位者を除く）。シード：タイトル保持者は3回戦から、Aリーグの選手は2回戦から登場し、
-      ほかの選手（B〜D・新人）は1回戦から。シードの選手は4ブロックに均等に振り分け、それ以外は抽選。<br>
-      表の名前の右の（）：Elo順位。「保持者」＝タイトル保持者のシード、「A」＝Aリーグのシード。左の列の予備戦は1回戦の前に1局指す。</p>`;
-    for (let k = 0; k < g.num_blocks; k++) {
-      html += `<div style="font-size:0.72rem; color:var(--amber); margin-top:8px;">${'ABCDEFGH'[k]}ブロック</div>`;
-      html += renderDrawSVG(g.slots.slice(k * blockSize, (k + 1) * blockSize), 'ブロック代表', p => {
-        const elo = p.elo_rank ? `${p.elo_rank}位` : '';
-        if (((CURRENT_TITLEHOLDERS.by_id || {})[p.id] || []).length) return `保持者・${elo}`;
-        return p.league === 'A' ? `A・${elo}` : elo;
-      }, { isSeed: p => p.league === 'A' || ((CURRENT_TITLEHOLDERS.by_id || {})[p.id] || []).length > 0 });
-    }
-    html += '</div>';
-
-    } else if (kind === 'draw_bd') {
-    // B〜Dリーグ（ランダム8戦）：選手ごとの対戦相手を並べる
-    const leagues = data.leagues || {};
-    ['B', 'C', 'D'].forEach(lg => {
-      const pairs = leagues[lg];
-      if (!pairs || pairs.length === 0) return;
-      html += `<details class="league-block" style="margin-top:8px;"${lg === 'B' ? ' open' : ''}><summary style="cursor:pointer;"><h3 style="display:inline;">第${data.season}季 ${lg}リーグ対戦表（${pairs.length}局）</h3></summary>
-        <div style="font-size:0.68rem; color:var(--text-dim); margin:4px 0;">●＝対戦する組み合わせ（Elo順）</div>${renderPairsCrossTable(pairs)}</details>`;
-    });
+      const g = data.genbu;
+      const blockSize = g.slots.length / g.num_blocks;
+      html += `<div class="league-block"><h3>第${data.season}季 玄武戦</h3>`;
+      html += small(`${holderLine(g.holder)}${g.guaranteed_final ? `／前季失冠の${escapeHtml(g.guaranteed_final.name || '')}は本戦から` : ''}<br>
+        各ブロックの優勝者による総当たりで挑戦者を決定。「保持者」は3回戦から、「A」は2回戦から登場`);
+      for (let k = 0; k < g.num_blocks; k++) {
+        html += `<div style="font-size:0.72rem; color:var(--amber); margin-top:8px;">${'ABCDEFGH'[k]}ブロック</div>`;
+        html += renderDrawSVG(g.slots.slice(k * blockSize, (k + 1) * blockSize), 'ブロック代表', p => {
+          const elo = p.elo_rank ? `${p.elo_rank}位` : '';
+          if (((CURRENT_TITLEHOLDERS.by_id || {})[p.id] || []).length) return `保持者・${elo}`;
+          return p.league === 'A' ? `A・${elo}` : elo;
+        }, { isSeed: p => p.league === 'A' || ((CURRENT_TITLEHOLDERS.by_id || {})[p.id] || []).length > 0 });
+      }
+      html += '</div>';
 
     } else if (kind === 'draw_kirin') {
-    const k = data.kirin;
-    if (!k) {
-      html += '<div class="empty">まだ発表されていません</div>';
-    } else {
-      const prelim2 = k.prelim.filter(b => b.group === 2), prelim3 = k.prelim.filter(b => b.group === 3);
-      const count = k.group1.length + k.prelim.reduce((n, b) => n + b.slots.filter(Boolean).length, 0);
-      html += `<div class="league-block"><h3>第${data.season}季 麒麟戦 挑戦者決定戦（${count}名）</h3>`;
-      html += `<p style="font-size:0.72rem; margin:2px 0 6px;">${holderLine(k.holder)}<br>
-        1組は本戦から、2組・3組は組ごとの予選（ブロック別トーナメント）の勝者が本戦へ（予選の通過枠は2組に多く、2組6・3組2が目安）。本戦はベスト4から2敗失格（敗者復活戦あり）。</p>`;
-      // 本戦出場者（1組＋予選通過枠）を表で先に示す。山の番号は本戦トーナメントの上からの位置
-      const mainRows = k.main.map((p, idx) => p ? { ...p, _pos: idx + 1 } : null).filter(Boolean);
-      const g1ById = new Map(k.group1.map(p => [p.id, p]));
-      html += `<div style="font-size:0.72rem; color:var(--amber);">本戦出場者（16名）</div>`;
-      html += drawEntrantsTable(mainRows, [
-        ['山', p => p._pos],
-        ['名前', p => p.qualifier !== undefined ? `<span style="color:var(--text-dim);">${p.group}組予選B${p.block_in_group + 1}勝者</span>` : escapeHtml(p.name || p.id)],
-        ['資格', p => p.qualifier !== undefined ? '予選から'
-          : `1組${(g1ById.get(p.id) || {}).tenure || 1}期目<br><span style="font-size:0.64rem; color:var(--text-dim);">${escapeHtml(((g1ById.get(p.id) || {}).reason || '').replace('前季本戦ベスト8', '前季ベスト8'))}</span>`],
-        ['Elo', p => p.elo !== undefined ? `${p.elo}<br><span style="font-size:0.64rem; color:var(--text-dim);">${p.league}リーグ</span>` : '-'],
-      ]);
-      if ((k.group2 || []).length > 0) {
-        html += `<details style="margin-bottom:8px;"><summary style="cursor:pointer; font-size:0.72rem; color:var(--amber);">2組（${k.group2.length}名）の一覧を表示</summary>`
-          + drawEntrantsTable(k.group2, [
-            ['名前', p => escapeHtml(p.name || p.id)],
-            ['在籍', p => `2組${p.tenure || 1}期目`],
-            ['所属', p => p.league ? `${p.league}リーグ` : '-'],
-            ['Elo', p => p.elo ?? '-'],
-          ]) + '</details>';
-      }
-      html += `<div style="font-size:0.72rem; color:var(--amber);">本戦トーナメント</div>
-        <div style="font-size:0.66rem; color:var(--text-dim); margin-bottom:4px;">ベスト4からは2敗で失格（準決勝・決勝の敗者は敗者復活戦へ）。本戦優勝者と敗者復活戦の勝者が挑戦者決定戦を行う</div>`
-        + renderDrawSVG(k.main, '本戦優勝', p => p.qualifier !== undefined ? '' : (g1ById.has(p.id) ? '1組' : ''));
-      [[prelim2, 2], [prelim3, 3]].forEach(([blocks, g]) => {
-        if (blocks.length === 0) return;
-        html += `<details style="margin-top:8px;"><summary style="cursor:pointer; font-size:0.72rem; color:var(--text-dim);">${g}組予選（${blocks.reduce((n, b) => n + b.slots.filter(Boolean).length, 0)}名・${blocks.length}ブロック）を表示</summary>`;
-        blocks.forEach((b, i) => {
-          html += `<div style="font-size:0.72rem; color:var(--amber); margin-top:8px;">ブロック${i + 1}</div>`
-            + renderDrawSVG(b.slots, '本戦へ', p => p.elo !== undefined ? `Elo${p.elo}` : '');
+      const k = data.kirin;
+      if (!k) {
+        html += '<div class="empty">まだ発表されていません</div>';
+      } else {
+        const g1ById = new Map(k.group1.map(p => [p.id, p]));
+        const prelim2 = k.prelim.filter(b => b.group === 2), prelim3 = k.prelim.filter(b => b.group === 3);
+        html += `<div class="league-block"><h3>第${data.season}季 麒麟戦</h3>`;
+        html += small(`${holderLine(k.holder)}／1組は本戦から、2組・3組は予選から。ベスト4から敗者復活あり`);
+        html += `<div style="font-size:0.72rem; color:var(--amber);">本戦</div>`
+          + renderDrawSVG(k.main, '本戦優勝', p => p.qualifier !== undefined ? '' : (g1ById.has(p.id) ? `1組${g1ById.get(p.id).tenure || 1}期` : ''));
+        [[prelim2, 2], [prelim3, 3]].forEach(([blocks, g]) => {
+          if (blocks.length === 0) return;
+          html += `<details style="margin-top:8px;"><summary style="cursor:pointer; font-size:0.72rem; color:var(--amber);">${g}組予選（${blocks.length}ブロック）</summary>`;
+          blocks.forEach((b, i) => {
+            html += `<div style="font-size:0.72rem; color:var(--text-dim); margin-top:8px;">ブロック${i + 1}</div>`
+              + renderDrawSVG(b.slots, '本戦へ', p => p.elo_rank ? `${p.elo_rank}位` : '');
+          });
+          html += '</details>';
         });
-        html += '</details>';
-      });
-      html += '</div>';
-    }
-
+        html += '</div>';
+      }
     }
 
     el.innerHTML = html;
