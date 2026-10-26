@@ -1730,107 +1730,87 @@ function leagueBadgeSVG(cx, cy, info) {
 // showCrown=falseの場合、ルート（このツリーの最終勝者）に王冠・金色の装飾を付けない
 // （玄武戦のブロック予選のように、その木の勝者が真の優勝者ではなく次の段階に進むだけの場合に使う）
 function renderBracketSVG(root, participantInfo, showCrown = true) {
+  // 組み合わせタブ（renderDrawSVG）と同じ描き方：出場者を左端の列に省略せずに並べ、回戦ごとの縦線でつなぐ。
+  // 勝ち上がりの線は赤く太く描き、最後の勝者は右端の箱に名前を出す（showCrown=falseなら王冠・金色にしない）
   participantInfo = participantInfo || {};
-  // COL_Wは名前欄の幅を決める（5文字以上の氏名が省略されてしまっていたため拡張）
-  const ROW_H = 26, COL_W = 150, PAD_L = 6, PAD_T = 10, STUB = 66, NODE_W = COL_W - 14;
-  const LINE_COLOR = '#3d5170';    // 敗者側・構造線（従来のnavy-700より明るく視認性を上げる）
-  const WIN_COLOR = 'var(--cyan)'; // 勝者側の線
-  const LINE_W = 1.3, WIN_LINE_W = 2.6;
-  let leafCount = 0;
-
-  function layout(node) {
-    if (node.leaf) {
-      node._round = 0;
-      node._y = leafCount * ROW_H + ROW_H / 2 + PAD_T;
-      leafCount++;
-      return;
-    }
-    layout(node.left);
-    layout(node.right);
-    node._round = Math.max(node.left._round, node.right._round) + 1;
-    node._y = (node.left._y + node.right._y) / 2;
+  const ROW_H = 30, NAME_W = 190, PAD_L = 4, HEAD_H = 24, GAP = 22, COL_W = 40;
+  const LINE = '#4a5f84', WIN = '#ff5a5a', LINE_W = 1.4, WIN_W = 3;
+  (function level(n) {
+    if (n.leaf) { n._level = 0; return; }
+    level(n.left); level(n.right);
+    n._level = Math.max(n.left._level, n.right._level) + 1;
+  })(root);
+  const maxLevel = root._level;
+  const colX = (L) => PAD_L + NAME_W + GAP + (L - 1) * COL_W;
+  let row = 0;
+  (function layout(n) {
+    if (n.leaf) { n._y = HEAD_H + row * ROW_H + ROW_H / 2 + 4; row++; return; }
+    layout(n.left); layout(n.right);
+    n._y = (n.left._y + n.right._y) / 2;
+  })(root);
+  const width = colX(Math.max(1, maxLevel)) + 132;
+  const height = HEAD_H + row * ROW_H + 10;
+  const roundName = (L) => {
+    const fromTop = maxLevel - L + 1;
+    if (fromTop === 1) return '決勝';
+    if (fromTop === 2) return '準決勝';
+    if (fromTop === 3) return '準々決勝';
+    return `${L}回戦`;
+  };
+  let bands = '', lines = '', labels = '';
+  for (let L = 1; L <= maxLevel; L++) {
+    labels += `<text x="${colX(L)}" y="15" font-size="10.5" text-anchor="middle" fill="var(--amber)">${roundName(L)}</text>`;
   }
-  layout(root);
-
-  const maxRound = root._round;
-  const colX = (round) => PAD_L + round * COL_W;
-  const width = colX(maxRound) + NODE_W + 10;
-  const height = leafCount * ROW_H + PAD_T * 2;
-
-  // 縞模様の背景を1行おきに敷いて、横に長いブラケットでも行を目で追いやすくする
-  let stripes = '';
-  for (let i = 0; i < leafCount; i++) {
-    if (i % 2 === 1) {
-      stripes += `<rect x="0" y="${i * ROW_H + PAD_T}" width="${width}" height="${ROW_H}" fill="rgba(255,255,255,0.025)"/>`;
-    }
-  }
-
-  let lines = '';
-  let labels = '';
-
-  function nodeId(n) { return n.leaf ? n.id : n.winnerId; }
-
-  function walk(node, isRoot) {
-    if (node.leaf) {
-      const info = participantInfo[node.id] || {};
+  labels += `<text x="${PAD_L + 4}" y="15" font-size="10.5" fill="var(--text-dim)">出場者</text>`;
+  const idOf = (n) => n.leaf ? n.id : n.winnerId;
+  // 各選手がどこまで勝ち上がったか（名前の明るさに使う）
+  const reached = {};
+  (function mark(n) {
+    if (n.leaf) return;
+    mark(n.left); mark(n.right);
+    reached[n.winnerId] = Math.max(reached[n.winnerId] || 0, n._level);
+  })(root);
+  (function walk(n) {
+    if (n.leaf) {
+      const info = participantInfo[n.id] || {};
       const tag = info.elo !== undefined ? String(info.elo) : '';
-      const badgeW = (info.league || info.title) ? LEAGUE_BADGE_W : 0;
-      const textX = colX(0) + badgeW;
-      const label = fitBracketNameWithTag(node.name, tag, NODE_W - 6 - badgeW, 10.5, false);
-      labels += `<g class="bracket-node" data-id="${escapeHtml(node.id ?? '')}" style="cursor:pointer;">
-        <rect x="${colX(0)}" y="${node._y - 11}" width="${NODE_W}" height="22" fill="transparent"/>
-        ${leagueBadgeSVG(colX(0) + 7, node._y, info)}
-        <text x="${textX}" y="${node._y + 4}" font-size="10.5" fill="var(--text-main)" opacity="0.72">${escapeHtml(label)}<title>${escapeHtml(node.name)}</title></text>
+      const badgeW = (info.league || info.title) ? LEAGUE_BADGE_W + 2 : 0;
+      const isChampion = n.id === root.winnerId;
+      const label = fitBracketNameWithTag(n.name, tag, NAME_W - 10 - badgeW, 12, isChampion);
+      const opacity = reached[n.id] ? 1 : 0.6; // 初戦で敗れた選手は少し暗く
+      labels += `<g class="bracket-node" data-id="${escapeHtml(n.id ?? '')}" style="cursor:pointer;" opacity="${opacity}">
+        <rect x="${PAD_L}" y="${n._y - 12}" width="${NAME_W}" height="24" rx="4" fill="rgba(255,255,255,0.05)"
+          stroke="${isChampion && showCrown ? 'var(--amber)' : '#2f4161'}" stroke-width="${isChampion && showCrown ? 1.4 : 0.8}"/>
+        ${leagueBadgeSVG(PAD_L + 11, n._y, info)}
+        <text x="${PAD_L + 6 + badgeW}" y="${n._y + 4.5}" font-size="12" ${isChampion ? 'font-weight="700"' : ''} fill="var(--text-main)">${escapeHtml(label)}<title>${escapeHtml(n.name)}</title></text>
       </g>`;
       return;
     }
-    walk(node.left, false);
-    walk(node.right, false);
-
-    const leftIsWinner = nodeId(node.left) === node.winnerId;
-    const vx = colX(node._round) - (COL_W - STUB) / 2;
-    const stubLeft = colX(node.left._round) + STUB;
-    const stubRight = colX(node.right._round) + STUB;
-
-    const leftColor = leftIsWinner ? WIN_COLOR : LINE_COLOR;
-    const rightColor = leftIsWinner ? LINE_COLOR : WIN_COLOR;
-    const leftW = leftIsWinner ? WIN_LINE_W : LINE_W;
-    const rightW = leftIsWinner ? LINE_W : WIN_LINE_W;
-    const topColor = leftIsWinner ? WIN_COLOR : LINE_COLOR;
-    const bottomColor = leftIsWinner ? LINE_COLOR : WIN_COLOR;
-    const topW = leftIsWinner ? WIN_LINE_W : LINE_W;
-    const bottomW = leftIsWinner ? LINE_W : WIN_LINE_W;
-
-    lines += `<line x1="${stubLeft}" y1="${node.left._y}" x2="${vx}" y2="${node.left._y}" stroke="${leftColor}" stroke-width="${leftW}" stroke-linecap="round"/>`;
-    lines += `<line x1="${stubRight}" y1="${node.right._y}" x2="${vx}" y2="${node.right._y}" stroke="${rightColor}" stroke-width="${rightW}" stroke-linecap="round"/>`;
-    lines += `<line x1="${vx}" y1="${node.left._y}" x2="${vx}" y2="${node._y}" stroke="${topColor}" stroke-width="${topW}" stroke-linecap="round"/>`;
-    lines += `<line x1="${vx}" y1="${node._y}" x2="${vx}" y2="${node.right._y}" stroke="${bottomColor}" stroke-width="${bottomW}" stroke-linecap="round"/>`;
-    lines += `<line x1="${vx}" y1="${node._y}" x2="${colX(node._round)}" y2="${node._y}" stroke="${WIN_COLOR}" stroke-width="${WIN_LINE_W}" stroke-linecap="round"/>`;
-
-    const isChampion = isRoot && showCrown;
-    const textColor = isChampion ? 'var(--amber)' : 'var(--cyan)';
-    const crown = isChampion ? '🏆 ' : '';
-    const winInfo = participantInfo[node.winnerId] || {};
-    const winTag = winInfo.elo !== undefined ? String(winInfo.elo) : '';
-    const winBadgeW = (winInfo.league || winInfo.title) ? LEAGUE_BADGE_W : 0;
-    // 王冠絵文字の実幅もCanvasで測って正確に差し引く（固定値の見込みでは実際の描画幅との
-    // ズレで優勝者名がはみ出し見切れていたため）
-    const crownW = crown ? bracketTextWidth(crown, 11, true) : 0;
-    const winReserve = 6 + winBadgeW + crownW;
-    const label = fitBracketNameWithTag(node.winnerName, winTag, NODE_W - winReserve, 11, true);
-    const winBadgeCx = colX(node._round) + 13;
-    const winTextX = colX(node._round) + 6 + winBadgeW;
-    labels += `<g class="bracket-node" data-id="${escapeHtml(node.winnerId ?? '')}" style="cursor:pointer;">
-      <rect x="${colX(node._round)}" y="${node._y - 11}" width="${NODE_W}" height="22" rx="3"
-        fill="rgba(79,240,255,0.08)" stroke="${isChampion ? 'var(--amber)' : WIN_COLOR}" stroke-width="1.2"/>
-      ${leagueBadgeSVG(winBadgeCx, node._y, winInfo)}
-      <text x="${winTextX}" y="${node._y + 4}" font-size="11" font-weight="700" fill="${textColor}">${crown}${escapeHtml(label)}<title>${escapeHtml(node.winnerName)}</title></text>
-    </g>`;
-  }
-  walk(root, true);
-
-  // パネル幅に収まる範囲は原寸表示、収まりきらない場合のみ縮小してスクロールを避ける
-  return `<div style="overflow-x:auto;"><svg viewBox="0 0 ${width} ${height}" style="width:100%; max-width:${width}px; height:auto; display:block;">${stripes}${lines}${labels}</svg></div>`;
+    walk(n.left); walk(n.right);
+    if (n.left.leaf && n.right.leaf) {
+      bands += `<rect x="0" y="${n.left._y - 14}" width="${colX(n._level) + 6}" height="${n.right._y - n.left._y + 28}" rx="5" fill="rgba(79,240,255,0.07)"/>`;
+    }
+    const vx = colX(n._level);
+    [n.left, n.right].forEach(c => {
+      const won = idOf(c) === n.winnerId;
+      const sx = c.leaf ? PAD_L + NAME_W : colX(c._level);
+      // 子から縦線への横線、縦線の子の側の半分。勝った側を赤く太く
+      lines += `<line x1="${sx}" y1="${c._y}" x2="${vx}" y2="${c._y}" stroke="${won ? WIN : LINE}" stroke-width="${won ? WIN_W : LINE_W}" stroke-linecap="round"/>`;
+      lines += `<line x1="${vx}" y1="${c._y}" x2="${vx}" y2="${n._y}" stroke="${won ? WIN : LINE}" stroke-width="${won ? WIN_W : LINE_W}" stroke-linecap="round"/>`;
+    });
+    if (n === root) {
+      const champ = showCrown ? '🏆 ' : '';
+      const color = showCrown ? 'var(--amber)' : WIN;
+      lines += `<line x1="${vx}" y1="${n._y}" x2="${vx + 12}" y2="${n._y}" stroke="${WIN}" stroke-width="${WIN_W}" stroke-linecap="round"/>`;
+      const label = fitBracketNameWithTag(n.winnerName, '', 112 - (champ ? bracketTextWidth(champ, 11.5, true) : 0), 11.5, true);
+      labels += `<g class="bracket-node" data-id="${escapeHtml(n.winnerId ?? '')}" style="cursor:pointer;">
+        <rect x="${vx + 12}" y="${n._y - 12}" width="120" height="24" rx="4" fill="rgba(255,90,90,0.10)" stroke="${color}" stroke-width="1.4"/>
+        <text x="${vx + 18}" y="${n._y + 4.5}" font-size="11.5" font-weight="700" fill="${color}">${champ}${escapeHtml(label)}<title>${escapeHtml(n.winnerName)}</title></text>
+      </g>`;
+    }
+  })(root);
+  if (root.leaf) return '';
+  return `<div style="overflow-x:auto;"><svg viewBox="0 0 ${width} ${height}" style="width:100%; min-width:${Math.min(width, 460)}px; max-width:${width}px; height:auto; display:block;">${bands}${lines}${labels}</svg></div>`;
 }
 
 // タイトル戦本戦（挑戦者 vs 在位者）の結果が防衛・奪取のどちらだったかを示すラベル。
@@ -2120,7 +2100,7 @@ async function loadOneBracket(season, title, containerId = 'bracket-view') {
             }
           }
           html += `<div style="font-size:0.66rem; color:var(--text-dim); margin-bottom:4px;">
-            太い色付き線＝勝ち上がりの流れ（不戦勝の枠位置までは復元していません）／名前の左のアイコン＝参加時点の所属リーグ（その季タイトル保持者は代わりにタイトルの色バッジ）、右の()＝参加時点のElo
+            赤い太線＝勝ち上がりの流れ（不戦勝の枠位置までは復元していません）／名前の左のアイコン＝参加時点の所属リーグ（その季タイトル保持者は代わりにタイトルの色バッジ）、右の()＝参加時点のElo
           </div>`;
         } else if (title === '麒麟' && bracket.length > 0) {
           html += kirinBracketHtml(bracket, data.participant_info);
@@ -2128,7 +2108,7 @@ async function loadOneBracket(season, title, containerId = 'bracket-view') {
           const tree = buildBracketTree(bracket);
           html += `<div style="margin-bottom:8px;">${renderBracketSVG(tree, data.participant_info)}</div>
             <div style="font-size:0.66rem; color:var(--text-dim); margin-bottom:4px;">
-              太い色付き線＝勝ち上がりの流れ（不戦勝の枠位置までは復元していません）／名前の左のアイコン＝参加時点の所属リーグ（その季タイトル保持者は代わりにタイトルの色バッジ）、右の()＝参加時点のElo
+              赤い太線＝勝ち上がりの流れ（不戦勝の枠位置までは復元していません）／名前の左のアイコン＝参加時点の所属リーグ（その季タイトル保持者は代わりにタイトルの色バッジ）、右の()＝参加時点のElo
             </div>`;
         }
         if (finalGames.length > 0) {
