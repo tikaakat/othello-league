@@ -54,7 +54,7 @@ def _play_one_game(params_black, params_white, depth, noise_black=1.0, noise_whi
 
 def run_best_of_n_match(params_a, params_b, wins_needed, depth, noise_a=1.0, noise_b=1.0):
     """
-    先取制のタイトル戦本戦。1局ごとに先後を入れ替える（初戦はAが黒）。
+    先取制のタイトル戦本戦。1局目の先後は抽選し、1局ごとに先後を入れ替える。
     引き分けの局も「1局」として記録するが、先取数には加算しない（将棋の千日手と同様の扱い）。
     どちらかが規定数を先取するまで対局を続ける。
     戻り値: (challenger_won: bool, a_wins, b_wins, games_log)
@@ -62,6 +62,9 @@ def run_best_of_n_match(params_a, params_b, wins_needed, depth, noise_a=1.0, noi
     a_wins, b_wins = 0, 0
     games_log = []
     game_num = 0
+    # 1局目の先後は抽選（振り駒）し、以降は交互。7番勝負のように局数が奇数だと1局目の黒番側が
+    # 黒番を1局多く持てるため、以前のように常に挑戦者が1局目の黒番だと挑戦者が有利になっていた
+    a_first_black = random.random() < 0.5
     # 安全策：極端な連続引き分けでプロセスが実質無限ループにならないよう、上限だけは設ける
     # （通常のプレイでは到達しない、十分大きな値）
     MAX_GAMES_SAFETY = 500
@@ -72,7 +75,7 @@ def run_best_of_n_match(params_a, params_b, wins_needed, depth, noise_a=1.0, noi
         batch = (wins_needed - a_wins) + (wins_needed - b_wins) - 1
         args = []
         for k in range(batch):
-            if (game_num + k) % 2 == 0:
+            if ((game_num + k) % 2 == 0) == a_first_black:
                 args.append((params_a, params_b, depth, noise_a, noise_b))
             else:
                 args.append((params_b, params_a, depth, noise_b, noise_a))
@@ -80,7 +83,7 @@ def run_best_of_n_match(params_a, params_b, wins_needed, depth, noise_a=1.0, noi
         for result, black, white, moves in outs:
             if a_wins >= wins_needed or b_wins >= wins_needed:
                 break
-            a_is_black = (game_num % 2 == 0)
+            a_is_black = (game_num % 2 == 0) == a_first_black
             if result == "draw":
                 outcome_for_log = "draw"
                 note = "　（引き分け。先取数には加算せず）"
@@ -132,7 +135,9 @@ def _play_until_decided(params_x, params_y, depth, noise_x=1.0, noise_y=1.0, max
     予選（トーナメント・ラダー）は勝者を1人に絞る必要があるため、この方式を使う。
     全ての対局（引き分けも含む）を記録し、最後に決着した対局の勝者を返す。
     """
-    x_is_black = random.random() < 0.5 if __import__("os").environ.get("SIM_RANDOM_COLOR") else True
+    # 1局目の先後は抽選（振り駒）。以前は常にX（トーナメント表の上側＝シード側）が黒番で、
+    # 黒番が有利な展開のときにシード側が一方的に有利になっていた
+    x_is_black = random.random() < 0.5
     games = []
     for _ in range(max_attempts):
         if x_is_black:
