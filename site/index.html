@@ -690,16 +690,17 @@ function renderDrawSVG(slots, rootLabel, tagFn, opts = {}) {
     : +Object.keys(entryCount).sort((a, b) => entryCount[b] - entryCount[a] || a - b)[0];
   const maxLevel = root.leaf ? 0 : root.level;
   const roundName = (L) => {
-    if (L <= mainStart) return '予備戦';
+    // 列の幅が狭いので短い呼び名にする（予備＝予備戦、準々＝準々決勝、準決＝準決勝）
+    if (L <= mainStart) return '予備';
     const fromTop = maxLevel - L + 1; // 1＝決勝
     if (L === mainStart + 1 && fromTop >= 3) return '1回戦';
     if (fromTop === 1) return '決勝';
-    if (fromTop === 2) return '準決勝';
-    if (fromTop === 3) return '準々決勝';
+    if (fromTop === 2) return '準決';
+    if (fromTop === 3) return '準々';
     return `${L - mainStart}回戦`;
   };
 
-  const ROW_H = 30, NAME_W = 190, PAD_L = 4, HEAD_H = 24, GAP = 22, COL_W = 40;
+  const ROW_H = 28, NAME_W = 146, PAD_L = 4, HEAD_H = 24, GAP = 18, COL_W = 34;
   const LINE = '#6b85b3', LINE_W = 1.6;
   const colX = (L) => PAD_L + NAME_W + GAP + (L - 1) * COL_W; // 段Lの対戦の縦線の位置
   let row = 0;
@@ -708,7 +709,7 @@ function renderDrawSVG(slots, rootLabel, tagFn, opts = {}) {
     layout(n.left); layout(n.right);
     n._y = (n.left._y + n.right._y) / 2;
   })(root);
-  const width = colX(maxLevel) + 112;
+  const width = colX(maxLevel) + 108;
   const height = HEAD_H + row * ROW_H + 10;
   let bands = '', lines = '', labels = '';
   // 段の見出し（縦線の上に回戦名）
@@ -730,13 +731,13 @@ function renderDrawSVG(slots, rootLabel, tagFn, opts = {}) {
     }
     let tag = tagFn ? (tagFn(p) || '') : '';
     if (!opts.isSeed && n.entry > mainStart) tag = tag ? `シード・${tag}` : 'シード';
-    if (n.entry < mainStart) tag = tag ? `予備戦・${tag}` : '予備戦';
+    // 予備戦に回る選手は線（1つ手前の列）で分かるので、名前の横には書かない
     const badgeW = (info.league || info.title) ? LEAGUE_BADGE_W + 2 : 0;
-    const label = fitBracketNameWithTag(name, tag, NAME_W - 10 - badgeW, 12, false);
+    const label = fitBracketNameWithTag(name, tag, NAME_W - 10 - badgeW, 11, false);
     return `<g class="bracket-node" data-id="${escapeHtml(p.id || '')}" style="cursor:pointer;">
       <rect x="${PAD_L}" y="${n._y - 12}" width="${NAME_W}" height="24" rx="4" fill="rgba(255,255,255,0.05)" stroke="#2f4161" stroke-width="0.8"/>
       ${leagueBadgeSVG(PAD_L + 11, n._y, info)}
-      <text x="${PAD_L + 6 + badgeW}" y="${n._y + 4.5}" font-size="12" fill="${color}">${escapeHtml(label)}<title>${escapeHtml(name)}</title></text>
+      <text x="${PAD_L + 6 + badgeW}" y="${n._y + 4}" font-size="11" fill="${color}">${escapeHtml(label)}<title>${escapeHtml(name)}</title></text>
     </g>`;
   }
   // 子（選手または下の段の対戦）から、この段の縦線までの横線の始点
@@ -754,12 +755,12 @@ function renderDrawSVG(slots, rootLabel, tagFn, opts = {}) {
     lines += `<line x1="${vx}" y1="${n.left._y}" x2="${vx}" y2="${n.right._y}" stroke="${LINE}" stroke-width="${LINE_W}"/>`;
     if (n === root) {
       lines += `<line x1="${vx}" y1="${n._y}" x2="${vx + 14}" y2="${n._y}" stroke="var(--amber)" stroke-width="${LINE_W}"/>`;
-      labels += `<rect x="${vx + 14}" y="${n._y - 12}" width="92" height="24" rx="4" fill="rgba(255,182,72,0.12)" stroke="var(--amber)" stroke-width="1.2"/>
-        <text x="${vx + 60}" y="${n._y + 4.5}" font-size="11.5" font-weight="700" text-anchor="middle" fill="var(--amber)">${escapeHtml(rootLabel || '')}</text>`;
+      labels += `<rect x="${vx + 14}" y="${n._y - 12}" width="82" height="24" rx="4" fill="rgba(255,182,72,0.12)" stroke="var(--amber)" stroke-width="1.2"/>
+        <text x="${vx + 55}" y="${n._y + 4.5}" font-size="11.5" font-weight="700" text-anchor="middle" fill="var(--amber)">${escapeHtml(rootLabel || '')}</text>`;
     }
   })(root);
   // スマホ幅では縮小しすぎて名前が読めなくなるため、一定以下には縮めず横スクロールにする
-  return `<div style="overflow-x:auto;"><svg viewBox="0 0 ${width} ${height}" style="width:100%; min-width:${Math.min(width, 460)}px; max-width:${width}px; height:auto; display:block;">${bands}${lines}${labels}</svg></div>`;
+  return `<div style="overflow-x:auto;"><svg viewBox="0 0 ${width} ${height}" style="width:100%; min-width:${Math.min(width, 300)}px; max-width:${width}px; height:auto; display:block;">${bands}${lines}${labels}</svg></div>`;
 }
 
 // 組み合わせタブの出場者一覧の表（列は cols の [見出し, 値を返す関数] で指定）
@@ -826,7 +827,8 @@ async function loadCupDrawPanel(kind) {
     html += `<div class="league-block"><h3>第${data.season}季 白虎戦 挑戦者決定トーナメント（${b.slots.filter(Boolean).length}名）</h3>`;
     html += `<p style="font-size:0.72rem; margin:2px 0 6px;">${holderLine(b.holder)}<br>
       出場条件：Eloの上位16名（在位者を除く）。前季の失冠者はEloに関わらず出場。<br>
-      組み合わせ：出場者内の順位で1位対16位、2位対15位…となるように配置（前季の失冠者は16位として扱う）。</p>`;
+      組み合わせ：出場者内の順位で1位対16位、2位対15位…となるように配置（前季の失冠者は16位として扱う）。<br>
+      表の名前の右の（）：Elo順位（「失冠」＝前季の失冠者）。</p>`;
     // 前季の失冠者（Eloに関わらず出場）は、Elo順位に関わらず最下位のシードとして組み合わせに入る
     const isGuaranteed = p => b.guaranteed && p.id === b.guaranteed;
     const byakkoEntrants = b.slots.filter(Boolean).slice().sort((x, y) => (x.elo_rank || 999) - (y.elo_rank || 999));
@@ -836,7 +838,7 @@ async function loadCupDrawPanel(kind) {
       ['所属', p => p.league ? `${p.league}リーグ` : '-'],
       ['Elo', p => p.elo ?? '-'],
     ]);
-    html += renderDrawSVG(b.slots, '挑戦者', p => isGuaranteed(p) ? `前季失冠・Elo${p.elo_rank}位` : (p.elo_rank ? `Elo${p.elo_rank}位` : '')) + '</div>';
+    html += renderDrawSVG(b.slots, '挑戦者', p => isGuaranteed(p) ? `失冠・${p.elo_rank}位` : (p.elo_rank ? `${p.elo_rank}位` : '')) + '</div>';
 
     } else if (kind === 'draw_genbu') {
     const g = data.genbu;
@@ -846,13 +848,14 @@ async function loadCupDrawPanel(kind) {
     html += `<p style="font-size:0.72rem; margin:2px 0 6px;">${holderLine(g.holder)}<br>
       ${g.num_blocks}つのブロックのトーナメントの優勝者${g.guaranteed_final ? `と、前季失冠の${cupDrawPlayerHtml(g.guaranteed_final)}（本戦から出場）` : ''}が、総当たりの本戦で挑戦者を決めます。<br>
       出場条件：全選手（在位者を除く）。シード：タイトル保持者は3回戦から、Aリーグの選手は2回戦から登場し、
-      ほかの選手（B〜D・新人）は1回戦から。シードの選手は4ブロックに均等に振り分け、それ以外は抽選。</p>`;
+      ほかの選手（B〜D・新人）は1回戦から。シードの選手は4ブロックに均等に振り分け、それ以外は抽選。<br>
+      表の名前の右の（）：Elo順位。「保持者」＝タイトル保持者のシード、「A」＝Aリーグのシード。左の列の予備戦は1回戦の前に1局指す。</p>`;
     for (let k = 0; k < g.num_blocks; k++) {
       html += `<div style="font-size:0.72rem; color:var(--amber); margin-top:8px;">${'ABCDEFGH'[k]}ブロック</div>`;
       html += renderDrawSVG(g.slots.slice(k * blockSize, (k + 1) * blockSize), 'ブロック代表', p => {
-        const elo = p.elo_rank ? `Elo${p.elo_rank}位` : '';
-        if (((CURRENT_TITLEHOLDERS.by_id || {})[p.id] || []).length) return `保持者シード・${elo}`;
-        return p.league === 'A' ? `Aシード・${elo}` : elo;
+        const elo = p.elo_rank ? `${p.elo_rank}位` : '';
+        if (((CURRENT_TITLEHOLDERS.by_id || {})[p.id] || []).length) return `保持者・${elo}`;
+        return p.league === 'A' ? `A・${elo}` : elo;
       }, { isSeed: p => p.league === 'A' || ((CURRENT_TITLEHOLDERS.by_id || {})[p.id] || []).length > 0 });
     }
     html += '</div>';
@@ -1740,7 +1743,7 @@ function renderBracketSVG(root, participantInfo, showCrown = true) {
   // 組み合わせタブ（renderDrawSVG）と同じ描き方：出場者を左端の列に省略せずに並べ、回戦ごとの縦線でつなぐ。
   // 勝ち上がりの線は赤く太く描き、最後の勝者は右端の箱に名前を出す（showCrown=falseなら王冠・金色にしない）
   participantInfo = participantInfo || {};
-  const ROW_H = 30, NAME_W = 190, PAD_L = 4, HEAD_H = 24, GAP = 22, COL_W = 40;
+  const ROW_H = 28, NAME_W = 146, PAD_L = 4, HEAD_H = 24, GAP = 18, COL_W = 34;
   const LINE = '#4a5f84', WIN = '#ff5a5a', LINE_W = 1.4, WIN_W = 3;
   (function level(n) {
     if (n.leaf) { n._level = 0; return; }
@@ -1755,13 +1758,13 @@ function renderBracketSVG(root, participantInfo, showCrown = true) {
     layout(n.left); layout(n.right);
     n._y = (n.left._y + n.right._y) / 2;
   })(root);
-  const width = colX(Math.max(1, maxLevel)) + 132;
+  const width = colX(Math.max(1, maxLevel)) + 120;
   const height = HEAD_H + row * ROW_H + 10;
   const roundName = (L) => {
     const fromTop = maxLevel - L + 1;
     if (fromTop === 1) return '決勝';
-    if (fromTop === 2) return '準決勝';
-    if (fromTop === 3) return '準々決勝';
+    if (fromTop === 2) return '準決';
+    if (fromTop === 3) return '準々';
     return `${L}回戦`;
   };
   let bands = '', lines = '', labels = '';
@@ -1783,13 +1786,13 @@ function renderBracketSVG(root, participantInfo, showCrown = true) {
       const tag = info.elo !== undefined ? String(info.elo) : '';
       const badgeW = (info.league || info.title) ? LEAGUE_BADGE_W + 2 : 0;
       const isChampion = n.id === root.winnerId;
-      const label = fitBracketNameWithTag(n.name, tag, NAME_W - 10 - badgeW, 12, isChampion);
+      const label = fitBracketNameWithTag(n.name, tag, NAME_W - 10 - badgeW, 11, isChampion);
       const opacity = reached[n.id] ? 1 : 0.6; // 初戦で敗れた選手は少し暗く
       labels += `<g class="bracket-node" data-id="${escapeHtml(n.id ?? '')}" style="cursor:pointer;" opacity="${opacity}">
         <rect x="${PAD_L}" y="${n._y - 12}" width="${NAME_W}" height="24" rx="4" fill="rgba(255,255,255,0.05)"
           stroke="${isChampion && showCrown ? 'var(--amber)' : '#2f4161'}" stroke-width="${isChampion && showCrown ? 1.4 : 0.8}"/>
         ${leagueBadgeSVG(PAD_L + 11, n._y, info)}
-        <text x="${PAD_L + 6 + badgeW}" y="${n._y + 4.5}" font-size="12" ${isChampion ? 'font-weight="700"' : ''} fill="var(--text-main)">${escapeHtml(label)}<title>${escapeHtml(n.name)}</title></text>
+        <text x="${PAD_L + 6 + badgeW}" y="${n._y + 4}" font-size="11" ${isChampion ? 'font-weight="700"' : ''} fill="var(--text-main)">${escapeHtml(label)}<title>${escapeHtml(n.name)}</title></text>
       </g>`;
       return;
     }
@@ -1809,15 +1812,15 @@ function renderBracketSVG(root, participantInfo, showCrown = true) {
       const champ = showCrown ? '🏆 ' : '';
       const color = showCrown ? 'var(--amber)' : WIN;
       lines += `<line x1="${vx}" y1="${n._y}" x2="${vx + 12}" y2="${n._y}" stroke="${WIN}" stroke-width="${WIN_W}" stroke-linecap="round"/>`;
-      const label = fitBracketNameWithTag(n.winnerName, '', 112 - (champ ? bracketTextWidth(champ, 11.5, true) : 0), 11.5, true);
+      const label = fitBracketNameWithTag(n.winnerName, '', 92 - (champ ? bracketTextWidth(champ, 11, true) : 0), 11, true);
       labels += `<g class="bracket-node" data-id="${escapeHtml(n.winnerId ?? '')}" style="cursor:pointer;">
-        <rect x="${vx + 12}" y="${n._y - 12}" width="120" height="24" rx="4" fill="rgba(255,90,90,0.10)" stroke="${color}" stroke-width="1.4"/>
-        <text x="${vx + 18}" y="${n._y + 4.5}" font-size="11.5" font-weight="700" fill="${color}">${champ}${escapeHtml(label)}<title>${escapeHtml(n.winnerName)}</title></text>
+        <rect x="${vx + 12}" y="${n._y - 12}" width="100" height="24" rx="4" fill="rgba(255,90,90,0.10)" stroke="${color}" stroke-width="1.4"/>
+        <text x="${vx + 17}" y="${n._y + 4}" font-size="11" font-weight="700" fill="${color}">${champ}${escapeHtml(label)}<title>${escapeHtml(n.winnerName)}</title></text>
       </g>`;
     }
   })(root);
   if (root.leaf) return '';
-  return `<div style="overflow-x:auto;"><svg viewBox="0 0 ${width} ${height}" style="width:100%; min-width:${Math.min(width, 460)}px; max-width:${width}px; height:auto; display:block;">${bands}${lines}${labels}</svg></div>`;
+  return `<div style="overflow-x:auto;"><svg viewBox="0 0 ${width} ${height}" style="width:100%; min-width:${Math.min(width, 300)}px; max-width:${width}px; height:auto; display:block;">${bands}${lines}${labels}</svg></div>`;
 }
 
 // タイトル戦本戦（挑戦者 vs 在位者）の結果が防衛・奪取のどちらだったかを示すラベル。

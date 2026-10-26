@@ -76,8 +76,8 @@ def infer_gender(display_name):
 class NameRegistry:
     """
     「名字＋名前」の組み合わせでフルネームを生成する（例：藤井聡太）。
-    名字×名前の組み合わせは非常に多いが、それでも重複した場合のみ連番を付ける
-    （例：同じ「藤井聡太」が2人生まれたら「藤井聡太2」）。
+    これまでに使われた名前（現役・引退者を含む）とは重ならないよう引き直す。組み合わせを使い切った
+    場合のみ、保険として連番を付ける（例：「藤井聡太2」）。
     """
     def __init__(self, counts=None):
         self.counts = dict(counts) if counts else {}
@@ -89,7 +89,12 @@ class NameRegistry:
         """
         gender = random.choice(GENDERS)
         given_pool = GIVEN_NAMES_MALE if gender == "male" else GIVEN_NAMES_FEMALE
-        full_name = random.choice(SURNAMES) + random.choice(given_pool)
+        # これまでに使われたことのない名前（現役・引退者を含む）が出るまで引き直す。連番（「藤井聡太2」等）は
+        # 記事などで不自然なので、組み合わせを使い切ったときの保険としてだけ残す
+        for _ in range(200):
+            full_name = random.choice(SURNAMES) + random.choice(given_pool)
+            if self.counts.get(full_name, 0) == 0:
+                break
         self.counts[full_name] = self.counts.get(full_name, 0) + 1
         n = self.counts[full_name]
         display_name = full_name if n == 1 else f"{full_name}{n}"
