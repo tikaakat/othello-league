@@ -20,6 +20,8 @@ import random
 from . import board as B
 from .skills import BOOK_PARAMS
 
+OPENING_RANDOM_PLIES = 2  # 開局の何手目までを抽選にするか（下のchoose_move参照）
+
 CORNERS = {0, 7, 56, 63}
 X_SQUARES = {9, 14, 49, 54}       # 角の斜め隣（一番危険なマス）
 C_SQUARES = {1, 6, 8, 15, 48, 55, 57, 62}  # 角の辺隣（やや危険なマス）
@@ -216,14 +218,16 @@ def choose_move(bd, color, params, depth=5, noise_scale=1.0):
     moves = B.legal_moves(bd, color)
     if not moves:
         return None
-    if bd.count(B.EMPTY) > 60 - int(__import__("os").environ.get("SIM_RANDOM_OPENING", "0")):
+    # 開局の手は抽選：全員が同じ定跡で同じ進行をなぞり、先後だけで勝敗が決まるのを防ぐため、
+    # 最初のOPENING_RANDOM_PLIES手はランダムに選ぶ（コンピュータ同士の大会で使われる、開局を抽選する方式）
+    if bd.count(B.EMPTY) > 60 - OPENING_RANDOM_PLIES:
         return random.choice(moves)
     book = params.get("_book", 0)
     endgame = params.get("_endgame", 0)
     if book or endgame:
         empty = bd.count(B.EMPTY)
         if book and empty >= 60 - book:
-            params, noise_scale = BOOK_PARAMS, float(__import__("os").environ.get("SIM_BOOK_NOISE", "0"))
+            params, noise_scale = BOOK_PARAMS, 0.0
         elif endgame and empty <= endgame:
             depth += 1
     _, move = minimax(bd, color, depth, -math.inf, math.inf, color, params, noise_scale)
