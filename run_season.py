@@ -348,24 +348,15 @@ def _best_of_n_to_match_log(games, league_name, a_id, b_id):
 
 
 def _bracket_log_to_match_log(bracket_log, league_name):
-    """determine_*_challenger等のbracket_log（トーナメント）をmatch_logの形式に変換する"""
-    entries = []
-    for matchup in bracket_log:
-        x_id, y_id = matchup["a"], matchup["b"]
-        for g in matchup.get("games", []):
-            if g["result"] == "draw":
-                result_for_log = "draw"
-            else:
-                x_won = (g["result"] == "black") == g["x_was_black"]
-                result_for_log = "win" if x_won else "loss"
-            entries.append({
-                "league": league_name,
-                "individual_a_id": x_id,
-                "individual_b_id": y_id,
-                "result": result_for_log,
-                "games": [g],
-            })
-    return entries
+    """determine_*_challenger等のbracket_log（トーナメント）をmatch_logの形式に変換する。
+    1対戦（先後を入れ替えた2局セット）を1件とし、勝敗は対戦の勝者で付ける"""
+    return [{
+        "league": league_name,
+        "individual_a_id": m["a"],
+        "individual_b_id": m["b"],
+        "result": "win" if m["winner"] == m["a"] else "loss",
+        "games": m.get("games", []),
+    } for m in bracket_log]
 
 
 def _title_results_to_match_log(title_results, season):
@@ -384,26 +375,23 @@ def _title_results_to_match_log(title_results, season):
                 })
 
         for matchup in r.get("bracket", []):
+            # 1対戦（先後を入れ替えた2局セット。決着しなければ追加のセット）を1件として記録し、
+            # 勝敗は対戦の勝者で付ける（1局ごとに分けると、セットの勝者と各局の勝者が食い違い、
+            # 結果サイトのトーナメント表で勝ち上がりを正しく復元できないため）
             x_id, y_id, winner_id = matchup["a"], matchup["b"], matchup["winner"]
-            for g in matchup.get("games", []):
-                if g["result"] == "draw":
-                    result_for_log = "draw"
-                else:
-                    x_won = (g["result"] == "black") == g["x_was_black"]
-                    result_for_log = "win" if x_won else "loss"
-                entry = {
-                    "league": f"{title}予選",
-                    "individual_a_id": x_id,
-                    "individual_b_id": y_id,
-                    "result": result_for_log,
-                    "games": [g],
-                }
-                # 玄武戦のみ、ブロック分け表示のためstage（"block"/"final"）とblockを付与する
-                if "stage" in matchup:
-                    entry["stage"] = matchup["stage"]
-                if "block" in matchup:
-                    entry["block"] = matchup["block"]
-                entries.append(entry)
+            entry = {
+                "league": f"{title}予選",
+                "individual_a_id": x_id,
+                "individual_b_id": y_id,
+                "result": "win" if winner_id == x_id else "loss",
+                "games": matchup.get("games", []),
+            }
+            # 玄武戦・麒麟戦は、ブロック分け表示のためstage（"block"/"final"等）とblockを付与する
+            if "stage" in matchup:
+                entry["stage"] = matchup["stage"]
+            if "block" in matchup:
+                entry["block"] = matchup["block"]
+            entries.append(entry)
 
     return entries
 
@@ -1063,7 +1051,8 @@ def write_upcoming_brackets(data_dir, state, rosters):
     last_dethroned = state.get("last_dethroned") or {}
     out = {
         "season": planned["season"],
-        "byakko": {"holder": titleholders.get("白虎"), "slots": [slot(p) for p in planned["白虎"]]},
+        "byakko": {"holder": titleholders.get("白虎"), "guaranteed": last_dethroned.get("白虎"),
+                   "slots": [slot(p) for p in planned["白虎"]]},
         "genbu": {"holder": titleholders.get("玄武"), "num_blocks": 4,
                   "guaranteed_final": slot(last_dethroned.get("玄武")),
                   "slots": [slot(p) for p in planned["玄武"]]},

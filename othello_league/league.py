@@ -214,6 +214,8 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
         # 判定する（win_this_season/loss_this_seasonはタイトル戦の前にA〜Dの結果だけで
         # セットされるため、玄武予選・玄武本戦等のタイトル戦の勝敗はここに混ざらない）
         lost_more = ind.loss_this_season > ind.win_this_season
+        if ind.total_seasons < int(__import__("os").environ.get("SIM_GRACE", "0")):
+            lost_more = False
         won_more = ind.win_this_season > ind.loss_this_season
         relief = ind.id in demotion_relief_ids
         # 負け越したら必ず1点付く（救済と同じ季でも相殺しない）。そのうえで勝ち越し・救済で減らせるのは

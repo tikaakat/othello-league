@@ -70,7 +70,7 @@ def birth_skills(master_params=None):
     return {
         ENDGAME_KEY: round(min(ENDGAME_CAP, endgame), 2),
         ENDGAME_GROWTH_KEY: round(_growth_speed(), 3),
-        BOOK_KEY: 0,
+        BOOK_KEY: int(float(__import__("os").environ.get("SIM_BOOK_INHERIT", "0")) * (master_params or {}).get(BOOK_KEY, 0)),
         BOOK_RATE_KEY: round(random.uniform(*BOOK_RATE_RANGE), 2),
     }
 
@@ -114,4 +114,5 @@ def season_growth(ind):
     if ENDGAME_KEY not in p:
         return
     p[ENDGAME_KEY] = round(min(ENDGAME_CAP, max(0.0, p[ENDGAME_KEY] + p.get(ENDGAME_GROWTH_KEY, 0.0) * _age_factor(ind.age))), 2)
-    p[BOOK_KEY] = int(min(BOOK_CAP, p.get(BOOK_KEY, 0) + p.get(BOOK_RATE_KEY, 0.0) + random.random()))
+    young = float(__import__("os").environ.get("SIM_YOUNG_BOOK", "1")) if ind.age < 30 else 1.0
+    p[BOOK_KEY] = int(min(BOOK_CAP, p.get(BOOK_KEY, 0) + p.get(BOOK_RATE_KEY, 0.0) * young + random.random()))
