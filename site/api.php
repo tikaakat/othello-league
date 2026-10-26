@@ -175,6 +175,11 @@ function is_eternal_title($title, $total, $consec) {
 //     同じ季の履歴に記録する（実際にその段を経由してはいないが、記録として残す）
 //   各基準は下限＝一度上がった段位は下がらない
 const DAN_WIN_STEP = [5 => 40, 6 => 50, 7 => 60, 8 => 80, 9 => 100]; // 昇段先の段 => その段になるまでに必要な増分勝数
+// 麒麟戦の導入（第62季）以降は、タイトル戦・予選の対局が増え、1季あたりの勝数が平均6.5勝→7.5勝（約15%増）、
+// 上位の選手は20勝を超える季もあるため、その季以降の勝数昇段は必要勝数を引き上げた基準で判定する
+// （それより前の季に上がった段位は従来の基準のまま。上位ほど勝数の伸びが大きいので、8・9段は多めに引き上げる）
+const DAN_WIN_STEP_SINCE = 62;
+const DAN_WIN_STEP_V2 = [5 => 45, 6 => 58, 7 => 70, 8 => 95, 9 => 120];
 const DAN_LEAGUE_FLOOR = ['A' => 7, 'B' => 6, 'C' => 5];
 const DAN_KANJI = [1 => '一', 2 => '二', 3 => '三', 4 => '四', 5 => '五', 6 => '六', 7 => '七', 8 => '八', 9 => '九'];
 
@@ -267,7 +272,7 @@ function simulate_dan_progression($debutSeason, $debutLeague, array $nonWinCandi
         //   （勝数昇段は常に1段刻みで実際に経由するため、飛び級の注記は不要）
         $cum = $lastCumWin;
         while ($dan < 9) {
-            $step = DAN_WIN_STEP[$dan + 1] ?? null;
+            $step = ($s >= DAN_WIN_STEP_SINCE ? DAN_WIN_STEP_V2 : DAN_WIN_STEP)[$dan + 1] ?? null;
             if ($step === null || ($cum - $winBaseline) < $step) break;
             $prevDan = $dan;
             $winBaseline += $step; // 超過分は次の段への進捗として繰り越す（切り捨てない）
