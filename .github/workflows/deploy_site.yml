@@ -596,6 +596,15 @@ jobs:
                     $body = @file_get_contents("https://lab.spia-net.com/othello-league/api.php?action=$a");
                     echo "api $a: " . round(microtime(true) - $t0, 2) . "s bytes=" . strlen((string)$body) . " head=" . substr((string)$body, 0, 80) . PHP_EOL;
                   }
+                  foreach (["", "index.html", "articles.json", "season_state.json"] as $f) {
+                    $t0 = microtime(true);
+                    $body = @file_get_contents("https://lab.spia-net.com/othello-news/$f");
+                    echo "news $f: " . round(microtime(true) - $t0, 2) . "s bytes=" . strlen((string)$body) . " " . ($http_response_header[0] ?? "no response") . PHP_EOL;
+                  }
+                  $nd = dirname(dirname(get_included_files()[0])) . "/othello-news";
+                  foreach ((array)@scandir($nd) as $f) {
+                    if ($f !== "." && $f !== "..") echo "file $f " . @filesize("$nd/$f") . " " . date("Y-m-d H:i", (int)@filemtime("$nd/$f")) . PHP_EOL;
+                  }
                 '
                 ;;
               *)

@@ -1018,7 +1018,6 @@ async function renderIndividualProfile(id) {
       <div>
         <h1 class="profile-name">${escapeHtml(name)}</h1>
         <div class="profile-sub">${statusLine}　Elo ${Math.round(ind.elo_rating)}（最高 ${Math.round(ind.peak_elo ?? ind.elo_rating)}）<span class="dan-badge">${danLabel(ind.dan)}</span></div>
-        ${skillsLine(ind.params)}
         <div><button class="follow-btn" id="follow-btn"></button></div>
       </div>
     </div>
