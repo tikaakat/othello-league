@@ -193,8 +193,12 @@ jobs:
           retry_cmd ssh -i /tmp/deploy_key -p "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
             "$XSERVER_USER@$XSERVER_HOST" "mkdir -p ${XSERVER_NEWS_DIR}"
 
+          # ファンサイトが使うのはタイトル保持者だけなので、season_state.json（数十MB）から
+          # その部分だけを抜き出した軽量版を同じ名前で置く（全体を置くと全ページの読み込みが極端に遅くなる）
+          mkdir -p /tmp/news_out
+          python3 -c 'import json; s = json.load(open("data/season_state.json", encoding="utf-8")); json.dump({k: s.get(k) for k in ("current_season", "titleholders")}, open("/tmp/news_out/season_state.json", "w", encoding="utf-8"), ensure_ascii=False)'
           retry_cmd scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
-            news-site/index.html news-site/robots.txt news-site/sitemap.xml data/news/articles.json data/season_state.json \
+            news-site/index.html news-site/robots.txt news-site/sitemap.xml data/news/articles.json /tmp/news_out/season_state.json \
             "$XSERVER_USER@$XSERVER_HOST:${XSERVER_NEWS_DIR}"
 
           rm -f /tmp/deploy_key

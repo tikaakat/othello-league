@@ -630,7 +630,7 @@ async function renderHolders() {
   const state = await loadHolders();
   const holders = state && state.titleholders;
   if (!holders) { el.innerHTML = ''; return; }
-  const order = ['麒麟', '青龍', '朱雀', '白虎', '玄武'];
+  const order = ['青龍', '麒麟', '朱雀', '白虎', '玄武'];
   const slots = order.map(title => {
     const h = holders[title];
     const name = h && h.name ? h.name : '空位';
@@ -1858,26 +1858,50 @@ async function renderClanList() {
     return;
   }
 
+  // 独立してできた一門は、元の一門の下に字下げして並べ、同じ系統（大元の一門）を同じ色で示す
   const rows = data.clans || [];
-  const active = rows.filter(c => c.active_count > 0);
-  const extinct = rows.filter(c => c.active_count === 0);
+  const byId = new Map(rows.map(c => [c.clan_root_id, c]));
+  const kids = new Map();
+  const tops = [];
+  rows.forEach(c => {
+    const o = c.origin_clan_root_id;
+    if (o && o !== c.clan_root_id && byId.has(o)) {
+      if (!kids.has(o)) kids.set(o, []);
+      kids.get(o).push(c);
+    } else {
+      tops.push(c);
+    }
+  });
+  // 系統ごとの集計（現役人数・最高Elo）。系統の並びは最高Elo順、系統内は元の一門→独立した一門の順
+  const lineageOf = c => [c, ...(kids.get(c.clan_root_id) || []).flatMap(lineageOf)];
+  const lineages = tops.map(top => {
+    const all = lineageOf(top);
+    return { top, all, active: all.reduce((n, c) => n + c.active_count, 0), best: Math.max(...all.map(c => c.best_peak_elo)) };
+  }).sort((a, b) => b.best - a.best);
+  const COLORS = ['#c0392b', '#2471a3', '#1e8449', '#b9770e', '#7d3c98', '#117a65', '#a04000', '#2e4053', '#c71585', '#5d6d7e'];
 
-  const rowHtml = c => `<div class="clan-row" data-goto-clan="${escapeHtml(c.clan_root_id)}">
-      <span>${escapeHtml(c.founder_name)}${c.founder_retired ? '<span class="clan-right">（引退）</span>' : ''}</span>
+  const rowHtml = (c, depth, color, origin) => `<div class="clan-row" data-goto-clan="${escapeHtml(c.clan_root_id)}"
+      style="border-left:4px solid ${color}; padding-left:${8 + depth * 16}px;${c.active_count === 0 ? ' opacity:0.55;' : ''}">
+      <span>${depth > 0 ? '<span class="clan-right">└ </span>' : ''}${escapeHtml(c.founder_name)}${c.founder_retired ? '<span class="clan-right">（引退）</span>' : ''}${
+        origin ? `<span class="clan-right" style="font-size:0.7rem;">　${escapeHtml(origin.founder_name)}一門から独立</span>` : ''}${
+        c.active_count === 0 ? '<span class="clan-right">（消滅）</span>' : ''}</span>
       <span class="clan-right">${c.active_count}名（総${c.member_count}名）　最高Elo ${Math.round(c.best_peak_elo)}</span>
     </div>`;
+  const treeHtml = (c, depth, color) => rowHtml(c, depth, color, depth > 0 ? byId.get(c.origin_clan_root_id) : null)
+    + (kids.get(c.clan_root_id) || []).sort((a, b) => b.best_peak_elo - a.best_peak_elo).map(k => treeHtml(k, depth + 1, color)).join('');
 
+  const alive = lineages.filter(l => l.active > 0), gone = lineages.filter(l => l.active === 0);
   let html = `
     <a class="back-link" href="#" onclick="navigateTo('individuals');return false;">← 選手名鑑へ戻る</a>
     <div class="empty" style="padding:0 0 10px; text-align:left; color:var(--text-dim); font-size:0.8rem;">
-      師弟関係でつながる一門（歴代最高Elo順）です。開祖の名前をクリックすると系統図を見られます。
+      師弟関係でつながる一門です。独立してできた一門は元の一門の下に字下げし、同じ系統を同じ色で示しています（系統は最高Elo順）。開祖の名前をクリックすると系統図を見られます。
     </div>
-    <div class="roster-league-group"><h3>一門一覧（${active.length}件）</h3>
-      ${active.map(rowHtml).join('') || '<div class="empty">まだ一門がありません</div>'}
+    <div class="roster-league-group"><h3>一門一覧（${alive.length}系統・${rows.filter(c => c.active_count > 0).length}一門）</h3>
+      ${alive.map((l, i) => treeHtml(l.top, 0, COLORS[i % COLORS.length])).join('') || '<div class="empty">まだ一門がありません</div>'}
     </div>`;
-  if (extinct.length > 0) {
-    html += `<div class="roster-league-group"><h3>消滅した一門（${extinct.length}件）</h3>
-      ${extinct.map(rowHtml).join('')}
+  if (gone.length > 0) {
+    html += `<div class="roster-league-group"><h3>消滅した系統（${gone.length}件）</h3>
+      ${gone.map(l => treeHtml(l.top, 0, 'var(--border)')).join('')}
     </div>`;
   }
   el.innerHTML = html;
@@ -2027,7 +2051,7 @@ function renderRules() {
 
     <h3>タイトル戦</h3>
     <div class="sec">
-      麒麟・青龍・朱雀・白虎・玄武という5つのタイトルがあり、それぞれ異なる方式で挑戦者を決める。
+      青龍・麒麟・朱雀・白虎・玄武という5つのタイトルがあり、それぞれ異なる方式で挑戦者を決める。
       格は麒麟と青龍が最上位で、朱雀・白虎・玄武と続く。格が上のタイトル戦ほど、じっくり読んで指す。<br>
       ・<b>麒麟</b>：麒麟戦独自の組（1〜3組）に分かれ、1組は本戦から、2組・3組は予選を勝ち抜いて本戦トーナメントへ（予選は2組と3組が同じブロックで戦い、2組はシード）。
       ベスト4からは敗者復活戦があり、本戦優勝者は1勝、敗者復活戦の勝者は2連勝で挑戦権を得る。組は毎季の麒麟戦の成績で入れ替わる<br>
@@ -2038,7 +2062,7 @@ function renderRules() {
       在位者は挑戦者決定戦には出場せず、勝ち上がってきた挑戦者を番勝負で迎え撃つ。
       青龍の在位者はAリーグの対局も免除され、防衛に専念する。
       白虎・玄武・麒麟でタイトルを失った選手は、翌季の挑戦者決定戦にシード扱いで加わり、すぐに奪還を狙える。<br>
-      番勝負は、麒麟・青龍・朱雀が7番勝負（4勝先取）、白虎・玄武が5番勝負（3勝先取）。
+      番勝負は、青龍・麒麟・朱雀が7番勝負（4勝先取）、白虎・玄武が5番勝負（3勝先取）。
     </div>
 
     <h3>永世称号</h3>

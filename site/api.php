@@ -1073,12 +1073,25 @@ switch ($action) {
         if ($founderIds) {
             $ph = implode(',', array_fill(0, count($founderIds), '?'));
             $fStmt = $pdo->prepare(
-                "SELECT id, display_name, 0 AS retired FROM individuals WHERE id IN ($ph)
+                "SELECT id, display_name, parent_a_id, 0 AS retired FROM individuals WHERE id IN ($ph) AND retired = 0
                  UNION ALL
-                 SELECT id, display_name, 1 AS retired FROM retired_archive WHERE id IN ($ph)"
+                 SELECT id, display_name, parent_a_id, 1 AS retired FROM retired_archive WHERE id IN ($ph)"
             );
             $fStmt->execute(array_merge($founderIds, $founderIds));
             foreach ($fStmt->fetchAll() as $row) { $founderMap[$row['id']] = $row; }
+        }
+        // 独立した一門の出どころ：開祖の師匠が属する一門（開祖の師匠のclan_root_id）
+        $parentIds = array_values(array_unique(array_filter(array_column($founderMap, 'parent_a_id'))));
+        $parentClan = [];
+        if ($parentIds) {
+            $ph = implode(',', array_fill(0, count($parentIds), '?'));
+            $pStmt = $pdo->prepare(
+                "SELECT id, clan_root_id FROM individuals WHERE id IN ($ph) AND retired = 0
+                 UNION ALL
+                 SELECT id, clan_root_id FROM retired_archive WHERE id IN ($ph)"
+            );
+            $pStmt->execute(array_merge($parentIds, $parentIds));
+            foreach ($pStmt->fetchAll() as $row) { $parentClan[$row['id']] = $row['clan_root_id']; }
         }
 
         $clans = [];
@@ -1091,6 +1104,7 @@ switch ($action) {
                 'member_count' => (int)$r['member_count'],
                 'active_count' => (int)$r['active_count'],
                 'best_peak_elo' => round((float)$r['best_peak_elo'], 1),
+                'origin_clan_root_id' => $parentClan[$founder['parent_a_id'] ?? ''] ?? null,
             ];
         }
         json_out(['clans' => $clans]);
