@@ -441,25 +441,107 @@ def run_byakko_challenge(challenger, titleholder_params, depth=1, titleholder_vo
 NEWCOMER_SLOT_PREFIX = "NEW"  # 玄武戦の組み合わせで、新人リーグの勝者が入る予定の枠（NEW1, NEW2, ...）
 
 
-def plan_genbu_bracket(all_members, exclude_id=None, bracket_size=64, titleholder_ids=frozenset(),
-                       guaranteed_final_id=None, newcomer_slots=0):
+# ------------------------------------------------------------
+# 段階シード：格の高い選手ほど後の回戦から登場する（勝たなければならない回数が少ない）組み合わせ。
+# 各選手に「登場する段」（0＝1回戦から、1＝2回戦から…）を与え、段eの選手は 2^e 枠ぶんの場所を占める
+# （隣の枠を空けておき、不戦勝で勝ち上がった位置から登場する）。上位の選手どうしは上半分・下半分に
+# 交互に振り分け、できるだけ遅くまで当たらないようにする
+# ------------------------------------------------------------
+def tiered_slots(entries, size=None):
+    """entries：[(ID, 登場する段)]（優先度の高い順）。トーナメントの並び（空き枠はNone）を返す。
+    size（2のべき乗）を省くと、全員が収まる最小の大きさ以下で一番近い2のべき乗にする。
+    - 枠が足りなければ、優先度の低い選手から2人ずつ「予備戦」（1回戦の前の1局）に回す
+    - 枠が余れば、優先度の高い選手から順に、さらに1つ後の段から登場させる（不戦勝を与える）"""
+    entries = [list(e) for e in entries]
+    need = sum(2 ** e for _, e in entries)
+    if size is None:
+        size = 1
+        while size * 2 <= need:
+            size *= 2
+    while need < size:
+        for item in entries:
+            if need + 2 ** item[1] <= size:
+                need += 2 ** item[1]
+                item[1] += 1
+                break
+        else:
+            break
+    playin = 0
+    if need > size:
+        # 予備戦に回る人数：はみ出した分の2倍（2人で1枠）。全員の段を1つ上げ、予備戦の選手だけ段0にする
+        playin = 2 * (need - size)
+        for k, item in enumerate(entries):
+            item[1] = item[1] + 1 if k < len(entries) - playin else 0
+        size *= 2
+
+    def place(items, size):
+        if not items:
+            return [None] * size
+        if size == 1:
+            return [items[0][0]]
+        if len(items) == 1 and 2 ** items[0][1] >= size:
+            return [items[0][0]] + [None] * (size - 1)
+        half = size // 2
+        sides = [[], []]
+        room = [half, half]
+        turn = 0
+        for item in items:
+            w = 2 ** item[1]
+            # 空きの多い側へ（同じなら交互に）。上位どうしを上下の山に分ける
+            if room[0] == room[1]:
+                k = turn
+                turn ^= 1
+            else:
+                k = 0 if room[0] > room[1] else 1
+            if room[k] < w:
+                k ^= 1
+            sides[k].append(item)
+            room[k] -= w
+        return place(sides[0], half) + place(sides[1], half)
+
+    return place(entries, size)
+
+
+def plan_genbu_bracket(all_members, exclude_id=None, bracket_size=None, titleholder_ids=frozenset(),
+                       guaranteed_final_id=None, newcomer_slots=0, num_blocks=4, title_level=2, a_level=1):
     """玄武戦の組み合わせ（ID・新人枠「NEW1」等・空き枠Noneの並び）を決める。季の初めに公開できるよう、
-    前の季の終了時点で呼ぶ。all_membersはA→B→C→Dの順（各リーグ内は成績順）で渡す。
-    新人リーグの勝者が入る予定の枠は、優先度が最も低い参加者として抽選に含める"""
-    pool = [ind.id for ind in all_members if ind.id != exclude_id and ind.id != guaranteed_final_id]
-    pool += [f"{NEWCOMER_SLOT_PREFIX}{k + 1}" for k in range(newcomer_slots)]
-    n = len(pool)
-    while bracket_size < n:
-        bracket_size *= 2
-    bye_count = bracket_size - n
-    rank_by_id = {ind.id: i for i, ind in enumerate(all_members)}
-    not_ranked = len(all_members)
-    priority_ranked = sorted(pool, key=lambda pid: (0 if pid in titleholder_ids else 1, rank_by_id.get(pid, not_ranked)))
-    seeded = priority_ranked[:bye_count]
-    rest = priority_ranked[bye_count:]
-    random.shuffle(rest)
-    seed_list = seeded + rest + [None] * bye_count
-    return [seed_list[i] for i in _bracket_seed_order(bracket_size)]
+    前の季の終了時点で呼ぶ。全員参加の4ブロック（bracket_sizeは互換のため受け取るだけで使わない）。タイトル保持者はtitle_level段目（既定は3回戦）から、
+    Aリーグの選手はa_level段目（既定は2回戦）から、ほかは1回戦から登場する。
+    シードの選手はブロックに均等に振り分け（優先度順に蛇行）、それ以外はランダムに振り分ける。
+    全ブロックを同じ大きさにし、ブロックを順につないだ並びを返す"""
+    members = [ind for ind in all_members if ind.id != exclude_id and ind.id != guaranteed_final_id]
+    def level(ind):
+        if ind.id in titleholder_ids:
+            return title_level
+        return a_level if ind.league == "A" else 0
+    seeded = sorted([ind for ind in members if level(ind) > 0], key=lambda ind: (-level(ind), -ind.elo))
+    others = [ind.id for ind in members if level(ind) == 0] + [f"{NEWCOMER_SLOT_PREFIX}{k + 1}" for k in range(newcomer_slots)]
+    random.shuffle(others)
+    blocks = [[] for _ in range(num_blocks)]
+    b, step = 0, 1
+    for ind in seeded:
+        blocks[b].append((ind.id, level(ind)))
+        if not (0 <= b + step < num_blocks):
+            step = -step
+        else:
+            b += step
+    for pid in others:
+        k = min(range(num_blocks), key=lambda i: sum(2 ** e for _, e in blocks[i]))
+        blocks[k].append((pid, 0))
+    # ブロックの大きさ：一番小さいブロックがちょうど収まる2のべき乗以下。それより人数の多いブロックは、
+    # はみ出した分を予備戦（1回戦の前の1局）に回す（余った枠を下位の選手の不戦勝にしない）。
+    # 予備戦の有無でブロックの長さが違う場合は、短いブロックの後ろを空き枠で埋めて長さを揃える
+    # （空き枠側には誰もいないので、ブロックの勝者はそのまま上がる）
+    need = min(sum(2 ** e for _, e in bl) for bl in blocks)
+    size = 1
+    while size * 2 <= need:
+        size *= 2
+    blocks_slots = [tiered_slots(bl, size=size) for bl in blocks]
+    width = max(len(x) for x in blocks_slots)
+    out = []
+    for x in blocks_slots:
+        out += x + [None] * (width - len(x))
+    return out
 
 
 def genbu_challenger_gen(all_members, exclude_id=None, depth=1, bracket_size=64, num_blocks=4,

@@ -11,6 +11,7 @@
   30歳まで伸び、37歳まで半分の速さ、49歳まで横ばい、50歳から衰える。覚醒すると大きく伸びる。
 - 定跡（_book）：序盤のこの手数までは、世間で知られた定跡（共通の強い評価・揺らぎなし）で指す。
   16手まで知っていると約+113、24手で約+123。対局を重ねるほど増え（増え方に個人差、_book_rate）、衰えない。
+  デビュー時に師匠の定跡の3割を受け継ぎ、30歳未満は1.3倍の速さで覚える（若手が育つ前に辞めてしまわないように）。
   読みの量は普段と同じなので、所要時間は増えない。
 - 調子（_form）：季ごとの好不調。その季の終盤力が上下する。ムラ気（volatility）が大きいほど振れ幅が大きい。
 
@@ -38,6 +39,9 @@ AWAKENING_ENDGAME_RANGE = (10.0, 20.0)
 
 BOOK_CAP = 24
 BOOK_RATE_RANGE = (1.0, 3.0)      # 1季あたりに覚える定跡の手数（個人差）
+BOOK_INHERIT = 0.3                # デビュー時に師匠の定跡の3割を受け継ぐ
+BOOK_YOUNG_AGE = 30               # この年齢未満は定跡を早く覚える
+BOOK_YOUNG_SPEEDUP = 1.3          # 若手の定跡の覚える速さ（倍率）
 
 FORM_SCALE = 3.0                  # 調子：その季の終盤力が ±（ムラ気×3マス）程度上下する
 
@@ -63,14 +67,14 @@ def _age_factor(age):
 
 
 def birth_skills(master_params=None):
-    """新しく生まれる個体の終盤力・定跡を決める（師匠がいれば終盤力を2割受け継ぐ。定跡は0から覚える）"""
+    """新しく生まれる個体の終盤力・定跡を決める（師匠がいれば終盤力を2割、定跡を3割受け継ぐ）"""
     endgame = ENDGAME_BIRTH_MAX * random.betavariate(1.0, ENDGAME_BIRTH_BETA)
     if master_params:
         endgame += ENDGAME_INHERIT * master_params.get(ENDGAME_KEY, 0.0)
     return {
         ENDGAME_KEY: round(min(ENDGAME_CAP, endgame), 2),
         ENDGAME_GROWTH_KEY: round(_growth_speed(), 3),
-        BOOK_KEY: int(float(__import__("os").environ.get("SIM_BOOK_INHERIT", "0")) * (master_params or {}).get(BOOK_KEY, 0)),
+        BOOK_KEY: int(BOOK_INHERIT * (master_params or {}).get(BOOK_KEY, 0)),
         BOOK_RATE_KEY: round(random.uniform(*BOOK_RATE_RANGE), 2),
     }
 
@@ -114,5 +118,5 @@ def season_growth(ind):
     if ENDGAME_KEY not in p:
         return
     p[ENDGAME_KEY] = round(min(ENDGAME_CAP, max(0.0, p[ENDGAME_KEY] + p.get(ENDGAME_GROWTH_KEY, 0.0) * _age_factor(ind.age))), 2)
-    young = float(__import__("os").environ.get("SIM_YOUNG_BOOK", "1")) if ind.age < 30 else 1.0
+    young = BOOK_YOUNG_SPEEDUP if ind.age < BOOK_YOUNG_AGE else 1.0
     p[BOOK_KEY] = int(min(BOOK_CAP, p.get(BOOK_KEY, 0) + p.get(BOOK_RATE_KEY, 0.0) * young + random.random()))
