@@ -1138,12 +1138,12 @@ BRACKET_TAGS_DIR = "bracket_tags"
 
 def bracket_tags_from_upcoming(out):
     """結果タブのトーナメント表で名前の右に添える表記（リーグタブの組み合わせ表と同じもの）。
-    {"白虎": {ID: "3位" / "失冠"}, "玄武": {ID: "B3位" / "新人"}, "麒麟": {ID: "1組" / "2組" / "3組" / "新人"}}"""
+    {"白虎": {ID: "3位" / "前白虎"}, "玄武": {ID: "B3位" / "新人"}, "麒麟": {ID: "1組" / "2組" / "3組" / "新人"}}"""
     tags = {"白虎": {}, "玄武": {}, "麒麟": {}}
     by = out.get("byakko") or {}
     for p in by.get("slots") or []:
         if p and p.get("id"):
-            tags["白虎"][p["id"]] = "失冠" if p["id"] == by.get("guaranteed") else (f"{p['elo_rank']}位" if p.get("elo_rank") else "")
+            tags["白虎"][p["id"]] = "前白虎" if p["id"] == by.get("guaranteed") else (f"{p['elo_rank']}位" if p.get("elo_rank") else "")
     for p in (out.get("genbu") or {}).get("slots") or []:
         if p and p.get("id"):
             tags["玄武"][p["id"]] = "新人" if p.get("newcomer") else f"{p.get('league') or ''}{str(p['league_pos']) + '位' if p.get('league_pos') else ''}"

@@ -841,7 +841,7 @@ async function loadCupDrawPanel(kind) {
       const isGuaranteed = p => b.guaranteed && p.id === b.guaranteed;
       html += `<div class="league-block"><h3>第${data.season}季 白虎戦</h3>`;
       html += small(`${holderLine(b.holder)}／Elo上位16名（名前の右はElo順位。前季の失冠者は第1シード）`);
-      html += renderDrawSVG(b.slots, '挑戦者', p => isGuaranteed(p) ? '失冠' : (p.elo_rank ? `${p.elo_rank}位` : '')) + '</div>';
+      html += renderDrawSVG(b.slots, '挑戦者', p => isGuaranteed(p) ? '前白虎' : (p.elo_rank ? `${p.elo_rank}位` : '')) + '</div>';
 
     } else if (kind === 'draw_genbu') {
       const g = data.genbu;
@@ -2100,7 +2100,7 @@ async function loadOneBracket(season, title, containerId = 'bracket-view') {
           const tree = buildBracketTree(bracket);
           html += `<div style="margin-bottom:8px;">${renderBracketSVG(tree, data.participant_info)}</div>
             <div style="font-size:0.66rem; color:var(--text-dim); margin-bottom:4px;">
-              赤い太線＝勝ち上がりの流れ（不戦勝の枠位置までは復元していません）／名前の左のアイコン＝参加時点の所属リーグ（タイトル保持者はタイトルの印）、右の()＝${title === '白虎' ? 'Elo順位（失冠＝前季の失冠者）' : '参加時点のElo'}
+              赤い太線＝勝ち上がりの流れ（不戦勝の枠位置までは復元していません）／名前の左のアイコン＝参加時点の所属リーグ（タイトル保持者はタイトルの印）、右の()＝${title === '白虎' ? 'Elo順位（前白虎＝前季の白虎）' : '参加時点のElo'}
             </div>`;
         }
         if (finalGames.length > 0) {
