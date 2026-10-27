@@ -1765,7 +1765,7 @@ function renderBracketSVG(root, participantInfo, showCrown = true) {
       const label = fitBracketNameWithTag(n.winnerName, '', 92 - (champ ? bracketTextWidth(champ, 11, true) : 0), 11, true);
       labels += `<g class="bracket-node" data-id="${escapeHtml(n.winnerId ?? '')}" style="cursor:pointer;">
         <rect x="${vx + 12}" y="${n._y - 12}" width="100" height="24" rx="4" fill="rgba(255,90,90,0.10)" stroke="${color}" stroke-width="1.4"/>
-        <text x="${vx + 17}" y="${n._y + 4}" font-size="11" font-weight="700" fill="${color}">${champ}${escapeHtml(label)}<title>${escapeHtml(n.winnerName)}</title></text>
+        <text x="${vx + 17}" y="${n._y + 4}" font-size="11" font-weight="700" fill="${showCrown ? color : 'var(--text-main)'}">${champ}${escapeHtml(label)}<title>${escapeHtml(n.winnerName)}</title></text>
       </g>`;
     }
   })(root);
