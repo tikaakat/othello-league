@@ -72,6 +72,7 @@ on:
           - "sync_retired_clan_roots"
           - "fix_newcomer_duplicate_name_20261018"
           - "rename_numbered_names_20261027"
+          - "fix_season_101_duplicates_20261028"
         default: ""
       create_dir:
         description: "デプロイの代わりに、lab.spia-net.com直下（othello-league/の1つ上）に相対パスでディレクトリを作成する（例: othello-news）。「..」や先頭「/」は不可"
@@ -343,6 +344,27 @@ jobs:
                 # 現役の小池陽介（CC17-001）と同名になっていた。新人側を「小池陽介2」に改める
                 SQL_LIST=(
                   "UPDATE newcomer_league_standings SET display_name = '小池陽介2' WHERE for_season = 24 AND display_name = '小池陽介';"
+                )
+                ;;
+              fix_season_101_duplicates_20261028)
+                # 第101季は、season_state.jsonが100MBを超えてGitHubへのpushに失敗した実行が5回あり、
+                # そのたびに別々の結果がサーバーへ取り込まれて、対局が約5倍に重複し、タイトル履歴も
+                # 失敗した実行のものが残っていた。第101季の対局・順位・タイトル履歴を消し、GitHub上の正しい
+                # データ（この後のプル型インポートで取り込み直す）だけにする。あわせて、失敗した実行でだけ
+                # 引退した選手の引退記録と、失敗した実行でだけ生まれた選手を消す（GitHub上の名簿を正とする）
+                mapfile -t SQL_LIST < <(python3 - <<'PYEOF'
+          import json, re
+          state = json.load(open("data/season_state.json", encoding="utf-8"))
+          rosters = json.load(open("data/rosters.json", encoding="utf-8"))
+          ok = re.compile(r"^[A-Za-z0-9_-]+$")
+          retired = sorted(r["id"] for r in state.get("retired_archive", []) if ok.match(r.get("id", "")))
+          active = sorted(d["id"] for lg in "ABCD" for d in rosters.get(lg, []) if ok.match(d.get("id", "")))
+          for t in ("matches", "title_history", "standings", "suzaku_group_standings"):
+              print(f"DELETE FROM {t} WHERE season = 101;")
+          q = lambda ids: ",".join(f"'{i}'" for i in ids)
+          print(f"DELETE FROM retired_archive WHERE retired_season >= 101 AND id NOT IN ({q(retired)});")
+          print(f"DELETE FROM individuals WHERE id NOT IN ({q(active)});")
+          PYEOF
                 )
                 ;;
               rename_numbered_names_20261027)
