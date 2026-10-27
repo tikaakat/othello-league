@@ -363,14 +363,15 @@ def _bracket_seed_order(n):
 
 def plan_byakko_bracket(all_members, exclude_id=None, top_n=16, guaranteed_id=None):
     """白虎トーナメントの組み合わせ（ID・空き枠Noneの並び）を決める。季の初めに組み合わせを公開できるよう、
-    前の季の終了時点で呼ぶ（その時点のEloで上位top_n名を選ぶ。前季に失冠した選手は無条件で出場）"""
+    前の季の終了時点で呼ぶ（その時点のEloで上位top_n名を選ぶ。前季に失冠した選手は無条件で出場し、第1シードになる）"""
     pool = [ind for ind in all_members if ind.id != exclude_id]
     guaranteed_ind = next((ind for ind in pool if ind.id == guaranteed_id), None) if guaranteed_id else None
     elo_pool = [ind for ind in pool if guaranteed_ind is None or ind.id != guaranteed_ind.id]
     elo_quota = top_n - 1 if guaranteed_ind is not None else top_n
     ranked = sorted(elo_pool, key=lambda ind: -ind.elo)[:elo_quota]
     if guaranteed_ind is not None:
-        ranked.append(guaranteed_ind)
+        # 前季の失冠者は第1シード（1回戦でElo16位と当たる）
+        ranked.insert(0, guaranteed_ind)
     bracket_size = 1
     while bracket_size < len(ranked):
         bracket_size *= 2
@@ -485,20 +486,26 @@ def tiered_slots(entries, size=None):
 
 
 def plan_genbu_bracket(all_members, exclude_id=None, bracket_size=None, titleholder_ids=frozenset(),
-                       guaranteed_final_id=None, newcomer_slots=0, num_blocks=4, title_level=2, a_level=1):
+                       guaranteed_final_id=None, newcomer_slots=0, num_blocks=4, title_level=2, a_level=1,
+                       league_order=None):
     """玄武戦の組み合わせ（ID・新人枠「NEW1」等・空き枠Noneの並び）を決める。季の初めに公開できるよう、
     前の季の終了時点で呼ぶ。全員参加の4ブロック（bracket_sizeは互換のため受け取るだけで使わない）。タイトル保持者はtitle_level段目（既定は3回戦）から、
     Aリーグの選手はa_level段目（既定は2回戦）から、ほかは1回戦から登場する。
-    シードの選手はブロックに均等に振り分け（優先度順に蛇行）、それ以外はランダムに振り分ける。
+    優先度はタイトル保持者 → 所属リーグ（A→B→C→D→新人）の順、同じリーグの中はleague_order（{ID: 順位}。
+    リーグ表の並び＝青龍戦の順位を引き継いだ順）の順。シードの選手は優先度順に蛇行してブロックに均等に振り分け、
+    それ以外も優先度順に空きの多いブロックへ振り分ける。予備戦には各ブロックの優先度の低い選手が回る。
     全ブロックを同じ大きさにし、ブロックを順につないだ並びを返す"""
     members = [ind for ind in all_members if ind.id != exclude_id and ind.id != guaranteed_final_id]
+    league_order = league_order or {}
     def level(ind):
         if ind.id in titleholder_ids:
             return title_level
         return a_level if ind.league == "A" else 0
-    seeded = sorted([ind for ind in members if level(ind) > 0], key=lambda ind: (-level(ind), -ind.elo))
-    others = [ind.id for ind in members if level(ind) == 0] + [f"{NEWCOMER_SLOT_PREFIX}{k + 1}" for k in range(newcomer_slots)]
-    random.shuffle(others)
+    def priority(ind):
+        return ("ABCD".index(ind.league) if ind.league in "ABCD" else 4, league_order.get(ind.id, 10 ** 6), -ind.elo)
+    seeded = sorted([ind for ind in members if level(ind) > 0], key=lambda ind: (-level(ind), priority(ind)))
+    others = [ind.id for ind in sorted((ind for ind in members if level(ind) == 0), key=priority)]
+    others += [f"{NEWCOMER_SLOT_PREFIX}{k + 1}" for k in range(newcomer_slots)]
     blocks = [[] for _ in range(num_blocks)]
     b, step = 0, 1
     for ind in seeded:

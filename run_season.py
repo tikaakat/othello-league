@@ -953,7 +953,35 @@ def _load_suzaku_tiebreak(data_dir, season):
 UPCOMING_BRACKETS_FILE = "upcoming_brackets.json"
 
 
-def plan_next_brackets(rosters, state, next_season, newcomer_slots, games_per_individual=8):
+def league_table_order(rosters, standings_rows):
+    """次の季のリーグ表の並び（{ID: リーグ内の順位}）。結果サイトのリーグタブと同じ決め方：
+    残留者はこの季の順位のまま、昇格者は昇格先の下位、降格者は降格先の上位、新人はDの最下位"""
+    league_of = {ind.id: lg for lg in LEAGUE_TIERS for ind in rosters[lg]}
+    rows = sorted((r for r in standings_rows if r.get("league") in LEAGUE_TIERS),
+                  key=lambda r: (LEAGUE_TIERS[r["league"]], r.get("rank") or 999))
+    order = {lg: [] for lg in LEAGUE_TIERS}
+    placed = set()
+    for r in rows:
+        iid, mv = r["individual_id"], r.get("movement") or ""
+        if league_of.get(iid) == r["league"] and not any(t in mv for t in ("promoted", "relegated", "retired")):
+            order[r["league"]].append(iid)
+            placed.add(iid)
+    for r in rows:
+        iid = r["individual_id"]
+        if iid not in placed and iid in league_of and "promoted" in (r.get("movement") or ""):
+            order[league_of[iid]].append(iid)
+            placed.add(iid)
+    for r in rows:
+        iid = r["individual_id"]
+        if iid not in placed and iid in league_of and "relegated" in (r.get("movement") or ""):
+            order[league_of[iid]].insert(0, iid)
+            placed.add(iid)
+    for lg in LEAGUE_TIERS:
+        order[lg] += [ind.id for ind in rosters[lg] if ind.id not in placed]
+    return {iid: k + 1 for lg in LEAGUE_TIERS for k, iid in enumerate(order[lg])}
+
+
+def plan_next_brackets(rosters, state, next_season, newcomer_slots, games_per_individual=8, standings_rows=None):
     """次の季のB〜Dリーグ・白虎戦・玄武戦・麒麟戦の組み合わせを、この季の終了時点（Elo・所属リーグ・麒麟戦の組）で決めて
     state に記録する。季の初めから組み合わせを公開するため。新人の枠は「NEW1」等の仮の枠にしておき、
     新人が決まったら当てはめる"""
@@ -961,13 +989,16 @@ def plan_next_brackets(rosters, state, next_season, newcomer_slots, games_per_in
     titleholders = state.get("titleholders") or {}
     last_dethroned = state.get("last_dethroned") or {}
     holder_id = lambda title: (titleholders.get(title) or {}).get("id")
+    league_order = league_table_order(rosters, standings_rows or [])
     state["planned_brackets"] = {
         "season": next_season,
+        "league_order": league_order,
         "白虎": plan_byakko_bracket(members, exclude_id=holder_id("白虎"), top_n=16,
                                    guaranteed_id=last_dethroned.get("白虎")),
         "玄武": plan_genbu_bracket(members, exclude_id=holder_id("玄武"), bracket_size=64,
                                   titleholder_ids={info["id"] for info in titleholders.values() if info and info.get("id")},
-                                  guaranteed_final_id=last_dethroned.get("玄武"), newcomer_slots=newcomer_slots),
+                                  guaranteed_final_id=last_dethroned.get("玄武"), newcomer_slots=newcomer_slots,
+                                  league_order=league_order),
         "麒麟": plan_kirin_bracket(members, exclude_id=holder_id("麒麟"), groups=state.get("kirin_groups"),
                                   guaranteed_id=last_dethroned.get("麒麟"), newcomer_slots=newcomer_slots),
         # B〜Dリーグ（ランダム対戦）の組み合わせ。Dリーグには新人の仮の枠も入れておく
@@ -1034,8 +1065,10 @@ def write_upcoming_brackets(data_dir, state, rosters):
     # elo_rank：現役全体でのEloの順位（白虎戦の出場条件などを示すため）
     by_elo = sorted((ind for league in LEAGUE_TIERS for ind in rosters[league]), key=lambda ind: -ind.elo)
     elo_rank = {ind.id: k + 1 for k, ind in enumerate(by_elo)}
+    # league_pos：リーグ表での順位（青龍戦の順位を引き継いだ並び。玄武戦の優先順位に使う）
+    league_order = planned.get("league_order") or {}
     info = {ind.id: {"id": ind.id, "name": ind.display_name, "league": league, "elo": round(ind.elo),
-                     "elo_rank": elo_rank[ind.id]}
+                     "elo_rank": elo_rank[ind.id], "league_pos": league_order.get(ind.id)}
             for league in LEAGUE_TIERS for ind in rosters[league]}
     newcomer_ids = planned.get("newcomer_ids") or {}
 
@@ -1214,7 +1247,7 @@ def main():
         # 新人リーグ（次回AM/PM実行）で何名を昇格させるかの目安として、今季確定した
         # 新人受け入れ枠数（毎季固定）を記録しておく（次シーズン開始前にrecruit_d_league()で補充される）
         state["pending_newcomer_slots"] = vacancy
-        plan_next_brackets(rosters, state, season + 1, vacancy, args.swiss_rounds)
+        plan_next_brackets(rosters, state, season + 1, vacancy, args.swiss_rounds, standings_snapshot)
         write_upcoming_brackets(args.data_dir, state, rosters)
 
         save_rosters(args.data_dir, rosters)

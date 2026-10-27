@@ -838,21 +838,22 @@ async function loadCupDrawPanel(kind) {
       const b = data.byakko;
       const isGuaranteed = p => b.guaranteed && p.id === b.guaranteed;
       html += `<div class="league-block"><h3>第${data.season}季 白虎戦</h3>`;
-      html += small(`${holderLine(b.holder)}／Elo上位16名（名前の右はElo順位）`);
-      html += renderDrawSVG(b.slots, '挑戦者', p => isGuaranteed(p) ? `失冠・${p.elo_rank}位` : (p.elo_rank ? `${p.elo_rank}位` : '')) + '</div>';
+      html += small(`${holderLine(b.holder)}／Elo上位16名（名前の右はElo順位。前季の失冠者は第1シード）`);
+      html += renderDrawSVG(b.slots, '挑戦者', p => isGuaranteed(p) ? '失冠' : (p.elo_rank ? `${p.elo_rank}位` : '')) + '</div>';
 
     } else if (kind === 'draw_genbu') {
       const g = data.genbu;
       const blockSize = g.slots.length / g.num_blocks;
       html += `<div class="league-block"><h3>第${data.season}季 玄武戦</h3>`;
       html += small(`${holderLine(g.holder)}${g.guaranteed_final ? `／前季失冠の${escapeHtml(g.guaranteed_final.name || '')}は本戦から` : ''}<br>
-        各ブロックの優勝者による総当たりで挑戦者を決定。「保持者」は3回戦から、「A」は2回戦から登場`);
+        各ブロックの優勝者による総当たりで挑戦者を決定。「保持者」は3回戦から、Aリーグは2回戦から登場（名前の右は所属リーグとリーグ表の順位）`);
       for (let k = 0; k < g.num_blocks; k++) {
         html += `<div style="font-size:0.72rem; color:var(--amber); margin-top:8px;">${'ABCDEFGH'[k]}ブロック</div>`;
         html += renderDrawSVG(g.slots.slice(k * blockSize, (k + 1) * blockSize), 'ブロック代表', p => {
-          const elo = p.elo_rank ? `${p.elo_rank}位` : '';
-          if (((CURRENT_TITLEHOLDERS.by_id || {})[p.id] || []).length) return `保持者・${elo}`;
-          return p.league === 'A' ? `A・${elo}` : elo;
+          if (p.newcomer) return '新人';
+          const lg = p.league ? `${p.league}${p.league_pos ? p.league_pos + '位' : ''}` : '';
+          if (((CURRENT_TITLEHOLDERS.by_id || {})[p.id] || []).length) return `保持者・${lg}`;
+          return lg;
         }, { isSeed: p => p.league === 'A' || ((CURRENT_TITLEHOLDERS.by_id || {})[p.id] || []).length > 0 });
       }
       html += '</div>';
@@ -867,14 +868,14 @@ async function loadCupDrawPanel(kind) {
         html += `<div class="league-block"><h3>第${data.season}季 麒麟戦</h3>`;
         html += small(`${holderLine(k.holder)}／1組は本戦から、2組・3組は予選から（2組はシード）。ベスト4から敗者復活あり`);
         html += `<div style="font-size:0.72rem; color:var(--amber);">本戦</div>`
-          + renderDrawSVG(k.main, '本戦優勝', p => p.qualifier !== undefined ? '' : (g1ById.has(p.id) ? `1組${g1ById.get(p.id).tenure || 1}期` : ''));
+          + renderDrawSVG(k.main, '本戦優勝', p => p.qualifier !== undefined ? '' : (g1ById.has(p.id) ? '1組' : ''));
         const groupsOf = [...new Set(k.prelim.map(b => b.group))];
         groupsOf.forEach(g => {
           const blocks = k.prelim.filter(b => b.group === g);
           html += `<details style="margin-top:8px;"><summary style="cursor:pointer; font-size:0.72rem; color:var(--amber);">${g ? g + '組' : ''}予選（${blocks.length}ブロック）</summary>`;
           blocks.forEach((b, i) => {
             html += `<div style="font-size:0.72rem; color:var(--text-dim); margin-top:8px;">ブロック${i + 1}</div>`
-              + renderDrawSVG(b.slots, '本戦へ', p => (g2Ids.has(p.id) ? '2組・' : '') + (p.elo_rank ? `${p.elo_rank}位` : ''), { isSeed: p => g2Ids.has(p.id) });
+              + renderDrawSVG(b.slots, '本戦へ', p => g2Ids.has(p.id) ? '2組' : (p.newcomer ? '新人' : '3組'), { isSeed: p => g2Ids.has(p.id) });
           });
           html += '</details>';
         });
@@ -1307,6 +1308,8 @@ async function loadIndividualStandingsHistory(id) {
       const aCount = rows.filter(r => r.league === 'A').length;
       const lines = [];
       if (aCount > 0) lines.push(`Aリーグ通算在籍：${aCount}季`);
+      const kirinG1 = data.kirin_group1_seasons || [];
+      if (kirinG1.length > 0) lines.push(`麒麟戦1組 通算在籍：${kirinG1.length}期`);
       if (data.suzaku_seasons_total > 0) lines.push(`朱雀戦（紅白リーグ）通算在籍：${data.suzaku_seasons_total}季`);
       summaryEl.innerHTML = lines.join('<br>');
     }
@@ -1316,6 +1319,7 @@ async function loadIndividualStandingsHistory(id) {
       const titleTags = (r.title_events || []).map(te => `${te.title}(${te.event_type})`);
       const labels = (r.defense_fail_titles || []).map(t => `${t}(防衛失敗)`);
       labels.push(...titleTags); // 保持記録も、防衛失敗と排他にせず合算する
+      if ((data.kirin_group1_seasons || []).includes(+r.season)) labels.push('麒麟1組');
       // 順位戦の順位（青龍の防衛専念枠などでrankが無いシーズンはタイトル表示のみ）と、
       // タイトル獲得・防衛失敗のラベルは排他にせず両方表示する
       // 青龍などの防衛専念枠（no_roundrobin）だったシーズンは、そもそもAリーグの総当たりに参戦していないため

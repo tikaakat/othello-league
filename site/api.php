@@ -445,6 +445,36 @@ function compute_age($initial_age, $total_seasons) {
 // 殿堂の「記録」：standings・title_historyから都度集計する歴代記録（新しいテーブルは持たない）。
 // 各記録は上位10件（10位と同率の選手がいれば全員）。名前は最新季のstandingsの表示名、引退者はretired=1
 const RECORDS_TOP_N = 10;
+// 麒麟戦の1組に在籍した季：その季の本戦1回戦（stage=main1）に出て、予選（prelim〜）を戦っていない選手。
+// $idを渡すとその選手だけ。戻り値：[ID => [季, ...]]
+function kirin_group1_seasons($pdo, $id = null) {
+    $sql = "SELECT season, individual_a_id AS a, individual_b_id AS b, stage FROM matches
+            WHERE league = '麒麟予選' AND (stage = 'main1' OR stage LIKE 'prelim%')";
+    $params = [];
+    if ($id !== null) {
+        $sql .= " AND (individual_a_id = :a OR individual_b_id = :b)";
+        $params = ['a' => $id, 'b' => $id];
+    }
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    $main = []; $prelim = [];
+    foreach ($stmt->fetchAll() as $m) {
+        $s = (int)$m['season'];
+        foreach ([$m['a'], $m['b']] as $pid) {
+            if ($pid === null || ($id !== null && $pid !== $id)) continue;
+            if ($m['stage'] === 'main1') $main[$pid][$s] = true;
+            else $prelim[$pid][$s] = true;
+        }
+    }
+    $out = [];
+    foreach ($main as $pid => $seasons) {
+        $list = array_keys(array_diff_key($seasons, $prelim[$pid] ?? []));
+        sort($list);
+        if ($list) $out[$pid] = $list;
+    }
+    return $out;
+}
+
 function build_records($pdo) {
     $retired = array_flip($pdo->query("SELECT id FROM retired_archive")->fetchAll(PDO::FETCH_COLUMN));
     $rows = $pdo->query(
@@ -562,6 +592,7 @@ function build_records($pdo) {
     return [
         ['key' => 'fastest_a', 'label' => 'Aリーグ最速到達', 'unit' => '季', 'note' => 'Dリーグでのデビューから、Aリーグに初めて在籍するまでの季数（最短3季）'] + $fastest,
         ['key' => 'a_seasons', 'label' => 'Aリーグ在籍', 'unit' => '季', 'note' => 'Aリーグの通算在籍季数'] + $countList($aCount),
+        ['key' => 'kirin_group1_seasons', 'label' => '麒麟戦1組在籍', 'unit' => '期', 'note' => '麒麟戦の1組（本戦から出場）の通算在籍期数'] + $countList(array_map('count', kirin_group1_seasons($pdo))),
         ['key' => 'suzaku_seasons', 'label' => '朱雀紅白リーグ在籍', 'unit' => '季', 'note' => '朱雀紅白リーグの通算在籍季数（朱雀位保持中を含む）'] + $countList($suzakuCount),
         ['key' => 'title_total', 'label' => 'タイトル通算', 'unit' => '期', 'note' => '全タイトルの通算保持期数'] + $titleList,
         ['key' => 'title_streak', 'label' => '連続保持', 'unit' => '期', 'note' => '同じタイトルの最長連続保持（2期以上）'] + $streakList,
@@ -1930,7 +1961,10 @@ switch ($action) {
             $suzakuTotalStmt->execute(['id' => $iid]);
             $suzakuSeasonsTotal = (int)$suzakuTotalStmt->fetchColumn();
 
-            json_out(['history' => $rows, 'suzaku_seasons_total' => $suzakuSeasonsTotal]);
+            // 麒麟戦の1組に在籍した季（シーズンごとの成績に「麒麟1組」と添える）
+            $kirinG1 = kirin_group1_seasons($pdo, $iid)[$iid] ?? [];
+
+            json_out(['history' => $rows, 'suzaku_seasons_total' => $suzakuSeasonsTotal, 'kirin_group1_seasons' => $kirinG1]);
         } else {
             $max = $pdo->query("SELECT MAX(season) AS m FROM standings")->fetch();
             json_out(['latest_season' => (int)($max['m'] ?? 0)]);
