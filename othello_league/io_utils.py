@@ -43,8 +43,10 @@ def load_season_state(data_dir):
 def save_season_state(data_dir, state):
     os.makedirs(data_dir, exist_ok=True)
     path = os.path.join(data_dir, "season_state.json")
+    # 字下げ無しで保存する。タイトル戦の棋譜（title_history）が季ごとに増え、字下げ付きでは
+    # GitHubの1ファイルの上限（100MB）を超えてpushできなくなったため（字下げ無しなら約4分の1）
     with open(path, "w", encoding="utf-8") as f:
-        json.dump(state, f, ensure_ascii=False, indent=2)
+        json.dump(state, f, ensure_ascii=False, separators=(",", ":"))
 
 
 def save_match_log(data_dir, season, match_log):

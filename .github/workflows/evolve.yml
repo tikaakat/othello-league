@@ -321,6 +321,14 @@ jobs:
 
           rm -f /tmp/deploy_key
 
+          # GitHubへのpushが最後まで通らなかった場合は、ジョブを失敗扱いにする（以前は警告だけで成功扱いになり、
+          # 新人リーグも続けて起動されていたため、季の結果が保存されないまま何季も進んだように見えていた）
+          git fetch -q origin main || true
+          if [ "$(git rev-list --count FETCH_HEAD..HEAD 2>/dev/null || echo 1)" != "0" ]; then
+            echo "::error::季の結果をGitHubにpushできませんでした（上のgit pushのエラーを確認してください）。この実行の結果は保存されていません。"
+            exit 1
+          fi
+
           # 最終同期（プッシュ型・プル型とも）が最後まで失敗した場合のみ、ジョブそのものを
           # 失敗扱いにする（GitHub Actionsの失敗通知メールで気付けるようにするため。
           # シーズン計算・GitHubへのpushは既に成功しており、データはGitHub上に残っているので、
