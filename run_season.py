@@ -1130,6 +1130,41 @@ def write_upcoming_brackets(data_dir, state, rosters):
         }
     with open(os.path.join(data_dir, UPCOMING_BRACKETS_FILE), "w", encoding="utf-8") as f:
         json.dump(out, f, ensure_ascii=False, indent=2)
+    write_bracket_tags(data_dir, out["season"], bracket_tags_from_upcoming(out))
+
+
+BRACKET_TAGS_DIR = "bracket_tags"
+
+
+def bracket_tags_from_upcoming(out):
+    """結果タブのトーナメント表で名前の右に添える表記（リーグタブの組み合わせ表と同じもの）。
+    {"白虎": {ID: "3位" / "失冠"}, "玄武": {ID: "B3位" / "新人"}, "麒麟": {ID: "1組" / "2組" / "3組" / "新人"}}"""
+    tags = {"白虎": {}, "玄武": {}, "麒麟": {}}
+    by = out.get("byakko") or {}
+    for p in by.get("slots") or []:
+        if p and p.get("id"):
+            tags["白虎"][p["id"]] = "失冠" if p["id"] == by.get("guaranteed") else (f"{p['elo_rank']}位" if p.get("elo_rank") else "")
+    for p in (out.get("genbu") or {}).get("slots") or []:
+        if p and p.get("id"):
+            tags["玄武"][p["id"]] = "新人" if p.get("newcomer") else f"{p.get('league') or ''}{str(p['league_pos']) + '位' if p.get('league_pos') else ''}"
+    k = out.get("kirin")
+    if k:
+        g1 = {p.get("id") for p in k.get("group1") or []}
+        g2 = {p.get("id") for p in k.get("group2") or []}
+        for iid in g1:
+            if iid:
+                tags["麒麟"][iid] = "1組"
+        for block in k.get("prelim") or []:
+            for p in block.get("slots") or []:
+                if p and p.get("id"):
+                    tags["麒麟"][p["id"]] = "2組" if p["id"] in g2 else ("新人" if p.get("newcomer") else "3組")
+    return tags
+
+
+def write_bracket_tags(data_dir, season, tags):
+    os.makedirs(os.path.join(data_dir, BRACKET_TAGS_DIR), exist_ok=True)
+    with open(os.path.join(data_dir, BRACKET_TAGS_DIR, f"season_{season}.json"), "w", encoding="utf-8") as f:
+        json.dump(tags, f, ensure_ascii=False)
 
 
 def main():

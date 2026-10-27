@@ -652,6 +652,8 @@ async function loadLeagues() {
 // 今季の組み合わせを表示する。シミュレーター（run_season.py）がリポジトリに書き出すJSONを直接読む
 // （DBには取り込んでいないため）。玄武戦の新人枠は、新人リーグの結果が出たら名前が入る
 const UPCOMING_BRACKETS_URL = 'https://raw.githubusercontent.com/tikaakat/othello-league/main/data/upcoming_brackets.json';
+const BRACKET_TAGS_BASE = 'https://raw.githubusercontent.com/tikaakat/othello-league/main/data/bracket_tags/';
+const BRACKET_TAG_TITLES = ['麒麟', '白虎', '玄武'];
 
 function cupDrawPlayerHtml(p) {
   if (!p) return '';
@@ -852,8 +854,7 @@ async function loadCupDrawPanel(kind) {
         html += renderDrawSVG(g.slots.slice(k * blockSize, (k + 1) * blockSize), 'ブロック代表', p => {
           if (p.newcomer) return '新人';
           const lg = p.league ? `${p.league}${p.league_pos ? p.league_pos + '位' : ''}` : '';
-          if (((CURRENT_TITLEHOLDERS.by_id || {})[p.id] || []).length) return `保持者・${lg}`;
-          return lg;
+          return lg; // タイトル保持者は名前の左のタイトルの印で分かるので、ここには書かない
         }, { isSeed: p => p.league === 'A' || ((CURRENT_TITLEHOLDERS.by_id || {})[p.id] || []).length > 0 });
       }
       html += '</div>';
@@ -1733,7 +1734,7 @@ function renderBracketSVG(root, participantInfo, showCrown = true) {
   (function walk(n) {
     if (n.leaf) {
       const info = participantInfo[n.id] || {};
-      const tag = info.elo !== undefined ? String(info.elo) : '';
+      const tag = info.tag !== undefined ? info.tag : (info.elo !== undefined ? String(info.elo) : '');
       const badgeW = (info.league || info.title) ? LEAGUE_BADGE_W + 2 : 0;
       const isChampion = n.id === root.winnerId;
       const label = fitBracketNameWithTag(n.name, tag, NAME_W - 10 - badgeW, 11, isChampion);
@@ -1918,6 +1919,20 @@ async function loadOneBracket(season, title, containerId = 'bracket-view') {
   try {
     const res = await fetch(`${API_BASE}?action=title_bracket&season=${season}&title=${encodeURIComponent(title)}`);
     const data = await res.json();
+    // 名前の右の表記を、リーグタブの組み合わせ表と揃える（白虎：Elo順位／玄武：所属リーグと順位／麒麟：組）。
+    // シミュレーターが季ごとに書き出す表記（data/bracket_tags）を読み、無ければ従来どおりEloを出す
+    if (BRACKET_TAG_TITLES.includes(title)) {
+      try {
+        const tres = await fetch(`${BRACKET_TAGS_BASE}season_${season}.json`);
+        if (tres.ok) {
+          const tags = (await tres.json())[title] || {};
+          data.participant_info = data.participant_info || {};
+          Object.entries(tags).forEach(([id, tag]) => {
+            data.participant_info[id] = { ...(data.participant_info[id] || {}), tag };
+          });
+        }
+      } catch (e) { /* 表記が無いだけなので続行する */ }
+    }
 
     if (title === '朱雀' && data.format === 'suzaku_v2') {
       const redStandings = data.red_standings || [], whiteStandings = data.white_standings || [];
@@ -2077,7 +2092,7 @@ async function loadOneBracket(season, title, containerId = 'bracket-view') {
             }
           }
           html += `<div style="font-size:0.66rem; color:var(--text-dim); margin-bottom:4px;">
-            赤い太線＝勝ち上がりの流れ（不戦勝の枠位置までは復元していません）／名前の左のアイコン＝参加時点の所属リーグ（その季タイトル保持者は代わりにタイトルの色バッジ）、右の()＝参加時点のElo
+            赤い太線＝勝ち上がりの流れ（不戦勝の枠位置までは復元していません）／名前の左のアイコン＝参加時点の所属リーグ（タイトル保持者はタイトルの印）、右の()＝所属リーグとリーグ表の順位
           </div>`;
         } else if (title === '麒麟' && bracket.length > 0) {
           html += kirinBracketHtml(bracket, data.participant_info);
@@ -2085,7 +2100,7 @@ async function loadOneBracket(season, title, containerId = 'bracket-view') {
           const tree = buildBracketTree(bracket);
           html += `<div style="margin-bottom:8px;">${renderBracketSVG(tree, data.participant_info)}</div>
             <div style="font-size:0.66rem; color:var(--text-dim); margin-bottom:4px;">
-              赤い太線＝勝ち上がりの流れ（不戦勝の枠位置までは復元していません）／名前の左のアイコン＝参加時点の所属リーグ（その季タイトル保持者は代わりにタイトルの色バッジ）、右の()＝参加時点のElo
+              赤い太線＝勝ち上がりの流れ（不戦勝の枠位置までは復元していません）／名前の左のアイコン＝参加時点の所属リーグ（タイトル保持者はタイトルの印）、右の()＝${title === '白虎' ? 'Elo順位（失冠＝前季の失冠者）' : '参加時点のElo'}
             </div>`;
         }
         if (finalGames.length > 0) {
