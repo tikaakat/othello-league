@@ -72,6 +72,7 @@ on:
           - "sync_retired_clan_roots"
           - "fix_newcomer_duplicate_name_20261018"
           - "rename_numbered_names_20261027"
+          - "fix_season_101_duplicates_20261028"
         default: ""
       create_dir:
         description: "デプロイの代わりに、lab.spia-net.com直下（othello-league/の1つ上）に相対パスでディレクトリを作成する（例: othello-news）。「..」や先頭「/」は不可"
@@ -95,6 +96,7 @@ on:
           - "consistency_dump"
           - "schema_check"
           - "perf_check"
+          - "season_check"
         default: ""
 
 jobs:
@@ -344,6 +346,27 @@ jobs:
                   "UPDATE newcomer_league_standings SET display_name = '小池陽介2' WHERE for_season = 24 AND display_name = '小池陽介';"
                 )
                 ;;
+              fix_season_101_duplicates_20261028)
+                # 第101季は、season_state.jsonが100MBを超えてGitHubへのpushに失敗した実行が5回あり、
+                # そのたびに別々の結果がサーバーへ取り込まれて、対局が約5倍に重複し、タイトル履歴も
+                # 失敗した実行のものが残っていた。第101季の対局・順位・タイトル履歴を消し、GitHub上の正しい
+                # データ（この後のプル型インポートで取り込み直す）だけにする。あわせて、失敗した実行でだけ
+                # 引退した選手の引退記録と、失敗した実行でだけ生まれた選手を消す（GitHub上の名簿を正とする）
+                mapfile -t SQL_LIST < <(python3 - <<'PYEOF'
+          import json, re
+          state = json.load(open("data/season_state.json", encoding="utf-8"))
+          rosters = json.load(open("data/rosters.json", encoding="utf-8"))
+          ok = re.compile(r"^[A-Za-z0-9_-]+$")
+          retired = sorted(r["id"] for r in state.get("retired_archive", []) if ok.match(r.get("id", "")))
+          active = sorted(d["id"] for lg in "ABCD" for d in rosters.get(lg, []) if ok.match(d.get("id", "")))
+          for t in ("matches", "title_history", "standings", "suzaku_group_standings"):
+              print(f"DELETE FROM {t} WHERE season = 101;")
+          q = lambda ids: ",".join(f"'{i}'" for i in ids)
+          print(f"DELETE FROM retired_archive WHERE retired_season >= 101 AND id NOT IN ({q(retired)});")
+          print(f"DELETE FROM individuals WHERE id NOT IN ({q(active)});")
+          PYEOF
+                )
+                ;;
               rename_numbered_names_20261027)
                 # 同名を避けるための連番つきの名前（青山亜紀子2・小池陽介2）を、連番の無い別の名前に改める。
                 # data/配下のJSONは同じ対応表で書き換え済み。DB側は名前を持つ列を直接直す
@@ -574,6 +597,34 @@ jobs:
                     foreach ($lines as $i => $line) {
                       if (preg_match("/key|pass|secret|token|password|dsn|mysql:/i", $line)) continue;
                       if (preg_match("/stage|block|title|league|予選|青龍|玄武|白虎|朱雀|match_uid|md5|games/u", $line)) {
+                        echo ($i + 1) . ": " . rtrim($line) . PHP_EOL;
+                      }
+                    }
+                  }
+                '
+                ;;
+              season_check)
+                # 季ごとの取り込み状況の確認：直近の季の対局数（リーグ・棋戦別）・タイトル履歴・順位表の件数と、
+                # 取り込みスクリプトのうち季の選び方に関わる行
+                PHP_QUERY='
+                  $max = (int)$pdo->query("SELECT MAX(season) FROM matches")->fetchColumn();
+                  foreach (range($max - 6, $max) as $s) {
+                    $rows = $pdo->query("SELECT league, COUNT(*) AS n FROM matches WHERE season = $s GROUP BY league ORDER BY league")->fetchAll();
+                    echo "season $s matches: " . implode(" ", array_map(fn($r) => $r["league"] . "=" . $r["n"], $rows)) . PHP_EOL;
+                    $th = $pdo->query("SELECT title, event_type, holder_name FROM title_history WHERE season = $s ORDER BY title")->fetchAll();
+                    echo "  title_history: " . implode(" ", array_map(fn($r) => $r["title"] . ":" . $r["event_type"] . ":" . $r["holder_name"], $th)) . PHP_EOL;
+                    echo "  standings: " . $pdo->query("SELECT COUNT(*) FROM standings WHERE season = $s")->fetchColumn()
+                       . " suzaku: " . $pdo->query("SELECT COUNT(*) FROM suzaku_group_standings WHERE season = $s")->fetchColumn()
+                       . " newcomer(for_season): " . $pdo->query("SELECT COUNT(*) FROM newcomer_league_standings WHERE for_season = $s")->fetchColumn() . PHP_EOL;
+                  }
+                  $dir = dirname(get_included_files()[0]);
+                  foreach (["import_from_github.php", "import_from_colab.php"] as $f) {
+                    echo "--- {$f}（季の選び方・重複の扱いに関わる行のみ） ---" . PHP_EOL;
+                    $lines = @file("$dir/$f");
+                    if (!$lines) { echo "(読めません)" . PHP_EOL; continue; }
+                    foreach ($lines as $i => $line) {
+                      if (preg_match("/key|pass|secret|token|password|dsn|mysql:/i", $line)) continue;
+                      if (preg_match("/season|INSERT|ON DUPLICATE|IGNORE|DELETE|REPLACE|glob|scandir|match_uid/i", $line)) {
                         echo ($i + 1) . ": " . rtrim($line) . PHP_EOL;
                       }
                     }
