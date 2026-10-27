@@ -1320,7 +1320,6 @@ async function loadIndividualStandingsHistory(id) {
       const titleTags = (r.title_events || []).map(te => `${te.title}(${te.event_type})`);
       const labels = (r.defense_fail_titles || []).map(t => `${t}(防衛失敗)`);
       labels.push(...titleTags); // 保持記録も、防衛失敗と排他にせず合算する
-      if ((data.kirin_group1_seasons || []).includes(+r.season)) labels.push('麒麟1組');
       // 順位戦の順位（青龍の防衛専念枠などでrankが無いシーズンはタイトル表示のみ）と、
       // タイトル獲得・防衛失敗のラベルは排他にせず両方表示する
       // 青龍などの防衛専念枠（no_roundrobin）だったシーズンは、そもそもAリーグの総当たりに参戦していないため
