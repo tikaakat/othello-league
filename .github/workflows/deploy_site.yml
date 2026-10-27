@@ -95,6 +95,7 @@ on:
           - "consistency_dump"
           - "schema_check"
           - "perf_check"
+          - "season_check"
         default: ""
 
 jobs:
@@ -574,6 +575,34 @@ jobs:
                     foreach ($lines as $i => $line) {
                       if (preg_match("/key|pass|secret|token|password|dsn|mysql:/i", $line)) continue;
                       if (preg_match("/stage|block|title|league|予選|青龍|玄武|白虎|朱雀|match_uid|md5|games/u", $line)) {
+                        echo ($i + 1) . ": " . rtrim($line) . PHP_EOL;
+                      }
+                    }
+                  }
+                '
+                ;;
+              season_check)
+                # 季ごとの取り込み状況の確認：直近の季の対局数（リーグ・棋戦別）・タイトル履歴・順位表の件数と、
+                # 取り込みスクリプトのうち季の選び方に関わる行
+                PHP_QUERY='
+                  $max = (int)$pdo->query("SELECT MAX(season) FROM matches")->fetchColumn();
+                  foreach (range($max - 6, $max) as $s) {
+                    $rows = $pdo->query("SELECT league, COUNT(*) AS n FROM matches WHERE season = $s GROUP BY league ORDER BY league")->fetchAll();
+                    echo "season $s matches: " . implode(" ", array_map(fn($r) => $r["league"] . "=" . $r["n"], $rows)) . PHP_EOL;
+                    $th = $pdo->query("SELECT title, event_type, holder_name FROM title_history WHERE season = $s ORDER BY title")->fetchAll();
+                    echo "  title_history: " . implode(" ", array_map(fn($r) => $r["title"] . ":" . $r["event_type"] . ":" . $r["holder_name"], $th)) . PHP_EOL;
+                    echo "  standings: " . $pdo->query("SELECT COUNT(*) FROM standings WHERE season = $s")->fetchColumn()
+                       . " suzaku: " . $pdo->query("SELECT COUNT(*) FROM suzaku_group_standings WHERE season = $s")->fetchColumn()
+                       . " newcomer(for_season): " . $pdo->query("SELECT COUNT(*) FROM newcomer_league_standings WHERE for_season = $s")->fetchColumn() . PHP_EOL;
+                  }
+                  $dir = dirname(get_included_files()[0]);
+                  foreach (["import_from_github.php", "import_from_colab.php"] as $f) {
+                    echo "--- {$f}（季の選び方・重複の扱いに関わる行のみ） ---" . PHP_EOL;
+                    $lines = @file("$dir/$f");
+                    if (!$lines) { echo "(読めません)" . PHP_EOL; continue; }
+                    foreach ($lines as $i => $line) {
+                      if (preg_match("/key|pass|secret|token|password|dsn|mysql:/i", $line)) continue;
+                      if (preg_match("/season|INSERT|ON DUPLICATE|IGNORE|DELETE|REPLACE|glob|scandir|match_uid/i", $line)) {
                         echo ($i + 1) . ": " . rtrim($line) . PHP_EOL;
                       }
                     }
