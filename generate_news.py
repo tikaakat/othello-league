@@ -766,7 +766,7 @@ def _match_stage_label(league, stage=None):
             return "麒麟戦の敗者復活戦"
         if stage and stage.startswith("decision"):
             return "麒麟戦の挑戦者決定戦（本戦優勝者は1勝、敗者復活戦の勝者は2連勝で挑戦権）"
-        return "麒麟戦の本戦トーナメント"
+        return "麒麟戦の本戦トーナメント（1対戦は先後入れ替えの2局を1本とする3本先取）"
     if league == "白虎予選":
         return "白虎戦の挑戦者決定トーナメント（Elo上位16名による）"
     if league == "玄武予選":
