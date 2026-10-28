@@ -5,14 +5,14 @@ from .individual import LeagueIndividual
 
 
 def load_rosters(data_dir):
-    """4リーグ分のロスターを読み込む。無ければNoneを返す（初回起動の合図）"""
+    """4リーグ分とフリークラス（F）のロスターを読み込む。無ければNoneを返す（初回起動の合図）"""
     path = os.path.join(data_dir, "rosters.json")
     if not os.path.exists(path):
         return None
     with open(path, "r", encoding="utf-8") as f:
         raw = json.load(f)
     rosters = {}
-    for league in ("A", "B", "C", "D"):
+    for league in ("A", "B", "C", "D", "F"):
         rosters[league] = [LeagueIndividual.from_dict(d) for d in raw.get(league, [])]
     return rosters
 

@@ -10,7 +10,7 @@ class LeagueIndividual:
                  parent_a_id=None, parent_b_id=None, display_name=None, initial_age=None,
                  clan_root_id=None, gender=None):
         self.id = ind_id
-        self.league = league              # 'A' / 'B' / 'C' / 'D'
+        self.league = league              # 'A' / 'B' / 'C' / 'D' / 'F'（フリークラス）
         self.params = params or {}
         # 一門の開祖ID。通常は師匠のclan_root_idをそのまま継承するが、
         # 稀に本人がここで新しい一門の開祖になる（分岐）。未指定時は自分自身が開祖（＝新規開祖）
@@ -28,7 +28,7 @@ class LeagueIndividual:
         self.parent_b_id = parent_b_id
         self.initial_age = initial_age if initial_age is not None else random.randint(18, 24)
         self.age_multipliers = {}              # 年齢バフ（パラメータ別倍率）。シーズン開始時に再抽選
-        self.demotion_points = 0                # Dリーグの降級点（3点で引退。連続でなくてもよい）
+        self.demotion_points = 0                # Dリーグの降級点（3点でフリークラスへ。連続でなくてもよい）
         # 一門独立：弟子を引き連れて元の一門から独立した場合、元の一門の開祖IDと独立した季
         self.independent_from_clan_id = None
         self.independent_season = None
