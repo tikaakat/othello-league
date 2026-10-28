@@ -97,6 +97,7 @@ on:
           - "schema_check"
           - "perf_check"
           - "season_check"
+          - "import_rosters_check"
         default: ""
 
 jobs:
@@ -599,6 +600,21 @@ jobs:
                       if (preg_match("/stage|block|title|league|予選|青龍|玄武|白虎|朱雀|match_uid|md5|games/u", $line)) {
                         echo ($i + 1) . ": " . rtrim($line) . PHP_EOL;
                       }
+                    }
+                  }
+                '
+                ;;
+              import_rosters_check)
+                # 取り込みスクリプトが名簿（rosters.json）のリーグをどう扱っているかの確認（認証まわりの行は表示しない）
+                PHP_QUERY='
+                  $dir = dirname(get_included_files()[0]);
+                  foreach (["import_from_github.php", "import_from_colab.php"] as $f) {
+                    echo "--- {$f} ---" . PHP_EOL;
+                    $lines = @file("$dir/$f");
+                    if (!$lines) { echo "(読めません)" . PHP_EOL; continue; }
+                    foreach ($lines as $i => $line) {
+                      if (preg_match("/key|pass|secret|token|password|dsn|mysql:/i", $line)) continue;
+                      if (preg_match("/roster|foreach|league|retired|\\[.A.,/i", $line)) echo ($i + 1) . ": " . rtrim($line) . PHP_EOL;
                     }
                   }
                 '
