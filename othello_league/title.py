@@ -138,6 +138,17 @@ def _disc_margin(games, x_key="x_was_black"):
     return sum((g["black"] - g["white"]) * (1 if g[x_key] else -1) for g in games)
 
 
+def _play_sets(params_x, params_y, depth, noise_x=1.0, noise_y=1.0, sets_to_win=1):
+    """2局セット（_play_until_decided）を、どちらかがsets_to_win本取るまで繰り返す。(Xが勝ったか, 対局の一覧)"""
+    games, x_sets, y_sets = [], 0, 0
+    while x_sets < sets_to_win and y_sets < sets_to_win:
+        x_won, g = _play_until_decided(params_x, params_y, depth, noise_x, noise_y)
+        games += g
+        x_sets += x_won
+        y_sets += not x_won
+    return x_sets > y_sets, games
+
+
 def _play_until_decided(params_x, params_y, depth, noise_x=1.0, noise_y=1.0, max_attempts=50):
     """
     トーナメント（予選・挑戦者決定戦）の1対戦。先後を入れ替えた2局を1セットとして指し、
@@ -176,10 +187,11 @@ def _play_until_decided(params_x, params_y, depth, noise_x=1.0, noise_y=1.0, max
 # 対局は個体の状態を変えない（Eloの更新は呼び出し側が後で記録順に行う）ので、同じ個体が
 # 別の棋戦の対局に同時に出ていても結果は変わらない
 # ============================================================
-def _round(pairs, depth, log, tags=None):
-    """1回戦分の対局（Noneの相手は不戦勝）。勝者の一覧を返す（yield from で使う）"""
+def _round(pairs, depth, log, tags=None, sets_to_win=1):
+    """1回戦分の対局（Noneの相手は不戦勝）。勝者の一覧を返す（yield from で使う）。
+    1対戦は先後を入れ替えた2局セットで、sets_to_win本先取（既定は1本）"""
     real = [(k, x, y) for k, (x, y) in enumerate(pairs) if x is not None and y is not None]
-    jobs = [(_play_until_decided, (effective_params(x), effective_params(y), depth, x.volatility, y.volatility))
+    jobs = [(_play_sets, (effective_params(x), effective_params(y), depth, x.volatility, y.volatility, sets_to_win))
             for _, x, y in real]
     outs = (yield jobs) if jobs else []
     winners = [x if x is not None else y for x, y in pairs]
@@ -658,6 +670,10 @@ def run_genbu_challenge(challenger, titleholder_params, depth=1, titleholder_vol
 # ============================================================
 KIRIN_MAIN_SIZE = 16
 KIRIN_GROUP1_SIZE = 8
+# 本戦（1回戦〜決勝）・敗者復活戦・挑戦者決定戦の1対戦は、2局セットの3本先取（予選は1本勝負）。
+# 1局ごとの実力差は小さく（Elo差100でも勝率6割弱）、1本勝負の勝ち抜きが続くと挑戦者がほぼ抽選になっていたため
+# （第96〜106季の挑戦者のElo順位の中央値は約20位。シミュレーションでは3本先取で約8位、挑戦者がEloトップ10から出る割合が34%→64%）
+KIRIN_MAIN_SETS = 3
 QUALIFIER_SLOT_PREFIX = "Q"  # 本戦の組み合わせで、予選ブロックの優勝者が入る枠（Q1, Q2, ...＝予選の1, 2, ...番目のブロック）
 
 
@@ -753,7 +769,7 @@ def kirin_challenger_gen(all_members, plan, newcomer_ids=None, depth=KIRIN_DEPTH
     rnd = 1
     while len(bracket) > 4:
         pairs = [(bracket[i], bracket[i + 1]) for i in range(0, len(bracket), 2)]
-        winners = yield from _round(pairs, depth, log, lambda k, r=rnd: {"stage": f"main{r}"})
+        winners = yield from _round(pairs, depth, log, lambda k, r=rnd: {"stage": f"main{r}"}, KIRIN_MAIN_SETS)
         losers = [y if w is x else x for (x, y), w in zip(pairs, winners) if x is not None and y is not None]
         (first_round_losers if rnd == 1 else qf_losers).extend(losers)
         bracket = winners
@@ -768,20 +784,20 @@ def kirin_challenger_gen(all_members, plan, newcomer_ids=None, depth=KIRIN_DEPTH
 
     # --- ベスト4から2敗失格：準決勝 → 決勝と敗者復活1回戦（同時）→ 敗者復活決勝 → 挑戦者決定戦 ---
     semis = [(bracket[0], bracket[1]), (bracket[2], bracket[3])]
-    sw = yield from _round(semis, depth, log, lambda k: {"stage": "semifinal"})
+    sw = yield from _round(semis, depth, log, lambda k: {"stage": "semifinal"}, KIRIN_MAIN_SETS)
     sl = [y if w is x else x for (x, y), w in zip(semis, sw)]
     w2 = yield from _round([(sw[0], sw[1]), (sl[0], sl[1])], depth, log,
-                           lambda k: {"stage": "final"} if k == 0 else {"stage": "rep1"})
+                           lambda k: {"stage": "final"} if k == 0 else {"stage": "rep1"}, KIRIN_MAIN_SETS)
     winner, rep = w2
     final_loser = sw[1] if winner is sw[0] else sw[0]
     rep_semi_loser = sl[1] if rep is sl[0] else sl[0]
-    rep_final = yield from _round([(rep, final_loser)], depth, log, lambda k: {"stage": "rep2"})
+    rep_final = yield from _round([(rep, final_loser)], depth, log, lambda k: {"stage": "rep2"}, KIRIN_MAIN_SETS)
     rep_winner = rep_final[0]
     rep_runner_up = final_loser if rep_winner is rep else rep
     challenger = winner
     for game_no in (1, 2):
         w = (yield from _round([(winner, rep_winner)], depth, log,
-                               lambda k: {"stage": f"decision{game_no}"}))[0]
+                               lambda k: {"stage": f"decision{game_no}"}, KIRIN_MAIN_SETS))[0]
         if w is winner:
             break
         if game_no == 2:
