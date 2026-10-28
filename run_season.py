@@ -7,6 +7,7 @@ import random
 from othello_league.individual import LeagueIndividual
 from othello_league.league import (
     relegate_and_retire, recruit_d_league, apply_clan_independence, LEAGUE_CAPACITY, RETIREMENT_AGE, D_INITIAL_ROSTER_SIZE,
+    FREE_CLASS, free_class_returns,
 )
 from othello_league.buffs import effective_params, roll_age_multipliers
 from othello_league.skills import ensure_skills, roll_form, season_growth, veteran_skills, BOOK_PARAMS
@@ -183,7 +184,9 @@ def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_b
             seed_order=_build_seed_order(rosters[lg], lg, prev_standings_by_id),
             allow_rematch=False, planned_pairs=league_pairs.get(lg), slot_ids=newcomer_ids,
         ))
-    tournament_members = [ind for lg in ("A", "B", "C", "D") for ind in rosters[lg]]
+    # フリークラス（F）の選手は青龍戦リーグ（A〜D）には出ず、タイトル戦（予選を含む）にだけ出る
+    free_members = list(rosters.get(FREE_CLASS, []))
+    tournament_members = [ind for lg in ("A", "B", "C", "D") for ind in rosters[lg]] + free_members
     outs = drive(*league_gens, *title_tournament_gens(tournament_members, state, season))
     (ranked_competing_A, log_A, _, record_A), (ranked_B, log_B, _, record_B), \
         (ranked_C, log_C, _, record_C), (ranked_D, log_D, _, record_D) = outs[:4]
@@ -221,7 +224,7 @@ def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_b
                 "no_roundrobin": no_roundrobin,
             })
     pre_move_league_by_id = {ind.id: league_name for league_name, ranked in
-                              (("A", ranked_A), ("B", ranked_B), ("C", ranked_C), ("D", ranked_D))
+                              (("A", ranked_A), ("B", ranked_B), ("C", ranked_C), ("D", ranked_D), (FREE_CLASS, free_members))
                               for ind in ranked}
     is_first_season_by_id = {ind.id: (ind.total_seasons == 0) for league_name, ranked in
                               (("A", ranked_A), ("B", ranked_B), ("C", ranked_C), ("D", ranked_D))
@@ -237,7 +240,7 @@ def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_b
     suzaku_league_ids_before = set(state.get("suzaku_league", {}).get("red", [])) | \
         set(state.get("suzaku_league", {}).get("white", []))
 
-    all_members = ranked_A + ranked_B + ranked_C + ranked_D
+    all_members = ranked_A + ranked_B + ranked_C + ranked_D + free_members
     title_results, title_extra_match_log, suzaku_group_snapshot, title_extra_protected_ids, title_demotion_relief_ids = _run_title_matches(
         ranked_A, ranked_competing_A, champion_ind, ranked_B, ranked_C, ranked_D, all_members, state, season,
         suzaku_tiebreak=suzaku_tiebreak, title_tournament_outs=title_tournament_outs,
@@ -246,14 +249,37 @@ def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_b
     match_log += title_match_log
     match_log += title_extra_match_log
 
+    # --- フリークラスの今季の成績（タイトル戦・予選の対戦。番勝負は1局ずつ）と復帰判定。順位表にも載せる ---
+    free_ids = {ind.id for ind in free_members}
+    free_record = {iid: [0, 0, 0] for iid in free_ids}
+    for m in match_log:
+        if m.get("league") in ("A", "B", "C", "D"):
+            continue
+        a, b, res = m.get("individual_a_id"), m.get("individual_b_id"), m.get("result")
+        for x, won in ((a, res == "win"), (b, res == "loss")):
+            if x in free_record:
+                free_record[x][2 if res == "draw" else (0 if won else 1)] += 1
+    free_return_ids = free_class_returns({iid: (r[0], r[1]) for iid, r in free_record.items()})
+    ranked_F = sorted(free_members, key=lambda ind: (-free_record[ind.id][0], free_record[ind.id][1], -ind.elo))
+    for rank, ind in enumerate(ranked_F, 1):
+        w, l, d = free_record[ind.id]
+        standings_snapshot.append({
+            "season": season, "league": FREE_CLASS, "rank": rank,
+            "individual_id": ind.id, "display_name": ind.display_name, "elo": round(ind.elo, 1),
+            "win": w, "loss": l, "draw": d, "no_roundrobin": False,
+        })
+        ind.win_this_season, ind.loss_this_season = w, l
+
     # --- 昇降格・引退（Dリーグの新規補充は次シーズン開始前にrecruit_d_league()で行う）---
     rosters["A"], rosters["B"], rosters["C"], rosters["D"] = ranked_A, ranked_B, ranked_C, ranked_D
+    rosters[FREE_CLASS] = ranked_F
     suzaku_league_ids_after = set(state.get("suzaku_league", {}).get("red", [])) | \
         set(state.get("suzaku_league", {}).get("white", []))
     suzaku_league_ids = suzaku_league_ids_before | suzaku_league_ids_after
     rosters, retired, vacancy, demotion_events = relegate_and_retire(
         rosters, season, titleholders=titleholders, suzaku_league_ids=suzaku_league_ids,
         extra_protected_ids=title_extra_protected_ids, demotion_relief_ids=title_demotion_relief_ids,
+        free_return_ids=free_return_ids,
     )
     # 季の終わりに、終盤力の成長・衰えと定跡の習得を反映する（年齢は relegate_and_retire で1つ進んでいる）
     for league_list in rosters.values():
@@ -275,7 +301,7 @@ def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_b
             tags.append("new")
         if iid in post_move_league_by_id and post_move_league_by_id[iid] != pre_move_league_by_id.get(iid):
             new_league, old_league = post_move_league_by_id[iid], pre_move_league_by_id.get(iid)
-            league_rank = {"A": 0, "B": 1, "C": 2, "D": 3}
+            league_rank = {"A": 0, "B": 1, "C": 2, "D": 3, FREE_CLASS: 4}
             tags.append("promoted" if league_rank[new_league] < league_rank[old_league] else "relegated")
         if iid in retired_ids:
             tags = ["retired"]
@@ -985,7 +1011,7 @@ def plan_next_brackets(rosters, state, next_season, newcomer_slots, games_per_in
     """次の季のB〜Dリーグ・白虎戦・玄武戦・麒麟戦の組み合わせを、この季の終了時点（Elo・所属リーグ・麒麟戦の組）で決めて
     state に記録する。季の初めから組み合わせを公開するため。新人の枠は「NEW1」等の仮の枠にしておき、
     新人が決まったら当てはめる"""
-    members = [ind for league in LEAGUE_TIERS for ind in sorted(rosters[league], key=lambda ind: -ind.elo)]
+    members = [ind for league in (*LEAGUE_TIERS, FREE_CLASS) for ind in sorted(rosters.get(league, []), key=lambda ind: -ind.elo)]
     titleholders = state.get("titleholders") or {}
     last_dethroned = state.get("last_dethroned") or {}
     holder_id = lambda title: (titleholders.get(title) or {}).get("id")
@@ -1063,13 +1089,13 @@ def write_upcoming_brackets(data_dir, state, rosters):
     if not planned:
         return
     # elo_rank：現役全体でのEloの順位（白虎戦の出場条件などを示すため）
-    by_elo = sorted((ind for league in LEAGUE_TIERS for ind in rosters[league]), key=lambda ind: -ind.elo)
+    by_elo = sorted((ind for league in (*LEAGUE_TIERS, FREE_CLASS) for ind in rosters.get(league, [])), key=lambda ind: -ind.elo)
     elo_rank = {ind.id: k + 1 for k, ind in enumerate(by_elo)}
     # league_pos：リーグ表での順位（青龍戦の順位を引き継いだ並び。玄武戦の優先順位に使う）
     league_order = planned.get("league_order") or {}
     info = {ind.id: {"id": ind.id, "name": ind.display_name, "league": league, "elo": round(ind.elo),
                      "elo_rank": elo_rank[ind.id], "league_pos": league_order.get(ind.id)}
-            for league in LEAGUE_TIERS for ind in rosters[league]}
+            for league in (*LEAGUE_TIERS, FREE_CLASS) for ind in rosters.get(league, [])}
     newcomer_ids = planned.get("newcomer_ids") or {}
 
     def slot(pid):
@@ -1250,7 +1276,7 @@ def main():
 
         # 新弟子の参入で弟子（引退した弟子も含む通算）が規定人数を超えた師匠は、弟子を引き連れて一門から独立する
         independence_events = apply_clan_independence(
-            [ind for league in ("A", "B", "C", "D") for ind in rosters[league]],
+            [ind for league in ("A", "B", "C", "D", FREE_CLASS) for ind in rosters.get(league, [])],
             state.setdefault("retired_archive", []), season,
         )
         for ev in independence_events:

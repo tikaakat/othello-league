@@ -495,7 +495,7 @@ const TITLE_NAMES = new Set([
 ]);
 function leagueTag(league) {
   const isTitle = TITLE_NAMES.has(league);
-  return `<span class="league-tag${isTitle ? ' title-tag' : ''}">${escapeHtml(league)}</span>`;
+  return `<span class="league-tag${isTitle ? ' title-tag' : ''}">${escapeHtml(league === 'F' ? 'フリー' : league)}</span>`;
 }
 
 // ---------------- リーグ ----------------
@@ -595,11 +595,15 @@ async function loadLeagues() {
     if (data.next_season) {
       html += `<h3 style="font-size:0.8rem; color:var(--amber); margin-top:0;">第${data.next_season}季 青龍戦・順位戦</h3>`;
     }
-    ['A', 'B', 'C', 'D'].forEach(lg => {
+    ['A', 'B', 'C', 'D', 'F'].forEach(lg => {
       const rows = leagues[lg] || [];
+      if (lg === 'F' && rows.length === 0) return;
       const vacancy = (lg === 'D') ? dVacancy : 0;
       const countLabel = vacancy > 0 ? `${rows.length}+${vacancy}名` : `${rows.length}名`;
-      html += `<div class="league-block"><h3>${lg}リーグ（${countLabel}${lg === 'A' && data.rikuou ? '+青龍' : ''}）</h3>`;
+      // F＝フリークラス：Dで降級点3点。青龍戦リーグには出ず、タイトル戦の成績でDへ復帰（10季で引退）
+      html += lg === 'F'
+        ? `<div class="league-block"><h3>フリークラス（${countLabel}）</h3><p style="font-size:0.7rem; color:var(--text-dim); margin:2px 0 6px;">タイトル戦（予選を含む）で1季5勝、または6対戦以上で勝率6割以上ならDへ復帰。在籍10季で引退</p>`
+        : `<div class="league-block"><h3>${lg}リーグ（${countLabel}${lg === 'A' && data.rikuou ? '+青龍' : ''}）</h3>`;
 
       if (lg === 'A' && data.rikuou) {
         const r = data.rikuou;
@@ -613,7 +617,8 @@ async function loadLeagues() {
 
       html += `<table><thead><tr><th>#</th><th>名前</th><th>年齢</th><th>Elo</th></tr></thead><tbody>`;
       rows.forEach((r, i) => {
-        const rankDisplay = r.is_new ? '<span style="color:var(--text-dim); font-size:0.68rem;">新</span>' : (i+1);
+        const rankDisplay = lg === 'F' ? `<span style="font-size:0.68rem;">${(r.seasons_in_league || 0) + 1}季目</span>`
+          : (r.is_new ? '<span style="color:var(--text-dim); font-size:0.68rem;">新</span>' : (i+1));
         const rTitles = (r.id && CURRENT_TITLEHOLDERS.by_id[r.id]) || [];
         html += `<tr data-id="${escapeHtml(r.id)}"><td class="rank-num">${rankDisplay}</td>
           <td>${demotionPointsBadge(r.demotion_points)}${escapeHtml(r.display_name || r.id)}${titleOrDanBadge(rTitles, r.dan)}</td>
@@ -1324,7 +1329,7 @@ async function loadIndividualStandingsHistory(id) {
       // タイトル獲得・防衛失敗のラベルは排他にせず両方表示する
       // 青龍などの防衛専念枠（no_roundrobin）だったシーズンは、そもそもAリーグの総当たりに参戦していないため
       // 順位番号を表示しない（DB上のrankは便宜上の値であり、実際の総当たり順位ではない）
-      const rankPart = (!r.no_roundrobin && r.rank) ? `${r.rank}位` : '';
+      const rankPart = (!r.no_roundrobin && r.rank && r.league !== 'F') ? `${r.rank}位` : '';
       const titlePart = labels.length > 0 ? labels.join('・') : '';
       const rankDisplay = [rankPart, titlePart].filter(Boolean).join('・');
       return `<div style="display:flex; justify-content:space-between; padding:3px 0;">
@@ -2182,13 +2187,14 @@ async function loadSeiryuuPanel(season) {
       html += '<div class="empty">このシーズンの記録がありません</div>';
       el.innerHTML = html;
     } else {
-      const byLeague = { A: [], B: [], C: [], D: [] };
+      const byLeague = { A: [], B: [], C: [], D: [], F: [] };
       rows.forEach(r => { if (byLeague[r.league]) byLeague[r.league].push(r); });
 
-      ['A', 'B', 'C', 'D'].forEach(lg => {
+      ['A', 'B', 'C', 'D', 'F'].forEach(lg => {
         const list = byLeague[lg];
         if (list.length === 0 && !(lg === 'A' && data.rikuou)) return;
-        html += `<div class="league-block"><h3>${lg}リーグ</h3>`;
+        // F＝フリークラス：青龍戦リーグには出ず、成績はタイトル戦（予選を含む）の対戦
+        html += `<div class="league-block"><h3>${lg === 'F' ? 'フリークラス（タイトル戦の成績）' : lg + 'リーグ'}</h3>`;
 
         if (lg === 'A' && data.rikuou) {
           const r = data.rikuou;

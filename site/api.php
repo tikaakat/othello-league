@@ -880,7 +880,7 @@ switch ($action) {
         }
         unset($ind);
 
-        $byLeague = ["A" => [], "B" => [], "C" => [], "D" => []];
+        $byLeague = ["A" => [], "B" => [], "C" => [], "D" => [], "F" => []]; // F＝フリークラス
         $placed = [];
         $standRows = [];
 
@@ -888,7 +888,7 @@ switch ($action) {
             // 直近シーズンの記録を取得し、「今のリーグに残留している人だけ」を順位順に並べる
             $standStmt = $pdo->prepare(
                 "SELECT league, `rank`, individual_id, movement, no_roundrobin FROM standings
-                 WHERE season = :season ORDER BY FIELD(league,'A','B','C','D'), `rank` ASC"
+                 WHERE season = :season ORDER BY FIELD(league,'A','B','C','D','F'), `rank` ASC"
             );
             $standStmt->execute(['season' => $latest_season]);
             $standRows = $standStmt->fetchAll();
@@ -1790,7 +1790,7 @@ switch ($action) {
                 "SELECT league, `rank`, individual_id, display_name, win, loss, draw, movement, no_roundrobin,
                         demotion_point_event, demotion_points
                  FROM standings WHERE season = :season
-                 ORDER BY FIELD(league,'A','B','C','D'), `rank` ASC"
+                 ORDER BY FIELD(league,'A','B','C','D','F'), `rank` ASC"
             );
             $stmt->execute(['season' => $season]);
             $rows = $stmt->fetchAll();
@@ -1843,7 +1843,7 @@ switch ($action) {
             // （朱雀紅白リーグの記録もstandingsテーブルに入っているが、ここでは対象外にする）
             $stmt = $pdo->prepare(
                 "SELECT season, league, `rank`, win, loss, draw, movement, no_roundrobin, elo FROM standings
-                 WHERE individual_id = :id AND league IN ('A', 'B', 'C', 'D') ORDER BY season ASC"
+                 WHERE individual_id = :id AND league IN ('A', 'B', 'C', 'D', 'F') ORDER BY season ASC"
             );
             $stmt->execute(['id' => $iid]);
             $rows = $stmt->fetchAll();

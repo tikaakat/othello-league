@@ -73,6 +73,7 @@ on:
           - "fix_newcomer_duplicate_name_20261018"
           - "rename_numbered_names_20261027"
           - "fix_season_101_duplicates_20261028"
+          - "patch_import_free_class_20261028"
         default: ""
       create_dir:
         description: "デプロイの代わりに、lab.spia-net.com直下（othello-league/の1つ上）に相対パスでディレクトリを作成する（例: othello-news）。「..」や先頭「/」は不可"
@@ -180,6 +181,18 @@ jobs:
 
           if [ -n "$RUN_MIGRATION" ]; then
             echo "=== マイグレーション実行: ${RUN_MIGRATION} ==="
+            if [ "$RUN_MIGRATION" = "patch_import_free_class_20261028" ]; then
+              # フリークラス（rosters.jsonの"F"）の選手も現役としてindividualsへ取り込むよう、サーバー上の
+              # 取り込みスクリプト（リポジトリ外）の現役ロスターのループに"F"を足す。元のファイルは .bak_20261028 に残す。
+              # 何度実行しても同じ結果になる（既に"F"があれば変えない）
+              retry_cmd ssh -i /tmp/deploy_key -p "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
+                "$XSERVER_USER@$XSERVER_HOST" "cd '${XSERVER_SITE_DIR}' && for f in import_from_github.php import_from_colab.php; do \
+                  [ -f \$f ] || continue; [ -f \$f.bak_20261028 ] || cp -p \$f \$f.bak_20261028; \
+                  sed -i 's/foreach (\[\"A\", \"B\", \"C\", \"D\"\] as \$league)/foreach ([\"A\", \"B\", \"C\", \"D\", \"F\"] as \$league)/' \$f; \
+                  echo \"--- \$f ---\"; grep -n 'as \$league)' \$f; done"
+              rm -f /tmp/deploy_key
+              exit 0
+            fi
             # SQL_LIST：このマイグレーションで実行する文（複数可。1文ずつ順に適用し、
             # 「既に存在する」系のエラー（列の重複・テーブルの重複）は成功扱いにして
             # 再実行できるようにする）。db_config.phpの認証情報はサーバー上で完結させ、

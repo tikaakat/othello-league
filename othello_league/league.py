@@ -17,8 +17,17 @@ D_TO_C_PROMOTE = 3   # D→C昇格人数（C→D降格人数と揃え、Cリー�
 
 RETIREMENT_AGE = 60
 RETIREMENT_AGE_HARD_CAP = 65  # 引退を免除されていても、この年齢でタイトル保持中でなければ引退する
-D_DEMOTION_POINT_LIMIT = 3  # Dリーグでの降級点がこの数に達すると強制引退（連続でなくてもよい）
-D_DEMOTION_GRACE_SEASONS = 3  # デビューからこの季数は降級点を付けない
+D_DEMOTION_POINT_LIMIT = 3  # Dリーグでの降級点がこの数に達するとフリークラスへ（連続でなくてもよい）
+# フリークラス（将棋の順位戦のフリークラスに倣う）：Dで降級点が3点に達した選手はDリーグ（青龍戦リーグ）から外れ、
+# タイトル戦（予選を含む）にだけ出場する。1季のタイトル戦で FREE_RETURN_WINS 勝以上、または
+# FREE_RETURN_MIN_MATCHES 対戦以上で勝率 FREE_RETURN_RATE 以上ならDへ復帰。在籍 FREE_CLASS_SEASON_LIMIT 季で
+# 復帰できなければ引退。以前は降級点3点で即引退で、若手を守るためにデビュー3季は降級点を付けていなかったが、
+# 落ちても引退ではなくなったので、その猶予はやめた
+FREE_CLASS = "F"
+FREE_RETURN_WINS = 5
+FREE_RETURN_MIN_MATCHES = 6
+FREE_RETURN_RATE = 0.6
+FREE_CLASS_SEASON_LIMIT = 10
 D_DEMOTION_POINT_FLOOR = 1  # 勝ち越し・救済で減らせる下限。1点目はCへ昇級するまで消えない
 C_TO_D_RELEGATE = 3  # C→D降格人数（B→Cと同数）
 
@@ -39,8 +48,14 @@ PARAM_KEYS = [
 ]
 
 
+def free_class_returns(records):
+    """フリークラスの復帰判定。records：{ID: (勝, 負)}（この季のタイトル戦・予選の対戦）"""
+    return {iid for iid, (w, l) in records.items()
+            if w >= FREE_RETURN_WINS or (w + l >= FREE_RETURN_MIN_MATCHES and w / (w + l) >= FREE_RETURN_RATE)}
+
+
 def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=None,
-                         extra_protected_ids=None, demotion_relief_ids=None):
+                         extra_protected_ids=None, demotion_relief_ids=None, free_return_ids=None):
     """
     1シーズンの対局終了後の昇降格・強制引退の判定のみを行う（Dリーグの新規補充は
     recruit_d_league()が別関数として、次シーズンの対局が始まる前に行う）。
@@ -74,6 +89,7 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
     B = list(rosters["B"])
     C = list(rosters["C"])
     D = list(rosters["D"])
+    F = list(rosters.get(FREE_CLASS, []))
     d_start_points = {ind.id: ind.demotion_points for ind in D}
 
     # --- タイトル保持者・朱雀紅白リーグ在籍者（来季から加入予定の予選通過者も含む）・
@@ -119,7 +135,7 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
 
     age_retired = []
     aged_out_ids = set()
-    for ind in A + B + C + D:
+    for ind in A + B + C + D + F:
         exempt = ind.id in age_exempt_ids if ind.age < RETIREMENT_AGE_HARD_CAP else ind.id in titleholder_ids
         if ind.age >= RETIREMENT_AGE and not exempt:
             ind.retired = True
@@ -209,16 +225,13 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
     demotion_relief_ids = set(demotion_relief_ids or set()) | protected_ids
     d_up_or_out_retired = []
     d_keep = []
+    d_to_free = []
     for ind in d_remain:
         before = ind.demotion_points
         # 「青龍戦リーグ（D所属個体のA〜D総当たり・スイス方式本戦）」の勝敗のみで+1/-1を
         # 判定する（win_this_season/loss_this_seasonはタイトル戦の前にA〜Dの結果だけで
         # セットされるため、玄武予選・玄武本戦等のタイトル戦の勝敗はここに混ざらない）
         lost_more = ind.loss_this_season > ind.win_this_season
-        # デビューから D_DEMOTION_GRACE_SEASONS 季は、負け越しても降級点を付けない（若手が育つ前に
-        # 引退してしまうのを防ぐ。シミュレーションでは30歳未満の引退が16人→5人に減った）
-        if ind.total_seasons < D_DEMOTION_GRACE_SEASONS:
-            lost_more = False
         won_more = ind.win_this_season > ind.loss_this_season
         relief = ind.id in demotion_relief_ids
         # 負け越したら必ず1点付く（救済と同じ季でも相殺しない）。そのうえで勝ち越し・救済で減らせるのは
@@ -260,17 +273,35 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
             if parts:
                 demotion_events[ind.id] = "_".join(parts)
         if ind.demotion_points >= D_DEMOTION_POINT_LIMIT and ind.id not in protected_ids:
-            ind.retired = True
-            ind.retirement_reason = f"降級点{D_DEMOTION_POINT_LIMIT}点により強制引退"
-            ind.total_seasons += 1  # age_retiredと同様、引退する今季分も在籍シーズン数に数える
-            d_up_or_out_retired.append(ind)
+            # 降級点3点：フリークラスへ（引退ではない）。降級点はDに戻ったら0から数え直す
+            ind.demotion_points = 0
+            d_to_free.append(ind)
         else:
             d_keep.append(ind)
 
     new_d_arrivals = c_relegate_to_d + c_relegate_overflow
     for ind in new_d_arrivals:
         ind.demotion_points = 0
-    D = d_keep + new_d_arrivals
+
+    # --- フリークラス：復帰条件を満たした選手はDの最後尾へ。満たせないまま在籍
+    #     FREE_CLASS_SEASON_LIMIT 季（今季を含む）に達したら引退（タイトル保持者などは免除） ---
+    free_return_ids = set(free_return_ids or ())
+    f_return, f_stay = [], []
+    for ind in F:
+        if ind.id in aged_out_ids:
+            continue
+        if ind.id in free_return_ids:
+            ind.demotion_points = 0
+            f_return.append(ind)
+        elif ind.seasons_in_league + 1 >= FREE_CLASS_SEASON_LIMIT and ind.id not in protected_ids:
+            ind.retired = True
+            ind.retirement_reason = f"フリークラス在籍{FREE_CLASS_SEASON_LIMIT}季で復帰できず引退"
+            ind.total_seasons += 1
+            d_up_or_out_retired.append(ind)
+        else:
+            f_stay.append(ind)
+    F = f_stay + d_to_free
+    D = d_keep + new_d_arrivals + f_return
 
     # --- 年齢引退等でA・B・Cに定員割れが生じた場合、下位リーグから繰り上げて埋める。
     #     今季そのリーグに在籍して実際に対局した個体（remain_ids）の中から、今季の順位が
@@ -328,7 +359,7 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
     # リーグ所属情報・在籍年数の更新
     all_retired = age_retired + d_up_or_out_retired
 
-    for league_name, members in (("A", A), ("B", B), ("C", C), ("D", D)):
+    for league_name, members in (("A", A), ("B", B), ("C", C), ("D", D), (FREE_CLASS, F)):
         for ind in members:
             if ind.league != league_name:
                 ind.league = league_name
@@ -344,7 +375,7 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
     # （年齢・降級点up-or-out）の分だけ増減し、それ以上の強制調整は行わない
     new_recruit_slots = D_NEWCOMER_INTAKE
 
-    new_rosters = {"A": A, "B": B, "C": C, "D": D}
+    new_rosters = {"A": A, "B": B, "C": C, "D": D, FREE_CLASS: F}
     return new_rosters, all_retired, new_recruit_slots, demotion_events
 
 
@@ -419,7 +450,7 @@ def recruit_d_league(rosters, season, name_registry=None, pending_characters=Non
         D.extend(new_disciples)
     new_disciples = created_characters + new_disciples
 
-    new_rosters = {"A": A, "B": B, "C": C, "D": D}
+    new_rosters = {"A": A, "B": B, "C": C, "D": D, FREE_CLASS: list(rosters.get(FREE_CLASS, []))}
     return new_rosters, new_disciples, name_registry, []
 
 
