@@ -442,6 +442,8 @@ def gather_season_facts(data_dir, season):
         related.append((mvp["individual_id"], mvp["name"]))
 
     rookie = _pick_rookie_of_year(data_dir, season, rosters, main_league_rows, title_results)
+    # 表彰の記録（awards.json）用。記事ではMVPと同一人物なら新人王を取り上げないが、記録には残す
+    rookie_award = dict(rookie) if rookie else None
     # MVPと同一人物であれば、新人王は重複して取り上げない
     if rookie is not None and (mvp is None or rookie["individual_id"] != mvp["individual_id"]):
         rookie["gender"] = gender_by_id.get(rookie["individual_id"])
@@ -484,7 +486,7 @@ def gather_season_facts(data_dir, season):
 
     return {
         "season": season, "title_results": title_results, "movements": movements,
-        "mvp": mvp, "rookie": rookie,
+        "mvp": mvp, "rookie": rookie, "rookie_award": rookie_award,
         "related_individual_ids": [iid for iid, _ in related_unique],
         "related_individual_names": [name for _, name in related_unique],
     }
@@ -989,6 +991,40 @@ def save_article(articles_path, articles, article):
     print(f"[DEBUG] {articles_path} に記事を追加しました（id={article['id']}）", flush=True)
 
 
+AWARDS_FILE = "awards.json"
+# 表彰の選考基準の版。基準を変えたら版を足し、AWARD_CRITERIAにも説明を書き足す（過去の季の記録は当時の版のまま残す）
+AWARD_CRITERIA_VERSION = 3
+AWARD_CRITERIA = {
+    1: "MVP：今季獲得・防衛したタイトルの格点（青龍4・朱雀3・白虎2・玄武1）の合計が最も大きい選手（同点は青龍戦リーグの勝数）。"
+       "該当者がいなければ青龍戦リーグの最多勝",
+    2: "MVP：格点を青龍6・朱雀5・白虎4・玄武3に変更（2冠が1冠より上に来やすくした）",
+    3: "MVP：麒麟（格点6）を追加",
+}
+ROOKIE_CRITERIA = ("新人王：季の開始時点で26歳以下・六段以下・タイトル戦の経験なしの選手のうち、"
+                   "タイトル獲得・挑戦を最優先し、なければ勝率→勝数で選ぶ")
+
+
+def _award_entry(x):
+    if not x:
+        return None
+    return {"id": x.get("individual_id"), "name": x.get("name"), "titles": [t[0] for t in (x.get("titles") or [])],
+            "win": x.get("win"), "loss": x.get("loss")}
+
+
+def record_awards(news_dir, season, facts, criteria_version=AWARD_CRITERIA_VERSION):
+    """その季のMVP・新人王を data/news/awards.json に記録する（記事の生成に失敗しても記録は残す）"""
+    path = os.path.join(news_dir, AWARDS_FILE)
+    data = load_json(path, {"criteria": {}, "seasons": {}})
+    data["criteria"] = {"mvp": {str(k): v for k, v in AWARD_CRITERIA.items()}, "rookie": ROOKIE_CRITERIA}
+    data["seasons"][str(season)] = {
+        "mvp": _award_entry(facts.get("mvp")), "rookie": _award_entry(facts.get("rookie_award")),
+        "mvp_criteria": criteria_version,
+    }
+    os.makedirs(news_dir, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=1)
+
+
 def try_generate_digest(args, season, articles_path, articles):
     article_id = f"s{season}-digest"
     existing = next((a for a in articles if a.get("id") == article_id), None)
@@ -997,6 +1033,7 @@ def try_generate_digest(args, season, articles_path, articles):
         return
 
     facts = gather_season_facts(args.data_dir, season)
+    record_awards(args.news_dir, season, facts)
     if not facts["title_results"]:
         print(f"[DEBUG] 第{season}季のタイトル戦データが見つかりません。ダイジェストをスキップします", flush=True)
         return
