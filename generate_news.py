@@ -268,13 +268,25 @@ def _career_label(nth_season):
     return "今季がデビューシーズン（通算1季目）" if nth_season == 1 else f"通算{nth_season}季目（デビューシーズンではない）"
 
 
+def _past_rookie_ids(data_dir, season):
+    """前の季までに新人王を受賞した個体ID（新人王は一生に一度。awards.jsonの記録から）"""
+    seasons = load_json(os.path.join(data_dir, "news", AWARDS_FILE), {}).get("seasons", {})
+    return {v["rookie"]["id"] for s, v in seasons.items() if int(s) < season and v.get("rookie")}
+
+
 def _pick_rookie_of_year(data_dir, season, rosters, main_league_rows, title_results):
-    """新人王を選ぶ。対象は「今季デビューの新規参入者」ではなく（Dリーグ新人受け入れが
+    candidates = _rookie_candidates(data_dir, season, main_league_rows, title_results)
+    past = _past_rookie_ids(data_dir, season)
+    return next((c for c in candidates if c["individual_id"] not in past), None)
+
+
+def _rookie_candidates(data_dir, season, main_league_rows, title_results):
+    """新人王の候補を良い順に並べて返す。対象は「今季デビューの新規参入者」ではなく（Dリーグ新人受け入れが
     毎季固定少数（D_NEWCOMER_INTAKE）のため、そこだけに絞ると選択肢が狭すぎる）、シーズン開始時点で
-    ①26歳以下 ②六段以下 ③タイトル戦経験が無い、という条件を満たす個体全員。
+    ①26歳以下 ②六段以下 ③タイトル戦経験が無い、という条件を満たす個体全員（過去の受賞者は_pick_rookie_of_yearで除く）。
     その中から、今季タイトルを奪取・挑戦した個体を最優先し（新人の年齢・段位で
     タイトル戦に絡めば十分な実績と言えるため）、それが無ければ勝率→勝数で最も
-    活躍した個体を選ぶ。該当者がいなければNoneを返す"""
+    活躍した個体を選ぶ。該当者がいなければ空リストを返す"""
     # シーズン開始時点の年齢＝初年度の年齢＋今季より前の在籍季数
     # （rosters.jsonのtotal_seasonsは最新季終了時点の値のため使わない。_career_before参照）
     prior_seasons, _ = _career_before(data_dir, season)
@@ -299,7 +311,7 @@ def _pick_rookie_of_year(data_dir, season, rosters, main_league_rows, title_resu
             continue
         eligible_ids.add(iid)
     if not eligible_ids:
-        return None
+        return []
 
     title_score_by_id = {}
     for tr in title_results:
@@ -321,15 +333,17 @@ def _pick_rookie_of_year(data_dir, season, rosters, main_league_rows, title_resu
         win_rate = win / (win + loss) if (win + loss) else 0.0
         return (title_score_by_id.get(iid, 0), win_rate, win, iid)
 
-    best_id = max(eligible_ids, key=sort_key)
-    row = rows_by_id.get(best_id, {})
-    tr = next((t for t in title_results if t.get("challenger_id") == best_id), None)
-    return {
-        "individual_id": best_id, "name": row.get("display_name", best_id),
-        "league": row.get("league"), "win": row.get("win", 0), "loss": row.get("loss", 0),
-        "draw": row.get("draw", 0), "age": age_by_id.get(best_id),
-        "title": tr["title"] if tr else None, "title_result": tr["result"] if tr else None,
-    }
+    out = []
+    for iid in sorted(eligible_ids, key=sort_key, reverse=True):
+        row = rows_by_id.get(iid, {})
+        tr = next((t for t in title_results if t.get("challenger_id") == iid), None)
+        out.append({
+            "individual_id": iid, "name": row.get("display_name", iid),
+            "league": row.get("league"), "win": row.get("win", 0), "loss": row.get("loss", 0),
+            "draw": row.get("draw", 0), "age": age_by_id.get(iid),
+            "title": tr["title"] if tr else None, "title_result": tr["result"] if tr else None,
+        })
+    return out
 
 
 def _lineage_map(data_dir):
@@ -1000,7 +1014,7 @@ AWARD_CRITERIA = {
     2: "MVP：格点を青龍6・朱雀5・白虎4・玄武3に変更（2冠が1冠より上に来やすくした）",
     3: "MVP：麒麟（格点6）を追加",
 }
-ROOKIE_CRITERIA = ("新人王：季の開始時点で26歳以下・六段以下・タイトル戦の経験なしの選手のうち、"
+ROOKIE_CRITERIA = ("新人王：季の開始時点で26歳以下・六段以下・タイトル戦の経験なし・新人王未受賞の選手のうち、"
                    "タイトル獲得・挑戦を最優先し、なければ勝率→勝数で選ぶ")
 
 
