@@ -129,7 +129,7 @@ jobs:
 
           python -u generate_news.py --data-dir data --news-dir data/news $SEASON_ARG $REGEN_ARG
 
-          git add data/news/articles.json
+          git add data/news/articles.json data/news/awards.json
           if ! git diff --staged --quiet; then
             git commit -m "Generate news article [skip ci]"
 
@@ -144,7 +144,7 @@ jobs:
               echo "::warning::git push 失敗（試行 ${attempt}/4）。最新のmainを取り込んで積み直します"
               git fetch origin main || break
               git reset --mixed origin/main
-              git add data/news/articles.json
+              git add data/news/articles.json data/news/awards.json
               if git diff --staged --quiet; then
                 echo "最新のmainに既に同じ内容が反映されていました（他の実行と重複した可能性）"
                 PUSHED=1

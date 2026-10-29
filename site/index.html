@@ -657,6 +657,7 @@ async function loadLeagues() {
 // 今季の組み合わせを表示する。シミュレーター（run_season.py）がリポジトリに書き出すJSONを直接読む
 // （DBには取り込んでいないため）。玄武戦の新人枠は、新人リーグの結果が出たら名前が入る
 const UPCOMING_BRACKETS_URL = 'https://raw.githubusercontent.com/tikaakat/othello-league/main/data/upcoming_brackets.json';
+const AWARDS_URL = 'https://raw.githubusercontent.com/tikaakat/othello-league/main/data/news/awards.json';
 const BRACKET_TAGS_BASE = 'https://raw.githubusercontent.com/tikaakat/othello-league/main/data/bracket_tags/';
 const BRACKET_TAG_TITLES = ['麒麟', '白虎', '玄武'];
 
@@ -2477,6 +2478,32 @@ async function loadAwards(season) {
     </div>
     <h3 style="font-size:0.85rem; color:var(--amber); margin:10px 0 0; text-align:center;">第${data.season}季の表彰</h3>`;
 
+    // MVP・新人王（記事生成のときに選び、data/news/awards.json に記録したもの）
+    let awards = null;
+    try {
+      const ares = await fetch(AWARDS_URL, { cache: 'no-store' });
+      if (ares.ok) awards = await ares.json();
+    } catch (e) { /* 記録が無いだけなので続行する */ }
+    if (awards && awards.seasons) {
+      const cur = awards.seasons[String(season)];
+      const who = a => a ? `<span data-id="${escapeHtml(a.id)}" style="cursor:pointer;">${escapeHtml(a.name)}</span>${a.titles && a.titles.length ? `（${a.titles.join('・')}）` : ''}` : '該当者なし';
+      if (cur) {
+        html += `<table style="margin-top:10px;"><tbody>
+          <tr><td style="width:5em; color:var(--amber);">MVP</td><td>${who(cur.mvp)}</td></tr>
+          <tr><td style="color:var(--amber);">新人王</td><td>${who(cur.rookie)}</td></tr></tbody></table>`;
+      }
+      const seasons = Object.keys(awards.seasons).map(Number).sort((a, b) => b - a);
+      html += `<details style="margin-top:8px;"><summary style="cursor:pointer; font-size:0.74rem; color:var(--amber);">歴代のMVP・新人王</summary>
+        <div style="overflow-x:auto;"><table><thead><tr><th>季</th><th>MVP</th><th>新人王</th></tr></thead><tbody>${
+          seasons.map(sn => { const e = awards.seasons[sn]; return `<tr><td>${sn}</td><td>${who(e.mvp)}</td><td>${who(e.rookie)}</td></tr>`; }).join('')
+        }</tbody></table></div>
+        <div style="font-size:0.68rem; color:var(--text-dim); margin-top:6px;">選考基準（その季の当時の基準で選んでいます）<br>${
+          Object.entries(awards.criteria.mvp || {}).map(([v, t]) => {
+            const range = { 1: '第1〜9季', 2: '第10〜61季', 3: '第62季〜' }[v] || '';
+            return `${range}：${escapeHtml(t)}`;
+          }).join('<br>')}<br>${escapeHtml(awards.criteria.rookie || '')}</div></details>`;
+    }
+
     const sections = [
       { key: 'games', title: '対局数ランキング', fmt: p => `${p.games}対局`, keyFn: p => p.games },
       { key: 'wins', title: '勝数ランキング', fmt: p => `${p.win}勝`, keyFn: p => p.win },
@@ -2501,7 +2528,7 @@ async function loadAwards(season) {
     });
 
     el.innerHTML = html;
-    el.querySelectorAll('tr[data-id]').forEach(tr => tr.addEventListener('click', () => navigateTo('individual/' + tr.dataset.id)));
+    el.querySelectorAll('tr[data-id], span[data-id]').forEach(tr => tr.addEventListener('click', () => navigateTo('individual/' + tr.dataset.id)));
     document.getElementById('awards-prev').addEventListener('click', () => navigateTo('awards/' + (data.season - 1)));
     document.getElementById('awards-next').addEventListener('click', () => navigateTo('awards/' + (data.season + 1)));
     const awardsSeasonSelect = document.getElementById('awards-season-select');
