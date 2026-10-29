@@ -252,14 +252,24 @@ def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_b
     # --- フリークラスの今季の成績（タイトル戦・予選の対戦。番勝負は1局ずつ）と復帰判定。順位表にも載せる ---
     free_ids = {ind.id for ind in free_members}
     free_record = {iid: [0, 0, 0] for iid in free_ids}
+    free_entries = {iid: set() for iid in free_ids}   # 出場した棋戦（"玄武予選"→"玄武" のようにタイトル名でまとめる）
+    free_challenged = set()                           # タイトル戦の番勝負に挑戦者として出た
     for m in match_log:
-        if m.get("league") in ("A", "B", "C", "D"):
+        lg = m.get("league") or ""
+        if lg in ("A", "B", "C", "D"):
             continue
         a, b, res = m.get("individual_a_id"), m.get("individual_b_id"), m.get("result")
+        title = next((t for t in TITLE_NAMES if lg.startswith(t)), lg)
         for x, won in ((a, res == "win"), (b, res == "loss")):
             if x in free_record:
                 free_record[x][2 if res == "draw" else (0 if won else 1)] += 1
-    free_return_ids = free_class_returns({iid: (r[0], r[1]) for iid, r in free_record.items()})
+                free_entries[x].add(title)
+                if lg in TITLE_NAMES:
+                    free_challenged.add(x)
+    free_return_ids = free_class_returns({
+        iid: {"win": r[0], "loss": r[1], "entries": len(free_entries[iid]), "challenged": iid in free_challenged}
+        for iid, r in free_record.items()
+    })
     ranked_F = sorted(free_members, key=lambda ind: (-free_record[ind.id][0], free_record[ind.id][1], -ind.elo))
     for rank, ind in enumerate(ranked_F, 1):
         w, l, d = free_record[ind.id]
@@ -975,6 +985,9 @@ def _load_suzaku_tiebreak(data_dir, season):
                 prev_rank[iid] = row.get("rank", 99)
     return {"prev_rank": prev_rank, "tenure": tenure}
 
+
+# タイトル名（対局記録のleague欄の先頭がタイトル名。"玄武予選"・"朱雀紅組" なども、その棋戦として数える）
+TITLE_NAMES = ("青龍", "麒麟", "朱雀", "白虎", "玄武")
 
 UPCOMING_BRACKETS_FILE = "upcoming_brackets.json"
 
