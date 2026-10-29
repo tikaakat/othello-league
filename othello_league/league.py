@@ -19,13 +19,13 @@ RETIREMENT_AGE = 60
 RETIREMENT_AGE_HARD_CAP = 65  # 引退を免除されていても、この年齢でタイトル保持中でなければ引退する
 D_DEMOTION_POINT_LIMIT = 3  # Dリーグでの降級点がこの数に達するとフリークラスへ（連続でなくてもよい）
 # フリークラス（将棋の順位戦のフリークラスに倣う）：Dで降級点が3点に達した選手はDリーグ（青龍戦リーグ）から外れ、
-# タイトル戦（予選を含む）にだけ出場する。1季のタイトル戦で FREE_RETURN_WINS 勝以上、または
-# FREE_RETURN_MIN_MATCHES 対戦以上で勝率 FREE_RETURN_RATE 以上ならDへ復帰。在籍 FREE_CLASS_SEASON_LIMIT 季で
+# タイトル戦（予選を含む）にだけ出場する。将棋の「参加棋戦数＋8勝以上、かつ勝率6割以上」に倣い、1季のタイトル戦で
+# 「出場した棋戦数＋FREE_RETURN_EXTRA_WINS」勝以上、かつ勝率 FREE_RETURN_RATE 以上ならDへ復帰（このリーグの棋戦は3〜4つ
+# なので、棋戦数の約1.5倍の勝ち数になるよう＋2にした）。タイトル戦に挑戦した場合も復帰。在籍 FREE_CLASS_SEASON_LIMIT 季で
 # 復帰できなければ引退。以前は降級点3点で即引退で、若手を守るためにデビュー3季は降級点を付けていなかったが、
 # 落ちても引退ではなくなったので、その猶予はやめた
 FREE_CLASS = "F"
-FREE_RETURN_WINS = 5
-FREE_RETURN_MIN_MATCHES = 6
+FREE_RETURN_EXTRA_WINS = 2
 FREE_RETURN_RATE = 0.6
 FREE_CLASS_SEASON_LIMIT = 10
 D_DEMOTION_POINT_FLOOR = 1  # 勝ち越し・救済で減らせる下限。1点目はCへ昇級するまで消えない
@@ -49,9 +49,13 @@ PARAM_KEYS = [
 
 
 def free_class_returns(records):
-    """フリークラスの復帰判定。records：{ID: (勝, 負)}（この季のタイトル戦・予選の対戦）"""
-    return {iid for iid, (w, l) in records.items()
-            if w >= FREE_RETURN_WINS or (w + l >= FREE_RETURN_MIN_MATCHES and w / (w + l) >= FREE_RETURN_RATE)}
+    """フリークラスの復帰判定。records：{ID: {"win", "loss", "entries"（出場した棋戦の数）, "challenged"（タイトル戦に挑戦したか）}}"""
+    out = set()
+    for iid, r in records.items():
+        w, l = r["win"], r["loss"]
+        if r.get("challenged") or (w >= r["entries"] + FREE_RETURN_EXTRA_WINS and w / max(1, w + l) >= FREE_RETURN_RATE):
+            out.add(iid)
+    return out
 
 
 def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=None,

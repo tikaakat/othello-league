@@ -602,7 +602,7 @@ async function loadLeagues() {
       const countLabel = vacancy > 0 ? `${rows.length}+${vacancy}名` : `${rows.length}名`;
       // F＝フリークラス：Dで降級点3点。青龍戦リーグには出ず、タイトル戦の成績でDへ復帰（10季で引退）
       html += lg === 'F'
-        ? `<div class="league-block"><h3>フリークラス（${countLabel}）</h3><p style="font-size:0.7rem; color:var(--text-dim); margin:2px 0 6px;">タイトル戦（予選を含む）で1季5勝、または6対戦以上で勝率6割以上ならDへ復帰。在籍10季で引退</p>`
+        ? `<div class="league-block"><h3>フリークラス（${countLabel}）</h3><p style="font-size:0.7rem; color:var(--text-dim); margin:2px 0 6px;">1季のタイトル戦（予選を含む）で「出場した棋戦数＋2」勝以上かつ勝率6割以上、またはタイトル挑戦でDへ復帰。在籍10季で引退</p>`
         : `<div class="league-block"><h3>${lg}リーグ（${countLabel}${lg === 'A' && data.rikuou ? '+青龍' : ''}）</h3>`;
 
       if (lg === 'A' && data.rikuou) {
