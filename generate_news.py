@@ -283,7 +283,7 @@ def _pick_rookie_of_year(data_dir, season, rosters, main_league_rows, title_resu
 def _rookie_candidates(data_dir, season, main_league_rows, title_results):
     """新人王の候補を良い順に並べて返す。対象は「今季デビューの新規参入者」ではなく（Dリーグ新人受け入れが
     毎季固定少数（D_NEWCOMER_INTAKE）のため、そこだけに絞ると選択肢が狭すぎる）、シーズン開始時点で
-    ①26歳以下 ②六段以下 ③タイトル戦経験が無い、という条件を満たす個体全員（過去の受賞者は_pick_rookie_of_yearで除く）。
+    ①26歳以下 ②六段以下 ③タイトル戦経験が無い ④リーグ創設時（第1季）からの在籍者ではない、という条件を満たす個体全員（過去の受賞者は_pick_rookie_of_yearで除く）。
     その中から、今季タイトルを奪取・挑戦した個体を最優先し（新人の年齢・段位で
     タイトル戦に絡めば十分な実績と言えるため）、それが無ければ勝率→勝数で最も
     活躍した個体を選ぶ。該当者がいなければ空リストを返す"""
@@ -298,10 +298,14 @@ def _rookie_candidates(data_dir, season, main_league_rows, title_results):
     }
     title_exp_ids = _title_experience_ids(data_dir, season)
     league_history = _dan_league_history(data_dir, season)
+    # リーグ創設時（第1季）からの在籍者は「新人」ではないので対象外（第1季は新人王なし）
+    founding_ids = {r["individual_id"] for r in load_json(os.path.join(data_dir, "standings", "season_1.json"), [])}
 
     eligible_ids = set()
     for r in main_league_rows:
         iid = r["individual_id"]
+        if iid in founding_ids:
+            continue
         age = age_by_id.get(iid)
         if age is None or age > ROOKIE_MAX_AGE:
             continue
@@ -1014,7 +1018,7 @@ AWARD_CRITERIA = {
     2: "MVP：格点を青龍6・朱雀5・白虎4・玄武3に変更（2冠が1冠より上に来やすくした）",
     3: "MVP：麒麟（格点6）を追加",
 }
-ROOKIE_CRITERIA = ("新人王：季の開始時点で26歳以下・六段以下・タイトル戦の経験なし・新人王未受賞の選手のうち、"
+ROOKIE_CRITERIA = ("新人王：第2季以降にデビューし、季の開始時点で26歳以下・六段以下・タイトル戦の経験なし・新人王未受賞の選手のうち、"
                    "タイトル獲得・挑戦を最優先し、なければ勝率→勝数で選ぶ")
 
 
