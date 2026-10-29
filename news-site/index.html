@@ -1657,7 +1657,7 @@ function wireRosterCommon(el) {
 
 // 殿堂タブ：データサイト側の殿堂（Elo・タイトル数・対局数・勝率など多数の指標を
 // 列ソートできる本格的な表）よりも、ファンサイトでは見やすさを優先して
-// 「最高Elo」「タイトル獲得数」の2つの単純なTOP10ランキングだけに絞って見せる。
+// 「最高Elo」と歴代記録（タイトル獲得数など）の単純なTOP10ランキングだけに絞って見せる。
 // APIは1回だけ取得し、指標の切り替えはクライアント側の再ソートで行う
 let _hofData = null;
 let _hofRecords = [];  // 歴代記録（api.phpのbuild_records）。殿堂の指標チップに続けて並べる
@@ -1665,7 +1665,6 @@ let _hofMetric = 'peak_elo';
 let _awardsData = null;  // 歴代のMVP・新人王（awards.json）。殿堂の「MVP・新人王」チップで表示
 const HOF_METRICS = {
   peak_elo: { label: '最高Elo', value: p => p.peak_elo, format: v => Math.round(v) },
-  title_count: { label: 'タイトル獲得数', value: p => p.title_count, format: v => `${v}期` },
 };
 
 async function renderHallOfFame() {
@@ -1731,7 +1730,7 @@ function awardsBodyHtml() {
       ${(multi.length ? multi : mvpRank.slice(0, 10)).map(p => `
         <div class="ranking-row" data-goto-individual="${escapeHtml(p.id)}">
           <span class="ranking-rank">${p.rank}</span>
-          <span class="ranking-title">${escapeHtml(p.name)}<span style="display:block; color:var(--text-dim); font-size:0.72rem;">第${p.seasons.join('・')}季</span></span>
+          <span class="ranking-title">${escapeHtml(p.name)}<span style="display:block; color:var(--text-dim); font-size:0.72rem; white-space:normal;">第${p.seasons.join('・')}季</span></span>
           <span class="ranking-likes">${p.count}回</span>
         </div>`).join('')}
       ${multi.length ? `<div style="color:var(--text-dim); font-size:0.72rem; margin-top:4px;">1回受賞：${mvpRank.length - multi.length}名</div>` : ''}
@@ -1767,7 +1766,6 @@ function renderHallOfFameBody() {
     }));
   } else {
     top = _hofData.slice().sort((a, b) => metric.value(b) - metric.value(a));
-    if (_hofMetric === 'title_count') top = top.filter(p => metric.value(p) > 0);
     // 上位10人。10位と同じ値の選手が続く場合は、同率としてまとめて載せる
     let n = Math.min(top.length, 10);
     while (n > 0 && n < top.length && metric.value(top[n]) === metric.value(top[n - 1])) n++;
@@ -1794,7 +1792,7 @@ function renderHallOfFameBody() {
       ${top.length === 0 ? '<div style="color:var(--text-dim); font-size:0.85rem; padding:4px 0;">該当する選手がいません</div>' : top.map((p, i) => `
         <div class="ranking-row" data-goto-individual="${escapeHtml(p.id)}">
           <span class="ranking-rank">${ranks[i]}</span>
-          <span class="ranking-title">${escapeHtml(p.display_name)}${p.retired ? '<span style="color:var(--text-dim); font-size:0.72rem;">（引退）</span>' : ''}${(p.eternal_titles || []).length ? ' <span style="color:var(--accent-dark); font-size:0.72rem;">永世</span>' : ''}${p.detail ? `<span style="display:block; color:var(--text-dim); font-size:0.72rem;">${escapeHtml(p.detail)}</span>` : ''}</span>
+          <span class="ranking-title">${escapeHtml(p.display_name)}${p.retired ? '<span style="color:var(--text-dim); font-size:0.72rem;">（引退）</span>' : ''}${(p.eternal_titles || []).length ? ' <span style="color:var(--accent-dark); font-size:0.72rem;">永世</span>' : ''}${p.detail ? `<span style="display:block; color:var(--text-dim); font-size:0.72rem; white-space:normal;">${escapeHtml(p.detail)}</span>` : ''}</span>
           <span class="ranking-likes">${escapeHtml(p.valueLabel)}</span>
         </div>`).join('')}
     </div>`;

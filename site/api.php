@@ -594,7 +594,7 @@ function build_records($pdo) {
         ['key' => 'a_seasons', 'label' => 'Aリーグ在籍', 'unit' => '季', 'note' => 'Aリーグの通算在籍季数'] + $countList($aCount),
         ['key' => 'kirin_group1_seasons', 'label' => '麒麟戦1組在籍', 'unit' => '期', 'note' => '麒麟戦の1組（本戦から出場）の通算在籍期数'] + $countList(array_map('count', kirin_group1_seasons($pdo))),
         ['key' => 'suzaku_seasons', 'label' => '朱雀紅白リーグ在籍', 'unit' => '季', 'note' => '朱雀紅白リーグの通算在籍季数（朱雀位保持中を含む）'] + $countList($suzakuCount),
-        ['key' => 'title_total', 'label' => 'タイトル通算', 'unit' => '期', 'note' => '全タイトルの通算保持期数'] + $titleList,
+        ['key' => 'title_total', 'label' => 'タイトル獲得数', 'unit' => '期', 'note' => '全タイトルの通算獲得期数（防衛を含む）'] + $titleList,
         ['key' => 'title_streak', 'label' => '連続保持', 'unit' => '期', 'note' => '同じタイトルの最長連続保持（2期以上）'] + $streakList,
         ['key' => 'season_wins', 'label' => '1季最多勝', 'unit' => '勝', 'note' => '1季の全対局（リーグ戦・タイトル戦・予選）での勝数'] + $winList,
     ];
