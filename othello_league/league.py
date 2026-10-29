@@ -20,13 +20,14 @@ RETIREMENT_AGE_HARD_CAP = 65  # 引退を免除されていても、この年齢
 D_DEMOTION_POINT_LIMIT = 3  # Dリーグでの降級点がこの数に達するとフリークラスへ（連続でなくてもよい）
 # フリークラス（将棋の順位戦のフリークラスに倣う）：Dで降級点が3点に達した選手はDリーグ（青龍戦リーグ）から外れ、
 # タイトル戦（予選を含む）にだけ出場する。将棋の「参加棋戦数＋8勝以上、かつ勝率6割以上」に倣い、1季のタイトル戦で
-# 「出場した棋戦数＋FREE_RETURN_EXTRA_WINS」勝以上、かつ勝率 FREE_RETURN_RATE 以上ならDへ復帰（このリーグの棋戦は3〜4つ
-# なので、棋戦数の約1.5倍の勝ち数になるよう＋2にした）。タイトル戦に挑戦した場合も復帰。在籍 FREE_CLASS_SEASON_LIMIT 季で
+# 「出場した棋戦数＋FREE_RETURN_EXTRA_WINS」勝以上、かつ勝率 FREE_RETURN_RATE 以上ならDへ復帰。
+# 将棋では陥落した棋士の復帰はごくまれなため、それに近づくよう厳しめにしている（＋2・6割では4季で6人が復帰していた。
+# ＋4・6割5分を当てはめると同じ4季で1人）。タイトル戦に挑戦した場合も復帰。在籍 FREE_CLASS_SEASON_LIMIT 季で
 # 復帰できなければ引退。以前は降級点3点で即引退で、若手を守るためにデビュー3季は降級点を付けていなかったが、
 # 落ちても引退ではなくなったので、その猶予はやめた
 FREE_CLASS = "F"
-FREE_RETURN_EXTRA_WINS = 2
-FREE_RETURN_RATE = 0.6
+FREE_RETURN_EXTRA_WINS = 4
+FREE_RETURN_RATE = 0.65
 FREE_CLASS_SEASON_LIMIT = 10
 D_DEMOTION_POINT_FLOOR = 1  # 勝ち越し・救済で減らせる下限。1点目はCへ昇級するまで消えない
 C_TO_D_RELEGATE = 3  # C→D降格人数（B→Cと同数）
