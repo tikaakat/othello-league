@@ -1662,6 +1662,7 @@ function wireRosterCommon(el) {
 let _hofData = null;
 let _hofRecords = [];  // 歴代記録（api.phpのbuild_records）。殿堂の指標チップに続けて並べる
 let _hofMetric = 'peak_elo';
+let _awardsData = null;  // 歴代のMVP・新人王（awards.json）。殿堂の「MVP・新人王」チップで表示
 const HOF_METRICS = {
   peak_elo: { label: '最高Elo', value: p => p.peak_elo, format: v => Math.round(v) },
   title_count: { label: 'タイトル獲得数', value: p => p.title_count, format: v => `${v}期` },
@@ -1684,11 +1685,77 @@ async function renderHallOfFame() {
       return;
     }
   }
+  if (!_awardsData) {
+    try {
+      const res = await fetch('./awards.json', { cache: 'no-store' });
+      _awardsData = await res.json();
+    } catch (e) {
+      _awardsData = { seasons: {} };
+    }
+  }
   renderHallOfFameBody();
+}
+
+// 回数の多い順（同数は最初の受賞が早い順）。同数は同順位
+function awardCountRanking(rows, key) {
+  const byId = new Map();
+  rows.forEach(r => {
+    const a = r[key];
+    if (!a) return;
+    const e = byId.get(a.id) || { id: a.id, name: a.name, count: 0, seasons: [] };
+    e.count++; e.name = a.name; e.seasons.push(r.season);
+    byId.set(a.id, e);
+  });
+  const list = [...byId.values()].sort((a, b) => b.count - a.count || a.seasons[0] - b.seasons[0]);
+  const ranks = [];
+  list.forEach((p, i) => { ranks.push(i > 0 && p.count === list[i - 1].count ? ranks[i - 1] : i + 1); });
+  return list.map((p, i) => ({ ...p, rank: ranks[i] }));
+}
+
+function awardsBodyHtml() {
+  const rows = Object.entries((_awardsData && _awardsData.seasons) || {})
+    .map(([s, v]) => ({ season: Number(s), ...v }))
+    .sort((a, b) => a.season - b.season);
+  if (!rows.length) return '<div class="empty">MVP・新人王の記録を読み込めませんでした</div>';
+  const mvpRank = awardCountRanking(rows, 'mvp');
+  // 歴代の表で「n回目」を出すための、季ごとの通算受賞回数
+  const nth = new Map();
+  rows.forEach(r => { if (r.mvp) { nth.set(r.mvp.id, (nth.get(r.mvp.id) || 0) + 1); r.mvpNth = nth.get(r.mvp.id); } });
+  const multi = mvpRank.filter(p => p.count >= 2);
+  const nameLink = a => a ? `<span data-goto-individual="${escapeHtml(a.id)}" style="cursor:pointer;">${escapeHtml(a.name)}</span>` : '<span style="color:var(--text-dim);">―</span>';
+  const titlesLabel = a => a && a.titles && a.titles.length ? `<span style="color:var(--text-dim); font-size:0.72rem;">（${a.titles.map(escapeHtml).join('・')}）</span>` : '';
+  return `
+    <div style="color:var(--text-dim); font-size:0.78rem; margin-bottom:6px;">第${rows[0].season}〜${rows[rows.length - 1].season}季の記録</div>
+    <div class="ranking-box">
+      <h4>MVP受賞回数</h4>
+      ${(multi.length ? multi : mvpRank.slice(0, 10)).map(p => `
+        <div class="ranking-row" data-goto-individual="${escapeHtml(p.id)}">
+          <span class="ranking-rank">${p.rank}</span>
+          <span class="ranking-title">${escapeHtml(p.name)}<span style="display:block; color:var(--text-dim); font-size:0.72rem;">第${p.seasons.join('・')}季</span></span>
+          <span class="ranking-likes">${p.count}回</span>
+        </div>`).join('')}
+      ${multi.length ? `<div style="color:var(--text-dim); font-size:0.72rem; margin-top:4px;">1回受賞：${mvpRank.length - multi.length}名</div>` : ''}
+    </div>
+    <div class="ranking-box">
+      <h4>歴代のMVP・新人王</h4>
+      <div class="rules"><table class="rule-history">
+        <tr><td></td><td style="color:var(--text-dim); font-size:0.72rem;">MVP</td><td style="color:var(--text-dim); font-size:0.72rem;">新人王</td></tr>
+        ${rows.slice().reverse().map(r => `<tr>
+          <td>第${r.season}季</td>
+          <td>${nameLink(r.mvp)}${titlesLabel(r.mvp)}${r.mvp && r.mvpNth >= 2 ? `<span style="color:var(--accent-dark); font-size:0.72rem; white-space:nowrap;"> ${r.mvpNth}回目</span>` : ''}</td>
+          <td>${nameLink(r.rookie)}</td>
+        </tr>`).join('')}
+      </table></div>
+    </div>
+    <div style="color:var(--text-dim); font-size:0.72rem; line-height:1.6;">
+      選考基準：MVPは今季に獲得・防衛したタイトルの格の合計が最も大きい選手。格は第1〜9季が青龍4・朱雀3・白虎2・玄武1、第10〜61季が青龍6・朱雀5・白虎4・玄武3、第62季からは麒麟6を追加。
+      新人王は季の開始時点で26歳以下・六段以下・タイトル戦未経験の選手から、タイトル獲得・挑戦を最優先し、なければ勝率・勝数で選出。
+    </div>`;
 }
 
 function renderHallOfFameBody() {
   const el = document.getElementById('content');
+  if (_hofMetric === 'awards') return renderAwardsBody(el);
   const record = _hofRecords.find(r => r.key === _hofMetric);
   const metric = HOF_METRICS[_hofMetric];
   let top;
@@ -1711,6 +1778,7 @@ function renderHallOfFameBody() {
   const chips = [
     ...Object.entries(HOF_METRICS).map(([key, m]) => [key, m.label]),
     ..._hofRecords.map(r => [r.key, r.label]),
+    ['awards', 'MVP・新人王'],
   ];
 
   el.innerHTML = `
@@ -1731,6 +1799,29 @@ function renderHallOfFameBody() {
         </div>`).join('')}
     </div>`;
 
+  el.querySelectorAll('[data-hof-metric]').forEach(btn => {
+    btn.addEventListener('click', () => { _hofMetric = btn.dataset.hofMetric; renderHallOfFameBody(); });
+  });
+  el.querySelectorAll('[data-goto-individual]').forEach(elm => {
+    elm.addEventListener('click', () => navigateTo('individual/' + encodeURIComponent(elm.dataset.gotoIndividual)));
+  });
+}
+
+function renderAwardsBody(el) {
+  const chips = [
+    ...Object.entries(HOF_METRICS).map(([key, m]) => [key, m.label]),
+    ..._hofRecords.map(r => [r.key, r.label]),
+    ['awards', 'MVP・新人王'],
+  ];
+  el.innerHTML = `
+    <h1 class="profile-name" style="font-size:1.1rem;">殿堂</h1>
+    <div class="profile-sub" style="margin-bottom:10px;">現役・引退を問わず、歴代の選手をランキング</div>
+    <div class="chip-row" style="margin-bottom:10px;">
+      ${chips.map(([key, label]) => `
+        <button class="chip-btn ${key === _hofMetric ? 'active' : ''}" data-hof-metric="${key}">${escapeHtml(label)}</button>
+      `).join('')}
+    </div>
+    ${awardsBodyHtml()}`;
   el.querySelectorAll('[data-hof-metric]').forEach(btn => {
     btn.addEventListener('click', () => { _hofMetric = btn.dataset.hofMetric; renderHallOfFameBody(); });
   });
