@@ -6,7 +6,7 @@ import random
 
 from othello_league.individual import LeagueIndividual
 from othello_league.league import (
-    relegate_and_retire, recruit_d_league, apply_clan_independence, LEAGUE_CAPACITY, RETIREMENT_AGE, D_INITIAL_ROSTER_SIZE,
+    relegate_and_retire, recruit_d_league, apply_clan_succession, LEAGUE_CAPACITY, RETIREMENT_AGE, D_INITIAL_ROSTER_SIZE,
     FREE_CLASS, free_class_returns,
 )
 from othello_league.buffs import effective_params, roll_age_multipliers
@@ -109,6 +109,28 @@ def bootstrap_rosters(registry, data_dir="data"):
 
 LEAGUE_TIERS = {"A": 0, "B": 1, "C": 2, "D": 3}
 SUZAKU_BOOTSTRAP_DEPTH = 1
+
+
+def clan_achievements(data_dir, state, season):
+    """一門の当主選び・完全独立の判定に使う、前季（season-1）までの実績。
+    戻り値：({ID: タイトル獲得期数}, {ID: Aリーグ在籍季数（青龍保持の季を含む）})"""
+    title_counts, a_seasons = {}, {}
+    for e in state.get("title_history", []):
+        hid = e.get("holder_id")
+        if hid and e.get("season", 0) < season:
+            title_counts[hid] = title_counts.get(hid, 0) + 1
+            if e.get("title") == "青龍":
+                a_seasons.setdefault(hid, set()).add(e["season"])
+    for s in range(1, season):
+        path = os.path.join(data_dir, "standings", f"season_{s}.json")
+        if not os.path.exists(path):
+            continue
+        with open(path, encoding="utf-8") as f:
+            rows = json.load(f)
+        for r in rows:
+            if r.get("league") == "A":
+                a_seasons.setdefault(r["individual_id"], set()).add(s)
+    return title_counts, {k: len(v) for k, v in a_seasons.items()}
 
 
 def _build_seed_order(members, league_name, prev_standings_by_id):
@@ -1287,14 +1309,19 @@ def main():
             state["retired_archive"] += [ind.to_dict() for ind in recruit_retired]
             print(f"[DEBUG] Dリーグ補充時の定員超過調整で{len(recruit_retired)}名引退しました", flush=True)
 
-        # 新弟子の参入で弟子（引退した弟子も含む通算）が規定人数を超えた師匠は、弟子を引き連れて一門から独立する
-        independence_events = apply_clan_independence(
+        # 一門の代替わり（当主の引退）と独立（othello_league/league.pyのapply_clan_succession参照）
+        title_counts, a_counts = clan_achievements(args.data_dir, state, season)
+        independence_events, succession_events = apply_clan_succession(
             [ind for league in ("A", "B", "C", "D", FREE_CLASS) for ind in rosters.get(league, [])],
             state.setdefault("retired_archive", []), season,
+            state.setdefault("clan_heads", {}), title_counts, a_counts,
         )
+        for ev in succession_events:
+            print(f"  一門の代替わり: {ev['clan_id']}一門の{ev['gen']}代目当主に{ev['name']}（{ev['id']}）", flush=True)
         for ev in independence_events:
-            print(f"  一門独立: {ev['name']}（{ev['id']}）が{ev['from_clan_id']}一門から独立", flush=True)
+            print(f"  一門独立（{ev['kind']}）: {ev['name']}（{ev['id']}）が{ev['from_clan_id']}一門から独立", flush=True)
         state.setdefault("clan_independence_history", []).extend(independence_events)
+        state.setdefault("clan_succession_history", []).extend(succession_events)
 
         prev_standings_by_id = {}
         if season > 1:

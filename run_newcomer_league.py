@@ -192,8 +192,8 @@ def run_newcomer_league(submissions, slots_needed, registry, retry_pool=None,
     entries = _build_entry_pool(submissions, retry_pool or [], target_pool, registry)
 
     # 師匠候補（30歳以上の現役個体。該当者がいなければ制限なしにフォールバック）。
-    # 一門の独立判定は実際にDリーグへ参入した弟子だけで数える（本戦側のapply_clan_independence）
-    # ため、ここ（昇格しない候補も含む新人リーグ）では弟子数を数えない
+    # 一門の代替わり・独立の判定は本戦側（apply_clan_succession）で、実際にDリーグへ参入した
+    # 弟子だけを数えて行うため、ここ（昇格しない候補も含む新人リーグ）では弟子数を数えない
     active_pool = [ind for ind in (pool or []) if not ind.retired]
     eligible_masters = [ind for ind in active_pool if ind.age >= MASTER_MIN_AGE] or active_pool
     # 師匠選出の重みは、このバッチ（最大30名程度）の中で既に選ばれた回数に応じて

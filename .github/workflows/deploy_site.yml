@@ -414,6 +414,14 @@ jobs:
               if not (iid and root and ok.match(iid) and ok.match(root)):
                   continue
               print(f"UPDATE retired_archive SET clan_root_id = '{root}' WHERE id = '{iid}' AND (clan_root_id IS NULL OR clan_root_id <> '{root}');")
+          # 現役選手も、一門の組み直し（継承型への移行で過去にさかのぼって再計算した等）に備えて同期する
+          rosters = json.load(open("data/rosters.json", encoding="utf-8"))
+          for members in rosters.values():
+              for r in members:
+                  iid, root = r.get("id"), r.get("clan_root_id")
+                  if not (iid and root and ok.match(iid) and ok.match(root)):
+                      continue
+                  print(f"UPDATE individuals SET clan_root_id = '{root}' WHERE id = '{iid}' AND (clan_root_id IS NULL OR clan_root_id <> '{root}');")
           PYEOF
                 )
                 echo "対象 ${#SQL_LIST[@]} 件"
