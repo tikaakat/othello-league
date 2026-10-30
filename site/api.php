@@ -1262,6 +1262,38 @@ switch ($action) {
         break;
 
     // --------------------------------------------------------
+    case 'lineage':
+        // 全選手（現役・引退）の師弟関係を1度に返す。ファンサイトの一門ページで、
+        // 最上位の開祖から独立した一門まで含めた系統全体を1枚の系図にするために使う
+        $rows = $pdo->query(
+            "SELECT id, display_name, parent_a_id, clan_root_id, 0 AS retired FROM individuals WHERE retired = 0
+             UNION ALL
+             SELECT id, display_name, parent_a_id, clan_root_id, 1 AS retired FROM retired_archive"
+        )->fetchAll();
+        // タイトルごとの獲得期数（holder_idが無い古い行は保持者名から引く。clanと同じ）
+        $titlesById = [];
+        $tRows = $pdo->query(
+            "SELECT hid, title, COUNT(*) AS n FROM (
+                SELECT COALESCE(th.holder_id, i.id, ra.id) AS hid, th.title
+                FROM title_history th
+                LEFT JOIN individuals i ON th.holder_id IS NULL AND i.display_name = th.holder_name
+                LEFT JOIN retired_archive ra ON th.holder_id IS NULL AND ra.display_name = th.holder_name
+             ) t WHERE hid IS NOT NULL GROUP BY hid, title"
+        )->fetchAll();
+        foreach ($tRows as $t) $titlesById[$t['hid']][$t['title']] = (int)$t['n'];
+        $seen = [];
+        $members = [];
+        foreach ($rows as $r) {
+            if (isset($seen[$r['id']])) continue;
+            $seen[$r['id']] = true;
+            $r['retired'] = (int)$r['retired'];
+            $r['titles'] = (object)($titlesById[$r['id']] ?? []);
+            $members[] = $r;
+        }
+        json_out(['members' => $members]);
+        break;
+
+    // --------------------------------------------------------
     case 'individual':
         $id = $_GET['id'] ?? '';
         if ($id === '') json_error('id パラメータが必要です');
