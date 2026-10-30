@@ -1158,9 +1158,27 @@ switch ($action) {
         $members = $stmt->fetchAll();
         if (empty($members)) json_error('一門が見つかりません', 404);
 
+        // 系図の名前の下に出す、タイトルごとの獲得期数（{"青龍": n, ...}）
+        $titlesById = [];
+        $memberIdList = array_column($members, 'id');
+        if ($memberIdList) {
+            $tph = implode(',', array_fill(0, count($memberIdList), '?'));
+            // holder_idが無い古い行は、殿堂（hall_of_fame）と同じく保持者名から個体を引く
+            $tStmt = $pdo->prepare(
+                "SELECT hid, title, COUNT(*) AS n FROM (
+                    SELECT COALESCE(th.holder_id, i.id, ra.id) AS hid, th.title
+                    FROM title_history th
+                    LEFT JOIN individuals i ON th.holder_id IS NULL AND i.display_name = th.holder_name
+                    LEFT JOIN retired_archive ra ON th.holder_id IS NULL AND ra.display_name = th.holder_name
+                 ) t WHERE hid IN ($tph) GROUP BY hid, title"
+            );
+            $tStmt->execute($memberIdList);
+            foreach ($tStmt->fetchAll() as $t) $titlesById[$t['hid']][$t['title']] = (int)$t['n'];
+        }
         foreach ($members as &$m) {
             $m['elo_rating'] = round((float)$m['elo_rating'], 1);
             $m['peak_elo'] = round((float)($m['peak_elo'] ?? $m['elo_rating']), 1);
+            $m['titles'] = (object)($titlesById[$m['id']] ?? []);
         }
         unset($m);
 
@@ -1221,8 +1239,7 @@ switch ($action) {
                      HAVING COUNT(*) >= 3"
                 );
                 $countStmt->execute(array_merge($branchClanIds, $branchClanIds));
-                $establishedClanIds = array_column($countStmt->fetchAll(), 'clan_root_id');
-                $establishedClanIds = array_flip($establishedClanIds);
+                $establishedClanIds = array_column($countStmt->fetchAll(), 'member_count', 'clan_root_id');
             }
 
             foreach ($rawBranches as $b) {
@@ -1233,6 +1250,7 @@ switch ($action) {
                     'branch_name' => $b['display_name'],
                     'branch_clan_root_id' => $b['clan_root_id'],
                     'branch_retired' => (int)$b['retired'],
+                    'branch_member_count' => (int)$establishedClanIds[$b['clan_root_id']],
                 ];
             }
         }

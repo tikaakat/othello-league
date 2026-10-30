@@ -222,39 +222,8 @@
   .clan-row:last-child { border-bottom: none; }
   .clan-row:hover { color: var(--accent-dark); }
   .clan-row .clan-right { color: var(--text-dim); font-size: 0.78rem; flex-shrink: 0; }
-  /* 系統図の線：祖先の深さごとに1列（18px）を割り当て、各行はその列分の「レール」を
-     左に並べてから本文を続ける。レール1本＝「その祖先にまだ下に兄弟がいるので縦線を
-     伸ばす（ct-rail-line）」か「もう伸ばさない（空白）」のいずれか。自分の深さの列には
-     常に「上の親レールから繋がる縦線（上半分）＋名前へ向かう横線」の字型（ct-elbow）を描く。
-     次の兄弟へ縦線を繋げるかどうかは、自分の子孫の行すべてにこの列のレールを
-     「伸ばす」で渡すことで表現する（将棋連盟の棋士系統図のような縦線が引ける） */
-  .clan-tree-row, .clan-branch-row { display: flex; align-items: stretch; min-height: 26px; cursor: pointer; }
-  .clan-tree-row:hover .clan-tree-name { color: var(--accent-dark); }
-  .ct-rails { display: flex; align-items: stretch; flex-shrink: 0; }
-  .ct-rail, .ct-elbow { position: relative; width: 18px; flex-shrink: 0; }
-  .ct-rail-line::before {
-    content: ''; position: absolute; left: 50%; top: 0; bottom: 0; width: 1px;
-    background: var(--border); transform: translateX(-50%);
-  }
-  .ct-elbow::before {
-    content: ''; position: absolute; left: 50%; top: 0; height: 50%; width: 1px;
-    background: var(--border); transform: translateX(-50%);
-  }
-  .ct-elbow::after {
-    content: ''; position: absolute; left: 50%; top: 50%; right: 2px; height: 1px;
-    background: var(--border);
-  }
-  /* 自分の下に弟子・分岐が続く場合、縦線を行の下端まで伸ばして幹を途切れさせない */
-  .ct-elbow.ct-elbow-open::before { height: 100%; }
-  .ct-row-body { display: flex; align-items: baseline; gap: 6px; padding: 4px 0; min-width: 0; }
-  .clan-tree-name { color: var(--text-main); }
-  .clan-tree-meta { color: var(--text-dim); font-size: 0.72rem; white-space: nowrap; }
-  .clan-branch-row { font-size: 0.76rem; color: #B8692E; }
-  .clan-branch-row .ct-row-body { padding: 3px 0; }
-  .clan-branch-row:hover .ct-row-body { text-decoration: underline; }
-  .ct-elbow-branch::after { border-top: 1px dashed #B8692E; background: none; height: 0; }
   .ct-root-mark { color: var(--accent-dark); font-weight: 700; font-size: 0.72rem; margin-right: 2px; }
-  .clan-branched-from { font-size: 0.78rem; color: var(--text-dim); margin-bottom: 10px; cursor: pointer; }
+  .clan-branched-from { display: inline-block; font-size: 0.78rem; color: #D9463B; border: 1px dashed #D9463B; border-radius: 6px; padding: 3px 8px; margin-bottom: 10px; cursor: pointer; }
   .clan-branched-from:hover { color: var(--accent-dark); }
 
   /* 人気記事ランキング */
@@ -2006,43 +1975,76 @@ async function renderClanList() {
 // prefix: 自分より上の深さごとに「その先の行にも縦線を伸ばすか」を持つbool配列
 // （伸ばす＝その祖先にはまだ下に兄弟がいる）。isLastは自分が兄弟の中で最後かどうか
 // （最後なら自分の列は、これより下の子孫の行では縦線を伸ばさない＝枝が閉じる）
-function railsHtml(prefix, isRoot, isLast) {
-  let html = '<span class="ct-rails">';
-  prefix.forEach(cont => {
-    html += `<span class="ct-rail${cont ? ' ct-rail-line' : ''}"></span>`;
-  });
-  // 自分の下にまだ兄弟（次の弟子・分岐）が続くなら、縦線を行の下端まで伸ばして
-  // 次の兄弟の行へ途切れず繋げる（最後の兄弟なら上半分だけで「└」の形に閉じる）
-  if (!isRoot) html += `<span class="ct-elbow${!isLast ? ' ct-elbow-open' : ''}"></span>`;
-  return html + '</span>';
-}
+// 一門の系図（家系図形式のSVG）。左端が開祖で、右へ1列進むごとに1代下がる。
+// 葉（弟子のいない選手）と独立した弟子に1行ずつ割り当て、師匠は弟子たちの縦の中央に置く。
+// タイトル獲得者は枠をタイトル色にして獲得期数を添え、引退者は薄く描く。
+// 独立して一門を興した弟子は赤い点線の箱で示し、押すとその一門の系図へ移る
+const CLAN_TITLE_ORDER = ['麒麟', '青龍', '朱雀', '白虎', '玄武'];
+const CLAN_TITLE_COLOR = { '麒麟': '#C99A1E', '青龍': '#2F6FD0', '朱雀': '#D9463B', '白虎': '#8A8F97', '玄武': '#7B4FC0' };
 
-function renderClanTreeNode(node, childrenByParent, branchesByUnder, prefix, isLast, isRoot) {
-  const kids = childrenByParent[node.id] || [];
-  const branches = branchesByUnder[node.id] || [];
-  const statusLabel = node.retired ? '（引退）' : node.league + 'リーグ';
-  const eloLabel = node.retired ? `最高Elo ${Math.round(node.peak_elo)}` : `Elo ${Math.round(node.elo_rating)}`;
-  let html = `<div class="clan-tree-row" data-goto-individual="${escapeHtml(node.id)}">
-      ${railsHtml(prefix, isRoot, isLast)}
-      <span class="ct-row-body">
-        ${isRoot ? '<span class="ct-root-mark">開祖</span>' : ''}
-        <span class="clan-tree-name">${isFollowed(node.id) ? '★ ' : ''}${escapeHtml(node.display_name || node.id)}</span>
-        <span class="clan-tree-meta">${statusLabel}・${eloLabel}</span>
-      </span>
-    </div>`;
-  // 子孫の行に渡すレール：自分の深さの列は、自分が最後の兄弟でなければ「伸ばす」
-  const childPrefix = isRoot ? [] : [...prefix, !isLast];
-  branches.forEach((b, i) => {
-    const branchIsLast = i === branches.length - 1 && kids.length === 0;
-    html += `<div class="clan-branch-row" data-goto-clan="${escapeHtml(b.branch_clan_root_id)}">
-        <span class="ct-rails">${childPrefix.map(cont => `<span class="ct-rail${cont ? ' ct-rail-line' : ''}"></span>`).join('')}<span class="ct-elbow ct-elbow-branch${!branchIsLast ? ' ct-elbow-open' : ''}"></span></span>
-        <span class="ct-row-body">${escapeHtml(b.branch_name)}${b.branch_retired ? '（引退）' : ''}が独立して一門を興す →</span>
-      </div>`;
+function clanTreeSVG(root, childrenByParent, branchesByUnder) {
+  const BW = 94, BH = 36, CG = 18, RH = 42, PAD = 4, TOP = 30;
+  const BRANCH = '#D9463B';
+  let row = 0, maxGen = 0;
+  const nodes = [];
+  (function lay(n, g) {
+    const kids = (childrenByParent[n.id] || []).map(k => ({ m: k }));
+    const brs = (branchesByUnder[n.id] || []).map(b => ({ b }));
+    const node = { m: n, g, kids: [], brs: [] };
+    nodes.push(node);
+    maxGen = Math.max(maxGen, g);
+    if (!kids.length && !brs.length) { node.y = TOP + row * RH + BH / 2; row++; return node; }
+    node.kids = kids.map(k => lay(k.m, g + 1));
+    node.brs = brs.map(x => { const y = TOP + row * RH + BH / 2; row++; maxGen = Math.max(maxGen, g + 1); return { ...x.b, y, g: g + 1 }; });
+    const ys = [...node.kids.map(k => k.y), ...node.brs.map(x => x.y)];
+    node.y = (Math.min(...ys) + Math.max(...ys)) / 2;
+    return node;
+  })(root, 0);
+  const colX = g => PAD + g * (BW + CG);
+  const W = colX(maxGen) + BW + PAD, H = TOP + row * RH;
+  const fit = (str, max, size, bold) => {
+    let t = String(str || '');
+    const w = x => x.length * size * (bold ? 1.02 : 0.98);
+    while (t.length > 1 && w(t) > max) t = t.slice(0, -1);
+    return t === String(str || '') ? t : t.slice(0, -1) + '…';
+  };
+  let heads = '', lines = '', boxes = '';
+  for (let g = 0; g <= maxGen; g++) {
+    heads += `<text x="${colX(g) + BW / 2}" y="14" font-size="10" fill="var(--text-dim)" text-anchor="middle">${g === 0 ? '開祖' : g + '代目'}</text>`;
+  }
+  const line = (x1, y1, x2, y2, dash) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${dash ? BRANCH : 'var(--text-dim)'}" stroke-opacity="${dash ? 0.8 : 0.45}" stroke-width="1.3"${dash ? ' stroke-dasharray="3 3"' : ''}/>`;
+  nodes.forEach(n => {
+    const m = n.m, x = colX(n.g);
+    const t = m.titles || {};
+    const owned = CLAN_TITLE_ORDER.filter(k => t[k]);
+    const stroke = owned.length ? CLAN_TITLE_COLOR[owned[0]] : 'var(--border)';
+    const titleLine = owned.map(k => `<tspan fill="${CLAN_TITLE_COLOR[k]}">${k[0]}${t[k]}</tspan>`).join(' ');
+    const isRoot = n.g === 0;
+    const label = (isFollowed(m.id) ? '★' : '') + (m.display_name || m.id);
+    boxes += `<g class="clan-svg-node" data-goto-individual="${escapeHtml(m.id)}" style="cursor:pointer;" opacity="${m.retired ? 0.55 : 1}">
+      <rect x="${x}" y="${n.y - BH / 2}" width="${BW}" height="${BH}" rx="6" fill="var(--card)" stroke="${stroke}" stroke-width="${owned.length ? 2 : 1}"/>
+      <text x="${x + 7}" y="${n.y + (titleLine ? -2 : 4)}" font-size="11.5" font-weight="${owned.length || isRoot ? 700 : 500}" fill="var(--text-main)">${escapeHtml(fit(label, BW - (m.retired ? 34 : 12), 11.5, true))}${m.retired ? '<tspan font-size="8.5" fill="var(--text-dim)"> 引退</tspan>' : ''}<title>${escapeHtml(m.display_name || m.id)}</title></text>
+      ${titleLine ? `<text x="${x + 7}" y="${n.y + 12}" font-size="9" font-weight="700">${titleLine}</text>` : ''}
+    </g>`;
+    const kids = [...n.kids, ...n.brs];
+    if (!kids.length) return;
+    const mx = x + BW + CG / 2;
+    lines += line(x + BW, n.y, mx, n.y);
+    const ys = kids.map(k => k.y);
+    lines += line(mx, Math.min(...ys), mx, Math.max(...ys));
+    n.kids.forEach(k => { lines += line(mx, k.y, colX(k.g), k.y); });
+    n.brs.forEach(b => {
+      const bx = colX(b.g);
+      lines += line(mx, b.y, bx, b.y, true);
+      boxes += `<g data-goto-clan="${escapeHtml(b.branch_clan_root_id)}" style="cursor:pointer;" opacity="${b.branch_retired ? 0.7 : 1}">
+        <rect x="${bx}" y="${b.y - BH / 2}" width="${BW}" height="${BH}" rx="6" fill="var(--card)" stroke="${BRANCH}" stroke-width="1.4" stroke-dasharray="4 3"/>
+        <text x="${bx + 7}" y="${b.y - 2}" font-size="11.5" font-weight="700" fill="var(--text-main)">${escapeHtml(fit(b.branch_name, BW - 12, 11.5, true))}<title>${escapeHtml(b.branch_name)}</title></text>
+        <text x="${bx + 7}" y="${b.y + 12}" font-size="9" font-weight="700" fill="${BRANCH}">独立：${b.branch_member_count ? `一門${b.branch_member_count}名` : '一門'} ›</text>
+      </g>`;
+    });
   });
-  kids.forEach((k, i) => {
-    html += renderClanTreeNode(k, childrenByParent, branchesByUnder, childPrefix, i === kids.length - 1, false);
-  });
-  return html;
+  return `<div class="clan-svg-wrap" style="overflow-x:auto; -webkit-overflow-scrolling:touch;">
+    <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="display:block; font-family:inherit;">${heads}${lines}${boxes}</svg></div>`;
 }
 
 async function renderClanDetail(clanId) {
@@ -2088,7 +2090,8 @@ async function renderClanDetail(clanId) {
     <div class="profile-sub" style="margin-bottom:10px;">総勢${members.length}名（現役${members.filter(m => !m.retired).length}名）</div>
     ${branchedFromHtml}
     <div class="profile-section" style="margin-top:0; padding-top:0; border-top:none;">
-      ${root ? renderClanTreeNode(root, childrenByParent, branchesByUnder, [], true, true) : ''}
+      <div style="font-size:0.72rem; color:var(--text-dim); margin-bottom:6px;">左が開祖、右へ1列ごとに1代下がる。色付きの枠はタイトル獲得者（青＝青龍の期数など）、<span style="color:#D9463B;">赤い点線</span>は独立して一門を興した弟子（押すとその一門へ）。横にスクロールできます</div>
+      ${root ? clanTreeSVG(root, childrenByParent, branchesByUnder) : ''}
     </div>`;
 
   el.querySelectorAll('[data-goto-individual]').forEach(elm => {
