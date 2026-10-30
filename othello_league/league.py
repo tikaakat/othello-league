@@ -465,70 +465,105 @@ AWAKENED_INITIAL_AGE_RANGE = (14, 16)  # 覚醒個体の参入年齢（通常は
 # 一門イベントの確率（新弟子1人あたり）。新人は必ず誰かの弟子として参入するため、
 # 現在は師匠候補が誰もいない極端なケースでのみ師匠なしになる
 CLAN_NEW_FOUNDER_CHANCE = 0.08
-# 一門の独立：師匠本人と、同じ一門に残っている子孫（直弟子だけでなく孫弟子以下も含む。引退者も含む通算）を
-# 合わせてこの人数以上になった師匠は、子孫を引き連れて元の一門から独立し、自分を開祖とする新しい一門を興す
-CLAN_BRANCH_MIN_MEMBERS = 6
+# 一門の継承と独立（継承型）。一門には「当主」がいて、最初の当主は開祖。
+# ・代替わり：当主が引退すると、一門に残る現役の直弟子のうち実績（タイトル期数→Aリーグ在籍季数→Elo）が
+#   最も上の者が次の当主になる（直弟子がいなければ一門の現役全員から選ぶ）。一門の名前（開祖）は変わらない。
+#   このとき、他にタイトル獲得歴のある現役の直弟子は、それぞれ子孫を引き連れて独立し、自分の一門を興す
+# ・完全独立：当主が現役でも、タイトル CLAN_FULL_INDEPENDENCE_TITLES 期以上で、一門に残る現役の直弟子が
+#   CLAN_FULL_INDEPENDENCE_DISCIPLES 人以上いる選手は、子孫を引き連れて独立し、自分の一門を興す
+# 以前は「本人＋同じ一門に残る子孫（引退者を含む通算）が6人以上」で機械的に独立させていたため、
+# 実績の無い師匠も次々に独立し、一門が細かく割れ続けていた
+CLAN_FULL_INDEPENDENCE_TITLES = 10
+CLAN_FULL_INDEPENDENCE_DISCIPLES = 3
 
 
-def apply_clan_independence(active_members, retired_records, season):
-    """同じ一門に残っている子孫（直弟子・孫弟子以下とも。引退者も含む通算）が
-    本人と合わせてCLAN_BRANCH_MIN_MEMBERS人以上になった現役の師匠を、その子孫を引き連れて元の一門から独立させる。
-    既に別の一門として独立した子孫（とその先）は、連れて行かないので人数にも数えない。師匠本人と、同じ一門に属している子孫
-    （現役・引退済みとも）のclan_root_idを師匠本人のIDに付け替える。
-    retired_recordsは引退者アーカイブ（dictのリスト）で、引退済みの子孫も付け替える。
-    戻り値: 独立イベントのリスト（{"id","name","from_clan_id","season"}）"""
+def _get(x, key):
+    return x.get(key) if isinstance(x, dict) else getattr(x, key, None)
+
+
+def _set(x, key, value):
+    if isinstance(x, dict):
+        x[key] = value
+    else:
+        setattr(x, key, value)
+
+
+def apply_clan_succession(active_members, retired_records, season, heads, title_counts, a_counts):
+    """季の開始時（新弟子の参入後）に一門の代替わり・独立を行う。
+    active_members：現役の選手（Individualまたはdict）。retired_records：引退者アーカイブ（dict）。
+    heads：{一門の開祖ID: {"head": 当主ID, "gen": 何代目か}}（その場で更新する。記録の無い一門は開祖が初代当主）。
+    title_counts / a_counts：{ID: 前季までのタイトル獲得期数 / Aリーグ在籍季数}。
+    独立した選手と、同じ一門に残っている子孫（現役・引退済みとも）のclan_root_idをその選手のIDに付け替える。
+    戻り値：(独立イベントのリスト, 代替わりイベントのリスト)"""
+    everyone = list(active_members) + list(retired_records)
+    by_id = {_get(x, "id"): x for x in everyone}
+    active_ids = {_get(x, "id") for x in active_members}
     children = {}
-    for ind in active_members:
-        if ind.parent_a_id:
-            children.setdefault(ind.parent_a_id, []).append(ind)
-    for rec in retired_records:
-        if rec.get("parent_a_id"):
-            children.setdefault(rec["parent_a_id"], []).append(rec)
+    for x in everyone:
+        if _get(x, "parent_a_id"):
+            children.setdefault(_get(x, "parent_a_id"), []).append(x)
 
-    def _root(x):
-        return x["clan_root_id"] if isinstance(x, dict) else x.clan_root_id
+    def clan_of(iid):
+        return _get(by_id[iid], "clan_root_id")
 
-    def _set_root(x, root):
-        if isinstance(x, dict):
-            x["clan_root_id"] = root
-        else:
-            x.clan_root_id = root
+    def head_of(clan):
+        return heads.get(clan, {}).get("head", clan)
 
-    def _id(x):
-        return x["id"] if isinstance(x, dict) else x.id
+    def score(x):
+        iid = _get(x, "id")
+        return (title_counts.get(iid, 0), a_counts.get(iid, 0), _get(x, "elo") or 0, iid)
 
-    def _same_clan_descendants(master_id, root):
-        """master_idの子孫のうち、一門（clan_root_id）がrootのままの者。別の一門に
-        独立した子孫の先は辿らない（独立時に連れて行く範囲と同じ）"""
-        found = []
-        stack = [master_id]
+    def active_direct(master_id, clan):
+        return [c for c in children.get(master_id, []) if _get(c, "id") in active_ids and _get(c, "clan_root_id") == clan]
+
+    independence, successions = [], []
+
+    def split(master, kind):
+        mid, old = _get(master, "id"), _get(master, "clan_root_id")
+        stack = [mid]
         while stack:
             pid = stack.pop()
-            for child in children.get(pid, []):
-                if _root(child) == root:
-                    found.append(child)
-                    stack.append(_id(child))
-        return found
+            for c in children.get(pid, []):
+                if _get(c, "clan_root_id") == old:
+                    _set(c, "clan_root_id", mid)
+                    stack.append(_get(c, "id"))
+        _set(master, "clan_root_id", mid)
+        _set(master, "independent_from_clan_id", old)
+        _set(master, "independent_season", season)
+        heads[mid] = {"head": mid, "gen": 1}
+        independence.append({"id": mid, "name": _get(master, "display_name"), "from_clan_id": old,
+                             "season": season, "kind": kind})
 
-    events = []
-    # 世代の浅い師匠から処理する（師匠とその弟子が同時に条件を満たした場合も、
-    # 先に師匠が独立してから弟子が独立する順になり、付け替えが正しく入れ子になる）
-    for master in sorted(active_members, key=lambda ind: ind.generation):
-        old_root = master.clan_root_id
-        if old_root == master.id:
+    # --- 代替わり：開祖の世代が浅い一門から（親の一門で独立が起きた後の状態で子の一門を見る） ---
+    clans = sorted({_get(x, "clan_root_id") for x in active_members},
+                   key=lambda c: (_get(by_id[c], "generation") or 0) if c in by_id else 0)
+    for clan in clans:
+        head = head_of(clan)
+        if head in active_ids or head not in by_id:
             continue
-        # 先に処理した（世代の浅い）師匠の独立で一門の付け替えが起きている場合も、
-        # その時点の状態で数え直す
-        descendants = _same_clan_descendants(master.id, old_root)
-        if 1 + len(descendants) < CLAN_BRANCH_MIN_MEMBERS:  # 1 = 師匠本人
+        members = [x for x in active_members if _get(x, "clan_root_id") == clan]
+        if not members:
             continue
-        for d in descendants:
-            _set_root(d, master.id)
-        master.clan_root_id = master.id
-        master.independent_from_clan_id = old_root
-        master.independent_season = season
-        events.append({"id": master.id, "name": master.display_name, "from_clan_id": old_root, "season": season})
-    return events
+        direct = active_direct(head, clan)
+        heir = max(direct or members, key=score)
+        gen = heads.get(clan, {}).get("gen", 1) + 1
+        heads[clan] = {"head": _get(heir, "id"), "gen": gen}
+        successions.append({"clan_id": clan, "id": _get(heir, "id"), "name": _get(heir, "display_name"),
+                            "prev_head_id": head, "gen": gen, "season": season})
+        for c in direct:
+            if c is not heir and title_counts.get(_get(c, "id"), 0) > 0:
+                split(c, "代替わり")
+
+    # --- 完全独立：世代の浅い選手から ---
+    for m in sorted(active_members, key=lambda x: _get(x, "generation") or 0):
+        mid, clan = _get(m, "id"), _get(m, "clan_root_id")
+        if clan == mid or head_of(clan) == mid:
+            continue
+        if title_counts.get(mid, 0) < CLAN_FULL_INDEPENDENCE_TITLES:
+            continue
+        if len(active_direct(mid, clan)) >= CLAN_FULL_INDEPENDENCE_DISCIPLES:
+            split(m, "完全独立")
+    return independence, successions
 
 
 def _master_weight(ind, titleholder_ids, times_picked=0):

@@ -1971,10 +1971,6 @@ async function renderClanList() {
   });
 }
 
-// 系統図の各ノードを、師匠→弟子の階層を縦線でつないで表示する（将棋連盟の棋士系統図を参考に）。
-// prefix: 自分より上の深さごとに「その先の行にも縦線を伸ばすか」を持つbool配列
-// （伸ばす＝その祖先にはまだ下に兄弟がいる）。isLastは自分が兄弟の中で最後かどうか
-// （最後なら自分の列は、これより下の子孫の行では縦線を伸ばさない＝枝が閉じる）
 // 一門の系図（家系図形式のSVG）。左端が開祖で、右へ1列進むごとに1代下がる。
 // 葉（弟子のいない選手）と独立した弟子に1行ずつ割り当て、師匠は弟子たちの縦の中央に置く。
 // タイトル獲得者は枠をタイトル色にして獲得期数を添え、引退者は薄く描く。
@@ -1984,6 +1980,7 @@ const CLAN_TITLE_COLOR = { '麒麟': '#C99A1E', '青龍': '#2F6FD0', '朱雀': '
 
 // opts.highlightClan：系統全体を描くときに強調する一門（それ以外の一門は薄く描く）。
 // opts.founderLabel(id)：独立して一門を興した選手なら、箱の上に添える一門名を返す
+// opts.headGen(id)：その選手がいずれかの一門の現当主なら、何代目かを返す（箱の右上に「N代目当主」）
 function clanTreeSVG(root, childrenByParent, branchesByUnder, opts = {}) {
   const BW = 94, BH = 36, CG = 18, RH = 48, PAD = 4, TOP = 34;
   const BRANCH = '#D9463B';
@@ -2028,6 +2025,10 @@ function clanTreeSVG(root, childrenByParent, branchesByUnder, opts = {}) {
     if (founder) {
       boxes += `<g data-goto-clan="${escapeHtml(m.id)}" style="cursor:pointer;" opacity="${outside ? 0.6 : 1}">
         <text x="${x + 2}" y="${n.y - BH / 2 - 3}" font-size="9" font-weight="700" fill="${BRANCH}">${escapeHtml(founder)} ›</text></g>`;
+    }
+    const headGen = opts.headGen ? opts.headGen(m.id) : null;
+    if (headGen) {
+      boxes += `<text x="${x + BW - 2}" y="${n.y - BH / 2 - 3}" font-size="9" font-weight="700" text-anchor="end" fill="var(--accent-dark)" opacity="${outside ? 0.6 : 1}">${headGen}代目当主</text>`;
     }
     boxes += `<g class="clan-svg-node" data-node-id="${escapeHtml(m.id)}" data-clan="${escapeHtml(m.clan_root_id || '')}" data-goto-individual="${escapeHtml(m.id)}" style="cursor:pointer;" opacity="${(m.retired ? 0.55 : 1) * (outside ? 0.45 : 1)}">
       <rect x="${x}" y="${n.y - BH / 2}" width="${BW}" height="${BH}" rx="6" fill="var(--card)" stroke="${stroke}" stroke-width="${owned.length ? 2 : 1}"/>
@@ -2098,6 +2099,13 @@ async function renderClanDetail(clanId) {
       if (ldata.members) _lineageCache = ldata.members;
     } catch (e) { /* 取れなければ一門の範囲だけを描く */ }
   }
+  // 当主（season_state.jsonのclan_heads：{一門の開祖ID: {head, gen}}。記録の無い一門は開祖が初代当主）
+  const st = await loadHolders();
+  const clanHeads = (st && st.clan_heads) || {};
+  const headGenById = {};
+  Object.values(clanHeads).forEach(h => { if (h && h.head) headGenById[h.head] = h.gen; });
+  const headGen = id => headGenById[id] || null;
+  const thisHead = clanHeads[clanId] || { head: clanId, gen: 1 };
   let fullTreeHtml = '', lineageSummary = '';
   if (_lineageCache) {
     const all = {}; _lineageCache.forEach(m => { all[m.id] = m; });
@@ -2112,12 +2120,14 @@ async function renderClanDetail(clanId) {
       (function walk(m) { count++; clans.add(m.clan_root_id); (kidsAll[m.id] || []).forEach(walk); })(top);
       const founderLabel = id => (all[id] && all[id].clan_root_id === id && clanSize[id] >= 3 && (id !== top.id))
         ? `${all[id].display_name}一門（${clanSize[id]}名）` : null;
-      fullTreeHtml = clanTreeSVG(top, kidsAll, {}, { highlightClan: clanId, founderLabel });
+      fullTreeHtml = clanTreeSVG(top, kidsAll, {}, { highlightClan: clanId, founderLabel, headGen });
       lineageSummary = `${escapeHtml(top.display_name)}を祖とする系統（${count}名・${clans.size}一門）`;
     }
   }
   const mode = fullTreeHtml ? _clanTreeMode : 'clan';
 
+  const headMember = membersById[thisHead.head];
+  const headLineHtml = headMember ? `<div style="font-size:0.82rem; margin:-4px 0 8px;">当主：<span data-goto-individual="${escapeHtml(headMember.id)}" style="cursor:pointer; font-weight:700; color:var(--accent-dark);">${escapeHtml(headMember.display_name)}</span>（${thisHead.gen}代目）${headMember.retired ? '<span style="color:var(--text-dim); font-size:0.72rem;">（引退・後継なし）</span>' : ''}</div>` : '';
   const bf = data.branched_from;
   const branchedFromHtml = bf ? `<div class="clan-branched-from" data-goto-clan="${escapeHtml(bf.origin_clan_root_id)}">
       ${escapeHtml(bf.master_name)}${bf.master_retired ? '（引退）' : ''}の一門から独立 →
@@ -2127,6 +2137,7 @@ async function renderClanDetail(clanId) {
     <a class="back-link" href="#" onclick="navigateTo('clans');return false;">← 一門一覧へ戻る</a>
     <h1 class="profile-name" style="font-size:1.1rem;">${escapeHtml(root ? (root.display_name || root.id) : clanId)}の一門</h1>
     <div class="profile-sub" style="margin-bottom:10px;">総勢${members.length}名（現役${members.filter(m => !m.retired).length}名）</div>
+    ${headLineHtml}
     ${branchedFromHtml}
     <div class="profile-section" style="margin-top:0; padding-top:0; border-top:none;">
       ${fullTreeHtml ? `<div class="chip-row" style="margin-bottom:8px;">
@@ -2136,7 +2147,7 @@ async function renderClanDetail(clanId) {
       <div style="font-size:0.72rem; color:var(--text-dim); margin-bottom:6px;">${mode === 'full'
         ? `${lineageSummary}。この一門を濃く、ほかの一門を薄く表示。<span style="color:#D9463B;">赤い点線</span>は独立（一門名を押すとその一門へ）。`
         : `<span style="color:#D9463B;">赤い点線</span>は独立して一門を興した弟子（押すとその一門へ）。`}左が祖、右へ1列ごとに1代下がる。色付きの枠はタイトル獲得者（青＝青龍の期数など）。縦・横にスクロールできます</div>
-      ${mode === 'full' ? fullTreeHtml : (root ? clanTreeSVG(root, childrenByParent, branchesByUnder) : '')}
+      ${mode === 'full' ? fullTreeHtml : (root ? clanTreeSVG(root, childrenByParent, branchesByUnder, { headGen }) : '')}
     </div>`;
 
   el.querySelectorAll('[data-clan-mode]').forEach(btn => {
@@ -2181,8 +2192,10 @@ function renderRules() {
       自動で生まれる新人は師匠の能力を平均6割ほど受け継いで生まれてくる。どの能力を濃く受け継ぐかは弟子ごとに違い、
       師匠の得意をそのまま受け継ぐ能力もあれば、ほとんど受け継がない能力もある（キャラクリエイトで
       投稿された新人は、本人の設定した能力のまま弟子入りする）。実力のある選手ほど弟子を持ちやすいが、1回の新人リーグで同じ師匠に付く弟子は2人まで。<br>
-      一門は、師弟関係をたどった先に同じ開祖を持つ選手たちのまとまり。
-      本人と弟子・孫弟子以下（引退した者も含む）が合わせて6人以上になった選手は、弟子たちを引き連れて独立し、自分を開祖とする新しい一門を興す。<br>
+      一門は、師弟関係をたどった先に同じ開祖を持つ選手たちのまとまり。一門には「当主」がいて、最初の当主は開祖。<br>
+      <b>代替わり</b>：当主が引退すると、一門に残る現役の直弟子のうち実績（タイトル期数→Aリーグ在籍季数）が最も上の選手が次の当主を継ぐ（一門の名前は開祖のまま）。
+      このとき、ほかにタイトル獲得歴のある直弟子は、弟子たちを引き連れて独立し、自分を開祖とする一門を興す。<br>
+      <b>完全独立</b>：当主が健在でも、タイトル10期以上で現役の直弟子が3人以上いる大棋士は、弟子たちを引き連れて独立し、自分の一門を興す。<br>
       まれに、終盤力が一気に伸びた「神童」が現れることもある。
     </div>
 
@@ -2252,8 +2265,6 @@ function renderRules() {
 const RULE_HISTORY = [
   [1, '開幕。A（9名）・B（12名）・C（16名）・Dの4部制。タイトルは青龍・朱雀・白虎・玄武の4つ'],
   [4, '青龍戦リーグの同点（1位タイを含む）は、前季の順位が上の選手を上位とする'],
-  [18, '一門の独立：同じ一門に残る子孫（孫弟子以下も含む）が6人以上で独立'],
-  [20, '一門の独立：本人と同じ一門に残る子孫で合わせて6人以上で独立'],
   [43, 'Dリーグの降級点：勝ち越し・救済で減らせるのは2点目以降のみ（1点目はCへ昇級するまで消えない）'],
   [55, '降級点の1点目は、救済（白虎出場・玄武ブロック優勝など）と相殺しない。永世玄武の基準を緩和'],
   [62, '<b>麒麟戦を創設</b>（青龍と並ぶ最上位のタイトル。組制度・敗者復活ありの7番勝負）。朱雀戦を7番勝負に。白虎・玄武・リーグの組み合わせを季の初めに公開。段位の勝数昇段の基準を引き上げ'],
@@ -2267,6 +2278,7 @@ const RULE_HISTORY = [
   [109, '<b>フリークラスを導入</b>（Dで降級点3点→フリークラス。タイトル戦の成績でDへ復帰、10季で引退）。デビュー直後の降級点の猶予を廃止'],
   [115, 'フリークラスの復帰条件を「出場した棋戦数＋2勝以上かつ勝率6割以上、またはタイトル挑戦」に'],
   [119, 'フリークラスの復帰条件を「出場した棋戦数＋4勝以上かつ勝率6割5分以上、またはタイトル挑戦」に厳格化'],
+  [131, '<b>一門を当主制に</b>（当主の引退で代替わり、その際にタイトル獲得歴のある直弟子が独立。タイトル10期以上の大棋士は完全独立）。それまでの「子孫6人以上で独立」は廃止し、過去の一門もこのルールで組み直した'],
 ];
 
 // 「このメディアについて」タブ：架空リーグ・AI自動運営という性質を明示する
