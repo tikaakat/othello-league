@@ -549,6 +549,42 @@ def apply_clan_succession(active_members, retired_records, season, heads, title_
         independence.append({"id": mid, "name": _get(master, "display_name"), "from_clan_id": old,
                              "season": season, "kind": kind})
 
+    # --- 本家の再興：現役が1人もいなくなった流でも、そこから独立した分家（孫分家以下も含む）に現役がいれば、
+    #     分家の現役（各流の宗家・開祖を除く）のうち実績が最も上の選手を養子として迎え、宗家を継がせる。
+    #     迎えるのは本人だけで、その弟子筋は分家に残る。強い弟子筋ほど分家として出ていくため、名門ほど本家が
+    #     やせ細って先に途絶える（第139季の西村流）のを防ぐ。分家もすべて途絶えたときだけ本家も断絶する ---
+    founders = {_get(x, "clan_root_id") for x in everyone}
+    def branch_clans(clan):
+        out, todo = set(), [clan]
+        while todo:
+            c0 = todo.pop()
+            for f in founders:
+                if f in by_id and f not in out and f != clan and _get(by_id[f], "clan_root_id") == f:
+                    p = _get(by_id[f], "parent_a_id")
+                    if p in by_id and _get(by_id[p], "clan_root_id") == c0:
+                        out.add(f); todo.append(f)
+        return out
+    active_clans = {_get(x, "clan_root_id") for x in active_members}
+    head_ids = {h.get("head") for h in heads.values()}
+    for clan in sorted(founders - active_clans, key=lambda c: (_get(by_id[c], "generation") or 0) if c in by_id else 0):
+        if clan not in by_id:
+            continue
+        branches = branch_clans(clan)
+        pool = [x for x in active_members if _get(x, "clan_root_id") in branches
+                and _get(x, "id") not in head_ids and _get(x, "clan_root_id") != _get(x, "id")]
+        if not pool:
+            continue
+        heir = max(pool, key=score)
+        from_clan = _get(heir, "clan_root_id")
+        _set(heir, "clan_root_id", clan)
+        prev = head_of(clan)
+        gen = heads.get(clan, {}).get("gen", 1) + 1
+        heads[clan] = {"head": _get(heir, "id"), "gen": gen}
+        head_ids.add(_get(heir, "id"))
+        successions.append({"clan_id": clan, "id": _get(heir, "id"), "name": _get(heir, "display_name"),
+                            "prev_head_id": prev, "gen": gen, "season": season, "adopted": True,
+                            "revival": True, "from_clan_id": from_clan})
+
     # --- 代替わり：開祖の世代が浅い一門から（親の一門で独立が起きた後の状態で子の一門を見る） ---
     clans = sorted({_get(x, "clan_root_id") for x in active_members},
                    key=lambda c: (_get(by_id[c], "generation") or 0) if c in by_id else 0)
