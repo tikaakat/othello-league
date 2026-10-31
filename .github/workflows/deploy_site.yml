@@ -139,6 +139,7 @@ jobs:
           CREATE_DIR: ${{ github.event.inputs.create_dir }}
           RUN_IMPORT: ${{ github.event.inputs.run_import }}
           DEBUG_QUERY: ${{ github.event.inputs.debug_query }}
+          IMPORT_URL: "https://lab.spia-net.com/othello-league/import_from_colab.php?key=${{ secrets.IMPORT_SECRET_KEY }}"
         run: |
           echo "$XSERVER_SSH_KEY" > /tmp/deploy_key
           chmod 600 /tmp/deploy_key
@@ -199,8 +200,8 @@ jobs:
                 data/standings/. "$XSERVER_USER@$XSERVER_HOST:${EXPORT}standings/"
               retry_cmd scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 -r \
                 data/newcomer_league/. "$XSERVER_USER@$XSERVER_HOST:${EXPORT}newcomer_league/"
-              OUT=$(ssh -i /tmp/deploy_key -p "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
-                "$XSERVER_USER@$XSERVER_HOST" "cd '${XSERVER_SITE_DIR}' && php import_from_colab.php" 2>&1)
+              # 取り込みはevolve.ymlと同じくHTTP経由で実行する（SSHでの長時間のCLI実行は接続が切れることがある）
+              OUT=$(curl -sS --connect-timeout 10 --max-time 300 "$IMPORT_URL" 2>&1 || true)
               echo "$OUT"
               rm -f /tmp/deploy_key
               echo "$OUT" | grep -q "インポート完了" || { echo "::error::取り込みが完了しませんでした"; exit 1; }
