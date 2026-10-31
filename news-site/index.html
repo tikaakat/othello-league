@@ -1956,7 +1956,8 @@ async function renderClanList() {
   (function walk(list) {
     list.slice().sort((x, y) => since(x) - since(y)).forEach(c => { ordered.push(c); walk(kidsOf.get(c.clan_root_id) || []); });
   })(roots);
-  const alive = ordered.filter(c => c.active_count > 0), gone = ordered.filter(c => c.active_count === 0);
+  // 途絶えた流は、通算10人以上（名門）だけを残す。弟子が数人付いただけで途絶えた小さな系統は流として扱わない
+  const alive = ordered.filter(c => c.active_count > 0), gone = ordered.filter(c => c.active_count === 0 && c.member_count >= 10);
   let html = `
     <a class="back-link" href="#" onclick="navigateTo('individuals');return false;">← 選手名鑑へ戻る</a>
     <div class="empty" style="padding:0 0 10px; text-align:left; color:var(--text-dim); font-size:0.8rem;">
@@ -1967,7 +1968,7 @@ async function renderClanList() {
       ${alive.map(rowHtml).join('') || '<div class="empty">まだ一門がありません</div>'}
     </div>`;
   if (gone.length > 0) {
-    html += `<details class="roster-league-group"><summary style="cursor:pointer; font-size:0.85rem; color:var(--text-dim);">現役のいない一門（${gone.length}件）</summary>
+    html += `<details class="roster-league-group"><summary style="cursor:pointer; font-size:0.85rem; color:var(--text-dim);">途絶えた流（${gone.length}件）</summary>
       ${gone.map(rowHtml).join('')}
     </details>`;
   }
@@ -2123,7 +2124,9 @@ async function renderKeitoChart(topId) {
   Object.values(kids).forEach(list => list.sort((a, b) => (a.id < b.id ? -1 : 1)));
   const size = m => 1 + (kids[m.id] || []).reduce((n, k) => n + size(k), 0);
   const tops = _lineageCache.filter(m => !m.parent_a_id || !all[m.parent_a_id]).map(m => ({ m, n: size(m) })).sort((a, b) => b.n - a.n);
-  const big = tops.filter(t => t.n >= 3), small = tops.filter(t => t.n < 3);
+  // 系統は通算10人以上か、現役がいるものだけ切り替えに出す（弟子が数人で途絶えた小さな系統は省く）
+  const hasActive = m => !m.retired || (kids[m.id] || []).some(hasActive);
+  const big = tops.filter(t => t.n >= 10 || (t.n >= 3 && hasActive(t.m))), small = tops.filter(t => !big.includes(t));
   const top = (topId && big.find(t => t.m.id === topId)) || big[0];
   const headIds = new Set(Object.values((st && st.clan_heads) || {}).map(h => h.head));
   const clanSize = {}; _lineageCache.forEach(m => { clanSize[m.clan_root_id] = (clanSize[m.clan_root_id] || 0) + 1; });
@@ -2183,7 +2186,7 @@ async function renderKeitoChart(topId) {
     <h1 class="profile-name" style="font-size:1.1rem;">棋士系統図</h1>
     <div class="profile-sub" style="margin-bottom:8px;">${escapeHtml(top.m.display_name)}を祖とする系統（${top.n}名）</div>
     <div class="chip-row" style="margin-bottom:8px;">${chips}</div>
-    <div style="font-size:0.72rem; color:var(--text-dim); margin-bottom:6px;">上が師匠、下が弟子。△は引退、<span style="color:#D9463B; font-weight:700;">赤字</span>は現在の宗家、太字はタイトル獲得者。名前の上の<span style="background:#D9463B; color:#fff; padding:0 2px; border-radius:2px;">流</span>は流の開祖（<span style="color:#D9463B;">赤い点線</span>は独立）。名前を押すと選手ページへ。横にスクロールできます${small.length ? `（弟子が1人以下の系統${small.length}件は省略）` : ''}</div>
+    <div style="font-size:0.72rem; color:var(--text-dim); margin-bottom:6px;">上が師匠、下が弟子。△は引退、<span style="color:#D9463B; font-weight:700;">赤字</span>は現在の宗家、太字はタイトル獲得者。名前の上の<span style="background:#D9463B; color:#fff; padding:0 2px; border-radius:2px;">流</span>は流の開祖（<span style="color:#D9463B;">赤い点線</span>は独立）。名前を押すと選手ページへ。横にスクロールできます${small.length ? `（現役のいない小さな系統${small.length}件は省略）` : ''}</div>
     <div class="keito-wrap" style="overflow:auto; -webkit-overflow-scrolling:touch; border:1px solid var(--border); border-radius:8px; background:var(--card);">
       <svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" style="display:block; font-family:'Noto Serif JP','Hiragino Mincho ProN','Yu Mincho',serif;">
         <g stroke="var(--text-dim)" stroke-width="0.9" fill="none">${lines}</g>${texts}
