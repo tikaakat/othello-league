@@ -1988,6 +1988,7 @@ const CLAN_TITLE_COLOR = { '麒麟': '#C99A1E', '青龍': '#2F6FD0', '朱雀': '
 // opts.collapsed(id)：ほかの一門の開祖なら、その一門の人数を返す（開祖の箱1つに畳み、押すとその一門へ）
 // opts.noGenHeads：列の見出し（N代目）を出さない（畳んだ一門をはさむと列と代がずれるため）
 // opts.headGen(id)：その選手がいずれかの一門の現当主なら、何代目かを返す（箱の右上に「N代目当主」）
+// opts.pastHeadGen(id)：表示中の一門の歴代当主（現当主以外）なら何代目かを返す（縁取りの「N代当主」）
 function clanTreeSVG(root, childrenByParent, branchesByUnder, opts = {}) {
   // なるべくスクロールせずに見られるよう小さめに描き、さらに画面幅に合わせて75%まで縮める
   const BW = 84, BH = 26, CG = 12, RH = 35, PAD = 4, TOP = 26;
@@ -2046,6 +2047,11 @@ function clanTreeSVG(root, childrenByParent, branchesByUnder, opts = {}) {
       return;
     }
     const headGen = opts.headGen ? opts.headGen(m.id) : null;
+    const pastGen = !headGen && opts.pastHeadGen ? opts.pastHeadGen(m.id) : null;
+    if (pastGen) {
+      headBadges += `<g opacity="${outside ? 0.6 : 1}"><rect x="${x + BW - 30}" y="${n.y - BH / 2 - 6}" width="32" height="11" rx="5.5" fill="var(--card)" stroke="var(--accent)" stroke-width="1"/>
+        <text x="${x + BW - 14}" y="${n.y - BH / 2 + 2}" font-size="7" font-weight="700" text-anchor="middle" fill="var(--accent-dark)">${pastGen === 1 ? '初代' : pastGen + '代'}当主</text></g>`;
+    }
     if (headGen) {
       headBadges += `<g opacity="${outside ? 0.6 : 1}"><rect x="${x + BW - 40}" y="${n.y - BH / 2 - 6}" width="42" height="11" rx="5.5" fill="var(--accent)"/>
         <text x="${x + BW - 19}" y="${n.y - BH / 2 + 2}" font-size="7" font-weight="700" text-anchor="middle" fill="#fff">${headGen}代目当主</text></g>`;
@@ -2138,6 +2144,11 @@ async function renderClanDetail(clanId) {
   const headGenById = {};
   Object.values(clanHeads).forEach(h => { if (h && h.head) headGenById[h.head] = h.gen; });
   const headGen = id => headGenById[id] || null;
+  // 歴代当主（現当主を除く）：{ID: 何代目}。表示中の一門の歴代だけを、系図に縁取りの「N代」で示す
+  const pastHeadGenById = {};
+  [{ id: clanId, gen: 1 }, ...((st && st.clan_succession_history) || []).filter(e => e.clan_id === clanId)]
+    .forEach(e => { if (e.id !== (clanHeads[clanId] || { head: clanId }).head) pastHeadGenById[e.id] = e.gen; });
+  const pastHeadGen = id => pastHeadGenById[id] || null;
   let fullTreeHtml = '', lineageSummary = '';
   if (_lineageCache) {
     const all = {}; _lineageCache.forEach(m => { all[m.id] = m; });
@@ -2165,7 +2176,7 @@ async function renderClanDetail(clanId) {
         });
       })(top);
       const collapsed = id => all[id] && all[id].clan_root_id === id && id !== clanId ? clanSize[id] : null;
-      fullTreeHtml = clanTreeSVG(top, kidsShown, {}, { highlightClan: clanId, collapsed, headGen, noGenHeads: true });
+      fullTreeHtml = clanTreeSVG(top, kidsShown, {}, { highlightClan: clanId, collapsed, headGen, pastHeadGen, noGenHeads: true });
       lineageSummary = `${escapeHtml(top.display_name)}を祖とする系統（${count}名・${clans.size}一門）`;
     }
   }
@@ -2197,7 +2208,7 @@ async function renderClanDetail(clanId) {
       <div style="font-size:0.72rem; color:var(--text-dim); margin-bottom:6px;">${mode === 'full'
         ? `${lineageSummary}。<span style="background:var(--clan-member-bg); padding:0 3px; border-radius:3px;">色付きの箱</span>がこの一門の選手（太字＝現役、細字＝引退）。ほかの一門は開祖の<span style="color:#D9463B;">赤い点線の箱</span>にまとめて表示（押すとその一門へ）。`
         : `<span style="color:#D9463B;">赤い点線</span>は独立して一門を興した弟子（押すとその一門へ）。`}左が祖、右へ1列ごとに1代下がる。色付きの枠はタイトル獲得者（青＝青龍の期数など）。縦・横にスクロールできます</div>
-      ${mode === 'full' ? fullTreeHtml : (root ? clanTreeSVG(root, childrenByParent, branchesByUnder, { headGen }) : '')}
+      ${mode === 'full' ? fullTreeHtml : (root ? clanTreeSVG(root, childrenByParent, branchesByUnder, { headGen, pastHeadGen }) : '')}
     </div>`;
 
   el.querySelectorAll('[data-clan-mode]').forEach(btn => {
