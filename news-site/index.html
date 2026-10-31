@@ -2055,7 +2055,7 @@ function clanTreeSVG(root, childrenByParent, branchesByUnder, opts = {}) {
     }
     if (headGen) {
       headBadges += `<g opacity="${outside ? 0.6 : 1}"><rect x="${x + BW - 34}" y="${n.y - BH / 2 - 6}" width="36" height="11" rx="5.5" fill="var(--accent)"/>
-        <text x="${x + BW - 16}" y="${n.y - BH / 2 + 2}" font-size="7" font-weight="700" text-anchor="middle" fill="#fff">${headGen}代宗家</text></g>`;
+        <text x="${x + BW - 16}" y="${n.y - BH / 2 + 2}" font-size="7" font-weight="700" text-anchor="middle" fill="#fff">${headGen === 1 ? '初' : headGen}代宗家</text></g>`;
     }
     // この一門の選手は、引退者も含めて色付きの背景と左端の帯で目立たせる（引退者を薄くすると師弟のつながりが追えないため、
     // 引退は名前の横の「引退」と細字で示すだけにする）。現役は太字。ほかの一門の選手だけを薄く描く
@@ -2095,7 +2095,9 @@ function clanHeadInfo(st, clanId, founderName) {
   const list = [{ gen: 1, id: clanId, name: founderName, season: null }, ...hist.map(e => ({ gen: e.gen, id: e.id, name: e.name, season: e.season }))];
   const name = nameOf(h.head);
   // 一門は開祖の名で「◯◯流」と呼び、それを継ぐ当主を「N代宗家」と呼ぶ（代数は筋が移っても通しで数える）
-  return { gen: h.gen, id: h.head, name, list, clanName: `${founderName}流`, lineage: `${h.gen}代宗家 ${name}` };
+  // 流の名は開祖の苗字（同じ苗字の流が先にあれば開祖のフルネーム。fansite_state.pyのclan_names）
+  const ryu = ((st && st.clan_names) || {})[clanId] || founderName;
+  return { gen: h.gen, id: h.head, name, list, clanName: `${ryu}流`, lineage: `${h.gen === 1 ? '初' : h.gen}代宗家 ${name}` };
 }
 
 // 棋士系統図：将棋連盟の「棋士系統図」のように、祖を上に置き、師匠から弟子へ上から下へ枝分かれさせ、
@@ -2223,7 +2225,7 @@ async function renderClanDetail(clanId) {
   });
   const root = membersById[clanId] || members.find(m => !m.parent_a_id || !membersById[m.parent_a_id]);
   const rootName = root ? (root.display_name || root.id) : clanId;
-  setPageMeta(`${rootName}流`, `${rootName}を開祖とする${rootName}流（総勢${members.length}名）の師弟関係と歴代宗家を系統図で紹介。`);
+  setPageMeta(clanHeadInfo(await loadHolders(), clanId, rootName).clanName, `${rootName}を開祖とする流（総勢${members.length}名）の師弟関係と歴代宗家を系統図で紹介。`);
   const branchesByUnder = {};
   (data.branches_out || []).forEach(b => {
     (branchesByUnder[b.under_id] = branchesByUnder[b.under_id] || []).push(b);
@@ -2289,7 +2291,7 @@ async function renderClanDetail(clanId) {
   const masterNote = id => parentById[id] && nameById[parentById[id]] ? `・師 ${escapeHtml(nameById[parentById[id]])}` : '';
   const headMember = membersById[headInfo.id];
   const headLineHtml = `<div class="clan-head-card">
-      <div class="clan-head-now">当代宗家　<span class="clan-head-gen">${headInfo.gen}代</span>
+      <div class="clan-head-now">当代宗家　<span class="clan-head-gen">${headInfo.gen === 1 ? '初' : headInfo.gen}代</span>
         <span data-goto-individual="${escapeHtml(headInfo.id)}" style="cursor:pointer; font-weight:700;">${escapeHtml(headInfo.name)}</span>${headMember && headMember.retired ? '<span style="color:var(--text-dim); font-size:0.72rem;">（引退・後継なし）</span>' : ''}</div>
       ${headInfo.list.length > 1 ? `<div class="clan-head-history">歴代宗家：${headInfo.list.map(h => `<span data-goto-individual="${escapeHtml(h.id)}" style="cursor:pointer; white-space:nowrap;">${h.gen === 1 ? '初代' : h.gen + '代'} ${escapeHtml(h.name)}${h.season ? `<span style="color:var(--text-dim);">（第${h.season}季〜${masterNote(h.id)}）</span>` : ''}</span>`).join(' → ')}</div>` : ''}
     </div>`;
@@ -2357,8 +2359,8 @@ function renderRules() {
       自動で生まれる新人は師匠の能力を平均6割ほど受け継いで生まれてくる。どの能力を濃く受け継ぐかは弟子ごとに違い、
       師匠の得意をそのまま受け継ぐ能力もあれば、ほとんど受け継がない能力もある（キャラクリエイトで
       投稿された新人は、本人の設定した能力のまま弟子入りする）。実力のある選手ほど弟子を持ちやすいが、1回の新人リーグで同じ師匠に付く弟子は2人まで。<br>
-      一門は、師弟関係をたどった先に同じ開祖を持つ選手たちのまとまりで、開祖の名を取って「◯◯流」と呼ぶ。
-      流には「宗家」がいて、初代宗家は開祖（例：西村正人流 9代宗家 田村新）。<br>
+      一門は、師弟関係をたどった先に同じ開祖を持つ選手たちのまとまりで、開祖の苗字を取って「◯◯流」と呼ぶ。
+      流には「宗家」がいて、初代宗家は開祖（例：西村流 9代宗家 大山直人。同じ苗字の流が先にあれば開祖のフルネームで呼ぶ）。<br>
       <b>代替わり</b>：宗家が引退すると、流の現役選手のうち実績（タイトル期数→Aリーグ在籍季数）が最も上の選手が次の宗家を継ぐ（並べば先代の直弟子を優先）。
       宗家が流の中の別の筋から出ても、代数は通しで数える（家元の名跡のように、流れそのものを継ぐ）。
       このとき、新宗家のほかにタイトル獲得歴のある先代の直弟子は、弟子たちを引き連れて独立し、自分を開祖とする流を興す。<br>
