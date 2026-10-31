@@ -1934,9 +1934,9 @@ async function renderClanList() {
     const indep = ((st && st.clan_independence_history) || []).filter(e => e.id === c.clan_root_id).pop();
     const h = clanHeadInfo(st, c.clan_root_id, c.founder_name);
     return `<div class="clan-row" data-goto-clan="${escapeHtml(c.clan_root_id)}"${c.active_count === 0 ? ' style="opacity:0.55;"' : ''}>
-      <span><b>${escapeHtml(h.clanName)}</b>${h.lineage ? `<span class="clan-right" style="font-size:0.72rem;">（${escapeHtml(h.lineage)}）</span>` : ''}${indep ? `<span class="clan-right" style="font-size:0.7rem;">　第${indep.season}季に${indep.kind === '完全独立' ? '完全独立' : '独立'}</span>` : (c.founder_debut_season ? `<span class="clan-right" style="font-size:0.7rem;">　第${c.founder_debut_season}季〜</span>` : '')}${c.active_count === 0 ? '<span class="clan-right">（消滅）</span>' : ''}</span>
+      <span><b>${escapeHtml(h.clanName)}</b>${h.lineage ? `<span class="clan-right" style="font-size:0.72rem; color:var(--accent-dark);">　${escapeHtml(h.lineage)}</span>` : ''}${indep ? `<span class="clan-right" style="font-size:0.7rem;">　第${indep.season}季に${indep.kind === '完全独立' ? '完全独立' : '独立'}</span>` : (c.founder_debut_season ? `<span class="clan-right" style="font-size:0.7rem;">　第${c.founder_debut_season}季〜</span>` : '')}${c.active_count === 0 ? '<span class="clan-right">（消滅）</span>' : ''}</span>
       <span class="clan-right">${c.active_count}名（総${c.member_count}名）　最高Elo ${Math.round(c.best_peak_elo)}</span>
-      ${h.gen > 1 ? `<span class="clan-head-line">開祖 ${escapeHtml(c.founder_name)}</span>` : ''}
+
     </div>`;
   };
   // 並びは古い順かつ関連順：大元の一門を開祖のデビューが古い順に並べ、それぞれの直後に、
@@ -1962,6 +1962,7 @@ async function renderClanList() {
     <div class="empty" style="padding:0 0 10px; text-align:left; color:var(--text-dim); font-size:0.8rem;">
       師弟関係でつながる一門です。古い一門から順に、独立した一門はその元の一門の後ろに並べています。一門名を押すと、開祖からの系図と、独立した一門も含めた系統全体の系図を見られます。
     </div>
+    <button class="chip-btn active" style="margin-bottom:10px;" onclick="navigateTo('keito')">📜 棋士系統図を見る</button>
     <div class="roster-league-group"><h3>一門一覧（${alive.length}一門）</h3>
       ${alive.map(rowHtml).join('') || '<div class="empty">まだ一門がありません</div>'}
     </div>`;
@@ -1987,8 +1988,8 @@ const CLAN_TITLE_COLOR = { '麒麟': '#C99A1E', '青龍': '#2F6FD0', '朱雀': '
 // opts.highlightClan：系統全体を描くときに強調する一門（それ以外の一門は薄く描く）。
 // opts.collapsed(id)：ほかの一門の開祖なら、その一門の人数を返す（開祖の箱1つに畳み、押すとその一門へ）
 // opts.noGenHeads：列の見出し（N代目）を出さない（畳んだ一門をはさむと列と代がずれるため）
-// opts.headGen(id)：その選手がいずれかの一門の現当主なら、何代目かを返す（箱の右上に「N代目当主」）
-// opts.pastHeadGen(id)：表示中の一門の歴代当主（現当主以外）なら何代目かを返す（縁取りの「N代当主」）
+// opts.headGen(id)：その選手がいずれかの一門の現宗家なら、何代目かを返す（箱の右上に「N代宗家」）
+// opts.pastHeadGen(id)：表示中の一門の歴代宗家（現宗家以外）なら何代目かを返す（縁取りの「N代宗家」）
 function clanTreeSVG(root, childrenByParent, branchesByUnder, opts = {}) {
   // なるべくスクロールせずに見られるよう小さめに描き、さらに画面幅に合わせて75%まで縮める
   const BW = 84, BH = 26, CG = 12, RH = 35, PAD = 4, TOP = 26;
@@ -2050,11 +2051,11 @@ function clanTreeSVG(root, childrenByParent, branchesByUnder, opts = {}) {
     const pastGen = !headGen && opts.pastHeadGen ? opts.pastHeadGen(m.id) : null;
     if (pastGen) {
       headBadges += `<g opacity="${outside ? 0.6 : 1}"><rect x="${x + BW - 30}" y="${n.y - BH / 2 - 6}" width="32" height="11" rx="5.5" fill="var(--card)" stroke="var(--accent)" stroke-width="1"/>
-        <text x="${x + BW - 14}" y="${n.y - BH / 2 + 2}" font-size="7" font-weight="700" text-anchor="middle" fill="var(--accent-dark)">${pastGen === 1 ? '初代' : pastGen + '代'}当主</text></g>`;
+        <text x="${x + BW - 14}" y="${n.y - BH / 2 + 2}" font-size="7" font-weight="700" text-anchor="middle" fill="var(--accent-dark)">${pastGen === 1 ? '初代' : pastGen + '代'}宗家</text></g>`;
     }
     if (headGen) {
-      headBadges += `<g opacity="${outside ? 0.6 : 1}"><rect x="${x + BW - 40}" y="${n.y - BH / 2 - 6}" width="42" height="11" rx="5.5" fill="var(--accent)"/>
-        <text x="${x + BW - 19}" y="${n.y - BH / 2 + 2}" font-size="7" font-weight="700" text-anchor="middle" fill="#fff">${headGen}代目当主</text></g>`;
+      headBadges += `<g opacity="${outside ? 0.6 : 1}"><rect x="${x + BW - 34}" y="${n.y - BH / 2 - 6}" width="36" height="11" rx="5.5" fill="var(--accent)"/>
+        <text x="${x + BW - 16}" y="${n.y - BH / 2 + 2}" font-size="7" font-weight="700" text-anchor="middle" fill="#fff">${headGen}代宗家</text></g>`;
     }
     // この一門の選手は、引退者も含めて色付きの背景と左端の帯で目立たせる（引退者を薄くすると師弟のつながりが追えないため、
     // 引退は名前の横の「引退」と細字で示すだけにする）。現役は太字。ほかの一門の選手だけを薄く描く
@@ -2093,8 +2094,104 @@ function clanHeadInfo(st, clanId, founderName) {
   const nameOf = id => id === clanId ? founderName : ((hist.slice().reverse().find(e => e.id === id) || {}).name || id);
   const list = [{ gen: 1, id: clanId, name: founderName, season: null }, ...hist.map(e => ({ gen: e.gen, id: e.id, name: e.name, season: e.season }))];
   const name = nameOf(h.head);
-  // 一門は当主の名で呼ぶ（2代目以降は「開祖名流N代」を添える。代数は筋が移っても通しで数える）
-  return { gen: h.gen, id: h.head, name, list, clanName: `${name}一門`, lineage: h.gen > 1 ? `${founderName}流${h.gen}代` : '' };
+  // 一門は開祖の名で「◯◯流」と呼び、それを継ぐ当主を「N代宗家」と呼ぶ（代数は筋が移っても通しで数える）
+  return { gen: h.gen, id: h.head, name, list, clanName: `${founderName}流`, lineage: `${h.gen}代宗家 ${name}` };
+}
+
+// 棋士系統図：将棋連盟の「棋士系統図」のように、祖を上に置き、師匠から弟子へ上から下へ枝分かれさせ、
+// 名前を縦書きで並べた1枚の図。最上位の祖ごと（系統ごと）に切り替えて見る。
+// 引退者は名前の上に△、現宗家は赤字、流の開祖（独立した者を含む）は名前の上に流の名を添える
+async function renderKeitoChart(topId) {
+  setActiveNav('individuals');
+  setPageMeta('棋士系統図', '師匠から弟子へと続く、サーキットオセロリーグの全選手の系統図。');
+  const el = document.getElementById('content');
+  el.innerHTML = skeletonHtml();
+  if (!_lineageCache) {
+    try {
+      const res = await fetch(`${RESULTS_SITE_BASE}api.php?action=lineage`);
+      const d = await res.json();
+      if (d.members) _lineageCache = d.members;
+    } catch (e) { /* 下で失敗表示 */ }
+  }
+  if (!_lineageCache) { el.innerHTML = '<div class="empty">系統図の読み込みに失敗しました</div>'; return; }
+  const st = await loadHolders();
+  const all = {}; _lineageCache.forEach(m => { all[m.id] = m; });
+  const kids = {};
+  _lineageCache.forEach(m => { if (m.parent_a_id && all[m.parent_a_id]) (kids[m.parent_a_id] = kids[m.parent_a_id] || []).push(m); });
+  Object.values(kids).forEach(list => list.sort((a, b) => (a.id < b.id ? -1 : 1)));
+  const size = m => 1 + (kids[m.id] || []).reduce((n, k) => n + size(k), 0);
+  const tops = _lineageCache.filter(m => !m.parent_a_id || !all[m.parent_a_id]).map(m => ({ m, n: size(m) })).sort((a, b) => b.n - a.n);
+  const big = tops.filter(t => t.n >= 3), small = tops.filter(t => t.n < 3);
+  const top = (topId && big.find(t => t.m.id === topId)) || big[0];
+  const headIds = new Set(Object.values((st && st.clan_heads) || {}).map(h => h.head));
+  const clanSize = {}; _lineageCache.forEach(m => { clanSize[m.clan_root_id] = (clanSize[m.clan_root_id] || 0) + 1; });
+
+  const CW = 19, ROW = 128, TOP = 26, FS = 11.5, FS2 = 8.5;
+  let leaf = 0, maxGen = 0;
+  const nodes = [];
+  (function lay(m, g) {
+    const n = { m, g, kids: [] };
+    nodes.push(n); maxGen = Math.max(maxGen, g);
+    const ks = kids[m.id] || [];
+    if (!ks.length) { n.x = 10 + leaf * CW + CW / 2; leaf++; return n; }
+    n.kids = ks.map(k => lay(k, g + 1));
+    n.x = (n.kids[0].x + n.kids[n.kids.length - 1].x) / 2;
+    return n;
+  })(top.m, 0);
+  const W = 20 + leaf * CW, H = TOP + (maxGen + 1) * ROW + 10;
+  const y0 = g => TOP + g * ROW;
+  let lines = '', texts = '';
+  nodes.forEach(n => {
+    const m = n.m, x = n.x, y = y0(n.g);
+    const founder = m.clan_root_id === m.id && clanSize[m.id] >= 3;
+    const isHead = headIds.has(m.id) && !m.retired;
+    const titles = Object.values(m.titles || {}).reduce((a, b) => a + b, 0);
+    let cy = y;
+    if (founder) {
+      texts += `<rect x="${x - 6}" y="${cy - 13}" width="12" height="11" rx="2" fill="#D9463B"/><text x="${x}" y="${cy - 4.5}" font-size="8" font-weight="700" text-anchor="middle" fill="#fff">流</text>`;
+    }
+    texts += `<text x="${x}" y="${cy + 8}" font-size="9" text-anchor="middle" fill="var(--text-dim)">${m.retired ? '△' : ''}</text>`;
+    cy += 12;
+    const color = isHead ? '#D9463B' : 'var(--text-main)';
+    const weight = titles > 0 || isHead ? 700 : 400;
+    [...String(m.display_name || '')].forEach((ch, i) => {
+      texts += `<text x="${x}" y="${cy + (i + 1) * (FS + 0.5)}" font-size="${FS}" font-weight="${weight}" text-anchor="middle" fill="${color}">${escapeHtml(ch)}</text>`;
+    });
+    cy += [...String(m.display_name || '')].length * (FS + 0.5) + 3;
+    const dan = m.dan !== null && m.dan !== undefined ? `${DAN_KANJI[m.dan] ?? m.dan}段` : '';
+    [...dan].forEach((ch, i) => {
+      texts += `<text x="${x}" y="${cy + (i + 1) * (FS2 + 0.5)}" font-size="${FS2}" text-anchor="middle" fill="var(--text-dim)">${escapeHtml(ch)}</text>`;
+    });
+    // 名前を押すと選手ページへ（縦書きの文字列の範囲に透明な当たり判定を置く）
+    texts += `<rect class="keito-hit" data-goto-individual="${escapeHtml(m.id)}" x="${x - CW / 2 + 1}" y="${y}" width="${CW - 2}" height="${ROW - 30}" fill="transparent" style="cursor:pointer;"><title>${escapeHtml(m.display_name)}${titles ? `（タイトル${titles}期）` : ''}${m.retired ? '（引退）' : ''}</title></rect>`;
+    if (!n.kids.length) return;
+    const bottom = y + ROW - 30, bar = y0(n.g + 1) - 12;
+    lines += `<line x1="${x}" y1="${bottom}" x2="${x}" y2="${bar}"/>`;
+    const xs = n.kids.map(k => k.x);
+    if (xs.length > 1) lines += `<line x1="${Math.min(...xs)}" y1="${bar}" x2="${Math.max(...xs)}" y2="${bar}"/>`;
+    n.kids.forEach(k => {
+      const indep = k.m.clan_root_id !== m.clan_root_id;
+      lines += `<line x1="${k.x}" y1="${bar}" x2="${k.x}" y2="${y0(k.g) + (indep ? -12 : 0)}"${indep ? ' stroke="#D9463B" stroke-dasharray="2 2"' : ''}/>`;
+    });
+  });
+
+  const chips = big.map(t => `<button class="chip-btn ${t.m.id === top.m.id ? 'active' : ''}" data-keito-top="${escapeHtml(t.m.id)}">${escapeHtml(t.m.display_name)}系（${t.n}名）</button>`).join('');
+  el.innerHTML = `
+    <a class="back-link" href="#" onclick="navigateTo('clans');return false;">← 一門一覧へ戻る</a>
+    <h1 class="profile-name" style="font-size:1.1rem;">棋士系統図</h1>
+    <div class="profile-sub" style="margin-bottom:8px;">${escapeHtml(top.m.display_name)}を祖とする系統（${top.n}名）</div>
+    <div class="chip-row" style="margin-bottom:8px;">${chips}</div>
+    <div style="font-size:0.72rem; color:var(--text-dim); margin-bottom:6px;">上が師匠、下が弟子。△は引退、<span style="color:#D9463B; font-weight:700;">赤字</span>は現在の宗家、太字はタイトル獲得者。名前の上の<span style="background:#D9463B; color:#fff; padding:0 2px; border-radius:2px;">流</span>は流の開祖（<span style="color:#D9463B;">赤い点線</span>は独立）。名前を押すと選手ページへ。横にスクロールできます${small.length ? `（弟子が1人以下の系統${small.length}件は省略）` : ''}</div>
+    <div class="keito-wrap" style="overflow:auto; -webkit-overflow-scrolling:touch; border:1px solid var(--border); border-radius:8px; background:var(--card);">
+      <svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" style="display:block; font-family:'Noto Serif JP','Hiragino Mincho ProN','Yu Mincho',serif;">
+        <g stroke="var(--text-dim)" stroke-width="0.9" fill="none">${lines}</g>${texts}
+      </svg>
+    </div>`;
+  // 最初は祖が真ん中に来るように横スクロールしておく
+  const wrap = el.querySelector('.keito-wrap');
+  if (wrap) wrap.scrollLeft = Math.max(0, nodes[0].x - wrap.clientWidth / 2);
+  el.querySelectorAll('[data-keito-top]').forEach(b => b.addEventListener('click', () => navigateTo('keito/' + encodeURIComponent(b.dataset.keitoTop))));
+  el.querySelectorAll('[data-goto-individual]').forEach(e2 => e2.addEventListener('click', () => navigateTo('individual/' + encodeURIComponent(e2.dataset.gotoIndividual))));
 }
 
 let _lineageCache = null;   // api.php?action=lineage（全選手の師弟関係）
@@ -2126,7 +2223,7 @@ async function renderClanDetail(clanId) {
   });
   const root = membersById[clanId] || members.find(m => !m.parent_a_id || !membersById[m.parent_a_id]);
   const rootName = root ? (root.display_name || root.id) : clanId;
-  setPageMeta(`${rootName}流の一門`, `${rootName}を開祖とする一門（総勢${members.length}名）の師弟関係と歴代当主を系統図で紹介。`);
+  setPageMeta(`${rootName}流`, `${rootName}を開祖とする${rootName}流（総勢${members.length}名）の師弟関係と歴代宗家を系統図で紹介。`);
   const branchesByUnder = {};
   (data.branches_out || []).forEach(b => {
     (branchesByUnder[b.under_id] = branchesByUnder[b.under_id] || []).push(b);
@@ -2192,9 +2289,9 @@ async function renderClanDetail(clanId) {
   const masterNote = id => parentById[id] && nameById[parentById[id]] ? `・師 ${escapeHtml(nameById[parentById[id]])}` : '';
   const headMember = membersById[headInfo.id];
   const headLineHtml = `<div class="clan-head-card">
-      <div class="clan-head-now">現当主　<span class="clan-head-gen">${headInfo.gen}代目</span>
+      <div class="clan-head-now">当代宗家　<span class="clan-head-gen">${headInfo.gen}代</span>
         <span data-goto-individual="${escapeHtml(headInfo.id)}" style="cursor:pointer; font-weight:700;">${escapeHtml(headInfo.name)}</span>${headMember && headMember.retired ? '<span style="color:var(--text-dim); font-size:0.72rem;">（引退・後継なし）</span>' : ''}</div>
-      ${headInfo.list.length > 1 ? `<div class="clan-head-history">歴代当主：${headInfo.list.map(h => `<span data-goto-individual="${escapeHtml(h.id)}" style="cursor:pointer; white-space:nowrap;">${h.gen === 1 ? '初代' : h.gen + '代'} ${escapeHtml(h.name)}${h.season ? `<span style="color:var(--text-dim);">（第${h.season}季〜${masterNote(h.id)}）</span>` : ''}</span>`).join(' → ')}</div>` : ''}
+      ${headInfo.list.length > 1 ? `<div class="clan-head-history">歴代宗家：${headInfo.list.map(h => `<span data-goto-individual="${escapeHtml(h.id)}" style="cursor:pointer; white-space:nowrap;">${h.gen === 1 ? '初代' : h.gen + '代'} ${escapeHtml(h.name)}${h.season ? `<span style="color:var(--text-dim);">（第${h.season}季〜${masterNote(h.id)}）</span>` : ''}</span>`).join(' → ')}</div>` : ''}
     </div>`;
   const bf = data.branched_from;
   const branchedFromHtml = bf ? `<div class="clan-branched-from" data-goto-clan="${escapeHtml(bf.origin_clan_root_id)}">
@@ -2260,12 +2357,12 @@ function renderRules() {
       自動で生まれる新人は師匠の能力を平均6割ほど受け継いで生まれてくる。どの能力を濃く受け継ぐかは弟子ごとに違い、
       師匠の得意をそのまま受け継ぐ能力もあれば、ほとんど受け継がない能力もある（キャラクリエイトで
       投稿された新人は、本人の設定した能力のまま弟子入りする）。実力のある選手ほど弟子を持ちやすいが、1回の新人リーグで同じ師匠に付く弟子は2人まで。<br>
-      一門は、師弟関係をたどった先に同じ開祖を持つ選手たちのまとまり。一門には「当主」がいて、最初の当主は開祖。
-      一門は当主の名で「◯◯一門」と呼び、2代目以降は開祖の名を取った流れの名と代数を添える（例：田村新一門（西村正人流9代））。<br>
-      <b>代替わり</b>：当主が引退すると、一門の現役選手のうち実績（タイトル期数→Aリーグ在籍季数）が最も上の選手が次の当主を継ぐ（並べば先代の直弟子を優先）。
-      当主が一門の中の別の筋から出ても、代数は通しで数える（家元の名跡のように、流れそのものを継ぐ）。
-      このとき、新当主のほかにタイトル獲得歴のある先代の直弟子は、弟子たちを引き連れて独立し、自分を開祖とする一門を興す。<br>
-      <b>完全独立</b>：当主が健在でも、タイトル10期以上で現役の直弟子が3人以上いる大棋士は、弟子たちを引き連れて独立し、自分の一門を興す。<br>
+      一門は、師弟関係をたどった先に同じ開祖を持つ選手たちのまとまりで、開祖の名を取って「◯◯流」と呼ぶ。
+      流には「宗家」がいて、初代宗家は開祖（例：西村正人流 9代宗家 田村新）。<br>
+      <b>代替わり</b>：宗家が引退すると、流の現役選手のうち実績（タイトル期数→Aリーグ在籍季数）が最も上の選手が次の宗家を継ぐ（並べば先代の直弟子を優先）。
+      宗家が流の中の別の筋から出ても、代数は通しで数える（家元の名跡のように、流れそのものを継ぐ）。
+      このとき、新宗家のほかにタイトル獲得歴のある先代の直弟子は、弟子たちを引き連れて独立し、自分を開祖とする流を興す。<br>
+      <b>完全独立</b>：宗家が健在でも、タイトル10期以上で現役の直弟子が3人以上いる大棋士は、弟子たちを引き連れて独立し、自分の流を興す。<br>
       まれに、終盤力が一気に伸びた「神童」が現れることもある。
     </div>
 
@@ -2349,6 +2446,7 @@ const RULE_HISTORY = [
   [115, 'フリークラスの復帰条件を「出場した棋戦数＋2勝以上かつ勝率6割以上、またはタイトル挑戦」に'],
   [119, 'フリークラスの復帰条件を「出場した棋戦数＋4勝以上かつ勝率6割5分以上、またはタイトル挑戦」に厳格化'],
   [133, '<b>一門を当主制に</b>（当主の引退で代替わり、その際にタイトル獲得歴のある直弟子が独立。タイトル10期以上の大棋士は完全独立）。それまでの「子孫6人以上で独立」は廃止し、過去の一門もこのルールで組み直した'],
+  [139, '一門を開祖の名で「◯◯流」と呼び、当主を「宗家」に。宗家は流の現役選手のうち実績が最も上の選手が継ぎ（筋が移っても代は通しで数える）、過去の一門もこのルールで組み直した'],
 ];
 
 // 「このメディアについて」タブ：架空リーグ・AI自動運営という性質を明示する
@@ -2467,6 +2565,8 @@ function route() {
     renderIndividualList();
   } else if (hash === 'hof') {
     renderHallOfFame();
+  } else if (hash === 'keito' || hash.startsWith('keito/')) {
+    renderKeitoChart(hash.startsWith('keito/') ? decodeURIComponent(hash.slice('keito/'.length)) : null);
   } else if (hash === 'clans') {
     renderClanList();
   } else if (hash.startsWith('clans/')) {
