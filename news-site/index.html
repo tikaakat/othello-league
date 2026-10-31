@@ -1924,52 +1924,32 @@ async function renderClanList() {
   }
 
   const st = await loadHolders();
-  // 独立してできた一門は、元の一門の下に字下げして並べ、同じ系統（大元の一門）を同じ色で示す
+  // 一門は独立後はそれぞれ別の一門として、元の一門にぶら下げずに並べる（現役の多い順→最高Elo順）。
+  // 師弟の系統としてのつながりは、各一門のページの系図（系統全体）で見られる
   const rows = data.clans || [];
-  const byId = new Map(rows.map(c => [c.clan_root_id, c]));
-  const kids = new Map();
-  const tops = [];
-  rows.forEach(c => {
-    const o = c.origin_clan_root_id;
-    if (o && o !== c.clan_root_id && byId.has(o)) {
-      if (!kids.has(o)) kids.set(o, []);
-      kids.get(o).push(c);
-    } else {
-      tops.push(c);
-    }
-  });
-  // 系統ごとの集計（現役人数・最高Elo）。系統の並びは最高Elo順、系統内は元の一門→独立した一門の順
-  const lineageOf = c => [c, ...(kids.get(c.clan_root_id) || []).flatMap(lineageOf)];
-  const lineages = tops.map(top => {
-    const all = lineageOf(top);
-    return { top, all, active: all.reduce((n, c) => n + c.active_count, 0), best: Math.max(...all.map(c => c.best_peak_elo)) };
-  }).sort((a, b) => b.best - a.best);
-  const COLORS = ['#c0392b', '#2471a3', '#1e8449', '#b9770e', '#7d3c98', '#117a65', '#a04000', '#2e4053', '#c71585', '#5d6d7e'];
-
-  const rowHtml = (c, depth, color, origin) => `<div class="clan-row" data-goto-clan="${escapeHtml(c.clan_root_id)}"
-      style="border-left:4px solid ${color}; padding-left:${8 + depth * 16}px;${c.active_count === 0 ? ' opacity:0.55;' : ''}">
-      <span>${depth > 0 ? '<span class="clan-right">└ </span>' : ''}${escapeHtml(c.founder_name)}${c.founder_retired ? '<span class="clan-right">（引退）</span>' : ''}${
-        origin ? `<span class="clan-right" style="font-size:0.7rem;">　${escapeHtml(origin.founder_name)}一門から独立</span>` : ''}${
-        c.active_count === 0 ? '<span class="clan-right">（消滅）</span>' : ''}</span>
+  const rowHtml = c => {
+    const indep = ((st && st.clan_independence_history) || []).filter(e => e.id === c.clan_root_id).pop();
+    const h = clanHeadInfo(st, c.clan_root_id, c.founder_name);
+    return `<div class="clan-row" data-goto-clan="${escapeHtml(c.clan_root_id)}"${c.active_count === 0 ? ' style="opacity:0.55;"' : ''}>
+      <span><b>${escapeHtml(c.founder_name)}一門</b>${indep ? `<span class="clan-right" style="font-size:0.7rem;">　第${indep.season}季に${indep.kind === '完全独立' ? '完全独立' : '独立'}</span>` : ''}${c.active_count === 0 ? '<span class="clan-right">（消滅）</span>' : ''}</span>
       <span class="clan-right">${c.active_count}名（総${c.member_count}名）　最高Elo ${Math.round(c.best_peak_elo)}</span>
-      ${c.active_count > 0 ? (h => `<span class="clan-head-line">当主 <b>${h.gen}代目 ${escapeHtml(h.name)}</b></span>`)(clanHeadInfo(st, c.clan_root_id, c.founder_name)) : ''}
+      ${c.active_count > 0 ? `<span class="clan-head-line">当主 <b>${h.gen}代目 ${escapeHtml(h.name)}</b></span>` : ''}
     </div>`;
-  const treeHtml = (c, depth, color) => rowHtml(c, depth, color, depth > 0 ? byId.get(c.origin_clan_root_id) : null)
-    + (kids.get(c.clan_root_id) || []).sort((a, b) => b.best_peak_elo - a.best_peak_elo).map(k => treeHtml(k, depth + 1, color)).join('');
-
-  const alive = lineages.filter(l => l.active > 0), gone = lineages.filter(l => l.active === 0);
+  };
+  const order = (x, y) => y.active_count - x.active_count || y.best_peak_elo - x.best_peak_elo;
+  const alive = rows.filter(c => c.active_count > 0).sort(order), gone = rows.filter(c => c.active_count === 0).sort(order);
   let html = `
     <a class="back-link" href="#" onclick="navigateTo('individuals');return false;">← 選手名鑑へ戻る</a>
     <div class="empty" style="padding:0 0 10px; text-align:left; color:var(--text-dim); font-size:0.8rem;">
-      師弟関係でつながる一門です。独立してできた一門は元の一門の下に字下げし、同じ系統を同じ色で示しています（系統は最高Elo順）。開祖の名前をクリックすると系統図を見られます。
+      師弟関係でつながる一門です（現役の多い順）。一門名を押すと、開祖からの系図と、独立した一門も含めた系統全体の系図を見られます。
     </div>
-    <div class="roster-league-group"><h3>一門一覧（${alive.length}系統・${rows.filter(c => c.active_count > 0).length}一門）</h3>
-      ${alive.map((l, i) => treeHtml(l.top, 0, COLORS[i % COLORS.length])).join('') || '<div class="empty">まだ一門がありません</div>'}
+    <div class="roster-league-group"><h3>一門一覧（${alive.length}一門）</h3>
+      ${alive.map(rowHtml).join('') || '<div class="empty">まだ一門がありません</div>'}
     </div>`;
   if (gone.length > 0) {
-    html += `<div class="roster-league-group"><h3>消滅した系統（${gone.length}件）</h3>
-      ${gone.map(l => treeHtml(l.top, 0, 'var(--border)')).join('')}
-    </div>`;
+    html += `<details class="roster-league-group"><summary style="cursor:pointer; font-size:0.85rem; color:var(--text-dim);">現役のいない一門（${gone.length}件）</summary>
+      ${gone.map(rowHtml).join('')}
+    </details>`;
   }
   el.innerHTML = html;
 
