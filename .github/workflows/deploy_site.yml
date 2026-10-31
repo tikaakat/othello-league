@@ -74,6 +74,7 @@ on:
           - "rename_numbered_names_20261027"
           - "fix_season_101_duplicates_20261028"
           - "patch_import_free_class_20261028"
+          - "resync_server_data"
         default: ""
       create_dir:
         description: "デプロイの代わりに、lab.spia-net.com直下（othello-league/の1つ上）に相対パスでディレクトリを作成する（例: othello-news）。「..」や先頭「/」は不可"
@@ -181,6 +182,30 @@ jobs:
 
           if [ -n "$RUN_MIGRATION" ]; then
             echo "=== マイグレーション実行: ${RUN_MIGRATION} ==="
+            if [ "$RUN_MIGRATION" = "resync_server_data" ]; then
+              # GitHub上の最新データ（rosters・軽量版season_state・matches・standings・新人リーグ）をサーバーへ送り直し、
+              # 取り込み（import_from_colab.php）をCLIで実行する。季の本戦でサーバーへの反映が失敗したときの手動復旧用。
+              # season_state.jsonは棋譜（games・bracket）を除いた軽量版を送る（元のままだとPHPのメモリ上限を超える。evolve.yml参照）
+              mkdir -p /tmp/server_state
+              python3 -c 'import json; s = json.load(open("data/season_state.json", encoding="utf-8")); s["title_history"] = [{k: v for k, v in e.items() if not isinstance(v, (list, dict))} for e in s.get("title_history", [])]; json.dump(s, open("/tmp/server_state/season_state.json", "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))'
+              EXPORT="${XSERVER_SITE_DIR}league_export/"
+              retry_cmd ssh -i /tmp/deploy_key -p "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
+                "$XSERVER_USER@$XSERVER_HOST" "mkdir -p ${EXPORT}matches ${EXPORT}standings ${EXPORT}newcomer_league"
+              retry_cmd scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
+                data/rosters.json /tmp/server_state/season_state.json "$XSERVER_USER@$XSERVER_HOST:${EXPORT}"
+              retry_cmd scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 -r \
+                data/matches/. "$XSERVER_USER@$XSERVER_HOST:${EXPORT}matches/"
+              retry_cmd scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 -r \
+                data/standings/. "$XSERVER_USER@$XSERVER_HOST:${EXPORT}standings/"
+              retry_cmd scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 -r \
+                data/newcomer_league/. "$XSERVER_USER@$XSERVER_HOST:${EXPORT}newcomer_league/"
+              OUT=$(ssh -i /tmp/deploy_key -p "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
+                "$XSERVER_USER@$XSERVER_HOST" "cd '${XSERVER_SITE_DIR}' && php import_from_colab.php" 2>&1)
+              echo "$OUT"
+              rm -f /tmp/deploy_key
+              echo "$OUT" | grep -q "インポート完了" || { echo "::error::取り込みが完了しませんでした"; exit 1; }
+              exit 0
+            fi
             if [ "$RUN_MIGRATION" = "patch_import_free_class_20261028" ]; then
               # フリークラス（rosters.jsonの"F"）の選手も現役としてindividualsへ取り込むよう、サーバー上の
               # 取り込みスクリプト（リポジトリ外）の現役ロスターのループに"F"を足す。元のファイルは .bak_20261028 に残す。
