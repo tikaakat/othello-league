@@ -470,7 +470,8 @@ CLAN_NEW_FOUNDER_CHANCE = 0.08
 #   次の当主になる（実績が並べば先代の直弟子を優先し、さらにEloで決める）。当主は一門の流れ（開祖の名を取って
 #   「◯◯流」）の名跡で、代数は筋が移っても通しで数える（囲碁の本因坊家が、強い門人を跡目に立てて世を重ねたのと同じ）。
 #   一門は当主の名で「◯◯一門（開祖名流N代）」と呼ぶ。
-#   このとき、新当主以外でタイトル獲得歴のある先代の現役の直弟子は、それぞれ子孫を引き連れて独立し、自分の一門を興す
+#   このとき、新当主以外の先代の現役の直弟子のうち、タイトル5期以上で現役の直弟子が2人以上いる者は、
+#   それぞれ子孫を引き連れて独立し、自分の一門を興す
 #   （以前は先代の直弟子を最優先で当主にしていたため、タイトル0期の直弟子が、タイトル十数期の一門の実力者を差し置いて継いでいた）
 # ・完全独立：当主が現役でも、タイトル CLAN_FULL_INDEPENDENCE_TITLES 期以上で、一門に残る現役の直弟子が
 #   CLAN_FULL_INDEPENDENCE_DISCIPLES 人以上いる選手は、子孫を引き連れて独立し、自分の一門を興す。
@@ -480,6 +481,10 @@ CLAN_NEW_FOUNDER_CHANCE = 0.08
 # 実績の無い師匠も次々に独立し、一門が細かく割れ続けていた
 CLAN_FULL_INDEPENDENCE_TITLES = 10
 CLAN_FULL_INDEPENDENCE_DISCIPLES = 3
+# 代替わりに伴う独立の条件：タイトル5期以上で、流に残る現役の直弟子が2人以上（一門を構えられる実績と弟子がいること）。
+# 以前はタイトル1期でもあれば弟子がいなくても独立し、1〜4人で終わる小さな流が次々にできていた
+CLAN_SUCCESSION_INDEPENDENCE_TITLES = 5
+CLAN_SUCCESSION_INDEPENDENCE_DISCIPLES = 2
 
 
 def _get(x, key):
@@ -557,7 +562,8 @@ def apply_clan_succession(active_members, retired_records, season, heads, title_
         successions.append({"clan_id": clan, "id": _get(heir, "id"), "name": _get(heir, "display_name"),
                             "prev_head_id": head, "gen": gen, "season": season})
         for c in direct:
-            if c is not heir and title_counts.get(_get(c, "id"), 0) > 0:
+            if (c is not heir and title_counts.get(_get(c, "id"), 0) >= CLAN_SUCCESSION_INDEPENDENCE_TITLES
+                    and len(active_direct(_get(c, "id"), clan)) >= CLAN_SUCCESSION_INDEPENDENCE_DISCIPLES):
                 split(c, "代替わり")
 
     # --- 完全独立：世代の浅い選手から ---
