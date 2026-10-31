@@ -95,6 +95,22 @@ jobs:
             done
           }
 
+          # サーバーの取り込み（import_from_colab.php）が使うseason_state.jsonの部分は、引退者・タイトル履歴の
+          # 基本情報・現在の季・朱雀の組分けだけ。タイトル履歴の棋譜（games・bracket）まで含めた元のファイルは
+          # 50MBを超え、PHPのjson_decodeがメモリ上限（1GB）を超えて取り込みが止まっていた（第135季ごろから。
+          # PHPの致命的エラーでもHTTPは200のため、curl -fでは失敗に気づけず、サイトが古いまま進んでいた）。
+          # そこで棋譜を除いた軽量版を送り、取り込みの出力に完了の印が無ければ失敗として扱う
+          make_server_state() {
+            mkdir -p /tmp/server_state
+            python3 -c 'import json; s = json.load(open("data/season_state.json", encoding="utf-8")); s["title_history"] = [{k: v for k, v in e.items() if not isinstance(v, (list, dict))} for e in s.get("title_history", [])]; json.dump(s, open("/tmp/server_state/season_state.json", "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))'
+          }
+          push_import() {
+            local out
+            out=$(curl -sS -f --connect-timeout 8 --max-time 120 "$IMPORT_URL") || return 1
+            echo "$out"
+            echo "$out" | grep -q "インポート完了"
+          }
+
           # xserverが今回のバッチ実行中に一度でも完全に応答不能と判明したら、
           # 以降のバッチではリトライ・フォールバックを省略して即座に諦め、
           # 無駄な待ち時間でシーズン進行を遅らせないようにする
@@ -253,8 +269,9 @@ jobs:
                 "$XSERVER_USER@$XSERVER_HOST" "mkdir -p ${XSERVER_TARGET_DIR}matches ${XSERVER_TARGET_DIR}standings ${XSERVER_TARGET_DIR}newcomer_league" \
                 || { echo "::warning::フォルダ作成に失敗しました（バッチ $i）"; PUSH_OK=0; }
 
+              make_server_state
               retry_cmd scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=8 \
-                data/rosters.json data/season_state.json \
+                data/rosters.json /tmp/server_state/season_state.json \
                 "$XSERVER_USER@$XSERVER_HOST:$XSERVER_TARGET_DIR" \
                 || { echo "::warning::scpでの転送に失敗しました（バッチ $i）"; PUSH_OK=0; }
 
@@ -280,7 +297,7 @@ jobs:
 
               if [ "$PUSH_OK" -eq 1 ]; then
                 echo "--- プッシュ型インポートを実行中（バッチ $i）---"
-                retry_cmd curl -sS -f --connect-timeout 8 --max-time 20 "$IMPORT_URL" \
+                retry_cmd push_import \
                   || { echo "::warning::プッシュ型インポートに失敗しました（バッチ $i）。プル型にフォールバックします"; PUSH_OK=0; }
               fi
 
@@ -299,8 +316,9 @@ jobs:
           retry_cmd ssh -i /tmp/deploy_key -p "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=8 \
             "$XSERVER_USER@$XSERVER_HOST" "mkdir -p ${XSERVER_TARGET_DIR}matches ${XSERVER_TARGET_DIR}standings ${XSERVER_TARGET_DIR}newcomer_league" \
             || FINAL_OK=0
+          make_server_state
           retry_cmd scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=8 \
-            data/rosters.json data/season_state.json \
+            data/rosters.json /tmp/server_state/season_state.json \
             "$XSERVER_USER@$XSERVER_HOST:$XSERVER_TARGET_DIR" \
             || FINAL_OK=0
           retry_cmd scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=8 -r \
@@ -315,7 +333,7 @@ jobs:
               || FINAL_OK=0
           fi
           if [ "$FINAL_OK" -eq 1 ]; then
-            retry_cmd curl -sS -f --connect-timeout 8 --max-time 20 "$IMPORT_URL" || FINAL_OK=0
+            retry_cmd push_import || FINAL_OK=0
           fi
           if [ "$FINAL_OK" -eq 0 ]; then
             retry_cmd curl -sS -f --connect-timeout 8 --max-time 20 "$PULL_IMPORT_URL" \
