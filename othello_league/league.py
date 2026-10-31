@@ -466,9 +466,12 @@ AWAKENED_INITIAL_AGE_RANGE = (14, 16)  # 覚醒個体の参入年齢（通常は
 # 現在は師匠候補が誰もいない極端なケースでのみ師匠なしになる
 CLAN_NEW_FOUNDER_CHANCE = 0.08
 # 一門の継承と独立（継承型）。一門には「当主」がいて、最初の当主は開祖。
-# ・代替わり：当主が引退すると、一門に残る現役の直弟子のうち実績（タイトル期数→Aリーグ在籍季数→Elo）が
-#   最も上の者が次の当主になる（直弟子がいなければ一門の現役全員から選ぶ）。一門の名前（開祖）は変わらない。
-#   このとき、他にタイトル獲得歴のある現役の直弟子は、それぞれ子孫を引き連れて独立し、自分の一門を興す
+# ・代替わり：当主が引退すると、一門の現役全員のうち実績（タイトル期数→Aリーグ在籍季数）が最も上の者が
+#   次の当主になる（実績が並べば先代の直弟子を優先し、さらにEloで決める）。当主は一門の流れ（開祖の名を取って
+#   「◯◯流」）の名跡で、代数は筋が移っても通しで数える（囲碁の本因坊家が、強い門人を跡目に立てて世を重ねたのと同じ）。
+#   一門は当主の名で「◯◯一門（開祖名流N代）」と呼ぶ。
+#   このとき、新当主以外でタイトル獲得歴のある先代の現役の直弟子は、それぞれ子孫を引き連れて独立し、自分の一門を興す
+#   （以前は先代の直弟子を最優先で当主にしていたため、タイトル0期の直弟子が、タイトル十数期の一門の実力者を差し置いて継いでいた）
 # ・完全独立：当主が現役でも、タイトル CLAN_FULL_INDEPENDENCE_TITLES 期以上で、一門に残る現役の直弟子が
 #   CLAN_FULL_INDEPENDENCE_DISCIPLES 人以上いる選手は、子孫を引き連れて独立し、自分の一門を興す。
 #   当主本人は独立しない（当主＝その一門なので、継いだ後に一門を割って出ることはない）。
@@ -511,9 +514,10 @@ def apply_clan_succession(active_members, retired_records, season, heads, title_
     def head_of(clan):
         return heads.get(clan, {}).get("head", clan)
 
-    def score(x):
+    def score(x, master_id=None):
         iid = _get(x, "id")
-        return (title_counts.get(iid, 0), a_counts.get(iid, 0), _get(x, "elo") or 0, iid)
+        return (title_counts.get(iid, 0), a_counts.get(iid, 0), _get(x, "parent_a_id") == master_id,
+                _get(x, "elo") or 0, iid)
 
     def active_direct(master_id, clan):
         return [c for c in children.get(master_id, []) if _get(c, "id") in active_ids and _get(c, "clan_root_id") == clan]
@@ -547,7 +551,7 @@ def apply_clan_succession(active_members, retired_records, season, heads, title_
         if not members:
             continue
         direct = active_direct(head, clan)
-        heir = max(direct or members, key=score)
+        heir = max(members, key=lambda x: score(x, head))
         gen = heads.get(clan, {}).get("gen", 1) + 1
         heads[clan] = {"head": _get(heir, "id"), "gen": gen}
         successions.append({"clan_id": clan, "id": _get(heir, "id"), "name": _get(heir, "display_name"),

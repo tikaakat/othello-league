@@ -1300,6 +1300,11 @@ switch ($action) {
             $r['titles'] = (object)($titlesById[$r['id']] ?? []);
             $members[] = $r;
         }
+        // 段位（棋士系統図で名前の下に出す）
+        $leagueStmt = $pdo->query("SELECT id, league FROM individuals WHERE retired = 0");
+        $danById = calc_dan_bulk($pdo, array_column($members, 'id'), array_column($leagueStmt->fetchAll(), 'league', 'id'));
+        foreach ($members as &$m) { $m['dan'] = $danById[$m['id']] ?? null; }
+        unset($m);
         json_out(['members' => $members]);
         break;
 
