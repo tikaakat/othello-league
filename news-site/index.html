@@ -2049,6 +2049,11 @@ function clanTreeSVG(root, childrenByParent, branchesByUnder, opts = {}) {
       return;
     }
     const headGen = opts.headGen ? opts.headGen(m.id) : null;
+    if (opts.adopted && opts.adopted(m.id)) {
+      // 養子で宗家を継いだ選手：箱の左上に「養子」（師匠とは別の流から迎えられたので、師匠からの線は赤い点線になる）
+      headBadges += `<g><rect x="${x - 2}" y="${n.y - BH / 2 - 6}" width="22" height="11" rx="5.5" fill="#D9463B"/>
+        <text x="${x + 9}" y="${n.y - BH / 2 + 2}" font-size="7" font-weight="700" text-anchor="middle" fill="#fff">養子</text></g>`;
+    }
     const pastGen = !headGen && opts.pastHeadGen ? opts.pastHeadGen(m.id) : null;
     if (pastGen) {
       headBadges += `<g opacity="${outside ? 0.6 : 1}"><rect x="${x + BW - 30}" y="${n.y - BH / 2 - 6}" width="32" height="11" rx="5.5" fill="var(--card)" stroke="var(--accent)" stroke-width="1"/>
@@ -2093,7 +2098,7 @@ function clanHeadInfo(st, clanId, founderName) {
   const h = ((st && st.clan_heads) || {})[clanId] || { head: clanId, gen: 1 };
   const hist = ((st && st.clan_succession_history) || []).filter(e => e.clan_id === clanId).sort((a, b) => a.season - b.season);
   const nameOf = id => id === clanId ? founderName : ((hist.slice().reverse().find(e => e.id === id) || {}).name || id);
-  const list = [{ gen: 1, id: clanId, name: founderName, season: null }, ...hist.map(e => ({ gen: e.gen, id: e.id, name: e.name, season: e.season, adopted: e.adopted }))];
+  const list = [{ gen: 1, id: clanId, name: founderName, season: null }, ...hist.map(e => ({ gen: e.gen, id: e.id, name: e.name, season: e.season, adopted: e.adopted, fromClan: e.from_clan_id }))];
   const name = nameOf(h.head);
   // 一門は開祖の名で「◯◯流」と呼び、それを継ぐ当主を「N代宗家」と呼ぶ（代数は筋が移っても通しで数える）
   // 流の名は開祖の苗字（同じ苗字の流が先にあれば開祖のフルネーム。fansite_state.pyのclan_names）
@@ -2253,6 +2258,8 @@ async function renderClanDetail(clanId) {
   [{ id: clanId, gen: 1 }, ...((st && st.clan_succession_history) || []).filter(e => e.clan_id === clanId)]
     .forEach(e => { if (e.id !== (clanHeads[clanId] || { head: clanId }).head) pastHeadGenById[e.id] = e.gen; });
   const pastHeadGen = id => pastHeadGenById[id] || null;
+  const adoptedIds = new Set(((st && st.clan_succession_history) || []).filter(e => e.clan_id === clanId && e.adopted).map(e => e.id));
+  const adopted = id => adoptedIds.has(id);
   let fullTreeHtml = '', lineageSummary = '';
   if (_lineageCache) {
     const all = {}; _lineageCache.forEach(m => { all[m.id] = m; });
@@ -2281,7 +2288,7 @@ async function renderClanDetail(clanId) {
       })(top);
       const collapsed = id => all[id] && all[id].clan_root_id === id && id !== clanId ? clanSize[id] : null;
       const collapsedName = id => clanHeadInfo(st, id, all[id].display_name).clanName;
-      fullTreeHtml = clanTreeSVG(top, kidsShown, {}, { highlightClan: clanId, collapsed, collapsedName, headGen, pastHeadGen, noGenHeads: true });
+      fullTreeHtml = clanTreeSVG(top, kidsShown, {}, { highlightClan: clanId, collapsed, collapsedName, headGen, pastHeadGen, adopted, noGenHeads: true });
       lineageSummary = `${escapeHtml(top.display_name)}を祖とする系統（${count}名・${clans.size}一門）`;
     }
   }
@@ -2296,7 +2303,7 @@ async function renderClanDetail(clanId) {
   const headLineHtml = `<div class="clan-head-card">
       <div class="clan-head-now">当代宗家　<span class="clan-head-gen">${headInfo.gen === 1 ? '初' : headInfo.gen}代</span>
         <span data-goto-individual="${escapeHtml(headInfo.id)}" style="cursor:pointer; font-weight:700;">${escapeHtml(headInfo.name)}</span>${headMember && headMember.retired ? '<span style="color:var(--text-dim); font-size:0.72rem;">（引退・後継なし）</span>' : ''}</div>
-      ${headInfo.list.length > 1 ? `<div class="clan-head-history">歴代宗家：${headInfo.list.map(h => `<span data-goto-individual="${escapeHtml(h.id)}" style="cursor:pointer; white-space:nowrap;">${h.gen === 1 ? '初代' : h.gen + '代'} ${escapeHtml(h.name)}${h.season ? `<span style="color:var(--text-dim);">（第${h.season}季〜${masterNote(h.id)}${h.adopted ? '・養子' : ''}）</span>` : ''}</span>`).join(' → ')}</div>` : ''}
+      ${headInfo.list.length > 1 ? `<div class="clan-head-history">歴代宗家：${headInfo.list.map(h => `<span data-goto-individual="${escapeHtml(h.id)}" style="cursor:pointer; white-space:nowrap;">${h.gen === 1 ? '初代' : h.gen + '代'} ${escapeHtml(h.name)}${h.season ? `<span style="color:var(--text-dim);">（第${h.season}季〜${masterNote(h.id)}${h.adopted ? `・<b style="color:#D9463B;">養子</b>${h.fromClan ? `（${escapeHtml(((st && st.clan_names) || {})[h.fromClan] || '')}流から）` : ''}` : ''}）</span>` : ''}</span>`).join(' → ')}</div>` : ''}
     </div>`;
   const bf = data.branched_from;
   const branchedFromHtml = bf ? `<div class="clan-branched-from" data-goto-clan="${escapeHtml(bf.origin_clan_root_id)}">
@@ -2317,7 +2324,7 @@ async function renderClanDetail(clanId) {
       <div style="font-size:0.72rem; color:var(--text-dim); margin-bottom:6px;">${mode === 'full'
         ? `${lineageSummary}。<span style="background:var(--clan-member-bg); padding:0 3px; border-radius:3px;">色付きの箱</span>がこの一門の選手（太字＝現役、細字＝引退）。ほかの一門は開祖の<span style="color:#D9463B;">赤い点線の箱</span>にまとめて表示（押すとその一門へ）。`
         : `<span style="color:#D9463B;">赤い点線</span>は独立して一門を興した弟子（押すとその一門へ）。`}左が祖、右へ1列ごとに1代下がる。色付きの枠はタイトル獲得者（青＝青龍の期数など）。縦・横にスクロールできます</div>
-      ${mode === 'full' ? fullTreeHtml : (root ? clanTreeSVG(root, childrenByParent, branchesByUnder, { headGen, pastHeadGen }) : '')}
+      ${mode === 'full' ? fullTreeHtml : (root ? clanTreeSVG(root, childrenByParent, branchesByUnder, { headGen, pastHeadGen, adopted }) : '')}
     </div>`;
 
   el.querySelectorAll('[data-clan-mode]').forEach(btn => {
@@ -2365,7 +2372,8 @@ function renderRules() {
       一門は、師弟関係をたどった先に同じ開祖を持つ選手たちのまとまりで、開祖の苗字を取って「◯◯流」と呼ぶ。
       流には「宗家」がいて、初代宗家は開祖（例：西村流 9代宗家 大山直人。同じ苗字の流が先にあれば開祖のフルネームで呼ぶ）。<br>
       <b>代替わり</b>：宗家が引退すると、嫡流で継ぐ。先代の現役の直弟子のうち実績（タイトル期数→Aリーグ在籍季数）が最も上の選手が次の宗家となり、
-      兄弟弟子の筋からは継がない（直弟子がいなければ孫弟子から。弟子筋に現役が1人もいなければ、流の中の別の筋から養子を迎える）。
+      兄弟弟子の筋からは継がない（直弟子がいなければ孫弟子から。弟子筋に現役が1人もいなければ、流の中の別の筋から養子を迎える）。<br>
+      <b>本家の再興</b>：流の現役が1人もいなくなっても、そこから独立した分家に現役がいれば、分家で実績が最も上の選手（宗家・開祖を除く）を養子として迎え、宗家を継がせる。迎えるのは本人だけで、その弟子筋は分家に残る。分家もすべて途絶えたときだけ流は断絶する。
       このとき、新宗家のほかに、タイトル5期以上で現役の直弟子が2人以上いる先代の直弟子は、弟子たちを引き連れて独立し、自分を開祖とする流を興す。<br>
       <b>完全独立</b>：宗家が健在でも、タイトル10期以上で現役の直弟子が3人以上いる大棋士は、弟子たちを引き連れて独立し、自分の流を興す。<br>
       <b>一家を成す</b>：タイトル経験があり、同じ流に残る自分の弟子筋（孫弟子以下・引退者を含む）が6人以上になった選手も、独立して自分の流を興す。<br>
@@ -2453,7 +2461,7 @@ const RULE_HISTORY = [
   [119, 'フリークラスの復帰条件を「出場した棋戦数＋4勝以上かつ勝率6割5分以上、またはタイトル挑戦」に厳格化'],
   [133, '<b>一門を当主制に</b>（当主の引退で代替わり、その際にタイトル獲得歴のある直弟子が独立。タイトル10期以上の大棋士は完全独立）。それまでの「子孫6人以上で独立」は廃止し、過去の一門もこのルールで組み直した'],
   [139, '一門を開祖の苗字で「◯◯流」と呼び、当主を「宗家」に。宗家は流の現役選手のうち実績が最も上の選手が継ぐ（筋が移っても代は通し）。代替わりに伴う独立は「タイトル5期以上・現役の直弟子2人以上」に（以前はタイトル1期以上）。過去の流もこのルールで組み直した'],
-  [143, '宗家は嫡流（先代の弟子筋）から継ぐ形に（兄弟弟子の筋からは継がない。弟子筋が絶えたときだけ養子）。タイトル経験があり弟子筋が6人以上になった選手は「一家を成した」として独立。過去の流もこのルールで組み直した'],
+  [143, '宗家は嫡流（先代の弟子筋）から継ぐ形に（兄弟弟子の筋からは継がない。弟子筋が絶えたときだけ養子）。タイトル経験があり弟子筋が6人以上になった選手は「一家を成した」として独立。本家に現役がいなくなっても分家に現役がいれば、分家から養子を迎えて本家を再興。過去の流もこのルールで組み直した'],
 ];
 
 // 「このメディアについて」タブ：架空リーグ・AI自動運営という性質を明示する
