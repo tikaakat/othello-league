@@ -37,6 +37,7 @@
     --accent: #D9704F; --accent-dark: #B8573A; --border: #EEE6DB;
     --shadow: rgba(58,51,46,0.07); --shadow-hover: rgba(58,51,46,0.12);
     --hover-bg: #FFF6EE; --filter-border: #F3DCC9; --skeleton-shimmer: #F7F0E6;
+    --clan-member-bg: #FDE6D6; --clan-member-bar-retired: #D9B8A2;
   }
   /* ダークモード：OSの設定に自動追従（prefers-color-scheme）。
      data-theme属性での手動切り替え（ヘッダーのボタン、localStorageに保存）が
@@ -47,6 +48,7 @@
       --accent: #E8956D; --accent-dark: #F2B290; --border: #3D322A;
       --shadow: rgba(0,0,0,0.35); --shadow-hover: rgba(0,0,0,0.45);
       --hover-bg: #2E2419; --filter-border: #4A3A2C; --skeleton-shimmer: #3A2F27;
+      --clan-member-bg: #45301F; --clan-member-bar-retired: #7A5A44;
     }
   }
   :root[data-theme="dark"] {
@@ -54,6 +56,7 @@
     --accent: #E8956D; --accent-dark: #F2B290; --border: #3D322A;
     --shadow: rgba(0,0,0,0.35); --shadow-hover: rgba(0,0,0,0.45);
     --hover-bg: #2E2419; --filter-border: #4A3A2C; --skeleton-shimmer: #3A2F27;
+      --clan-member-bg: #45301F; --clan-member-bar-retired: #7A5A44;
   }
   * { box-sizing: border-box; }
   body {
@@ -2047,10 +2050,14 @@ function clanTreeSVG(root, childrenByParent, branchesByUnder, opts = {}) {
       headBadges += `<g opacity="${outside ? 0.6 : 1}"><rect x="${x + BW - 40}" y="${n.y - BH / 2 - 6}" width="42" height="11" rx="5.5" fill="var(--accent)"/>
         <text x="${x + BW - 19}" y="${n.y - BH / 2 + 2}" font-size="7" font-weight="700" text-anchor="middle" fill="#fff">${headGen}代目当主</text></g>`;
     }
-    boxes += `<g class="clan-svg-node" data-node-id="${escapeHtml(m.id)}" data-clan="${escapeHtml(m.clan_root_id || '')}" data-goto-individual="${escapeHtml(m.id)}" style="cursor:pointer;" opacity="${(m.retired ? 0.55 : 1) * (outside ? 0.45 : 1)}">
-      <rect x="${x}" y="${n.y - BH / 2}" width="${BW}" height="${BH}" rx="5" fill="var(--card)" stroke="${stroke}" stroke-width="${owned.length ? 1.8 : 1}"/>
-      <text x="${x + 5}" y="${n.y + (titleLine ? -1.5 : 3.5)}" font-size="10" font-weight="${owned.length || isRoot ? 700 : 500}" fill="var(--text-main)">${escapeHtml(fit(label, BW - (m.retired ? 26 : 9), 10, true))}${m.retired ? '<tspan font-size="7" fill="var(--text-dim)"> 引退</tspan>' : ''}<title>${escapeHtml(m.display_name || m.id)}</title></text>
-      ${titleLine ? `<text x="${x + 5}" y="${n.y + 9}" font-size="7.5" font-weight="700">${titleLine}</text>` : ''}
+    // この一門の選手は、引退者も含めて色付きの背景と左端の帯で目立たせる（引退者を薄くすると師弟のつながりが追えないため、
+    // 引退は名前の横の「引退」と細字で示すだけにする）。現役は太字。ほかの一門の選手だけを薄く描く
+    const member = !outside;
+    boxes += `<g class="clan-svg-node" data-node-id="${escapeHtml(m.id)}" data-clan="${escapeHtml(m.clan_root_id || '')}" data-goto-individual="${escapeHtml(m.id)}" style="cursor:pointer;" opacity="${outside ? 0.45 : 1}">
+      <rect x="${x}" y="${n.y - BH / 2}" width="${BW}" height="${BH}" rx="5" fill="${member ? 'var(--clan-member-bg)' : 'var(--card)'}" stroke="${stroke}" stroke-width="${owned.length ? 1.8 : 1}"/>
+      ${member ? `<rect x="${x + 0.5}" y="${n.y - BH / 2 + 3}" width="3" height="${BH - 6}" rx="1.5" fill="${m.retired ? 'var(--clan-member-bar-retired)' : 'var(--accent)'}"/>` : ''}
+      <text x="${x + 6}" y="${n.y + (titleLine ? -1.5 : 3.5)}" font-size="10" font-weight="${!m.retired || owned.length || isRoot ? 700 : 400}" fill="var(--text-main)">${escapeHtml(fit(label, BW - (m.retired ? 26 : 9), 10, true))}${m.retired ? '<tspan font-size="7" font-weight="400" fill="var(--text-dim)"> 引退</tspan>' : ''}<title>${escapeHtml(m.display_name || m.id)}</title></text>
+      ${titleLine ? `<text x="${x + 6}" y="${n.y + 9}" font-size="7.5" font-weight="700">${titleLine}</text>` : ''}
     </g>`;
     const kids = [...n.kids, ...n.brs];
     if (!kids.length) return;
@@ -2188,7 +2195,7 @@ async function renderClanDetail(clanId) {
         <button class="chip-btn ${mode === 'clan' ? 'active' : ''}" data-clan-mode="clan">この一門だけ</button>
       </div>` : ''}
       <div style="font-size:0.72rem; color:var(--text-dim); margin-bottom:6px;">${mode === 'full'
-        ? `${lineageSummary}。この一門は全員、ほかの一門は開祖の<span style="color:#D9463B;">赤い点線の箱</span>にまとめて表示（押すとその一門へ）。`
+        ? `${lineageSummary}。<span style="background:var(--clan-member-bg); padding:0 3px; border-radius:3px;">色付きの箱</span>がこの一門の選手（太字＝現役、細字＝引退）。ほかの一門は開祖の<span style="color:#D9463B;">赤い点線の箱</span>にまとめて表示（押すとその一門へ）。`
         : `<span style="color:#D9463B;">赤い点線</span>は独立して一門を興した弟子（押すとその一門へ）。`}左が祖、右へ1列ごとに1代下がる。色付きの枠はタイトル獲得者（青＝青龍の期数など）。縦・横にスクロールできます</div>
       ${mode === 'full' ? fullTreeHtml : (root ? clanTreeSVG(root, childrenByParent, branchesByUnder, { headGen }) : '')}
     </div>`;
