@@ -1982,7 +1982,8 @@ const CLAN_TITLE_ORDER = ['麒麟', '青龍', '朱雀', '白虎', '玄武'];
 const CLAN_TITLE_COLOR = { '麒麟': '#C99A1E', '青龍': '#2F6FD0', '朱雀': '#D9463B', '白虎': '#8A8F97', '玄武': '#7B4FC0' };
 
 // opts.highlightClan：系統全体を描くときに強調する一門（それ以外の一門は薄く描く）。
-// opts.founderLabel(id)：独立して一門を興した選手なら、箱の上に添える一門名を返す
+// opts.collapsed(id)：ほかの一門の開祖なら、その一門の人数を返す（開祖の箱1つに畳み、押すとその一門へ）
+// opts.noGenHeads：列の見出し（N代目）を出さない（畳んだ一門をはさむと列と代がずれるため）
 // opts.headGen(id)：その選手がいずれかの一門の現当主なら、何代目かを返す（箱の右上に「N代目当主」）
 function clanTreeSVG(root, childrenByParent, branchesByUnder, opts = {}) {
   // なるべくスクロールせずに見られるよう小さめに描き、さらに画面幅に合わせて75%まで縮める
@@ -2012,7 +2013,7 @@ function clanTreeSVG(root, childrenByParent, branchesByUnder, opts = {}) {
     return t === String(str || '') ? t : t.slice(0, -1) + '…';
   };
   let heads = '', lines = '', boxes = '', headBadges = '';
-  for (let g = 0; g <= maxGen; g++) {
+  for (let g = 0; g <= maxGen && !opts.noGenHeads; g++) {
     heads += `<text x="${colX(g) + BW / 2}" y="11" font-size="9" fill="var(--text-dim)" text-anchor="middle">${g === 0 ? '開祖' : g + '代目'}</text>`;
   }
   const line = (x1, y1, x2, y2, dash) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${dash ? BRANCH : 'var(--text-dim)'}" stroke-opacity="${dash ? 0.8 : 0.45}" stroke-width="1.3"${dash ? ' stroke-dasharray="3 3"' : ''}/>`;
@@ -2025,10 +2026,21 @@ function clanTreeSVG(root, childrenByParent, branchesByUnder, opts = {}) {
     const isRoot = n.g === 0;
     const label = (isFollowed(m.id) ? '★' : '') + (m.display_name || m.id);
     const outside = opts.highlightClan && m.clan_root_id !== opts.highlightClan;
-    const founder = opts.founderLabel ? opts.founderLabel(m.id) : null;
-    if (founder) {
-      boxes += `<g data-goto-clan="${escapeHtml(m.id)}" style="cursor:pointer;" opacity="${outside ? 0.6 : 1}">
-        <text x="${x + 1}" y="${n.y - BH / 2 - 2}" font-size="7.5" font-weight="700" fill="${BRANCH}">${escapeHtml(founder)} ›</text></g>`;
+    const folded = opts.collapsed ? opts.collapsed(m.id) : null;
+    if (folded) {
+      // ほかの一門：開祖の箱に畳む（押すとその一門のページへ）
+      boxes += `<g data-goto-clan="${escapeHtml(m.id)}" style="cursor:pointer;">
+        <rect x="${x}" y="${n.y - BH / 2}" width="${BW}" height="${BH}" rx="5" fill="var(--card)" stroke="${BRANCH}" stroke-width="1.3" stroke-dasharray="4 3"/>
+        <text x="${x + 5}" y="${n.y - 1.5}" font-size="10" font-weight="700" fill="var(--text-main)">${escapeHtml(fit(m.display_name + '一門', BW - 9, 10, true))}<title>${escapeHtml(m.display_name)}一門</title></text>
+        <text x="${x + 5}" y="${n.y + 9}" font-size="7.5" font-weight="700" fill="${BRANCH}">${folded}名 ›</text>
+      </g>`;
+      const kids0 = n.kids;
+      if (kids0.length) {
+        const mx = x + BW + CG / 2, ys = kids0.map(k => k.y);
+        lines += line(x + BW, n.y, mx, n.y) + line(mx, Math.min(...ys), mx, Math.max(...ys));
+        kids0.forEach(k => { lines += line(mx, k.y, colX(k.g), k.y, k.m.clan_root_id !== m.clan_root_id); });
+      }
+      return;
     }
     const headGen = opts.headGen ? opts.headGen(m.id) : null;
     if (headGen) {
@@ -2127,13 +2139,26 @@ async function renderClanDetail(clanId) {
     let top = all[clanId];
     while (top && top.parent_a_id && all[top.parent_a_id]) top = all[top.parent_a_id];
     if (top) {
-      // 一門一覧と同じ基準（3名以上）で成立している一門の開祖に、一門名の札を付ける
+      // 選んだ一門は全員を描き、ほかの一門は開祖だけを1つの箱（押すとその一門のページへ）に畳んで描く。
+      // 畳んだ一門の開祖は、師匠をたどって最初に描かれている選手（選んだ一門の選手か、ほかの一門の開祖）の下につなぐ。
+      // 一門として成立していない（3名未満の）小さな一門は描かず、その先の一門は上の一門につなぐ
       const clanSize = {}; _lineageCache.forEach(m => { clanSize[m.clan_root_id] = (clanSize[m.clan_root_id] || 0) + 1; });
       let count = 0; const clans = new Set();
       (function walk(m) { count++; clans.add(m.clan_root_id); (kidsAll[m.id] || []).forEach(walk); })(top);
-      const founderLabel = id => (all[id] && all[id].clan_root_id === id && clanSize[id] >= 3 && (id !== top.id))
-        ? `${all[id].display_name}一門（${clanSize[id]}名）` : null;
-      fullTreeHtml = clanTreeSVG(top, kidsAll, {}, { highlightClan: clanId, founderLabel, headGen });
+      const shown = m => m.clan_root_id === clanId || m.id === top.id || (m.clan_root_id === m.id && clanSize[m.id] >= 3);
+      const kidsShown = {};
+      (function walk(m) {
+        (kidsAll[m.id] || []).forEach(k => {
+          if (shown(k)) {
+            let p = all[k.parent_a_id];
+            while (p && !shown(p)) p = all[p.parent_a_id];
+            if (p) (kidsShown[p.id] = kidsShown[p.id] || []).push(k);
+          }
+          walk(k);
+        });
+      })(top);
+      const collapsed = id => all[id] && all[id].clan_root_id === id && id !== clanId ? clanSize[id] : null;
+      fullTreeHtml = clanTreeSVG(top, kidsShown, {}, { highlightClan: clanId, collapsed, headGen, noGenHeads: true });
       lineageSummary = `${escapeHtml(top.display_name)}を祖とする系統（${count}名・${clans.size}一門）`;
     }
   }
@@ -2163,7 +2188,7 @@ async function renderClanDetail(clanId) {
         <button class="chip-btn ${mode === 'clan' ? 'active' : ''}" data-clan-mode="clan">この一門だけ</button>
       </div>` : ''}
       <div style="font-size:0.72rem; color:var(--text-dim); margin-bottom:6px;">${mode === 'full'
-        ? `${lineageSummary}。この一門を濃く、ほかの一門を薄く表示。<span style="color:#D9463B;">赤い点線</span>は独立（一門名を押すとその一門へ）。`
+        ? `${lineageSummary}。この一門は全員、ほかの一門は開祖の<span style="color:#D9463B;">赤い点線の箱</span>にまとめて表示（押すとその一門へ）。`
         : `<span style="color:#D9463B;">赤い点線</span>は独立して一門を興した弟子（押すとその一門へ）。`}左が祖、右へ1列ごとに1代下がる。色付きの枠はタイトル獲得者（青＝青龍の期数など）。縦・横にスクロールできます</div>
       ${mode === 'full' ? fullTreeHtml : (root ? clanTreeSVG(root, childrenByParent, branchesByUnder, { headGen }) : '')}
     </div>`;
