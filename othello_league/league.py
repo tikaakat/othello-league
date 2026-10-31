@@ -470,7 +470,9 @@ CLAN_NEW_FOUNDER_CHANCE = 0.08
 #   最も上の者が次の当主になる（直弟子がいなければ一門の現役全員から選ぶ）。一門の名前（開祖）は変わらない。
 #   このとき、他にタイトル獲得歴のある現役の直弟子は、それぞれ子孫を引き連れて独立し、自分の一門を興す
 # ・完全独立：当主が現役でも、タイトル CLAN_FULL_INDEPENDENCE_TITLES 期以上で、一門に残る現役の直弟子が
-#   CLAN_FULL_INDEPENDENCE_DISCIPLES 人以上いる選手は、子孫を引き連れて独立し、自分の一門を興す
+#   CLAN_FULL_INDEPENDENCE_DISCIPLES 人以上いる選手は、子孫を引き連れて独立し、自分の一門を興す。
+#   当主本人は独立しない（当主＝その一門なので、継いだ後に一門を割って出ることはない）。
+#   また、当主が自分の弟子筋にいる選手も独立しない（当主ごと連れ出すと一門の本流が抜けてしまうため）
 # 以前は「本人＋同じ一門に残る子孫（引退者を含む通算）が6人以上」で機械的に独立させていたため、
 # 実績の無い師匠も次々に独立し、一門が細かく割れ続けていた
 CLAN_FULL_INDEPENDENCE_TITLES = 10
@@ -561,8 +563,17 @@ def apply_clan_succession(active_members, retired_records, season, heads, title_
             continue
         if title_counts.get(mid, 0) < CLAN_FULL_INDEPENDENCE_TITLES:
             continue
-        if len(active_direct(mid, clan)) >= CLAN_FULL_INDEPENDENCE_DISCIPLES:
-            split(m, "完全独立")
+        if len(active_direct(mid, clan)) < CLAN_FULL_INDEPENDENCE_DISCIPLES:
+            continue
+        # 当主が自分の弟子筋にいる場合は独立しない（独立すると当主ごと一門を連れ出してしまい、一門の本流が抜けるため）
+        stack, line = [mid], set()
+        while stack:
+            for c in children.get(stack.pop(), []):
+                if _get(c, "clan_root_id") == clan and _get(c, "id") not in line:
+                    line.add(_get(c, "id")); stack.append(_get(c, "id"))
+        if head_of(clan) in line:
+            continue
+        split(m, "完全独立")
     return independence, successions
 
 
