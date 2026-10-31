@@ -1931,17 +1931,33 @@ async function renderClanList() {
     const indep = ((st && st.clan_independence_history) || []).filter(e => e.id === c.clan_root_id).pop();
     const h = clanHeadInfo(st, c.clan_root_id, c.founder_name);
     return `<div class="clan-row" data-goto-clan="${escapeHtml(c.clan_root_id)}"${c.active_count === 0 ? ' style="opacity:0.55;"' : ''}>
-      <span><b>${escapeHtml(c.founder_name)}一門</b>${indep ? `<span class="clan-right" style="font-size:0.7rem;">　第${indep.season}季に${indep.kind === '完全独立' ? '完全独立' : '独立'}</span>` : ''}${c.active_count === 0 ? '<span class="clan-right">（消滅）</span>' : ''}</span>
+      <span><b>${escapeHtml(c.founder_name)}一門</b>${indep ? `<span class="clan-right" style="font-size:0.7rem;">　第${indep.season}季に${indep.kind === '完全独立' ? '完全独立' : '独立'}</span>` : (c.founder_debut_season ? `<span class="clan-right" style="font-size:0.7rem;">　第${c.founder_debut_season}季〜</span>` : '')}${c.active_count === 0 ? '<span class="clan-right">（消滅）</span>' : ''}</span>
       <span class="clan-right">${c.active_count}名（総${c.member_count}名）　最高Elo ${Math.round(c.best_peak_elo)}</span>
       ${c.active_count > 0 ? `<span class="clan-head-line">当主 <b>${h.gen}代目 ${escapeHtml(h.name)}</b></span>` : ''}
     </div>`;
   };
-  const order = (x, y) => y.active_count - x.active_count || y.best_peak_elo - x.best_peak_elo;
-  const alive = rows.filter(c => c.active_count > 0).sort(order), gone = rows.filter(c => c.active_count === 0).sort(order);
+  // 並びは古い順かつ関連順：大元の一門を開祖のデビューが古い順に並べ、それぞれの直後に、
+  // そこから独立した一門を独立が古い順に続ける（独立した一門からさらに独立した一門も、その直後に続ける）。
+  // 字下げはせず、どの一門も対等に並べる
+  const indepSeason = id => (((st && st.clan_independence_history) || []).filter(e => e.id === id).pop() || {}).season;
+  const ids = new Set(rows.map(c => c.clan_root_id));
+  const kidsOf = new Map();
+  const roots = [];
+  rows.forEach(c => {
+    const o = c.origin_clan_root_id;
+    if (o && o !== c.clan_root_id && ids.has(o)) { if (!kidsOf.has(o)) kidsOf.set(o, []); kidsOf.get(o).push(c); }
+    else roots.push(c);
+  });
+  const since = c => indepSeason(c.clan_root_id) || c.founder_debut_season || 0;
+  const ordered = [];
+  (function walk(list) {
+    list.slice().sort((x, y) => since(x) - since(y)).forEach(c => { ordered.push(c); walk(kidsOf.get(c.clan_root_id) || []); });
+  })(roots);
+  const alive = ordered.filter(c => c.active_count > 0), gone = ordered.filter(c => c.active_count === 0);
   let html = `
     <a class="back-link" href="#" onclick="navigateTo('individuals');return false;">← 選手名鑑へ戻る</a>
     <div class="empty" style="padding:0 0 10px; text-align:left; color:var(--text-dim); font-size:0.8rem;">
-      師弟関係でつながる一門です（現役の多い順）。一門名を押すと、開祖からの系図と、独立した一門も含めた系統全体の系図を見られます。
+      師弟関係でつながる一門です。古い一門から順に、独立した一門はその元の一門の後ろに並べています。一門名を押すと、開祖からの系図と、独立した一門も含めた系統全体の系図を見られます。
     </div>
     <div class="roster-league-group"><h3>一門一覧（${alive.length}一門）</h3>
       ${alive.map(rowHtml).join('') || '<div class="empty">まだ一門がありません</div>'}
@@ -1969,7 +1985,8 @@ const CLAN_TITLE_COLOR = { '麒麟': '#C99A1E', '青龍': '#2F6FD0', '朱雀': '
 // opts.founderLabel(id)：独立して一門を興した選手なら、箱の上に添える一門名を返す
 // opts.headGen(id)：その選手がいずれかの一門の現当主なら、何代目かを返す（箱の右上に「N代目当主」）
 function clanTreeSVG(root, childrenByParent, branchesByUnder, opts = {}) {
-  const BW = 94, BH = 36, CG = 18, RH = 48, PAD = 4, TOP = 34;
+  // なるべくスクロールせずに見られるよう小さめに描き、さらに画面幅に合わせて75%まで縮める
+  const BW = 84, BH = 26, CG = 12, RH = 35, PAD = 4, TOP = 26;
   const BRANCH = '#D9463B';
   let row = 0, maxGen = 0;
   const nodes = [];
@@ -1994,9 +2011,9 @@ function clanTreeSVG(root, childrenByParent, branchesByUnder, opts = {}) {
     while (t.length > 1 && w(t) > max) t = t.slice(0, -1);
     return t === String(str || '') ? t : t.slice(0, -1) + '…';
   };
-  let heads = '', lines = '', boxes = '';
+  let heads = '', lines = '', boxes = '', headBadges = '';
   for (let g = 0; g <= maxGen; g++) {
-    heads += `<text x="${colX(g) + BW / 2}" y="14" font-size="10" fill="var(--text-dim)" text-anchor="middle">${g === 0 ? '開祖' : g + '代目'}</text>`;
+    heads += `<text x="${colX(g) + BW / 2}" y="11" font-size="9" fill="var(--text-dim)" text-anchor="middle">${g === 0 ? '開祖' : g + '代目'}</text>`;
   }
   const line = (x1, y1, x2, y2, dash) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${dash ? BRANCH : 'var(--text-dim)'}" stroke-opacity="${dash ? 0.8 : 0.45}" stroke-width="1.3"${dash ? ' stroke-dasharray="3 3"' : ''}/>`;
   nodes.forEach(n => {
@@ -2011,17 +2028,17 @@ function clanTreeSVG(root, childrenByParent, branchesByUnder, opts = {}) {
     const founder = opts.founderLabel ? opts.founderLabel(m.id) : null;
     if (founder) {
       boxes += `<g data-goto-clan="${escapeHtml(m.id)}" style="cursor:pointer;" opacity="${outside ? 0.6 : 1}">
-        <text x="${x + 2}" y="${n.y - BH / 2 - 3}" font-size="9" font-weight="700" fill="${BRANCH}">${escapeHtml(founder)} ›</text></g>`;
+        <text x="${x + 1}" y="${n.y - BH / 2 - 2}" font-size="7.5" font-weight="700" fill="${BRANCH}">${escapeHtml(founder)} ›</text></g>`;
     }
     const headGen = opts.headGen ? opts.headGen(m.id) : null;
     if (headGen) {
-      boxes += `<g opacity="${outside ? 0.6 : 1}"><rect x="${x + BW - 52}" y="${n.y - BH / 2 - 9}" width="52" height="13" rx="6.5" fill="var(--accent)"/>
-        <text x="${x + BW - 26}" y="${n.y - BH / 2 + 1}" font-size="8.5" font-weight="700" text-anchor="middle" fill="#fff">${headGen}代目当主</text></g>`;
+      headBadges += `<g opacity="${outside ? 0.6 : 1}"><rect x="${x + BW - 40}" y="${n.y - BH / 2 - 6}" width="42" height="11" rx="5.5" fill="var(--accent)"/>
+        <text x="${x + BW - 19}" y="${n.y - BH / 2 + 2}" font-size="7" font-weight="700" text-anchor="middle" fill="#fff">${headGen}代目当主</text></g>`;
     }
     boxes += `<g class="clan-svg-node" data-node-id="${escapeHtml(m.id)}" data-clan="${escapeHtml(m.clan_root_id || '')}" data-goto-individual="${escapeHtml(m.id)}" style="cursor:pointer;" opacity="${(m.retired ? 0.55 : 1) * (outside ? 0.45 : 1)}">
-      <rect x="${x}" y="${n.y - BH / 2}" width="${BW}" height="${BH}" rx="6" fill="var(--card)" stroke="${stroke}" stroke-width="${owned.length ? 2 : 1}"/>
-      <text x="${x + 7}" y="${n.y + (titleLine ? -2 : 4)}" font-size="11.5" font-weight="${owned.length || isRoot ? 700 : 500}" fill="var(--text-main)">${escapeHtml(fit(label, BW - (m.retired ? 34 : 12), 11.5, true))}${m.retired ? '<tspan font-size="8.5" fill="var(--text-dim)"> 引退</tspan>' : ''}<title>${escapeHtml(m.display_name || m.id)}</title></text>
-      ${titleLine ? `<text x="${x + 7}" y="${n.y + 12}" font-size="9" font-weight="700">${titleLine}</text>` : ''}
+      <rect x="${x}" y="${n.y - BH / 2}" width="${BW}" height="${BH}" rx="5" fill="var(--card)" stroke="${stroke}" stroke-width="${owned.length ? 1.8 : 1}"/>
+      <text x="${x + 5}" y="${n.y + (titleLine ? -1.5 : 3.5)}" font-size="10" font-weight="${owned.length || isRoot ? 700 : 500}" fill="var(--text-main)">${escapeHtml(fit(label, BW - (m.retired ? 26 : 9), 10, true))}${m.retired ? '<tspan font-size="7" fill="var(--text-dim)"> 引退</tspan>' : ''}<title>${escapeHtml(m.display_name || m.id)}</title></text>
+      ${titleLine ? `<text x="${x + 5}" y="${n.y + 9}" font-size="7.5" font-weight="700">${titleLine}</text>` : ''}
     </g>`;
     const kids = [...n.kids, ...n.brs];
     if (!kids.length) return;
@@ -2034,14 +2051,14 @@ function clanTreeSVG(root, childrenByParent, branchesByUnder, opts = {}) {
       const bx = colX(b.g);
       lines += line(mx, b.y, bx, b.y, true);
       boxes += `<g data-goto-clan="${escapeHtml(b.branch_clan_root_id)}" style="cursor:pointer;" opacity="${b.branch_retired ? 0.7 : 1}">
-        <rect x="${bx}" y="${b.y - BH / 2}" width="${BW}" height="${BH}" rx="6" fill="var(--card)" stroke="${BRANCH}" stroke-width="1.4" stroke-dasharray="4 3"/>
-        <text x="${bx + 7}" y="${b.y - 2}" font-size="11.5" font-weight="700" fill="var(--text-main)">${escapeHtml(fit(b.branch_name, BW - 12, 11.5, true))}<title>${escapeHtml(b.branch_name)}</title></text>
-        <text x="${bx + 7}" y="${b.y + 12}" font-size="9" font-weight="700" fill="${BRANCH}">独立：${b.branch_member_count ? `一門${b.branch_member_count}名` : '一門'} ›</text>
+        <rect x="${bx}" y="${b.y - BH / 2}" width="${BW}" height="${BH}" rx="5" fill="var(--card)" stroke="${BRANCH}" stroke-width="1.3" stroke-dasharray="4 3"/>
+        <text x="${bx + 5}" y="${b.y - 1.5}" font-size="10" font-weight="700" fill="var(--text-main)">${escapeHtml(fit(b.branch_name, BW - 9, 10, true))}<title>${escapeHtml(b.branch_name)}</title></text>
+        <text x="${bx + 5}" y="${b.y + 9}" font-size="7.5" font-weight="700" fill="${BRANCH}">独立：${b.branch_member_count ? `一門${b.branch_member_count}名` : '一門'} ›</text>
       </g>`;
     });
   });
   return `<div class="clan-svg-wrap" style="overflow-x:auto; -webkit-overflow-scrolling:touch;">
-    <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="display:block; font-family:inherit;">${heads}${lines}${boxes}</svg></div>`;
+    <svg viewBox="0 0 ${W} ${H}" style="display:block; font-family:inherit; width:${W}px; max-width:100%; min-width:${Math.round(W * 0.75)}px; height:auto;">${heads}${lines}${boxes}${headBadges}</svg></div>`;
 }
 
 // 当主の情報（season_state.jsonのclan_heads・clan_succession_history）。記録の無い一門は開祖が初代当主

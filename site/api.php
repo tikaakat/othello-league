@@ -1125,6 +1125,15 @@ switch ($action) {
             foreach ($pStmt->fetchAll() as $row) { $parentClan[$row['id']] = $row['clan_root_id']; }
         }
 
+        // 開祖のデビュー季（一門一覧を古い順に並べるため）
+        $debut = [];
+        if ($founderIds) {
+            $ph = implode(',', array_fill(0, count($founderIds), '?'));
+            $dStmt = $pdo->prepare("SELECT individual_id, MIN(season) AS s FROM standings WHERE individual_id IN ($ph) GROUP BY individual_id");
+            $dStmt->execute($founderIds);
+            foreach ($dStmt->fetchAll() as $row) { $debut[$row['individual_id']] = (int)$row['s']; }
+        }
+
         $clans = [];
         foreach ($rows as $r) {
             $founder = $founderMap[$r['clan_root_id']] ?? null;
@@ -1136,6 +1145,7 @@ switch ($action) {
                 'active_count' => (int)$r['active_count'],
                 'best_peak_elo' => round((float)$r['best_peak_elo'], 1),
                 'origin_clan_root_id' => $parentClan[$founder['parent_a_id'] ?? ''] ?? null,
+                'founder_debut_season' => $debut[$r['clan_root_id']] ?? null,
             ];
         }
         json_out(['clans' => $clans]);
