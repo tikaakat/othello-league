@@ -248,18 +248,19 @@ def topic_clan(ctx):
     full = [e for e in evs if e.get("kind") == "完全独立"]
     for e in full:
         founder = names.get(e.get("from_clan_id"), e.get("from_clan_id"))
-        lines.append(f"{e['name']}が、師の一門に当主が健在のまま、弟子・孫弟子を引き連れて{founder}一門から完全独立し、自らを開祖とする一門を興した。")
+        lines.append(f"{e['name']}が、師の一門に当主が健在のまま、弟子・孫弟子を引き連れて{founder}流の一門から完全独立し、自らを開祖とする{e['name']}一門を興した。")
         ids.append(e["id"]); who.append(e["name"])
     for su in sucs:
         clan = names.get(su["clan_id"], su["clan_id"])
         prev = names.get(su.get("prev_head_id"), su.get("prev_head_id"))
-        lines.append(f"{clan}一門では当主の{prev}が引退し、{su['name']}が{su['gen']}代目当主を継いだ。")
+        lines.append(f"{clan}流の一門では当主の{prev}が引退し、{su['name']}が{su['gen']}代目当主を継いだ。"
+                     f"一門は今後「{su['name']}一門」（{clan}流{su['gen']}代）と呼ばれる。")
         branched = [e for e in evs if e.get("kind") != "完全独立" and e.get("from_clan_id") == su["clan_id"]]
         if branched:
             lines.append("この代替わりに伴い、" + "・".join(e["name"] for e in branched) + "がそれぞれ独立して一門を興した。")
             ids += [e["id"] for e in branched]; who += [e["name"] for e in branched]
         ids.append(su["id"]); who.append(su["name"])
-    subject = f"{full[0]['name']}一門の完全独立" if full else f"{names.get(sucs[0]['clan_id'], sucs[0]['clan_id'])}一門の代替わり" if sucs else f"{evs[0]['name']}一門の独立"
+    subject = f"{full[0]['name']}一門の完全独立" if full else f"{names.get(sucs[0]['clan_id'], sucs[0]['clan_id'])}流の代替わり" if sucs else f"{evs[0]['name']}一門の独立"
     if not lines:
         e = evs[0]
         lines = [f"{e['name']}が、弟子・孫弟子を引き連れて{names.get(e.get('from_clan_id'), e.get('from_clan_id'))}一門から独立し、自らを開祖とする一門を興した。"]
