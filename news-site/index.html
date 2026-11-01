@@ -2342,7 +2342,7 @@ async function renderClanDetail(clanId) {
   const headLineHtml = `<div class="clan-head-card">
       <div class="clan-head-now">当代宗家　<span class="clan-head-gen">${headInfo.gen === 1 ? '初' : headInfo.gen}代</span>
         <span data-goto-individual="${escapeHtml(headInfo.id)}" style="cursor:pointer; font-weight:700;">${escapeHtml(headInfo.name)}</span>${headMember && headMember.retired ? '<span style="color:var(--text-dim); font-size:0.72rem;">（引退・後継なし）</span>' : ''}</div>
-      ${headInfo.list.length > 1 ? `<div class="clan-head-history">歴代宗家：${headInfo.list.map(h => `<span data-goto-individual="${escapeHtml(h.id)}" style="cursor:pointer; white-space:nowrap;">${h.gen === 1 ? '初代' : h.gen + '代'} ${escapeHtml(h.name)}${h.season ? `<span style="color:var(--text-dim);">（第${h.season}季〜${masterNote(h.id)}${h.revival ? `・<b style="color:#D9463B;">${escapeHtml(((st && st.clan_names) || {})[h.fromClan] || '分家')}流から迎え入れ（本家再興）</b>` : ''}）</span>` : ''}</span>`).join(' → ')}</div>` : ''}
+      ${headInfo.list.length > 1 ? `<div class="clan-head-history">歴代宗家：${headInfo.list.map(h => `<span data-goto-individual="${escapeHtml(h.id)}" style="cursor:pointer; white-space:nowrap;">${h.gen === 1 ? '初代' : h.gen + '代'} ${escapeHtml(h.name)}${h.season ? `<span style="color:var(--text-dim);">（第${h.season}季〜${masterNote(h.id)}${h.revival ? `・<b style="color:#D9463B;">${escapeHtml(((st && st.clan_names) || {})[h.fromClan] || '分家')}流が合流（本家再興）</b>` : ''}）</span>` : ''}</span>`).join(' → ')}</div>` : ''}
     </div>`;
   const bf = data.branched_from;
   const branchedFromHtml = bf ? `<div class="clan-branched-from" data-goto-clan="${escapeHtml(bf.origin_clan_root_id)}">
@@ -2415,12 +2415,9 @@ function renderRules() {
       投稿された新人は、本人の設定した能力のまま弟子入りする）。実力のある選手ほど弟子を持ちやすいが、1回の新人リーグで同じ師匠に付く弟子は2人まで。<br>
       一門は、師弟関係をたどった先に同じ開祖を持つ選手たちのまとまりで、開祖の苗字を取って「◯◯流」と呼ぶ。
       流には「宗家」がいて、初代宗家は開祖（例：西村流 9代宗家 大山直人。同じ苗字の流が先にあれば開祖のフルネームで呼ぶ）。<br>
-      <b>代替わり</b>：宗家が引退すると、嫡流で継ぐ。先代の現役の直弟子のうち実績（タイトル期数→Aリーグ在籍季数）が最も上の選手が次の宗家となり、
-      兄弟弟子の筋からは継がない（直弟子がいなければ孫弟子から。弟子筋に現役が1人もいなければ、流の中の別の筋から養子を迎える）。<br>
-      <b>本家の再興</b>：流の現役が1人もいなくなっても、そこから独立した分家に現役がいれば、分家で実績が最も上の選手（宗家・開祖を除く）を養子として迎え、宗家を継がせる。本人の弟子筋も一緒に本家へ移る。分家もすべて途絶えたときだけ流は断絶する。
-      このとき、新宗家のほかに、タイトル5期以上で現役の直弟子が2人以上いる先代の直弟子は、弟子たちを引き連れて独立し、自分を開祖とする流を興す。<br>
-      <b>完全独立</b>：宗家が健在でも、タイトル10期以上で現役の直弟子が3人以上いる大棋士は、弟子たちを引き連れて独立し、自分の流を興す。<br>
-      <b>一家を成す</b>：タイトル経験があり、同じ流に残る自分の弟子筋（孫弟子以下・引退者を含む）が6人以上になった選手も、独立して自分の流を興す。<br>
+      <b>代替わり</b>：宗家が引退すると、嫡流で継ぐ。先代の現役の直弟子のうち実績（タイトル期数→Aリーグ在籍季数）が最も上の選手が次の宗家となる（直弟子がいなければ孫弟子から。弟子筋が絶えていれば流の中の別の筋から）。<br>
+      <b>独立</b>：新しい宗家が決まったら、先代のほかの直弟子のうち自分の弟子がいる選手は、それぞれ独立して自分の流を興す（弟子のいない選手は新しい宗家のもとに残る）。独立は代替わりのときだけ起きる。<br>
+      <b>本家の再興</b>：流の現役が1人もいなくなっても、そこから独立した分家に現役がいれば、最強の選手がいる分家を丸ごと本家に合流させ、分家の宗家が本家の宗家を継ぐ。分家もすべて途絶えたときだけ流は断絶する。<br>
       まれに、終盤力が一気に伸びた「神童」が現れることもある。
     </div>
 
@@ -2506,6 +2503,7 @@ const RULE_HISTORY = [
   [133, '<b>一門を当主制に</b>（当主の引退で代替わり、その際にタイトル獲得歴のある直弟子が独立。タイトル10期以上の大棋士は完全独立）。それまでの「子孫6人以上で独立」は廃止し、過去の一門もこのルールで組み直した'],
   [139, '一門を開祖の苗字で「◯◯流」と呼び、当主を「宗家」に。宗家は流の現役選手のうち実績が最も上の選手が継ぐ（筋が移っても代は通し）。代替わりに伴う独立は「タイトル5期以上・現役の直弟子2人以上」に（以前はタイトル1期以上）。過去の流もこのルールで組み直した'],
   [143, '宗家は嫡流（先代の弟子筋）から継ぐ形に（兄弟弟子の筋からは継がない。弟子筋が絶えたときだけ養子）。タイトル経験があり弟子筋が6人以上になった選手は「一家を成した」として独立。本家に現役がいなくなっても分家に現役がいれば、分家から養子を迎えて本家を再興。過去の流もこのルールで組み直した'],
+  [151, '独立は宗家の代替わりのときだけに（新しい宗家が決まったら、先代のほかの直弟子のうち弟子のいる選手が独立）。途中での独立（一家を成す・完全独立）は廃止。本家の再興は分家を丸ごと合流させる形に。過去の流もこのルールで組み直した'],
 ];
 
 // 「このメディアについて」タブ：架空リーグ・AI自動運営という性質を明示する
