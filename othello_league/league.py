@@ -469,10 +469,15 @@ CLAN_NEW_FOUNDER_CHANCE = 0.08
 # ・代替わり：宗家が引退すると、嫡流で継ぐ。先代の弟子筋のうち先代に最も近い代の現役（ふつうは直弟子）から、
 #   実績（タイトル期数→Aリーグ在籍季数→Elo）が最も上の者が次の宗家になる（弟子筋が絶えていれば流の中の別の筋から）。
 # ・独立：新しい宗家が決まったら、先代のほかの直弟子のうち自分の弟子（現役）がいる者は、それぞれ子孫を引き連れて
-#   独立し、自分の流を興す（弟子のいない者は新しい宗家のもとに残る）。独立は代替わりのときだけ起きる
+#   独立し、自分の流を興す（弟子のいない者は新しい宗家のもとに残り、後にタイトル経験があり弟子が2人以上になった時点で独立する）
 #   （以前は宗家の存命中にも「一家を成した」「完全独立」で独立していたが、強い弟子ほど先に出ていって本家がやせ細った）。
 # ・本家の再興：流の現役がいなくなっても、そこから独立した分家に現役がいれば、最強の選手がいる分家を丸ごと本家へ
 #   合流させ、分家の宗家が本家の宗家を継ぐ。分家もすべて途絶えたときだけ流は断絶する
+
+
+# 宗家の兄弟弟子が後から独立する条件：タイトル1期以上で、現役の弟子が2人以上（弟子1人で独立させると小さな流が乱立する）
+CLAN_LATE_INDEPENDENCE_TITLES = 1
+CLAN_LATE_INDEPENDENCE_DISCIPLES = 2
 
 
 def _get(x, key):
@@ -568,7 +573,7 @@ def apply_clan_succession(active_members, retired_records, season, heads, title_
         heads.pop(from_clan, None)
         prev = head_of(clan)
         gen = heads.get(clan, {}).get("gen", 1) + 1
-        heads[clan] = {"head": _get(heir, "id"), "gen": gen}
+        heads[clan] = {"head": _get(heir, "id"), "gen": gen, "past": heads.get(clan, {}).get("past", []) + [prev]}
         successions.append({"clan_id": clan, "id": _get(heir, "id"), "name": _get(heir, "display_name"),
                             "prev_head_id": prev, "gen": gen, "season": season, "adopted": True,
                             "revival": True, "merged": True, "from_clan_id": from_clan})
@@ -602,7 +607,7 @@ def apply_clan_succession(active_members, retired_records, season, heads, title_
             pool, adopted = members, True
         heir = max(pool, key=lambda x: score(x, head))
         gen = heads.get(clan, {}).get("gen", 1) + 1
-        heads[clan] = {"head": _get(heir, "id"), "gen": gen}
+        heads[clan] = {"head": _get(heir, "id"), "gen": gen, "past": heads.get(clan, {}).get("past", []) + [head]}
         successions.append({"clan_id": clan, "id": _get(heir, "id"), "name": _get(heir, "display_name"),
                             "prev_head_id": head, "gen": gen, "season": season, "adopted": adopted})
         # 新しい宗家が決まったら、先代のほかの直弟子のうち、自分の弟子（現役）がいる者はそれぞれ独立して流を興す。
@@ -610,6 +615,26 @@ def apply_clan_succession(active_members, retired_records, season, heads, title_
         for c in direct:
             if c is not heir and len(active_direct(_get(c, "id"), clan)) >= 1:
                 split(c, "代替わり")
+
+    # --- 代替わりのとき弟子がいなかったため新しい宗家のもとに残った、歴代宗家の直弟子（宗家の兄弟弟子）は、
+    #     その後にタイトル経験があり現役の弟子が2人以上になった時点で独立する（代替わりの時点で弟子がいたかどうかで、独立できるかが決まってしまわないように）。
+    #     ただし今の宗家が自分の弟子筋にいる場合（嫡流の祖先）は独立しない ---
+    for m in sorted(active_members, key=lambda x: _get(x, "generation") or 0):
+        mid, clan = _get(m, "id"), _get(m, "clan_root_id")
+        h = heads.get(clan, {})
+        past = h.get("past", [])
+        if clan == mid or h.get("head", clan) == mid or mid in past or _get(m, "parent_a_id") not in past:
+            continue
+        if len(active_direct(mid, clan)) < CLAN_LATE_INDEPENDENCE_DISCIPLES or title_counts.get(mid, 0) < CLAN_LATE_INDEPENDENCE_TITLES:
+            continue
+        stack, line = [mid], set()
+        while stack:
+            for c in children.get(stack.pop(), []):
+                if _get(c, "clan_root_id") == clan and _get(c, "id") not in line:
+                    line.add(_get(c, "id")); stack.append(_get(c, "id"))
+        if h.get("head", clan) in line:
+            continue
+        split(m, "代替わり")
 
     return independence, successions
 
