@@ -551,7 +551,7 @@ def apply_clan_succession(active_members, retired_records, season, heads, title_
 
     # --- 本家の再興：現役が1人もいなくなった流でも、そこから独立した分家（孫分家以下も含む）に現役がいれば、
     #     分家の現役（各流の宗家・開祖を除く）のうち実績が最も上の選手を養子として迎え、宗家を継がせる。
-    #     迎えるのは本人だけで、その弟子筋は分家に残る。強い弟子筋ほど分家として出ていくため、名門ほど本家が
+    #     本人の弟子筋（分家に残っている子孫）も一緒に本家へ移す（吉宗の将軍家入りに家重が伴ったように）。強い弟子筋ほど分家として出ていくため、名門ほど本家が
     #     やせ細って先に途絶える（第139季の西村流）のを防ぐ。分家もすべて途絶えたときだけ本家も断絶する ---
     founders = {_get(x, "clan_root_id") for x in everyone}
     def branch_clans(clan):
@@ -576,6 +576,13 @@ def apply_clan_succession(active_members, retired_records, season, heads, title_
             continue
         heir = max(pool, key=score)
         from_clan = _get(heir, "clan_root_id")
+        # 本人と、分家に残っている本人の弟子筋（現役・引退とも）をまとめて本家へ移す（師弟のつながりを流で切らない）
+        stack = [_get(heir, "id")]
+        while stack:
+            for c in children.get(stack.pop(), []):
+                if _get(c, "clan_root_id") == from_clan:
+                    _set(c, "clan_root_id", clan)
+                    stack.append(_get(c, "id"))
         _set(heir, "clan_root_id", clan)
         prev = head_of(clan)
         gen = heads.get(clan, {}).get("gen", 1) + 1
