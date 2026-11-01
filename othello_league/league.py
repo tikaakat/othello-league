@@ -465,30 +465,14 @@ AWAKENED_INITIAL_AGE_RANGE = (14, 16)  # 覚醒個体の参入年齢（通常は
 # 一門イベントの確率（新弟子1人あたり）。新人は必ず誰かの弟子として参入するため、
 # 現在は師匠候補が誰もいない極端なケースでのみ師匠なしになる
 CLAN_NEW_FOUNDER_CHANCE = 0.08
-# 一門の継承と独立（継承型）。一門には「当主」がいて、最初の当主は開祖。
-# ・代替わり：当主（宗家）が引退すると、嫡流で継ぐ。先代の弟子筋のうち先代に最も近い代の現役（ふつうは直弟子）から、
-#   実績（タイトル期数→Aリーグ在籍季数→Elo）が最も上の者が次の当主になる。兄弟弟子の筋からは継がない
-#   （家系の長子相続に近い形。弟子筋に現役がいなければ、そのときだけ流の中の別の筋から迎える＝養子）。当主は一門の流れ（開祖の名を取って
-#   「◯◯流」）の名跡で、代数は筋が移っても通しで数える（囲碁の本因坊家が、強い門人を跡目に立てて世を重ねたのと同じ）。
-#   一門は当主の名で「◯◯一門（開祖名流N代）」と呼ぶ。
-#   このとき、新当主以外の先代の現役の直弟子のうち、タイトル5期以上で現役の直弟子が2人以上いる者は、
-#   それぞれ子孫を引き連れて独立し、自分の一門を興す
-#   （以前は先代の直弟子を最優先で当主にしていたため、タイトル0期の直弟子が、タイトル十数期の一門の実力者を差し置いて継いでいた）
-# ・完全独立：当主が現役でも、タイトル CLAN_FULL_INDEPENDENCE_TITLES 期以上で、一門に残る現役の直弟子が
-#   CLAN_FULL_INDEPENDENCE_DISCIPLES 人以上いる選手は、子孫を引き連れて独立し、自分の一門を興す。
-#   当主本人は独立しない（当主＝その一門なので、継いだ後に一門を割って出ることはない）。
-#   また、当主が自分の弟子筋にいる選手も独立しない（当主ごと連れ出すと一門の本流が抜けてしまうため）
-# 以前は「本人＋同じ一門に残る子孫（引退者を含む通算）が6人以上」で機械的に独立させていたため、
-# 実績の無い師匠も次々に独立し、一門が細かく割れ続けていた
-CLAN_FULL_INDEPENDENCE_TITLES = 10
-CLAN_FULL_INDEPENDENCE_DISCIPLES = 3
-# 代替わりに伴う独立の条件：タイトル5期以上で、流に残る現役の直弟子が2人以上（一門を構えられる実績と弟子がいること）。
-# 以前はタイトル1期でもあれば弟子がいなくても独立し、1〜4人で終わる小さな流が次々にできていた
-CLAN_SUCCESSION_INDEPENDENCE_TITLES = 5
-CLAN_SUCCESSION_INDEPENDENCE_DISCIPLES = 2
-# 一家を成した選手の独立（成長型）：タイトル1期以上で、同じ流に残る自分の弟子筋が6人以上
-CLAN_HOUSE_MIN_TITLES = 1
-CLAN_HOUSE_MIN_LINE = 6
+# 一門（流）の継承と独立。流には「宗家」がいて、初代宗家は開祖。
+# ・代替わり：宗家が引退すると、嫡流で継ぐ。先代の弟子筋のうち先代に最も近い代の現役（ふつうは直弟子）から、
+#   実績（タイトル期数→Aリーグ在籍季数→Elo）が最も上の者が次の宗家になる（弟子筋が絶えていれば流の中の別の筋から）。
+# ・独立：新しい宗家が決まったら、先代のほかの直弟子のうち自分の弟子（現役）がいる者は、それぞれ子孫を引き連れて
+#   独立し、自分の流を興す（弟子のいない者は新しい宗家のもとに残る）。独立は代替わりのときだけ起きる
+#   （以前は宗家の存命中にも「一家を成した」「完全独立」で独立していたが、強い弟子ほど先に出ていって本家がやせ細った）。
+# ・本家の再興：流の現役がいなくなっても、そこから独立した分家に現役がいれば、最強の選手がいる分家を丸ごと本家へ
+#   合流させ、分家の宗家が本家の宗家を継ぐ。分家もすべて途絶えたときだけ流は断絶する
 
 
 def _get(x, key):
@@ -565,32 +549,29 @@ def apply_clan_succession(active_members, retired_records, season, heads, title_
                         out.add(f); todo.append(f)
         return out
     active_clans = {_get(x, "clan_root_id") for x in active_members}
-    head_ids = {h.get("head") for h in heads.values()}
     for clan in sorted(founders - active_clans, key=lambda c: (_get(by_id[c], "generation") or 0) if c in by_id else 0):
         if clan not in by_id:
             continue
         branches = branch_clans(clan)
-        pool = [x for x in active_members if _get(x, "clan_root_id") in branches
-                and _get(x, "id") not in head_ids and _get(x, "clan_root_id") != _get(x, "id")]
+        pool = [x for x in active_members if _get(x, "clan_root_id") in branches]
         if not pool:
             continue
-        heir = max(pool, key=score)
-        from_clan = _get(heir, "clan_root_id")
-        # 本人と、分家に残っている本人の弟子筋（現役・引退とも）をまとめて本家へ移す（師弟のつながりを流で切らない）
-        stack = [_get(heir, "id")]
-        while stack:
-            for c in children.get(stack.pop(), []):
-                if _get(c, "clan_root_id") == from_clan:
-                    _set(c, "clan_root_id", clan)
-                    stack.append(_get(c, "id"))
-        _set(heir, "clan_root_id", clan)
+        # 現役の最強選手がいる分家を選び、その分家を丸ごと本家へ合流させる（分家の宗家が本家の宗家を継ぐ）
+        best = max(pool, key=score)
+        from_clan = _get(best, "clan_root_id")
+        bh = heads.get(from_clan, {}).get("head", from_clan)
+        heir = by_id[bh] if bh in active_ids else max(
+            [x for x in active_members if _get(x, "clan_root_id") == from_clan], key=score)
+        for x in everyone:
+            if _get(x, "clan_root_id") == from_clan:
+                _set(x, "clan_root_id", clan)
+        heads.pop(from_clan, None)
         prev = head_of(clan)
         gen = heads.get(clan, {}).get("gen", 1) + 1
         heads[clan] = {"head": _get(heir, "id"), "gen": gen}
-        head_ids.add(_get(heir, "id"))
         successions.append({"clan_id": clan, "id": _get(heir, "id"), "name": _get(heir, "display_name"),
                             "prev_head_id": prev, "gen": gen, "season": season, "adopted": True,
-                            "revival": True, "from_clan_id": from_clan})
+                            "revival": True, "merged": True, "from_clan_id": from_clan})
 
     # --- 代替わり：開祖の世代が浅い一門から（親の一門で独立が起きた後の状態で子の一門を見る） ---
     clans = sorted({_get(x, "clan_root_id") for x in active_members},
@@ -624,44 +605,12 @@ def apply_clan_succession(active_members, retired_records, season, heads, title_
         heads[clan] = {"head": _get(heir, "id"), "gen": gen}
         successions.append({"clan_id": clan, "id": _get(heir, "id"), "name": _get(heir, "display_name"),
                             "prev_head_id": head, "gen": gen, "season": season, "adopted": adopted})
+        # 新しい宗家が決まったら、先代のほかの直弟子のうち、自分の弟子（現役）がいる者はそれぞれ独立して流を興す。
+        # 弟子のいない者は新しい宗家のもとに残る
         for c in direct:
-            if (c is not heir and title_counts.get(_get(c, "id"), 0) >= CLAN_SUCCESSION_INDEPENDENCE_TITLES
-                    and len(active_direct(_get(c, "id"), clan)) >= CLAN_SUCCESSION_INDEPENDENCE_DISCIPLES):
+            if c is not heir and len(active_direct(_get(c, "id"), clan)) >= 1:
                 split(c, "代替わり")
 
-    # --- 完全独立：世代の浅い選手から ---
-    for m in sorted(active_members, key=lambda x: _get(x, "generation") or 0):
-        mid, clan = _get(m, "id"), _get(m, "clan_root_id")
-        if clan == mid or head_of(clan) == mid:
-            continue
-        if title_counts.get(mid, 0) < CLAN_FULL_INDEPENDENCE_TITLES:
-            continue
-        if len(active_direct(mid, clan)) < CLAN_FULL_INDEPENDENCE_DISCIPLES:
-            continue
-        # 当主が自分の弟子筋にいる場合は独立しない（独立すると当主ごと一門を連れ出してしまい、一門の本流が抜けるため）
-        stack, line = [mid], set()
-        while stack:
-            for c in children.get(stack.pop(), []):
-                if _get(c, "clan_root_id") == clan and _get(c, "id") not in line:
-                    line.add(_get(c, "id")); stack.append(_get(c, "id"))
-        if head_of(clan) in line:
-            continue
-        split(m, "完全独立")
-
-    # --- 一家を成した選手の独立（成長型）：宗家の代替わりを待たず、タイトル経験があり、同じ流に残る自分の
-    #     弟子筋（孫弟子以下・引退者を含む）が CLAN_HOUSE_MIN_LINE 人以上になったら、自分の流を興す ---
-    for m in sorted(active_members, key=lambda x: _get(x, "generation") or 0):
-        mid, clan = _get(m, "id"), _get(m, "clan_root_id")
-        if clan == mid or head_of(clan) == mid or title_counts.get(mid, 0) < CLAN_HOUSE_MIN_TITLES:
-            continue
-        stack, line = [mid], set()
-        while stack:
-            for c in children.get(stack.pop(), []):
-                if _get(c, "clan_root_id") == clan and _get(c, "id") not in line:
-                    line.add(_get(c, "id")); stack.append(_get(c, "id"))
-        if len(line) < CLAN_HOUSE_MIN_LINE or head_of(clan) in line:
-            continue
-        split(m, "一家")
     return independence, successions
 
 
