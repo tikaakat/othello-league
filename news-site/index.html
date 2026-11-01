@@ -226,6 +226,9 @@
   .clan-row:hover { color: var(--accent-dark); }
   .clan-row .clan-right { color: var(--text-dim); font-size: 0.78rem; flex-shrink: 0; }
   .ct-root-mark { color: var(--accent-dark); font-weight: 700; font-size: 0.72rem; margin-right: 2px; }
+  .clan-legend { font-size: 0.7rem; color: var(--text-main); line-height: 1.9; background: var(--hover-bg); border-radius: 6px; padding: 6px 8px; margin-bottom: 8px; }
+  .clan-legend .lg-box { display: inline-block; width: 14px; height: 10px; border-radius: 3px; vertical-align: -1px; margin: 0 3px 0 4px; }
+  .clan-legend .lg-pill { display: inline-block; font-size: 0.62rem; font-weight: 700; border-radius: 8px; padding: 0 5px; margin-right: 3px; }
   .clan-head-line { flex-basis: 100%; font-size: 0.74rem; color: var(--accent-dark); padding-top: 2px; }
   .clan-head-card { border: 1px solid var(--filter-border); background: var(--hover-bg); border-radius: 8px; padding: 8px 10px; margin: -2px 0 10px; }
   .clan-head-now { font-size: 0.95rem; color: var(--text-main); }
@@ -2337,9 +2340,14 @@ async function renderClanDetail(clanId) {
         <button class="chip-btn ${mode === 'full' ? 'active' : ''}" data-clan-mode="full">系統全体</button>
         <button class="chip-btn ${mode === 'clan' ? 'active' : ''}" data-clan-mode="clan">この一門だけ</button>
       </div>` : ''}
-      <div style="font-size:0.72rem; color:var(--text-dim); margin-bottom:6px;">${mode === 'full'
-        ? `${lineageSummary}。<span style="background:var(--clan-member-bg); padding:0 3px; border-radius:3px;">色付きの箱</span>がこの一門の選手（太字＝現役、細字＝引退）。ほかの一門は開祖の<span style="color:#D9463B;">赤い点線の箱</span>にまとめて表示（押すとその一門へ）。`
-        : `<span style="color:#D9463B;">赤い点線</span>は独立して一門を興した弟子（押すとその一門へ）。`}左が祖、右へ1列ごとに1代下がる。色付きの枠はタイトル獲得者（青＝青龍の期数など）。縦・横にスクロールできます</div>
+      <div style="font-size:0.72rem; color:var(--text-dim); margin-bottom:4px;">${mode === 'full' ? `${lineageSummary}。` : ''}左が祖で、右へ1列ごとに1代下がる。縦・横にスクロールできます</div>
+      <div class="clan-legend">
+        <div><span class="lg-box" style="background:var(--clan-member-bg);"></span>この流の選手（<b>太字</b>＝現役、細字＝引退）</div>
+        <div><span class="lg-box" style="border:1.3px dashed #D9463B;"></span>ほかの流（開祖の箱にまとめて表示。押すとその流へ）</div>
+        <div>枠の色＝獲得したタイトルのうち一番格の高いもの：${CLAN_TITLE_ORDER.map(t => `<span class="lg-box" style="border:2px solid ${CLAN_TITLE_COLOR[t]};"></span>${t}`).join(' ')}（細い灰色の枠＝タイトルなし）</div>
+        <div>名前の下の「<b style="color:${CLAN_TITLE_COLOR['青龍']};">青</b>10 <b style="color:${CLAN_TITLE_COLOR['朱雀']};">朱</b>8」＝タイトルごとの獲得期数</div>
+        <div><span class="lg-pill" style="background:var(--accent); color:#fff;">N代宗家</span>今の宗家　<span class="lg-pill" style="border:1px solid var(--accent); color:var(--accent-dark);">N代宗家</span>歴代の宗家　<span class="lg-pill" style="background:#D9463B; color:#fff;">再興</span>分家から迎えられた宗家</div>
+      </div>
       ${mode === 'full' ? fullTreeHtml : (root ? clanTreeSVG(root, childrenByParent, branchesByUnder, { headGen, pastHeadGen, adopted }) : '')}
     </div>`;
 
