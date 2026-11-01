@@ -2145,7 +2145,7 @@ async function renderKeitoChart(topId) {
   const all = {}; _lineageCache.forEach(m => { all[m.id] = m; });
   const kids = {};
   _lineageCache.forEach(m => { if (m.parent_a_id && all[m.parent_a_id]) (kids[m.parent_a_id] = kids[m.parent_a_id] || []).push(m); });
-  Object.values(kids).forEach(list => list.sort((a, b) => (a.id < b.id ? -1 : 1)));
+  Object.values(kids).forEach(list => list.sort(byDebut));
   const size = m => 1 + (kids[m.id] || []).reduce((n, k) => n + size(k), 0);
   const tops = _lineageCache.filter(m => !m.parent_a_id || !all[m.parent_a_id]).map(m => ({ m, n: size(m) })).sort((a, b) => b.n - a.n);
   // 系統は通算10人以上か、現役がいるものだけ切り替えに出す（弟子が数人で途絶えた小さな系統は省く）
@@ -2210,7 +2210,7 @@ async function renderKeitoChart(topId) {
     <h1 class="profile-name" style="font-size:1.1rem;">棋士系統図</h1>
     <div class="profile-sub" style="margin-bottom:8px;">${escapeHtml(top.m.display_name)}を祖とする系統（${top.n}名）</div>
     <div class="chip-row" style="margin-bottom:8px;">${chips}</div>
-    <div style="font-size:0.72rem; color:var(--text-dim); margin-bottom:6px;">上が師匠、下が弟子。△は引退、<span style="color:#D9463B; font-weight:700;">赤字</span>は現在の宗家、太字はタイトル獲得者。名前の上の<span style="background:#D9463B; color:#fff; padding:0 2px; border-radius:2px;">流</span>は流の開祖（<span style="color:#D9463B;">赤い点線</span>は独立）。名前を押すと選手ページへ。横にスクロールできます${small.length ? `（現役のいない小さな系統${small.length}件は省略）` : ''}</div>
+    <div style="font-size:0.72rem; color:var(--text-dim); margin-bottom:6px;">上が師匠、下が弟子（同じ師匠の弟子は左ほど先に入門）。△は引退、<span style="color:#D9463B; font-weight:700;">赤字</span>は現在の宗家、太字はタイトル獲得者。名前の上の<span style="background:#D9463B; color:#fff; padding:0 2px; border-radius:2px;">流</span>は流の開祖（<span style="color:#D9463B;">赤い点線</span>は独立）。名前を押すと選手ページへ。横にスクロールできます${small.length ? `（現役のいない小さな系統${small.length}件は省略）` : ''}</div>
     <div class="keito-wrap" style="overflow:auto; -webkit-overflow-scrolling:touch; border:1px solid var(--border); border-radius:8px; background:var(--card);">
       <svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" style="display:block; font-family:'Noto Serif JP','Hiragino Mincho ProN','Yu Mincho',serif;">
         <g stroke="var(--text-dim)" stroke-width="0.9" fill="none">${lines}</g>${texts}
@@ -2221,6 +2221,16 @@ async function renderKeitoChart(topId) {
   if (wrap) wrap.scrollLeft = Math.max(0, nodes[0].x - wrap.clientWidth / 2);
   el.querySelectorAll('[data-keito-top]').forEach(b => b.addEventListener('click', () => navigateTo('keito/' + encodeURIComponent(b.dataset.keitoTop))));
   el.querySelectorAll('[data-goto-individual]').forEach(e2 => e2.addEventListener('click', () => navigateTo('individual/' + encodeURIComponent(e2.dataset.gotoIndividual))));
+}
+
+// 入門順の並べ替え用。選手IDは「CC（デビュー季）-（その季の通し番号）」の形なので、季→番号の順に比べる
+function debutKey(id) {
+  const m = /^[A-Z]+(\d+)-(\d+)$/.exec(String(id || ''));
+  return m ? [Number(m[1]), Number(m[2])] : [9999, 0];
+}
+function byDebut(a, b) {
+  const x = debutKey(a.id), y = debutKey(b.id);
+  return x[0] - y[0] || x[1] - y[1];
 }
 
 let _lineageCache = null;   // api.php?action=lineage（全選手の師弟関係）
@@ -2250,6 +2260,7 @@ async function renderClanDetail(clanId) {
       (childrenByParent[m.parent_a_id] = childrenByParent[m.parent_a_id] || []).push(m);
     }
   });
+  Object.values(childrenByParent).forEach(list => list.sort(byDebut));  // 弟子は入門順（上ほど先に入門）
   const root = membersById[clanId] || members.find(m => !m.parent_a_id || !membersById[m.parent_a_id]);
   const rootName = root ? (root.display_name || root.id) : clanId;
   setPageMeta(clanHeadInfo(await loadHolders(), clanId, rootName).clanName, `${rootName}を開祖とする流（総勢${members.length}名）の師弟関係と歴代宗家を系統図で紹介。`);
@@ -2291,6 +2302,7 @@ async function renderClanDetail(clanId) {
     const all = {}; _lineageCache.forEach(m => { all[m.id] = m; });
     const kidsAll = {};
     _lineageCache.forEach(m => { if (m.parent_a_id && all[m.parent_a_id]) (kidsAll[m.parent_a_id] = kidsAll[m.parent_a_id] || []).push(m); });
+    Object.values(kidsAll).forEach(list => list.sort(byDebut));
     let top = all[clanId];
     while (top && top.parent_a_id && all[top.parent_a_id]) top = all[top.parent_a_id];
     if (top) {
@@ -2312,6 +2324,7 @@ async function renderClanDetail(clanId) {
           walk(k);
         });
       })(top);
+      Object.values(kidsShown).forEach(list => list.sort(byDebut));
       const collapsed = id => all[id] && all[id].clan_root_id === id && id !== clanId ? clanSize[id] : null;
       const collapsedName = id => clanHeadInfo(st, id, all[id].display_name).clanName;
       fullTreeHtml = clanTreeSVG(top, kidsShown, {}, { highlightClan: clanId, collapsed, collapsedName, headGen, pastHeadGen, adopted, movedOut, noGenHeads: true });
@@ -2347,7 +2360,7 @@ async function renderClanDetail(clanId) {
         <button class="chip-btn ${mode === 'full' ? 'active' : ''}" data-clan-mode="full">系統全体</button>
         <button class="chip-btn ${mode === 'clan' ? 'active' : ''}" data-clan-mode="clan">この一門だけ</button>
       </div>` : ''}
-      <div style="font-size:0.72rem; color:var(--text-dim); margin-bottom:4px;">${mode === 'full' ? `${lineageSummary}。` : ''}左が祖で、右へ1列ごとに1代下がる。縦・横にスクロールできます</div>
+      <div style="font-size:0.72rem; color:var(--text-dim); margin-bottom:4px;">${mode === 'full' ? `${lineageSummary}。` : ''}左が祖で、右へ1列ごとに1代下がる。同じ師匠の弟子は上ほど先に入門。縦・横にスクロールできます</div>
       <div class="clan-legend">
         <div><span class="lg-box" style="background:var(--clan-member-bg);"></span>この流の選手（<b>太字</b>＝現役、細字＝引退）</div>
         <div><span class="lg-box" style="border:1.3px dashed #D9463B;"></span>ほかの流（開祖の箱にまとめて表示。押すとその流へ）</div>

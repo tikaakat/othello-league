@@ -617,7 +617,7 @@ async function loadLeagues() {
 
       html += `<table><thead><tr><th>#</th><th>名前</th><th>年齢</th><th>Elo</th></tr></thead><tbody>`;
       rows.forEach((r, i) => {
-        const rankDisplay = lg === 'F' ? `<span style="font-size:0.68rem;">${(r.seasons_in_league || 0) + 1}季目</span>`
+        const rankDisplay = lg === 'F' ? `<span style="font-size:0.68rem; white-space:nowrap;">${(r.seasons_in_league || 0) + 1}季目</span>`
           : (r.is_new ? '<span style="color:var(--text-dim); font-size:0.68rem;">新</span>' : (i+1));
         const rTitles = (r.id && CURRENT_TITLEHOLDERS.by_id[r.id]) || [];
         html += `<tr data-id="${escapeHtml(r.id)}"><td class="rank-num">${rankDisplay}</td>
@@ -921,7 +921,7 @@ async function loadSuzakuLeaguePanel() {
         const newMark = r.is_new ? '<span style="color:var(--text-dim); font-size:0.68rem;">新</span> ' : '';
         html += `<tr data-id="${escapeHtml(r.individual_id)}">
           <td>${newMark}${escapeHtml(r.display_name || r.individual_id)}</td>
-          <td style="font-size:0.72rem; color:var(--text-dim);">${r.seasons_in_league}季目</td>
+          <td style="font-size:0.72rem; color:var(--text-dim); white-space:nowrap;">${r.seasons_in_league}季目</td>
           <td class="elo-val">${Math.round(r.elo)}</td></tr>`;
       });
       html += '</tbody></table></div>';
