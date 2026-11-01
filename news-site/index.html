@@ -2032,6 +2032,15 @@ function clanTreeSVG(root, childrenByParent, branchesByUnder, opts = {}) {
     const isRoot = n.g === 0;
     const label = (isFollowed(m.id) ? '★' : '') + (m.display_name || m.id);
     const outside = opts.highlightClan && m.clan_root_id !== opts.highlightClan;
+    const moved = opts.movedOut ? opts.movedOut(m.id) : null;
+    if (moved) {
+      // この流の出身で、本家の再興のために迎えられて出ていった選手。元の位置に残し、行き先を添える
+      boxes += `<g data-goto-individual="${escapeHtml(m.id)}" style="cursor:pointer;">
+        <rect x="${x}" y="${n.y - BH / 2}" width="${BW}" height="${BH}" rx="5" fill="var(--clan-member-bg)" stroke="#D9463B" stroke-width="1.3" stroke-dasharray="4 3"/>
+        <text x="${x + 6}" y="${n.y - 1.5}" font-size="10" font-weight="700" fill="var(--text-main)">${escapeHtml(fit(m.display_name, BW - 9, 10, true))}<title>${escapeHtml(m.display_name)}（${escapeHtml(moved)}）</title></text>
+        <text x="${x + 6}" y="${n.y + 9}" font-size="7.5" font-weight="700" fill="#D9463B">${escapeHtml(moved)}</text>
+      </g>`;
+    }
     const folded = opts.collapsed ? opts.collapsed(m.id) : null;
     if (folded) {
       // ほかの一門：開祖の箱に畳む（押すとその一門のページへ）
@@ -2050,9 +2059,9 @@ function clanTreeSVG(root, childrenByParent, branchesByUnder, opts = {}) {
     }
     const headGen = opts.headGen ? opts.headGen(m.id) : null;
     if (opts.adopted && opts.adopted(m.id)) {
-      // 養子で宗家を継いだ選手：箱の左上に「養子」（師匠とは別の流から迎えられたので、師匠からの線は赤い点線になる）
+      // 本家の再興で分家から迎えられた宗家：箱の左上に「再興」（師匠は分家にいるので、師匠からの線は赤い点線になる）
       headBadges += `<g><rect x="${x - 2}" y="${n.y - BH / 2 - 6}" width="22" height="11" rx="5.5" fill="#D9463B"/>
-        <text x="${x + 9}" y="${n.y - BH / 2 + 2}" font-size="7" font-weight="700" text-anchor="middle" fill="#fff">養子</text></g>`;
+        <text x="${x + 9}" y="${n.y - BH / 2 + 2}" font-size="7" font-weight="700" text-anchor="middle" fill="#fff">再興</text></g>`;
     }
     const pastGen = !headGen && opts.pastHeadGen ? opts.pastHeadGen(m.id) : null;
     if (pastGen) {
@@ -2066,7 +2075,7 @@ function clanTreeSVG(root, childrenByParent, branchesByUnder, opts = {}) {
     // この一門の選手は、引退者も含めて色付きの背景と左端の帯で目立たせる（引退者を薄くすると師弟のつながりが追えないため、
     // 引退は名前の横の「引退」と細字で示すだけにする）。現役は太字。ほかの一門の選手だけを薄く描く
     const member = !outside;
-    boxes += `<g class="clan-svg-node" data-node-id="${escapeHtml(m.id)}" data-clan="${escapeHtml(m.clan_root_id || '')}" data-goto-individual="${escapeHtml(m.id)}" style="cursor:pointer;" opacity="${outside ? 0.45 : 1}">
+    if (!moved) boxes += `<g class="clan-svg-node" data-node-id="${escapeHtml(m.id)}" data-clan="${escapeHtml(m.clan_root_id || '')}" data-goto-individual="${escapeHtml(m.id)}" style="cursor:pointer;" opacity="${outside ? 0.45 : 1}">
       <rect x="${x}" y="${n.y - BH / 2}" width="${BW}" height="${BH}" rx="5" fill="${member ? 'var(--clan-member-bg)' : 'var(--card)'}" stroke="${stroke}" stroke-width="${owned.length ? 1.8 : 1}"/>
       ${member ? `<rect x="${x + 0.5}" y="${n.y - BH / 2 + 3}" width="3" height="${BH - 6}" rx="1.5" fill="${m.retired ? 'var(--clan-member-bar-retired)' : 'var(--accent)'}"/>` : ''}
       <text x="${x + 6}" y="${n.y + (titleLine ? -1.5 : 3.5)}" font-size="10" font-weight="${!m.retired || owned.length || isRoot ? 700 : 400}" fill="var(--text-main)">${escapeHtml(fit(label, BW - (m.retired ? 26 : 9), 10, true))}${m.retired ? '<tspan font-size="7" font-weight="400" fill="var(--text-dim)"> 引退</tspan>' : ''}<title>${escapeHtml(m.display_name || m.id)}</title></text>
@@ -2098,7 +2107,7 @@ function clanHeadInfo(st, clanId, founderName) {
   const h = ((st && st.clan_heads) || {})[clanId] || { head: clanId, gen: 1 };
   const hist = ((st && st.clan_succession_history) || []).filter(e => e.clan_id === clanId).sort((a, b) => a.season - b.season);
   const nameOf = id => id === clanId ? founderName : ((hist.slice().reverse().find(e => e.id === id) || {}).name || id);
-  const list = [{ gen: 1, id: clanId, name: founderName, season: null }, ...hist.map(e => ({ gen: e.gen, id: e.id, name: e.name, season: e.season, adopted: e.adopted, fromClan: e.from_clan_id }))];
+  const list = [{ gen: 1, id: clanId, name: founderName, season: null }, ...hist.map(e => ({ gen: e.gen, id: e.id, name: e.name, season: e.season, revival: e.revival, fromClan: e.from_clan_id }))];
   const name = nameOf(h.head);
   // 一門は開祖の名で「◯◯流」と呼び、それを継ぐ当主を「N代宗家」と呼ぶ（代数は筋が移っても通しで数える）
   // 流の名は開祖の苗字（同じ苗字の流が先にあれば開祖のフルネーム。fansite_state.pyのclan_names）
@@ -2258,8 +2267,15 @@ async function renderClanDetail(clanId) {
   [{ id: clanId, gen: 1 }, ...((st && st.clan_succession_history) || []).filter(e => e.clan_id === clanId)]
     .forEach(e => { if (e.id !== (clanHeads[clanId] || { head: clanId }).head) pastHeadGenById[e.id] = e.gen; });
   const pastHeadGen = id => pastHeadGenById[id] || null;
-  const adoptedIds = new Set(((st && st.clan_succession_history) || []).filter(e => e.clan_id === clanId && e.adopted).map(e => e.id));
-  const adopted = id => adoptedIds.has(id);
+  // 本家の再興で分家から迎えられた宗家（系図に「再興」バッジ）
+  const revivalIn = new Set(((st && st.clan_succession_history) || []).filter(e => e.clan_id === clanId && e.revival).map(e => e.id));
+  const adopted = id => revivalIn.has(id);
+  // この流から本家の再興のために迎えられて出ていった選手（系図では元の位置に「→◯◯流 N代宗家」として残す）
+  const revivalOut = {};
+  ((st && st.clan_succession_history) || []).filter(e => e.revival && e.from_clan_id === clanId).forEach(e => {
+    revivalOut[e.id] = `→${(((st && st.clan_names) || {})[e.clan_id] || '本家')}流 ${e.gen}代宗家`;
+  });
+  const movedOut = id => revivalOut[id] || null;
   let fullTreeHtml = '', lineageSummary = '';
   if (_lineageCache) {
     const all = {}; _lineageCache.forEach(m => { all[m.id] = m; });
@@ -2274,7 +2290,7 @@ async function renderClanDetail(clanId) {
       const clanSize = {}; _lineageCache.forEach(m => { clanSize[m.clan_root_id] = (clanSize[m.clan_root_id] || 0) + 1; });
       let count = 0; const clans = new Set();
       (function walk(m) { count++; clans.add(m.clan_root_id); (kidsAll[m.id] || []).forEach(walk); })(top);
-      const shown = m => m.clan_root_id === clanId || m.id === top.id || (m.clan_root_id === m.id && clanSize[m.id] >= 3);
+      const shown = m => m.clan_root_id === clanId || m.id === top.id || (m.clan_root_id === m.id && clanSize[m.id] >= 3) || !!movedOut(m.id);
       const kidsShown = {};
       (function walk(m) {
         (kidsAll[m.id] || []).forEach(k => {
@@ -2288,7 +2304,7 @@ async function renderClanDetail(clanId) {
       })(top);
       const collapsed = id => all[id] && all[id].clan_root_id === id && id !== clanId ? clanSize[id] : null;
       const collapsedName = id => clanHeadInfo(st, id, all[id].display_name).clanName;
-      fullTreeHtml = clanTreeSVG(top, kidsShown, {}, { highlightClan: clanId, collapsed, collapsedName, headGen, pastHeadGen, adopted, noGenHeads: true });
+      fullTreeHtml = clanTreeSVG(top, kidsShown, {}, { highlightClan: clanId, collapsed, collapsedName, headGen, pastHeadGen, adopted, movedOut, noGenHeads: true });
       lineageSummary = `${escapeHtml(top.display_name)}を祖とする系統（${count}名・${clans.size}一門）`;
     }
   }
@@ -2303,7 +2319,7 @@ async function renderClanDetail(clanId) {
   const headLineHtml = `<div class="clan-head-card">
       <div class="clan-head-now">当代宗家　<span class="clan-head-gen">${headInfo.gen === 1 ? '初' : headInfo.gen}代</span>
         <span data-goto-individual="${escapeHtml(headInfo.id)}" style="cursor:pointer; font-weight:700;">${escapeHtml(headInfo.name)}</span>${headMember && headMember.retired ? '<span style="color:var(--text-dim); font-size:0.72rem;">（引退・後継なし）</span>' : ''}</div>
-      ${headInfo.list.length > 1 ? `<div class="clan-head-history">歴代宗家：${headInfo.list.map(h => `<span data-goto-individual="${escapeHtml(h.id)}" style="cursor:pointer; white-space:nowrap;">${h.gen === 1 ? '初代' : h.gen + '代'} ${escapeHtml(h.name)}${h.season ? `<span style="color:var(--text-dim);">（第${h.season}季〜${masterNote(h.id)}${h.adopted ? `・<b style="color:#D9463B;">養子</b>${h.fromClan ? `（${escapeHtml(((st && st.clan_names) || {})[h.fromClan] || '')}流から）` : ''}` : ''}）</span>` : ''}</span>`).join(' → ')}</div>` : ''}
+      ${headInfo.list.length > 1 ? `<div class="clan-head-history">歴代宗家：${headInfo.list.map(h => `<span data-goto-individual="${escapeHtml(h.id)}" style="cursor:pointer; white-space:nowrap;">${h.gen === 1 ? '初代' : h.gen + '代'} ${escapeHtml(h.name)}${h.season ? `<span style="color:var(--text-dim);">（第${h.season}季〜${masterNote(h.id)}${h.revival ? `・<b style="color:#D9463B;">${escapeHtml(((st && st.clan_names) || {})[h.fromClan] || '分家')}流から迎え入れ（本家再興）</b>` : ''}）</span>` : ''}</span>`).join(' → ')}</div>` : ''}
     </div>`;
   const bf = data.branched_from;
   const branchedFromHtml = bf ? `<div class="clan-branched-from" data-goto-clan="${escapeHtml(bf.origin_clan_root_id)}">
