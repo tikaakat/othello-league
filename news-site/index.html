@@ -1995,6 +1995,9 @@ const CLAN_TITLE_COLOR = { '麒麟': '#C99A1E', '青龍': '#2F6FD0', '朱雀': '
 // opts.headGen(id)：その選手がいずれかの一門の現宗家なら、何代目かを返す（箱の右上に「N代宗家」）
 // opts.pastHeadGen(id)：表示中の一門の歴代宗家（現宗家以外）なら何代目かを返す（縁取りの「N代宗家」）
 function clanTreeSVG(root, childrenByParent, branchesByUnder, opts = {}) {
+  // 永世称号は系統データ（api.php?action=lineage）から引く（一門APIのメンバーには含まれないため）
+  const all_eternal = {};
+  (_lineageCache || []).forEach(x => { if (x.eternal_titles && x.eternal_titles.length) all_eternal[x.id] = x.eternal_titles; });
   // なるべくスクロールせずに見られるよう小さめに描き、さらに画面幅に合わせて75%まで縮める
   const BW = 84, BH = 26, CG = 12, RH = 35, PAD = 4, TOP = 26;
   const BRANCH = '#D9463B';
@@ -2030,8 +2033,12 @@ function clanTreeSVG(root, childrenByParent, branchesByUnder, opts = {}) {
     const m = n.m, x = colX(n.g);
     const t = m.titles || {};
     const owned = CLAN_TITLE_ORDER.filter(k => t[k]);
-    const stroke = owned.length ? CLAN_TITLE_COLOR[owned[0]] : 'var(--border)';
-    const titleLine = owned.map(k => `<tspan fill="${CLAN_TITLE_COLOR[k]}">${k[0]}${t[k]}</tspan>`).join(' ');
+    // 枠は永世称号を持つ選手だけ金色にする（タイトルの色分けは分かりにくいのでやめた）。永世称号は名前の下に「永世◯◯」
+    const eternal = (m.eternal_titles || all_eternal[m.id] || []);
+    const stroke = eternal.length ? '#C99A1E' : 'var(--border)';
+    const titleLine = eternal.length
+      ? `<tspan fill="#B07F0E">永世${eternal.map(k => k).join('・')}</tspan>`
+      : owned.map(k => `<tspan fill="${CLAN_TITLE_COLOR[k]}">${k[0]}${t[k]}</tspan>`).join(' ');
     const isRoot = n.g === 0;
     const label = (isFollowed(m.id) ? '★' : '') + (m.display_name || m.id);
     const outside = opts.highlightClan && m.clan_root_id !== opts.highlightClan;
@@ -2079,7 +2086,7 @@ function clanTreeSVG(root, childrenByParent, branchesByUnder, opts = {}) {
     // 引退は名前の横の「引退」と細字で示すだけにする）。現役は太字。ほかの一門の選手だけを薄く描く
     const member = !outside;
     if (!moved) boxes += `<g class="clan-svg-node" data-node-id="${escapeHtml(m.id)}" data-clan="${escapeHtml(m.clan_root_id || '')}" data-goto-individual="${escapeHtml(m.id)}" style="cursor:pointer;" opacity="${outside ? 0.45 : 1}">
-      <rect x="${x}" y="${n.y - BH / 2}" width="${BW}" height="${BH}" rx="5" fill="${member ? 'var(--clan-member-bg)' : 'var(--card)'}" stroke="${stroke}" stroke-width="${owned.length ? 1.8 : 1}"/>
+      <rect x="${x}" y="${n.y - BH / 2}" width="${BW}" height="${BH}" rx="5" fill="${member ? 'var(--clan-member-bg)' : 'var(--card)'}" stroke="${stroke}" stroke-width="${eternal.length ? 2 : 1}"/>
       ${member ? `<rect x="${x + 0.5}" y="${n.y - BH / 2 + 3}" width="3" height="${BH - 6}" rx="1.5" fill="${m.retired ? 'var(--clan-member-bar-retired)' : 'var(--accent)'}"/>` : ''}
       <text x="${x + 6}" y="${n.y + (titleLine ? -1.5 : 3.5)}" font-size="10" font-weight="${!m.retired || owned.length || isRoot ? 700 : 400}" fill="var(--text-main)">${escapeHtml(fit(label, BW - (m.retired ? 26 : 9), 10, true))}${m.retired ? '<tspan font-size="7" font-weight="400" fill="var(--text-dim)"> 引退</tspan>' : ''}<title>${escapeHtml(m.display_name || m.id)}</title></text>
       ${titleLine ? `<text x="${x + 6}" y="${n.y + 9}" font-size="7.5" font-weight="700">${titleLine}</text>` : ''}
@@ -2344,7 +2351,7 @@ async function renderClanDetail(clanId) {
       <div class="clan-legend">
         <div><span class="lg-box" style="background:var(--clan-member-bg);"></span>この流の選手（<b>太字</b>＝現役、細字＝引退）</div>
         <div><span class="lg-box" style="border:1.3px dashed #D9463B;"></span>ほかの流（開祖の箱にまとめて表示。押すとその流へ）</div>
-        <div>枠の色＝獲得したタイトルのうち一番格の高いもの：${CLAN_TITLE_ORDER.map(t => `<span class="lg-box" style="border:2px solid ${CLAN_TITLE_COLOR[t]};"></span>${t}`).join(' ')}（細い灰色の枠＝タイトルなし）</div>
+        <div><span class="lg-box" style="border:2px solid #C99A1E;"></span>永世称号を持つ選手（名前の下に「永世◯◯」）</div>
         <div>名前の下の「<b style="color:${CLAN_TITLE_COLOR['青龍']};">青</b>10 <b style="color:${CLAN_TITLE_COLOR['朱雀']};">朱</b>8」＝タイトルごとの獲得期数</div>
         <div><span class="lg-pill" style="background:var(--accent); color:#fff;">N代宗家</span>今の宗家　<span class="lg-pill" style="border:1px solid var(--accent); color:var(--accent-dark);">N代宗家</span>歴代の宗家　<span class="lg-pill" style="background:#D9463B; color:#fff;">再興</span>分家から迎えられた宗家</div>
       </div>

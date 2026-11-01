@@ -1291,6 +1291,20 @@ switch ($action) {
              ) t WHERE hid IS NOT NULL GROUP BY hid, title"
         )->fetchAll();
         foreach ($tRows as $t) $titlesById[$t['hid']][$t['title']] = (int)$t['n'];
+        // 永世称号（タイトルごとの通算期数と最長連続保持期数から判定。殿堂などと同じis_eternal_title）
+        $eternalById = [];
+        $streak = []; $prev = [];
+        foreach ($pdo->query("SELECT season, title, holder_id FROM title_history WHERE holder_id IS NOT NULL ORDER BY title, season")->fetchAll() as $t) {
+            $k = $t['title'];
+            $run = (isset($prev[$k]) && $prev[$k]['id'] === $t['holder_id'] && $prev[$k]['s'] === (int)$t['season'] - 1) ? $prev[$k]['run'] + 1 : 1;
+            $prev[$k] = ['id' => $t['holder_id'], 's' => (int)$t['season'], 'run' => $run];
+            $streak[$t['holder_id']][$k] = max($streak[$t['holder_id']][$k] ?? 0, $run);
+        }
+        foreach ($titlesById as $hid => $byTitle) {
+            foreach ($byTitle as $title => $total) {
+                if (is_eternal_title($title, $total, $streak[$hid][$title] ?? 0)) $eternalById[$hid][] = $title;
+            }
+        }
         $seen = [];
         $members = [];
         foreach ($rows as $r) {
@@ -1298,6 +1312,7 @@ switch ($action) {
             $seen[$r['id']] = true;
             $r['retired'] = (int)$r['retired'];
             $r['titles'] = (object)($titlesById[$r['id']] ?? []);
+            $r['eternal_titles'] = $eternalById[$r['id']] ?? [];
             $members[] = $r;
         }
         // 段位（棋士系統図で名前の下に出す）
