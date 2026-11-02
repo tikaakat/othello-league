@@ -471,8 +471,8 @@ CLAN_NEW_FOUNDER_CHANCE = 0.08
 # ・独立：新しい宗家が決まったら、先代のほかの直弟子のうち自分の弟子（現役）がいる者は、それぞれ子孫を引き連れて
 #   独立し、自分の流を興す（弟子のいない者は新しい宗家のもとに残り、後にタイトル経験があり弟子が2人以上になった時点で独立する）
 #   （以前は宗家の存命中にも「一家を成した」「完全独立」で独立していたが、強い弟子ほど先に出ていって本家がやせ細った）。
-# ・本家の再興：流の現役がいなくなっても、そこから独立した分家に現役がいれば、最強の選手がいる分家を丸ごと本家へ
-#   合流させ、分家の宗家が本家の宗家を継ぐ。分家もすべて途絶えたときだけ流は断絶する
+# ・本家の再興：祖の流（師匠のいない開祖の流）の現役がいなくなっても、そこから独立した分家に現役がいれば、
+#   最強の選手がいる分家を丸ごと本家へ合流させ、分家の宗家が本家の宗家を継ぐ。分家として興った流は途絶えたら断絶
 
 
 # 宗家の兄弟弟子が後から独立する条件：タイトル1期以上で、現役の弟子が2人以上（弟子1人で独立させると小さな流が乱立する）
@@ -555,7 +555,9 @@ def apply_clan_succession(active_members, retired_records, season, heads, title_
         return out
     active_clans = {_get(x, "clan_root_id") for x in active_members}
     for clan in sorted(founders - active_clans, key=lambda c: (_get(by_id[c], "generation") or 0) if c in by_id else 0):
-        if clan not in by_id:
+        # 再興するのは祖の流（師匠のいない開祖の流）だけ。分家どうしで「途絶えては別の分家が戻る」を繰り返さないよう、
+        # 分家として興った流は途絶えたらそのまま断絶とする
+        if clan not in by_id or _get(by_id[clan], "parent_a_id") in by_id:
             continue
         branches = branch_clans(clan)
         pool = [x for x in active_members if _get(x, "clan_root_id") in branches]
