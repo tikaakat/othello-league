@@ -237,57 +237,6 @@ def topic_fall(ctx):
                 tags=["コラム", "Aリーグ"], related_individual_ids=[rid], related_individual_names=[name])
 
 
-def _ryu_names(state):
-    """流の呼び名（開祖の苗字。othello_league/clan_names.py）"""
-    import json, os
-    from othello_league.clan_names import clan_names_from_data
-    try:
-        with open(os.path.join("data", "rosters.json"), encoding="utf-8") as f:
-            rosters = json.load(f)
-    except OSError:
-        return {}
-    first = {}
-    s = 1
-    while os.path.exists(os.path.join("data", "standings", f"season_{s}.json")):
-        with open(os.path.join("data", "standings", f"season_{s}.json"), encoding="utf-8") as f:
-            for r in json.load(f):
-                first.setdefault(r["individual_id"], s)
-        s += 1
-    return clan_names_from_data(rosters, state, first)
-
-
-def topic_clan(ctx):
-    """一門：今季の一門の代替わり（当主の交代）と独立（代替わりに伴う独立・大棋士の完全独立）"""
-    season, state, names = ctx["season"], ctx["state"], ctx["names"]
-    ryu = _ryu_names(state)
-    evs = [e for e in state.get("clan_independence_history", []) if e.get("season") == season]
-    sucs = [e for e in state.get("clan_succession_history", []) if e.get("season") == season]
-    if not evs and not sucs:
-        return None
-    lines, ids, who = [], [], []
-    full = [e for e in evs if e.get("kind") == "完全独立"]
-    for e in full:
-        founder = ryu.get(e.get("from_clan_id"), names.get(e.get("from_clan_id"), e.get("from_clan_id")))
-        lines.append(f"{e['name']}が、師の流の宗家が健在のまま、弟子・孫弟子を引き連れて{founder}流から完全独立し、自らを開祖とする{ryu.get(e['id'], e['name'])}流を興した。")
-        ids.append(e["id"]); who.append(e["name"])
-    for su in sucs:
-        clan = ryu.get(su["clan_id"], names.get(su["clan_id"], su["clan_id"]))
-        prev = names.get(su.get("prev_head_id"), su.get("prev_head_id"))
-        lines.append(f"{clan}流では宗家の{prev}が引退し、{su['name']}が{su['gen']}代宗家を継いだ。")
-        branched = [e for e in evs if e.get("kind") != "完全独立" and e.get("from_clan_id") == su["clan_id"]]
-        if branched:
-            lines.append("この代替わりに伴い、" + "・".join(e["name"] for e in branched) + "がそれぞれ独立して自らの流を興した。")
-            ids += [e["id"] for e in branched]; who += [e["name"] for e in branched]
-        ids.append(su["id"]); who.append(su["name"])
-    subject = f"{ryu.get(full[0]['id'], full[0]['name'])}流の旗揚げ" if full else f"{ryu.get(sucs[0]['clan_id'], names.get(sucs[0]['clan_id'], sucs[0]['clan_id']))}流の代替わり" if sucs else f"{evs[0]['name']}一門の独立"
-    if not lines:
-        e = evs[0]
-        lines = [f"{e['name']}が、弟子・孫弟子を引き連れて{names.get(e.get('from_clan_id'), e.get('from_clan_id'))}一門から独立し、自らを開祖とする一門を興した。"]
-        ids, who = [e["id"]], [e["name"]]
-    return dict(topic="一門", score=60 if full else 55, lines=lines, subject=subject,
-                tags=["コラム", "一門"], related_individual_ids=ids, related_individual_names=who)
-
-
 def topic_title_milestone(ctx):
     """記録：今季のタイトル獲得で、通算タイトル数が節目（10・15・20…期）に達した選手"""
     season, state = ctx["season"], ctx["state"]
@@ -367,7 +316,7 @@ def topic_master_disciple(ctx):
                 tags=["コラム", "師弟"], related_individual_ids=[master, disciple], related_individual_names=[nm, nd])
 
 
-TOPIC_FUNCS = [topic_rivalry, topic_retirement, topic_riser, topic_form, topic_fall, topic_clan, topic_title_milestone,
+TOPIC_FUNCS = [topic_rivalry, topic_retirement, topic_riser, topic_form, topic_fall, topic_title_milestone,
                topic_first_title, topic_master_disciple]
 
 
