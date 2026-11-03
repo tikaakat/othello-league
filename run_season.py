@@ -10,7 +10,7 @@ from othello_league.league import (
     FREE_CLASS, free_class_returns,
 )
 from othello_league.buffs import effective_params, roll_age_multipliers
-from othello_league.skills import ensure_skills, roll_form, season_growth, veteran_skills, BOOK_PARAMS
+from othello_league.skills import ensure_skills, roll_form, season_growth, veteran_skills, BOOK_PARAMS, FREE_CLASS_GROWTH_SCALE
 from othello_league.round_robin import run_round_robin, round_robin_gen
 from othello_league.random_league import run_random_league, random_league_gen, plan_random_league
 from othello_league.title import (
@@ -286,6 +286,7 @@ def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_b
     suzaku_league_ids_after = set(state.get("suzaku_league", {}).get("red", [])) | \
         set(state.get("suzaku_league", {}).get("white", []))
     suzaku_league_ids = suzaku_league_ids_before | suzaku_league_ids_after
+    free_class_ids_this_season = {ind.id for ind in rosters.get(FREE_CLASS, [])}
     rosters, retired, vacancy, demotion_events = relegate_and_retire(
         rosters, season, titleholders=titleholders, suzaku_league_ids=suzaku_league_ids,
         extra_protected_ids=title_extra_protected_ids, demotion_relief_ids=title_demotion_relief_ids,
@@ -294,7 +295,7 @@ def run_one_season(rosters, season, depth, swiss_rounds, state, prev_standings_b
     # 季の終わりに、終盤力の成長・衰えと定跡の習得を反映する（年齢は relegate_and_retire で1つ進んでいる）
     for league_list in rosters.values():
         for ind in league_list:
-            season_growth(ind)
+            season_growth(ind, FREE_CLASS_GROWTH_SCALE if ind.id in free_class_ids_this_season else 1.0)
 
     # --- 昇降格・新規・引退マークを確定する ---
     retired_ids = {ind.id for ind in retired}

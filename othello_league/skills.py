@@ -46,6 +46,9 @@ BOOK_NEWCOMER_MIN = 16
 BOOK_YOUNG_AGE = 30               # この年齢未満は定跡を早く覚える
 BOOK_YOUNG_SPEEDUP = 1.3          # 若手の定跡の覚える速さ（倍率）
 
+# フリークラスで過ごした季の終盤力の伸び（倍率）。以前はフリークラスでも同じだけ伸び、伸びる前の若手が
+# フリークラスに落ちて育ってから戻ってくる形が目立っていた（フリークラスは力の足りない選手が落ちる場所にしたい）
+FREE_CLASS_GROWTH_SCALE = 0.5
 FORM_SCALE = 3.0                  # 調子：その季の終盤力が ±（ムラ気×3マス）程度上下する
 
 # 定跡として使う共通の評価（シミュレーションで最も強かった配分。合計40）
@@ -115,11 +118,16 @@ def effective_endgame(ind):
     return max(0.0, min(ENDGAME_CAP, base + ind.params.get(FORM_KEY, 0.0)))
 
 
-def season_growth(ind):
-    """季の終わりに、終盤力の成長・衰えと、定跡の習得を反映する（年齢は既に1つ進んでいる前提）"""
+def season_growth(ind, growth_scale=1.0):
+    """季の終わりに、終盤力の成長・衰えと、定跡の習得を反映する（年齢は既に1つ進んでいる前提）。
+    growth_scale：終盤力の伸び（成長期のプラス分だけ）にかける倍率。フリークラスで過ごした季は
+    FREE_CLASS_GROWTH_SCALE（実戦が少ないので伸びにくい）。衰えには掛けない"""
     p = ind.params
     if ENDGAME_KEY not in p:
         return
-    p[ENDGAME_KEY] = round(min(ENDGAME_CAP, max(0.0, p[ENDGAME_KEY] + p.get(ENDGAME_GROWTH_KEY, 0.0) * _age_factor(ind.age))), 2)
+    delta = p.get(ENDGAME_GROWTH_KEY, 0.0) * _age_factor(ind.age)
+    if delta > 0:
+        delta *= growth_scale
+    p[ENDGAME_KEY] = round(min(ENDGAME_CAP, max(0.0, p[ENDGAME_KEY] + delta)), 2)
     young = BOOK_YOUNG_SPEEDUP if ind.age < BOOK_YOUNG_AGE else 1.0
     p[BOOK_KEY] = int(min(BOOK_CAP, p.get(BOOK_KEY, 0) + p.get(BOOK_RATE_KEY, 0.0) * young + random.random()))
