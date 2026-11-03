@@ -214,7 +214,7 @@ def choose_move(bd, color, params, depth=5, noise_scale=1.0):
     """個体のパラメータを使って1手選ぶ。noise_scaleは個体固有の「ムラ気」倍率。
     paramsに終盤力（_endgame）・定跡（_book）があれば反映する（skills.py参照）：
       - 序盤、定跡を知っている手数まで（空きマスが 60-定跡 以上）は、共通の強い評価・揺らぎなしで指す
-      - 空きマスが終盤力以下になったら、読みを1手深くする"""
+      - 空きマスが終盤力以下になったら、読みを1手深くする（天賦を持つ選手は、その奥でさらに1手深く）"""
     moves = B.legal_moves(bd, color)
     if not moves:
         return None
@@ -230,6 +230,9 @@ def choose_move(bd, color, params, depth=5, noise_scale=1.0):
             params, noise_scale = BOOK_PARAMS, 0.0
         elif endgame and empty <= endgame:
             depth += 1
+            # 天賦（skills.py）：さらに奥ではもう1手深く読む
+            if empty <= params.get("_genius", 0):
+                depth += 1
     _, move = minimax(bd, color, depth, -math.inf, math.inf, color, params, noise_scale)
     if move is None:
         move = random.choice(moves)

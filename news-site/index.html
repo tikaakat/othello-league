@@ -1000,7 +1000,7 @@ async function renderIndividualProfile(id) {
       ${avatarFor(name, id, ind.gender)}
       <div>
         <h1 class="profile-name">${escapeHtml(name)}</h1>
-        <div class="profile-sub">${statusLine}　Elo ${Math.round(ind.elo_rating)}（最高 ${Math.round(ind.peak_elo ?? ind.elo_rating)}）<span class="dan-badge">${danLabel(ind.dan)}</span></div>
+        <div class="profile-sub">${statusLine}　Elo ${Math.round(ind.elo_rating)}（最高 ${Math.round(ind.peak_elo ?? ind.elo_rating)}）<span class="dan-badge">${danLabel(ind.dan)}</span>${ind.params && ind.params._genius_max ? '<span class="dan-badge" style="border-color:#C99A1E; color:#B07F0E;" title="まれに生まれる天才。終盤でほかの選手より一段深く読む">天賦</span>' : ''}</div>
         <div><button class="follow-btn" id="follow-btn"></button></div>
       </div>
     </div>
@@ -2081,7 +2081,8 @@ function renderRules() {
       師匠の得意をそのまま受け継ぐ能力もあれば、ほとんど受け継がない能力もある（キャラクリエイトで
       投稿された新人は、本人の設定した能力のまま弟子入りする）。実力のある選手ほど弟子を持ちやすいが、1回の新人リーグで同じ師匠に付く弟子は2人まで。<br>
       師弟関係は「棋士系統図」でたどれる。師匠をたどった最上位の選手（祖）の名を取って「◯◯系」と呼ぶ。<br>
-      まれに、終盤力が一気に伸びた「神童」が現れることもある。
+      まれに、終盤力が一気に伸びた「神童」が現れることもある。<br>
+      さらにごくまれに（新人の40人に1人ほど）、「天賦」を持つ天才が生まれる。天賦の選手は終盤でほかの選手より一段深く読め、若いうちに伸びて全盛期にはタイトル戦の番勝負で7〜9割勝つほどの別格の強さになる。45歳を過ぎると衰えていく。
     </div>
 
     <h3>終盤力・定跡・調子</h3>
@@ -2167,6 +2168,7 @@ const RULE_HISTORY = [
   [168, 'フリークラスにいる季は、終盤力の伸びが半分になる（実戦が少ないため）。新人がデビュー時に知っている定跡を増やした（師匠の7割・最低16手）'],
   [171, 'フリークラスの復帰条件を「出場した棋戦数＋6勝以上かつ勝率7割以上、またはタイトル挑戦」に厳格化'],
   [172, 'Dリーグの降級点を「下位4分の1に入ると1点、勝ち越すと1点減る（1点目も消える）、2点でフリークラス」に（以前は負け越しで1点・1点目は昇級まで消えない・3点でフリークラス）'],
+  [174, '<b>天賦</b>を導入（新人の40人に1人ほどが持つ才能。終盤でほかの選手より一段深く読める）'],
 ];
 
 // 「このメディアについて」タブ：架空リーグ・AI自動運営という性質を明示する

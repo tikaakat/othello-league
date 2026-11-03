@@ -25,7 +25,9 @@ ENDGAME_GROWTH_KEY = "_eg_growth"
 BOOK_KEY = "_book"
 BOOK_RATE_KEY = "_book_rate"
 FORM_KEY = "_form"
-SKILL_KEYS = (ENDGAME_KEY, ENDGAME_GROWTH_KEY, BOOK_KEY, BOOK_RATE_KEY, FORM_KEY)
+GENIUS_KEY = "_genius"             # 天賦：空きマスがこの数以下（かつ終盤力の範囲内）なら、さらにもう1手深く読む
+GENIUS_MAX_KEY = "_genius_max"     # 天賦のピーク（その選手が伸びきったときの範囲）
+SKILL_KEYS = (ENDGAME_KEY, ENDGAME_GROWTH_KEY, BOOK_KEY, BOOK_RATE_KEY, FORM_KEY, GENIUS_KEY, GENIUS_MAX_KEY)
 
 ENDGAME_CAP = 44.0
 ENDGAME_BIRTH_MAX = 20.0          # 生まれつき：20 × Beta(1, 3)（平均5マス、10マス超は3割弱）
@@ -49,7 +51,16 @@ BOOK_YOUNG_SPEEDUP = 1.3          # 若手の定跡の覚える速さ（倍率�
 # フリークラスで過ごした季の終盤力の伸び（倍率）。以前はフリークラスでも同じだけ伸び、伸びる前の若手が
 # フリークラスに落ちて育ってから戻ってくる形が目立っていた（フリークラスは力の足りない選手が落ちる場所にしたい）
 FREE_CLASS_GROWTH_SCALE = 0.5
-FORM_SCALE = 3.0                  # 調子：その季の終盤力が ±（ムラ気×3マス）程度上下する
+FORM_SCALE = 3.0
+# 天賦（まれに生まれる天才）：トップ選手は終盤力・定跡が上限で横並びになり、別格の選手が生まれなかった
+# （終盤力は定跡と合わせて36あれば対局のほぼ全部を覆うので、上限を上げても差は付かない）。
+# 天賦を持つ選手だけ、終盤でさらに1手深く読む。トップ選手どうしの対局で、ピーク（空き20〜28マス）の天才は
+# 1局57〜70%・7番勝負65〜87%で勝つ。若いうちに伸び、45歳を過ぎると狭まる
+GENIUS_CHANCE = 1 / 40             # 新人のうち天賦を持って生まれる割合（1季3人の入門で十数季に1人）
+GENIUS_PEAK_RANGE = (20, 28)
+GENIUS_GROWTH = 4                  # 30歳未満の1季あたりの伸び（マス）
+GENIUS_DECLINE_AGE = 45
+GENIUS_DECLINE = 2                 # 衰える年齢からの1季あたりの縮み（マス）                  # 調子：その季の終盤力が ±（ムラ気×3マス）程度上下する
 
 # 定跡として使う共通の評価（シミュレーションで最も強かった配分。合計40）
 BOOK_PARAMS = {
@@ -82,6 +93,7 @@ def birth_skills(master_params=None):
         ENDGAME_GROWTH_KEY: round(_growth_speed(), 3),
         BOOK_KEY: min(BOOK_CAP, max(BOOK_NEWCOMER_MIN, int(BOOK_INHERIT * (master_params or {}).get(BOOK_KEY, 0)))),
         BOOK_RATE_KEY: round(random.uniform(*BOOK_RATE_RANGE), 2),
+        **({GENIUS_KEY: 4, GENIUS_MAX_KEY: random.randint(*GENIUS_PEAK_RANGE)} if random.random() < GENIUS_CHANCE else {}),
     }
 
 
@@ -129,5 +141,10 @@ def season_growth(ind, growth_scale=1.0):
     if delta > 0:
         delta *= growth_scale
     p[ENDGAME_KEY] = round(min(ENDGAME_CAP, max(0.0, p[ENDGAME_KEY] + delta)), 2)
+    if p.get(GENIUS_MAX_KEY):
+        if ind.age < 30:
+            p[GENIUS_KEY] = min(p[GENIUS_MAX_KEY], p.get(GENIUS_KEY, 0) + GENIUS_GROWTH)
+        elif ind.age >= GENIUS_DECLINE_AGE:
+            p[GENIUS_KEY] = max(0, p.get(GENIUS_KEY, 0) - GENIUS_DECLINE)
     young = BOOK_YOUNG_SPEEDUP if ind.age < BOOK_YOUNG_AGE else 1.0
     p[BOOK_KEY] = int(min(BOOK_CAP, p.get(BOOK_KEY, 0) + p.get(BOOK_RATE_KEY, 0.0) * young + random.random()))
