@@ -1070,7 +1070,6 @@ async function loadIndividualDetail(id) {
       <div style="margin-top:8px;">
         <button id="ind-fav-toggle" class="fav-toggle" data-id="${escapeHtml(ind.id)}">☆ お気に入りに追加</button>
       </div>
-      ${ind.awakened_param ? `<div style="margin-top:8px; display:inline-block; background:rgba(255,182,72,0.15); border:1px solid var(--amber); color:var(--amber); font-size:0.72rem; padding:3px 10px; border-radius:2px;">★ 覚醒：「${escapeHtml(paramLabel(ind.awakened_param))}」突破</div>` : ''}
     </div>`;
 
     html += `<div style="display:flex; justify-content:center; margin-bottom:16px;">${renderRadarChart(p)}</div>`;
@@ -2741,7 +2740,7 @@ document.addEventListener('click', (e) => {
 // 殿堂タブ内の副タブ。1回のAPI取得結果をキャッシュし、切り替え時は再取得せず表示だけ差し替える。
 // 従来はElo・タイトル数・対局数・勝利数・負け数・勝率が別々のサブタブ（＝別々の上位N件）だったが、
 // 同じ人物でも指標ごとに対象集合が揃わず不便なため、1つの並び替え可能な表（ranking）に統合した
-const HOF_VIEWS = ['ranking', 'records', 'matchup', 'retired', 'awakened'];
+const HOF_VIEWS = ['ranking', 'records', 'matchup', 'retired'];
 const HOF_VIEW_LABELS = {
   ranking: '総合ランキング', records: '記録', matchup: '同一カード対戦', retired: '引退者一覧', awakened: '覚醒個体一覧',
 };
