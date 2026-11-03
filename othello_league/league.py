@@ -17,7 +17,12 @@ D_TO_C_PROMOTE = 3   # D→C昇格人数（C→D降格人数と揃え、Cリー�
 
 RETIREMENT_AGE = 60
 RETIREMENT_AGE_HARD_CAP = 65  # 引退を免除されていても、この年齢でタイトル保持中でなければ引退する
-D_DEMOTION_POINT_LIMIT = 3  # Dリーグでの降級点がこの数に達するとフリークラスへ（連続でなくてもよい）
+D_DEMOTION_POINT_LIMIT = 2  # Dリーグでの降級点がこの数に達するとフリークラスへ（連続でなくてもよい）
+# 降級点が付くのは、Dリーグの今季の順位が下位この割合に入った選手（将棋のC級の降級点に倣う）。
+# 以前は負け越しで1点・1点目はCへ上がるまで消えない、としていたため、1人8局のDでは毎季半数近くに点が付き、
+# Dの約7割が降級点を持っていた。第120季以降の結果に当てはめると、降級点持ちは約3割になり、
+# フリークラスへ落ちる人数（1季あたり約2.8人）は変わらない。切り替え時（第172季の前）に、在籍者の降級点を1点ずつ減らした
+D_DEMOTION_BOTTOM_FRACTION = 0.25
 # フリークラス（将棋の順位戦のフリークラスに倣う）：Dで降級点が3点に達した選手はDリーグ（青龍戦リーグ）から外れ、
 # タイトル戦（予選を含む）にだけ出場する。将棋の「参加棋戦数＋8勝以上、かつ勝率6割以上」に倣い、1季のタイトル戦で
 # 「出場した棋戦数＋FREE_RETURN_EXTRA_WINS」勝以上、かつ勝率 FREE_RETURN_RATE 以上ならDへ復帰。
@@ -30,7 +35,7 @@ FREE_CLASS = "F"
 FREE_RETURN_EXTRA_WINS = 6
 FREE_RETURN_RATE = 0.70
 FREE_CLASS_SEASON_LIMIT = 10
-D_DEMOTION_POINT_FLOOR = 1  # 勝ち越し・救済で減らせる下限。1点目はCへ昇級するまで消えない
+D_DEMOTION_POINT_FLOOR = 0  # 勝ち越し・救済で減らせる下限（1点目も消える）
 C_TO_D_RELEGATE = 3  # C→D降格人数（B→Cと同数）
 
 # Dリーグの新人受け入れ枠（新人リーグの募集人数）。
@@ -96,6 +101,9 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
     C = list(rosters["C"])
     D = list(rosters["D"])
     F = list(rosters.get(FREE_CLASS, []))
+    # 今季のDの順位（rosters["D"]は今季の順位順）。下位 D_DEMOTION_BOTTOM_FRACTION に降級点を付ける
+    d_rank = {ind.id: k + 1 for k, ind in enumerate(D)}
+    d_bottom_from = len(D) - round(len(D) * D_DEMOTION_BOTTOM_FRACTION) + 1
     d_start_points = {ind.id: ind.demotion_points for ind in D}
 
     # --- タイトル保持者・朱雀紅白リーグ在籍者（来季から加入予定の予選通過者も含む）・
@@ -237,7 +245,7 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
         # 「青龍戦リーグ（D所属個体のA〜D総当たり・スイス方式本戦）」の勝敗のみで+1/-1を
         # 判定する（win_this_season/loss_this_seasonはタイトル戦の前にA〜Dの結果だけで
         # セットされるため、玄武予選・玄武本戦等のタイトル戦の勝敗はここに混ざらない）
-        lost_more = ind.loss_this_season > ind.win_this_season
+        lost_more = d_rank.get(ind.id, 0) >= d_bottom_from   # 下位25%に入った（以前は「負け越した」）
         won_more = ind.win_this_season > ind.loss_this_season
         relief = ind.id in demotion_relief_ids
         # 負け越したら必ず1点付く（救済と同じ季でも相殺しない）。そのうえで勝ち越し・救済で減らせるのは
