@@ -466,6 +466,18 @@ function kirin_group1_seasons($pdo, $id = null) {
             else $prelim[$pid][$s] = true;
         }
     }
+    // 麒麟の保持者として防衛戦を戦った季も1組在籍に数える（保持者は本戦に出ないため、対局記録だけでは漏れる）。
+    // title_historyの季Sの保持者は、季S+1に防衛戦を戦う
+    $latest = (int)$pdo->query("SELECT MAX(season) FROM standings")->fetchColumn();
+    $thSql = "SELECT season, holder_id FROM title_history WHERE title = '麒麟' AND holder_id IS NOT NULL";
+    $thParams = [];
+    if ($id !== null) { $thSql .= " AND holder_id = :h"; $thParams = ['h' => $id]; }
+    $thStmt = $pdo->prepare($thSql);
+    $thStmt->execute($thParams);
+    foreach ($thStmt->fetchAll() as $t) {
+        $s = (int)$t['season'] + 1;
+        if ($s <= $latest) $main[$t['holder_id']][$s] = true;
+    }
     $out = [];
     foreach ($main as $pid => $seasons) {
         $list = array_keys(array_diff_key($seasons, $prelim[$pid] ?? []));
@@ -592,7 +604,7 @@ function build_records($pdo) {
     return [
         ['key' => 'fastest_a', 'label' => 'Aリーグ最速到達', 'unit' => '季', 'note' => 'Dリーグでのデビューから、Aリーグに初めて在籍するまでの季数（最短3季）'] + $fastest,
         ['key' => 'a_seasons', 'label' => 'Aリーグ在籍', 'unit' => '季', 'note' => 'Aリーグの通算在籍季数'] + $countList($aCount),
-        ['key' => 'kirin_group1_seasons', 'label' => '麒麟戦1組在籍', 'unit' => '期', 'note' => '麒麟戦の1組（本戦から出場）の通算在籍期数'] + $countList(array_map('count', kirin_group1_seasons($pdo))),
+        ['key' => 'kirin_group1_seasons', 'label' => '麒麟戦1組在籍', 'unit' => '期', 'note' => '麒麟戦の1組（本戦から出場）の通算在籍期数（麒麟の保持者として防衛戦を戦った期を含む）'] + $countList(array_map('count', kirin_group1_seasons($pdo))),
         ['key' => 'suzaku_seasons', 'label' => '朱雀紅白リーグ在籍', 'unit' => '季', 'note' => '朱雀紅白リーグの通算在籍季数（朱雀位保持中を含む）'] + $countList($suzakuCount),
         ['key' => 'title_total', 'label' => 'タイトル獲得数', 'unit' => '期', 'note' => '全タイトルの通算獲得期数（防衛を含む）'] + $titleList,
         ['key' => 'title_streak', 'label' => '連続保持', 'unit' => '期', 'note' => '同じタイトルの最長連続保持（2期以上）'] + $streakList,
