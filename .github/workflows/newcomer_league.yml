@@ -134,9 +134,17 @@ jobs:
             # 新人リーグ結果をサイトへすぐ反映させる。失敗してもジョブは失敗扱いにしない
             # （GitHub上のデータは既にpush済みなので、次のevolve.yml実行時などに
             #  改めて取り込まれる）
-            echo "=== サイトへ新人リーグ結果を反映（プル型インポート） ==="
-            retry_cmd curl -sS -f --connect-timeout 8 --max-time 20 "$PULL_IMPORT_URL" \
-              || echo "::warning::サイトへのプル型インポートに失敗しました。本戦の次回実行時などに改めて反映されます"
+            # プル型インポート（import_from_github.php）はGitHub上のseason_state.json（50MB超）を読み込み、
+            # PHPのメモリ上限を超えて取り込みが止まるため（エラーでもHTTP 200で気づけず、リーグタブが
+            # 「新人リーグ結果待ち」のままになっていた）、軽量版を送って取り込むdeploy_site.ymlの
+            # resync_server_dataを起動する
+            echo "=== サイトへ新人リーグ結果を反映（resync_server_dataを起動） ==="
+            curl -sS -f -X POST \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${{ github.repository }}/actions/workflows/deploy_site.yml/dispatches" \
+              -d '{"ref":"main","inputs":{"run_migration":"resync_server_data"}}' \
+              || echo "::warning::サイトへの反映を起動できませんでした。deploy_site.ymlをrun_migration=resync_server_dataで手動実行してください"
           else
             echo "変更なし（コミット不要）"
           fi
