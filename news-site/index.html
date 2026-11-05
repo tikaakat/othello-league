@@ -1989,6 +1989,8 @@ async function renderClanDetail(id) {
 
 // 棋士系統図：将棋連盟の「棋士系統図」のように、祖を上に置き、師匠から弟子へ上から下へ枝分かれさせ、
 // 名前を縦書きで並べた1枚の図。系統ごとに切り替えて見る。名前の上の数字は参戦した季、△は引退、太字はタイトル獲得者
+let _keitoActiveOnly = true;  // 棋士系統図：現役のいる系統だけ表示（現役のいない枝は折りたたむ）
+
 async function renderKeitoChart(topId) {
   setActiveNav('individuals');
   setPageMeta('棋士系統図', '師匠から弟子へと続く、サーキットオセロリーグの全選手の系統図。');
@@ -2002,13 +2004,19 @@ async function renderKeitoChart(topId) {
   const small = groups.length - big.length;
   const top = (topId && big.find(g => g.top.id === topId)) || big[0];
 
+  // 「現役のいる系統だけ」：現役のいない枝は、その枝の一番上の選手で折りたたむ（下に「他N名」）
+  const activeOnly = _keitoActiveOnly;
+  const aliveMemo = {}, sizeMemo = {};
+  const alive = m => aliveMemo[m.id] ?? (aliveMemo[m.id] = !m.retired || (kids[m.id] || []).some(alive));
+  const subSize = m => sizeMemo[m.id] ?? (sizeMemo[m.id] = (kids[m.id] || []).reduce((a, k) => a + 1 + subSize(k), 0));
   const CW = 19, ROW = 138, TOP = 18, FS = 11.5, FS2 = 8.5;
   let leaf = 0, maxGen = 0;
   const nodes = [];
   (function lay(m, g) {
-    const n = { m, g, kids: [] };
+    const n = { m, g, kids: [], folded: 0 };
     nodes.push(n); maxGen = Math.max(maxGen, g);
-    const ks = kids[m.id] || [];
+    let ks = kids[m.id] || [];
+    if (activeOnly && !alive(m) && g > 0) { n.folded = subSize(m); ks = []; }
     if (!ks.length) { n.x = 10 + leaf * CW + CW / 2; leaf++; return n; }
     n.kids = ks.map(k => lay(k, g + 1));
     n.x = (n.kids[0].x + n.kids[n.kids.length - 1].x) / 2;
@@ -2035,6 +2043,13 @@ async function renderKeitoChart(topId) {
     [...dan].forEach((ch, i) => {
       texts += `<text x="${x}" y="${cy + (i + 1) * (FS2 + 0.5)}" font-size="${FS2}" text-anchor="middle" fill="var(--text-dim)">${escapeHtml(ch)}</text>`;
     });
+    if (n.folded) {
+      // 折りたたんだ枝：段位の下に「他N名」（縦書き）
+      cy += [...dan].length * (FS2 + 0.5) + 4;
+      [...`他${n.folded}名`].forEach((ch, i) => {
+        texts += `<text x="${x}" y="${cy + (i + 1) * (FS2 + 0.5)}" font-size="${FS2}" text-anchor="middle" fill="var(--accent-dark)">${escapeHtml(ch)}</text>`;
+      });
+    }
     texts += `<rect data-goto-individual="${escapeHtml(m.id)}" x="${x - CW / 2 + 1}" y="${y}" width="${CW - 2}" height="${ROW - 30}" fill="transparent" style="cursor:pointer;"><title>${escapeHtml(m.display_name)}（第${m.debut_season ?? '?'}季に参戦${titles ? `・タイトル${titles}期` : ''}${m.retired ? '・引退' : ''}）</title></rect>`;
     if (!n.kids.length) return;
     const bottom = y + ROW - 30, bar = y0(n.g + 1) - 8;
@@ -2050,7 +2065,11 @@ async function renderKeitoChart(topId) {
     <h1 class="profile-name" style="font-size:1.1rem;">棋士系統図</h1>
     <div class="profile-sub" style="margin-bottom:8px;">${escapeHtml(top.top.display_name)}系（通算${top.n}名・現役${top.active}名）</div>
     <div class="chip-row" style="margin-bottom:8px;">${chips}</div>
-    <div style="font-size:0.72rem; color:var(--text-dim); margin-bottom:6px;">上が師匠、下が弟子（同じ師匠の弟子は左ほど先に入門）。名前の上の<span style="color:var(--accent-dark);">数字は参戦した季</span>、△は引退、太字はタイトル獲得者。名前を押すと選手ページへ。横にスクロールできます${small ? `（小さな系統${small}件は省略）` : ''}</div>
+    <div class="chip-row" style="margin-bottom:8px;">
+      <button class="chip-btn ${activeOnly ? 'active' : ''}" data-keito-mode="active">現役のいる系統だけ</button>
+      <button class="chip-btn ${activeOnly ? '' : 'active'}" data-keito-mode="all">すべて表示</button>
+    </div>
+    <div style="font-size:0.72rem; color:var(--text-dim); margin-bottom:6px;">上が師匠、下が弟子（同じ師匠の弟子は左ほど先に入門）。名前の上の<span style="color:var(--accent-dark);">数字は参戦した季</span>、△は引退、太字はタイトル獲得者。名前を押すと選手ページへ。${activeOnly ? '現役のいない枝は一番上の選手で折りたたみ、「他N名」と表示。' : ''}横にスクロールできます${small ? `（小さな系統${small}件は省略）` : ''}</div>
     <div class="keito-wrap" style="overflow:auto; -webkit-overflow-scrolling:touch; border:1px solid var(--border); border-radius:8px; background:var(--card);">
       <svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" style="display:block; font-family:'Noto Serif JP','Hiragino Mincho ProN','Yu Mincho',serif;">
         <g stroke="var(--text-dim)" stroke-width="0.9" fill="none">${lines}</g>${texts}
@@ -2059,6 +2078,10 @@ async function renderKeitoChart(topId) {
   // 最初は祖が真ん中に来るように横スクロールしておく
   const wrap = el.querySelector('.keito-wrap');
   if (wrap) wrap.scrollLeft = Math.max(0, nodes[0].x - wrap.clientWidth / 2);
+  el.querySelectorAll('[data-keito-mode]').forEach(b => b.addEventListener('click', () => {
+    _keitoActiveOnly = b.dataset.keitoMode === 'active';
+    renderKeitoChart(top.top.id);
+  }));
   el.querySelectorAll('[data-keito-top]').forEach(b => b.addEventListener('click', () => navigateTo('keito/' + encodeURIComponent(b.dataset.keitoTop))));
   el.querySelectorAll('[data-goto-individual]').forEach(e2 => e2.addEventListener('click', () => navigateTo('individual/' + encodeURIComponent(e2.dataset.gotoIndividual))));
 }
