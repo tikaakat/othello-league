@@ -89,6 +89,8 @@ TITLE_RULES_NOTE = (
 GENDER_PROMPT_NOTE = (
     "各選手の性別はデータ中の「性別」欄の通りとし、不明な場合を除き、"
     "それに矛盾する表現（性別不明なのに「彼」「彼女」と決めつける等）をしないこと。"
+    "また、一門（流派・系統）の制度は廃止したので、「◯◯一門」「同門」などの一門単位の話題は書かず、"
+    "選手どうしの関係は師弟・兄弟弟子（同じ師匠の弟子）に限って触れること。"
 )
 
 
@@ -364,8 +366,8 @@ def _lineage_map(data_dir):
 
 
 def _lineage_relation(lineage, challenger_id, holder_id):
-    """タイトル戦の挑戦者と保持者の師弟・同門関係を、記事に盛り込める一文にする（無ければNone）。
-    一門は現在の所属（独立後の一門）で判定する"""
+    """タイトル戦の挑戦者と保持者の師弟・兄弟弟子関係を、記事に盛り込める一文にする（無ければNone）。
+    一門（同じ系統）は制度として廃止したので、師弟・兄弟弟子以外の関係は話題にしない"""
     c, h = lineage.get(challenger_id), lineage.get(holder_id)
     if not c or not h:
         return None
@@ -377,9 +379,6 @@ def _lineage_relation(lineage, challenger_id, holder_id):
     if c["master_id"] and c["master_id"] == h["master_id"]:
         master = lineage.get(c["master_id"], {}).get("name") or "同じ師匠"
         return f"兄弟弟子対決：両者とも{master}の弟子"
-    if c["clan_root_id"] and c["clan_root_id"] == h["clan_root_id"]:
-        founder = lineage.get(c["clan_root_id"], {}).get("name") or "同じ開祖"
-        return f"同門対決：両者とも{founder}一門"
     return None
 
 
@@ -621,8 +620,8 @@ def build_prompt(facts):
         f"以上の事実だけをもとに、第{facts['season']}季のダイジェスト記事を書いてください。"
         "データに無い出来事・数字は書かないこと。"
         "今季MVP・新人王がいる場合は、本文の中でひと言触れること（見出しにする必要はない）。"
-        "タイトル戦に師弟対決・兄弟弟子対決・同門対決とあるものは、その関係にも触れて物語性を持たせること"
-        "（データに無い師弟・同門関係は書かないこと）。"
+        "タイトル戦に師弟対決・兄弟弟子対決とあるものは、その関係にも触れて物語性を持たせること"
+        "（データに無い師弟関係は書かないこと）。"
         "リーグ戦については、Aリーグに関わる昇格・降格だけ名前を挙げて触れればよい。"
         "B〜Dリーグ内の入れ替えは、件数だけ一言触れる程度で十分（個別の名前は渡していないので書けない）。"
         f"{TITLE_RULES_NOTE}"
