@@ -125,6 +125,12 @@ jobs:
           if [ "$RESET" = "true" ]; then
             echo "=== 一括リセット: 既存データを削除してシーズン1からやり直します ==="
 
+            # リセット前の世界線の結果（棋譜を除く）を archive/ に保存しておく
+            if [ -f data/season_state.json ] && [ -f data/rosters.json ]; then
+              python3 scripts/archive_world.py data && git add -A archive \
+                || echo "::warning::世界線のアーカイブ保存に失敗しました"
+            fi
+
             rm -rf data/rosters.json data/season_state.json data/matches data/standings \
               data/newcomer_league data/newcomer_winners.json data/newcomer_submissions.json \
               data/newcomer_candidate_pool.json data/news/articles.json
