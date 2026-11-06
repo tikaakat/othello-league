@@ -404,6 +404,10 @@ def main():
     parser.add_argument("--data-dir", default="data")
     parser.add_argument("--submissions-path", default=None,
                          help="当日投稿分のJSONファイル（未指定/存在しない場合は0件として扱う）")
+    parser.add_argument("--naming-path", default=None,
+                         help="後援会の名付け親が付けた名前（site/donation.phpのpending_names）。奨励会リーグの入会者に付ける")
+    parser.add_argument("--named-out", default="/tmp/named_ids.json",
+                         help="名付けに使った名前の一覧の書き出し先（push後にdonation.phpへ名付け済みとして送る）")
     parser.add_argument("--relabel-check", action="store_true",
                          help="push失敗からの自己修復（git reset --mixed）の直後に呼び出し、"
                               "対象季のズレを検出・修正するモード。通常実行はしない")
@@ -444,6 +448,11 @@ def main():
 
     retry_pool = load_newcomer_candidate_pool(args.data_dir)
     shoreikai_members = load_shoreikai(args.data_dir)
+    namings = []
+    if args.naming_path and os.path.exists(args.naming_path):
+        with open(args.naming_path, "r", encoding="utf-8") as f:
+            namings = json.load(f) or []
+    print(f"[DEBUG] 後援会の名付けの順番待ち: {len(namings)}件", flush=True)
     print(f"[DEBUG] 三段リーグの在籍者（前季の非昇格者）: {len(retry_pool)}件・奨励会: "
           f"{'未作成' if shoreikai_members is None else len(shoreikai_members)}", flush=True)
 
@@ -473,7 +482,10 @@ def main():
     retry_pool, shoreikai_members, shoreikai_log = SK.advance(
         retry_pool, shoreikai_members, registry, target_season, pool,
         state.get("retired_archive") or [], titleholder_ids, master_names=master_names,
+        namings=namings,
     )
+    with open(args.named_out, "w", encoding="utf-8") as f:
+        json.dump(shoreikai_log.get("named", []), f, ensure_ascii=False)
     print(f"[DEBUG] 奨励会: 入会{len(shoreikai_log['joined'])}名・三段へ{len(shoreikai_log['to_sandan'])}名・"
           f"退会{len(shoreikai_log['left'])}名・在籍{len(shoreikai_members)}名／三段リーグ{len(retry_pool)}名", flush=True)
     winner_entries, standings, match_log, next_retry_pool, playoff_log = run_newcomer_league(

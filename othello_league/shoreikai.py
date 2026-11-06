@@ -53,8 +53,13 @@ def grow_entry(entry):
     season_growth(holder)
 
 
-def _new_member(registry, master, season, index):
-    name, gender = registry.generate()
+def _new_member(registry, master, season, index, naming=None):
+    if naming:
+        # 後援会の名付け親が付けた名前（site/donation.php）
+        name, gender = naming["family"] + naming["given"], naming.get("gender") or "male"
+        registry.register_existing([name])
+    else:
+        name, gender = registry.generate()
     age = random.randint(*SHOREIKAI_ENTRY_AGE)
     request = {"name": name, "gender": gender, "type": random.choice(CHARACTER_TYPES),
                "auto_generated": True, "initial_age": age}
@@ -71,10 +76,11 @@ def _new_member(registry, master, season, index):
         "clan_root_id": ind.clan_root_id if ind.clan_root_id != ind.id else None,
         "generation": ind.generation, "volatility": ind.volatility,
         "joined_season": season, "entry_age": age,
+        **({"named_by": naming.get("by") or "匿名の後援会員", "naming_id": naming.get("id")} if naming else {}),
     }
 
 
-def _admit(registry, season, pool, retired_records, titleholder_ids, count):
+def _admit(registry, season, pool, retired_records, titleholder_ids, count, namings=None):
     active = [ind for ind in (pool or []) if not ind.retired]
     masters = master_pool(active, retired_records, season) if active else []
     picks = {}
@@ -84,7 +90,8 @@ def _admit(registry, season, pool, retired_records, titleholder_ids, count):
             master = None
         else:
             master = _pick_master(masters, titleholder_ids, allow_new_founder=False, pick_counts=picks)
-        out.append(_new_member(registry, master, season, i))
+        naming = namings[i] if namings and i < len(namings) else None
+        out.append(_new_member(registry, master, season, i, naming))
     return out
 
 
@@ -102,10 +109,12 @@ def bootstrap(registry, season, pool, retired_records, titleholder_ids):
 
 
 def advance(sandan, shoreikai, registry, season, pool, retired_records, titleholder_ids,
-            master_names=None, submissions_count=0):
+            master_names=None, submissions_count=0, namings=None):
     """新人リーグ（三段リーグ）の前に1季分を進める。
     sandan：前季に昇格できなかった三段リーグの在籍者（newcomer_candidate_pool.json）
     shoreikai：奨励会の在籍者（Noneなら初回として作る）
+    namings：後援会の名付け親が付けた名前（[{"id","family","given","gender","by"}]）。今季の入会者に先頭から付ける。
+      名付けの順番待ちが入会者の数より多ければ、残りは次の季へ
     戻り値：(今季の三段リーグの出場者, 奨励会の在籍者, 記録)"""
     master_names = master_names or {}
     log = {"joined": [], "to_sandan": [], "left": []}
@@ -132,10 +141,12 @@ def advance(sandan, shoreikai, registry, season, pool, retired_records, titlehol
             kept.append(e)
     shoreikai = kept
     if not first:
-        new = _admit(registry, season, pool, retired_records, titleholder_ids, SHOREIKAI_INTAKE)
+        new = _admit(registry, season, pool, retired_records, titleholder_ids, SHOREIKAI_INTAKE, namings)
         shoreikai += new
-        log["joined"] = [{"name": e["name"], "age": e["age"], "master_name": master_names.get(e.get("parent_a_id"))}
+        log["joined"] = [{"name": e["name"], "age": e["age"], "master_name": master_names.get(e.get("parent_a_id")),
+                          **({"named_by": e["named_by"]} if e.get("named_by") else {})}
                          for e in new]
+        log["named"] = [{"id": e["naming_id"], "season": season, "name": e["name"]} for e in new if e.get("naming_id")]
     # 三段リーグの空き（投稿されたキャラクリエイト分は定員の外）を、強さの見積もり＋運の順で埋める
     vacancy = max(0, SANDAN_SIZE - len(sandan))
     ranked = sorted(shoreikai, key=lambda e: estimated_strength(e["params"]) + random.gauss(0, PROMOTION_LUCK),

@@ -32,6 +32,7 @@ on:
       - "site/inquiry.php"
       - "site/board.php"
       - "site/admin_auth.php"
+      - "site/donation.php"
   workflow_dispatch:
     inputs:
       list_only:
@@ -123,6 +124,7 @@ jobs:
           php -l site/inquiry.php
           php -l site/board.php
           php -l site/admin_auth.php
+          php -l site/donation.php
 
       - name: List / Delete / Deploy on xserver
         env:
@@ -144,6 +146,7 @@ jobs:
           RUN_IMPORT: ${{ github.event.inputs.run_import }}
           DEBUG_QUERY: ${{ github.event.inputs.debug_query }}
           IMPORT_URL: "https://lab.spia-net.com/othello-league/import_from_colab.php?key=${{ secrets.IMPORT_SECRET_KEY }}"
+          IMPORT_SECRET_KEY: ${{ secrets.IMPORT_SECRET_KEY }}
         run: |
           echo "$XSERVER_SSH_KEY" > /tmp/deploy_key
           chmod 600 /tmp/deploy_key
@@ -792,11 +795,16 @@ jobs:
           retry_cmd ssh -i /tmp/deploy_key -p "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
             "$XSERVER_USER@$XSERVER_HOST" "mkdir -p ${XSERVER_SITE_DIR}"
 
+          # donation.php が新人リーグ（GitHub Actions）からの取り込みを確かめるための鍵のハッシュ。
+          # 鍵そのもの（IMPORT_SECRET_KEY）はサーバーに置かない
+          mkdir -p /tmp/league_secrets
+          printf '<?php\nconst IMPORT_KEY_SHA256 = %s;\n' "'$(printf %s "$IMPORT_SECRET_KEY" | sha256sum | cut -d' ' -f1)'" > /tmp/league_secrets/league_secrets.php
+
           retry_cmd scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
             site/index.html site/api.php site/create_character.php site/cheer.php \
             site/article_like.php site/supporter.php site/sponsor.php \
             site/stripe_client.php site/create_checkout.php site/stripe_webhook.php \
-            site/inquiry.php site/board.php site/admin_auth.php \
+            site/inquiry.php site/board.php site/admin_auth.php site/donation.php /tmp/league_secrets/league_secrets.php \
             "$XSERVER_USER@$XSERVER_HOST:${XSERVER_SITE_DIR}"
 
           rm -f /tmp/deploy_key

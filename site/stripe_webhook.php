@@ -57,6 +57,34 @@ if (($session['payment_status'] ?? '') !== 'paid') {
 
 $sessionId = (string)($session['id'] ?? '');
 $metadata = $session['metadata'] ?? [];
+
+// 後援会（リーグ全体への寄付、donation.php）。選手へのサポーター支援とは別の表に記録する
+if (($metadata['kind'] ?? '') === 'donation') {
+    $amountJpy = (int)($session['amount_total'] ?? 0);
+    if ($sessionId !== '' && $amountJpy > 0) {
+        $family = trim((string)($metadata['naming_family'] ?? ''));
+        try {
+            league_db_connect()->prepare(
+                "INSERT INTO donations (stripe_session_id, amount_jpy, display_name, show_name, message,
+                                        naming_family, naming_given, naming_gender, naming_status)
+                 VALUES (:sid, :amount, :name, :show, :msg, :fam, :giv, :gen, :st)"
+            )->execute([
+                'sid' => $sessionId, 'amount' => $amountJpy,
+                'name' => trim((string)($metadata['display_name'] ?? '')) ?: null,
+                'show' => ($metadata['show_name'] ?? '0') === '1' ? 1 : 0,
+                'msg' => trim((string)($metadata['message'] ?? '')) ?: null,
+                'fam' => $family ?: null,
+                'giv' => trim((string)($metadata['naming_given'] ?? '')) ?: null,
+                'gen' => $family ? ($metadata['naming_gender'] ?? 'male') : null,
+                'st' => $family ? 'pending' : null,
+            ]);
+        } catch (\PDOException $e) {
+            if ($e->getCode() !== '23000') { throw $e; }  // 23000＝Webhookの重複配信
+        }
+    }
+    echo json_encode(['received' => true]);
+    exit;
+}
 $individualId = trim((string)($metadata['individual_id'] ?? ''));
 $displayName = trim((string)($metadata['display_name'] ?? '')) ?: '名無しの支援者';
 $message = trim((string)($metadata['message'] ?? ''));

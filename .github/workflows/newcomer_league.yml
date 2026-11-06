@@ -43,6 +43,9 @@ jobs:
         timeout-minutes: 60
         env:
           PENDING_CHAR_URL: "https://lab.spia-net.com/othello-league/export_pending_characters.php?key=${{ secrets.IMPORT_SECRET_KEY }}"
+          NAMING_URL: "https://lab.spia-net.com/othello-league/donation.php?action=pending_names&key=${{ secrets.IMPORT_SECRET_KEY }}"
+          DONATION_URL: "https://lab.spia-net.com/othello-league/donation.php"
+          IMPORT_SECRET_KEY: ${{ secrets.IMPORT_SECRET_KEY }}
           PULL_IMPORT_URL: "https://lab.spia-net.com/othello-league/import_from_github.php?key=${{ secrets.IMPORT_SECRET_KEY }}"
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -68,10 +71,16 @@ jobs:
             && jq '.characters // []' /tmp/pending_char_response.json > data/newcomer_submissions.json \
             || { echo "::warning::キャラクリエイトのリクエスト取得に失敗しました。0件として扱います"; echo '[]' > data/newcomer_submissions.json; }
 
+          # 後援会の名付け親が付けた名前（奨励会リーグの入会者に付ける）。取得できなければ0件
+          retry_cmd curl -sS -f --connect-timeout 8 --max-time 20 -o /tmp/naming_response.json "$NAMING_URL" \
+            && jq '.names // []' /tmp/naming_response.json > /tmp/naming_requests.json \
+            || { echo "::warning::名付けの順番待ちの取得に失敗しました。0件として扱います"; echo '[]' > /tmp/naming_requests.json; }
+
           echo "=== 新人リーグを実行 ==="
           python -u run_newcomer_league.py \
             --data-dir data \
-            --submissions-path data/newcomer_submissions.json
+            --submissions-path data/newcomer_submissions.json \
+            --naming-path /tmp/naming_requests.json --named-out /tmp/named_ids.json
 
           echo "=== data/ の中身 ==="
           ls -la data/newcomer_league/ 2>&1 || echo "(newcomer_league/ ディレクトリが存在しません)"
@@ -126,6 +135,13 @@ jobs:
             if [ "$PUSHED" != "1" ]; then
               echo "::error::git pushに複数回失敗しました。本戦（evolve.yml）が今夜、新人リーグの勝者を取り込めない可能性があります"
               exit 1
+            fi
+
+            # 名付けに使った名前を、名付け済みとしてdonation.phpに知らせる（pushが済んでから。失敗しても次回また順番待ちに出るだけ）
+            if [ -s /tmp/named_ids.json ] && [ "$(jq 'length' /tmp/named_ids.json)" != "0" ]; then
+              jq -n --arg key "$IMPORT_SECRET_KEY" --slurpfile items /tmp/named_ids.json '{action:"mark_named", key:$key, items:$items[0]}' \
+                | curl -sS -f --connect-timeout 8 --max-time 20 -H 'Content-Type: application/json' -d @- "$DONATION_URL" \
+                || echo "::warning::名付け済みの連絡に失敗しました"
             fi
 
             # サイト側（新人リーグの結果タブ等）は、これまでevolve.yml実行時の
