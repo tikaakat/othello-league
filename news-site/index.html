@@ -485,6 +485,18 @@ const RESULTS_SITE_BASE = 'https://lab.spia-net.com/othello-league/';
 let _articles = null;
 let _holders = null;
 
+// 漢数字（1〜99）：「第十八世永世青龍」の表記用
+function kanjiNum(n) {
+  const d = ['', '一', '二', '三', '四', '五', '六', '七', '八', '九'];
+  if (n < 10) return d[n];
+  return (n >= 20 ? d[Math.floor(n / 10)] : '') + '十' + d[n % 10];
+}
+// 永世称号の呼び名。青龍は資格を満たした順に代数が付き、引退後に「第◯世永世青龍」と名乗る（現役中は「永世青龍資格」）
+function eternalName(title, seiryuGen, retired) {
+  if (title === '青龍' && seiryuGen) return retired ? `第${kanjiNum(seiryuGen)}世永世青龍` : '永世青龍資格';
+  return `永世${title}`;
+}
+
 function escapeHtml(s) {
   return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
 }
@@ -981,7 +993,8 @@ async function renderIndividualProfile(id) {
   );
   const titleHtml = titleRanges.length
     ? titleRanges.map(t => {
-        const eternalNote = eternalTitles.includes(t.title) ? '　<b>永世称号</b>' : '';
+        const eternalNote = eternalTitles.includes(t.title)
+          ? `　<b>${t.title === '青龍' && data.seiryu_generation ? escapeHtml(eternalName('青龍', data.seiryu_generation, ind.retired)) : '永世称号'}</b>` : '';
         return `<div class="profile-title-row">${escapeHtml(t.title)}：${t.total}期（${escapeHtml(t.ranges)}）${eternalNote}</div>`;
       }).join('')
     : '<div class="profile-title-row" style="color:var(--text-dim);">タイトル獲得歴なし</div>';
@@ -2009,20 +2022,40 @@ async function renderKeitoChart(topId) {
   const aliveMemo = {}, sizeMemo = {};
   const alive = m => aliveMemo[m.id] ?? (aliveMemo[m.id] = !m.retired || (kids[m.id] || []).some(alive));
   const subSize = m => sizeMemo[m.id] ?? (sizeMemo[m.id] = (kids[m.id] || []).reduce((a, k) => a + 1 + subSize(k), 0));
-  const CW = 19, ROW = 138, TOP = 18, FS = 11.5, FS2 = 8.5;
-  let leaf = 0, maxGen = 0;
+  const CW = 17, TOP = 18, FS = 11.5, FS2 = 8.5;
+  // 並べ方：枝ごとに「各代の左端・右端」を持ち、隣の枝とは同じ代どうしがぶつからない所まで詰める
+  // （弟子のいない選手の下の空きに、隣の枝の孫弟子以下が入り込めるようにして、横幅を縮める）
+  let maxGen = 0;
   const nodes = [];
-  (function lay(m, g) {
-    const n = { m, g, kids: [], folded: 0 };
+  const build = (m, g) => {
+    const n = { m, g, kids: [], folded: 0, dx: 0 };
     nodes.push(n); maxGen = Math.max(maxGen, g);
     let ks = kids[m.id] || [];
     if (activeOnly && !alive(m) && g > 0) { n.folded = subSize(m); ks = []; }
-    if (!ks.length) { n.x = 10 + leaf * CW + CW / 2; leaf++; return n; }
-    n.kids = ks.map(k => lay(k, g + 1));
-    n.x = (n.kids[0].x + n.kids[n.kids.length - 1].x) / 2;
+    if (!ks.length) { n.L = [0]; n.R = [0]; return n; }
+    n.kids = ks.map(k => build(k, g + 1));
+    let L = [], R = [];
+    n.kids.forEach((k, i) => {
+      if (i === 0) { k.dx = 0; L = k.L.slice(); R = k.R.slice(); return; }
+      let shift = -Infinity;
+      for (let d = 0; d < Math.min(R.length, k.L.length); d++) shift = Math.max(shift, R[d] - k.L[d] + CW);
+      k.dx = shift;
+      k.L.forEach((v, d) => { L[d] = d < L.length ? Math.min(L[d], v + shift) : v + shift; });
+      k.R.forEach((v, d) => { R[d] = d < R.length ? Math.max(R[d], v + shift) : v + shift; });
+    });
+    const px = (n.kids[0].dx + n.kids[n.kids.length - 1].dx) / 2;
+    n.kids.forEach(k => { k.dx -= px; });
+    n.L = [0, ...L.map(v => v - px)]; n.R = [0, ...R.map(v => v - px)];
     return n;
-  })(top.top, 0);
-  const W = 20 + leaf * CW, H = TOP + (maxGen + 1) * ROW + 10;
+  };
+  const root = build(top.top, 0);
+  const minL = Math.min(...root.L), maxR = Math.max(...root.R);
+  (function place(n, x) { n.x = x; n.kids.forEach(k => place(k, x + k.dx)); })(root, 10 + CW / 2 - minL);
+  // 1代の高さ：いちばん長い名前に合わせる（季の数字・△・名前・段位＋線の分）
+  const contentH = n => 21 + [...String(n.m.display_name || '')].length * (FS + 0.5) + 3 + 3 * (FS2 + 0.5)
+    + (n.folded ? [...`他${n.folded}名`].length * (FS2 + 0.5) + 4 : 0);
+  const ROW = Math.ceil(Math.max(...nodes.map(contentH))) + 20;
+  const W = Math.ceil(20 + CW + maxR - minL), H = TOP + (maxGen + 1) * ROW + 10;
   const y0 = g => TOP + g * ROW;
   let lines = '', texts = '';
   nodes.forEach(n => {
@@ -2050,9 +2083,9 @@ async function renderKeitoChart(topId) {
         texts += `<text x="${x}" y="${cy + (i + 1) * (FS2 + 0.5)}" font-size="${FS2}" text-anchor="middle" fill="var(--accent-dark)">${escapeHtml(ch)}</text>`;
       });
     }
-    texts += `<rect data-goto-individual="${escapeHtml(m.id)}" x="${x - CW / 2 + 1}" y="${y}" width="${CW - 2}" height="${ROW - 30}" fill="transparent" style="cursor:pointer;"><title>${escapeHtml(m.display_name)}（第${m.debut_season ?? '?'}季に参戦${titles ? `・タイトル${titles}期` : ''}${m.retired ? '・引退' : ''}）</title></rect>`;
+    texts += `<rect data-goto-individual="${escapeHtml(m.id)}" x="${x - CW / 2 + 1}" y="${y}" width="${CW - 2}" height="${ROW - 22}" fill="transparent" style="cursor:pointer;"><title>${escapeHtml(m.display_name)}（第${m.debut_season ?? '?'}季に参戦${titles ? `・タイトル${titles}期` : ''}${m.retired ? '・引退' : ''}）</title></rect>`;
     if (!n.kids.length) return;
-    const bottom = y + ROW - 30, bar = y0(n.g + 1) - 8;
+    const bottom = cy + 2, bar = y0(n.g + 1) - 7;
     lines += `<line x1="${x}" y1="${bottom}" x2="${x}" y2="${bar}"/>`;
     const xs = n.kids.map(k => k.x);
     if (xs.length > 1) lines += `<line x1="${Math.min(...xs)}" y1="${bar}" x2="${Math.max(...xs)}" y2="${bar}"/>`;
@@ -2146,6 +2179,8 @@ function renderRules() {
     <div class="sec">
       タイトルを一定の期間（連続、または通算）保持し続けると「永世」の称号が贈られる。
       基準はタイトルごとに異なる。一度獲得すると、その後タイトルを失っても称号は残り続ける。
+      青龍の永世称号（通算5期）は、基準を満たした順に代数が付き、引退後に「第◯世永世青龍」と名乗る
+      （現役のうちは「永世青龍資格」）。
     </div>
 
     <h3>段位</h3>
@@ -2189,6 +2224,7 @@ const RULE_HISTORY = [
   [168, 'フリークラスにいる季は、終盤力の伸びが半分になる（実戦が少ないため）。新人がデビュー時に知っている定跡を増やした（師匠の7割・最低16手）'],
   [171, 'フリークラスの復帰条件を「出場した棋戦数＋6勝以上かつ勝率7割以上、またはタイトル挑戦」に厳格化'],
   [172, 'Dリーグの降級点を「下位4分の1に入ると1点、勝ち越すと1点減る（1点目も消える）、2点でフリークラス」に（以前は負け越しで1点・1点目は昇級まで消えない・3点でフリークラス）'],
+  [207, '永世青龍の資格者は、資格を満たした順に代数が付き、引退後に「第◯世永世青龍」と名乗る（現役中は「永世青龍資格」）'],
 ];
 
 // 「このメディアについて」タブ：架空リーグ・AI自動運営という性質を明示する
