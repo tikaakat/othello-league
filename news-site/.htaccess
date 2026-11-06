@@ -1,0 +1,7 @@
+# ファンサイトのページ本体とデータ（記事・保持者など）は、更新したらすぐ反映されるよう、
+# ブラウザやサーバー側の一時保存（キャッシュ）を使わずに毎回確認させる
+<IfModule mod_headers.c>
+  <FilesMatch "\.(html|json)$">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </FilesMatch>
+</IfModule>

@@ -165,7 +165,7 @@
 
 <div class="header">
   <h1>CIRCUIT OTHELLO LEAGUE</h1>
-  <p>選手たちがリーグ戦・タイトル戦を戦い抜き、青龍・麒麟・朱雀・白虎・玄武の座を目指す</p>
+  <p>選手たちがリーグ戦・タイトル戦を戦い抜き、麒麟・青龍・朱雀・白虎・玄武の座を目指す</p>
 </div>
 
 <div class="tabs" id="primary-tabs">
@@ -256,7 +256,7 @@ const TAB_GROUPS = {
     },
   },
   results: {
-    label: '結果', tabs: ['seiryuu', 'kirin', 'suzaku', 'byakko', 'genbu', 'awards', 'matches'],
+    label: '結果', tabs: ['kirin', 'seiryuu', 'suzaku', 'byakko', 'genbu', 'awards', 'matches'],
     subLabels: { kirin: '麒麟戦', seiryuu: '青龍戦', suzaku: '朱雀戦', byakko: '白虎戦', genbu: '玄武戦', awards: '表彰', matches: '対局記録' },
   },
   titles: {
@@ -495,7 +495,7 @@ function ageCell(age) {
 }
 
 const TITLE_NAMES = new Set([
-  '青龍', '麒麟', '朱雀', '白虎', '玄武', '青龍予選', '麒麟予選', '朱雀予選', '白虎予選', '玄武予選',
+  '麒麟', '青龍', '朱雀', '白虎', '玄武', '麒麟予選', '青龍予選', '朱雀予選', '白虎予選', '玄武予選',
   '朱雀紅組', '朱雀白組', '朱雀紅組-playoff', '朱雀白組-playoff', '朱雀挑戦者決定戦', '朱雀紅白決定戦',
 ]);
 function leagueTag(league) {
@@ -506,7 +506,7 @@ function leagueTag(league) {
 // ---------------- リーグ ----------------
 // 現在のタイトル保持者マップ（全ページで使い回す）
 let CURRENT_TITLEHOLDERS = { by_id: {}, by_name: {} };
-const TITLE_ORDER = ['青龍', '麒麟', '朱雀', '白虎', '玄武']; // 表示順（青龍・麒麟が最上位）
+const TITLE_ORDER = ['麒麟', '青龍', '朱雀', '白虎', '玄武']; // 表示順（序列順。麒麟・青龍が最上位）。両サイトでこの順にそろえる
 const CROWN_LABELS = { 2: '二冠', 3: '三冠', 4: '四冠', 5: '五冠' };
 
 function crownLabel(id, name) {
@@ -2959,8 +2959,8 @@ function renderHofView(el, view) {
         } else {
           const ranks = competitionRanks(rows, r => r.value);
           if (rec.key === 'title_total') {
-            // タイトル通算：タイトルごとの期数を列に並べた表（青龍・麒麟・朱雀・白虎・玄武の順）
-            const order = ['青龍', '麒麟', '朱雀', '白虎', '玄武'];
+            // タイトル通算：タイトルごとの期数を列に並べた表（麒麟・青龍・朱雀・白虎・玄武の順）
+            const order = TITLE_ORDER;
             const cell = 'text-align:center; white-space:nowrap; padding:4px 3px; font-size:0.74rem;';
             body = `<div style="overflow-x:auto;"><table><thead><tr><th>#</th><th>名前</th>${
               order.map(t => `<th style="${cell} color:${TITLE_BADGE_COLOR[t] || 'inherit'};">${t}</th>`).join('')
