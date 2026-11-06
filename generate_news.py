@@ -1268,7 +1268,7 @@ def gather_newcomer_facts(data_dir, season):
 
 def build_newcomer_prompt(facts):
     lines = [
-        f"第{facts['season']}季から出走する三段リーグ結果データ（事実のみ。これ以外の出来事は起きていない）:", "",
+        f"第{facts['season'] - 1}季の三段リーグ（昇格者は第{facts['season']}季からDリーグに出走）の結果データ（事実のみ。これ以外の出来事は起きていない）:", "",
         # 読者投稿の受付を止めている間（投稿0件）は、投稿・自動生成の区別自体を渡さない
         # （渡すと「読者からの投稿はなく全員が自動生成」のような、受付停止中には不自然な一文が入る）
         f"・参加者数：{facts['participant_count']}名"

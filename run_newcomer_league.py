@@ -479,8 +479,11 @@ def main():
     # 奨励会：1季分進め（成長・年齢制限・入会）、三段リーグの空きを奨励会から埋める
     master_names = {ind.id: ind.display_name for ind in pool}
     master_names.update(retired_master_names)
+    # 奨励会・三段リーグは「第N季の本戦のあと」に行う第N季の開催として数える（昇格者は第N+1季から出走。
+    # ファイル名の for_season は出走する季のまま）。入会季・名付けの季もこの開催季で記録する
+    held_season = target_season - 1
     retry_pool, shoreikai_members, shoreikai_log = SK.advance(
-        retry_pool, shoreikai_members, registry, target_season, pool,
+        retry_pool, shoreikai_members, registry, held_season, pool,
         state.get("retired_archive") or [], titleholder_ids, master_names=master_names,
         namings=namings,
     )
