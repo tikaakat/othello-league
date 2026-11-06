@@ -13,6 +13,7 @@ ini_set('display_errors', '0');
 error_reporting(E_ALL);
 
 require_once __DIR__ . '/db_config.php';
+require_once __DIR__ . '/admin_auth.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -23,6 +24,20 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 $body = json_decode(file_get_contents('php://input'), true) ?? [];
+
+// 運営用：届いたお問い合わせの一覧（掲示板の運営モードから合言葉付きで呼ぶ）
+if (($body['action'] ?? '') === 'list') {
+    if (!is_admin_key($body['admin_key'] ?? '')) {
+        http_response_code(403);
+        echo json_encode(['error' => '合言葉が違います'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    $rows = league_db_connect()->query(
+        "SELECT id, category, message, contact, created_at FROM inquiries ORDER BY id DESC LIMIT 200"
+    )->fetchAll();
+    echo json_encode(['inquiries' => $rows], JSON_UNESCAPED_UNICODE);
+    exit;
+}
 $category = trim((string)($body['category'] ?? 'その他'));
 $message = trim((string)($body['message'] ?? ''));
 // 返信先（任意・自由記述。メールアドレス/SNS等、こちらで形式を限定しない）
