@@ -1855,11 +1855,26 @@ switch ($action) {
         $standStmt->execute(['s' => $forSeason]);
         $standings = resolve_newcomer_real_ids($pdo, $standStmt->fetchAll());
 
+        // 奨励会リーグの動き（入会・三段リーグへの昇段・退会）と三段リーグ出場者の年齢は、DBには取り込まず
+        // 結果ファイル（deploy_siteのresync_server_dataがleague_export/に置く）から直接読む
+        $shoreikai = null; $ages = [];
+        $nlFile = __DIR__ . "/league_export/newcomer_league/for_season_{$forSeason}.json";
+        if (is_file($nlFile)) {
+            $nl = json_decode(file_get_contents($nlFile), true);
+            if (is_array($nl)) {
+                $shoreikai = $nl['shoreikai'] ?? null;
+                foreach (($nl['standings'] ?? []) as $r) {
+                    if (isset($r['age'], $r['display_name'])) $ages[$r['display_name']] = (int)$r['age'];
+                }
+            }
+        }
         json_out([
             'for_season' => $forSeason,
             'meta' => $meta ?: null,
             'standings' => $standings,
             'available_seasons' => $available,
+            'shoreikai' => $shoreikai,
+            'ages' => (object)$ages,
         ]);
         break;
 

@@ -126,7 +126,7 @@ def advance(sandan, shoreikai, registry, season, pool, retired_records, titlehol
     kept = []
     for e in shoreikai:
         if e["age"] > SHOREIKAI_AGE_LIMIT:
-            log["left"].append({"name": e["name"], "age": e["age"], "reason": "奨励会の年齢制限",
+            log["left"].append({"name": e["name"], "age": e["age"], "reason": "奨励会リーグの年齢制限",
                                 "master_name": master_names.get(e.get("parent_a_id"))})
         else:
             kept.append(e)
