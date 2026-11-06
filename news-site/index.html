@@ -1981,11 +1981,11 @@ async function renderShoreikai() {
     <div style="font-size:0.78rem; color:var(--text-dim); margin-bottom:10px;">
       奨励会リーグは12〜15歳で入会し、成長しながら三段リーグへの昇段を目指す（21歳までに上がれなければ退会）。
       三段リーグは毎季の対局で上位3名がプロ（Dリーグ）としてデビューする（26歳までに上がれなければ退会）。</div>
-    ${log ? `<div class="rules"><h3>第${sk.log_season}季の動き</h3><div class="sec">
-      ・入会：${list(log.joined, r => `${escapeHtml(r.name)}（${r.age}歳）`)}<br>
-      ・三段リーグへ昇段：${list(log.to_sandan, r => `${escapeHtml(r.name)}（${r.age}歳）`)}<br>
-      ・退会：${list(log.left, r => `${escapeHtml(r.name)}（${r.age}歳・${escapeHtml(r.reason)}）`)}
-    </div></div>` : ''}
+    ${log ? `<div class="rules"><h3>第${sk.log_season}季の動き</h3>
+      <div class="sec"><b>三段リーグへ昇段</b>（${(log.to_sandan || []).length}名）${table(log.to_sandan || [], false)}</div>
+      <div class="sec"><b>入会</b>（${(log.joined || []).length}名）${table(log.joined || [], false)}</div>
+      <div class="sec"><b>退会</b>（${(log.left || []).length}名）${(log.left || []).length ? `<table class="rule-history"><tr><td>名前</td><td>年齢</td><td>理由</td></tr>${log.left.map(r => `<tr><td>${escapeHtml(r.name)}</td><td>${r.age}歳</td><td>${escapeHtml(r.reason)}</td></tr>`).join('')}</table>` : '<div class="empty">なし</div>'}</div>
+    </div>` : ''}
     <div class="rules"><h3>三段リーグ（${sk.sandan.length}名）</h3><div class="sec">${table(byAge(sk.sandan), false)}</div>
     <h3>奨励会リーグ（${sk.members.length}名）</h3><div class="sec">${table(byAge(sk.members), true)}</div></div>`;
 }
