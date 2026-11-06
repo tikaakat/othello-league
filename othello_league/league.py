@@ -48,7 +48,7 @@ C_TO_D_RELEGATE = 3  # C→D降格人数（B→Cと同数）
 # Dリーグが増え続けている（引退が降級点によるものだけになったため）ことへの対策として一度2名に
 # 減らしたが、いきなり変えるのは避けることにして3名に戻した（人数の推移は引き続き要観察）
 D_NEWCOMER_INTAKE = 3
-D_INITIAL_ROSTER_SIZE = 16  # ブートストラップ（初年度）時点でのDリーグ初期人数
+D_INITIAL_ROSTER_SIZE = 40  # ブートストラップ（初年度）時点でのDリーグ初期人数（いまの世界のDリーグに近い人数）
 
 PARAM_KEYS = [
     "corner_weight", "danger_zone_weight", "mobility_weight", "edge_stability_weight",

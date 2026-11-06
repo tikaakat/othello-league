@@ -7,6 +7,7 @@ import random
 from othello_league.individual import LeagueIndividual
 from othello_league.league import (
     relegate_and_retire, recruit_d_league, assign_lineage_roots, LEAGUE_CAPACITY, RETIREMENT_AGE, D_INITIAL_ROSTER_SIZE,
+    D_NEWCOMER_INTAKE,
     FREE_CLASS, free_class_returns,
 )
 from othello_league.buffs import effective_params, roll_age_multipliers
@@ -69,28 +70,81 @@ def _estimated_strength(params):
     return eg_elo + book_elo + (cos - 0.94) * 1500
 
 
+PREHISTORY_SEASONS = 60  # 初期メンバーを作るための「前史」の季数（対局はせず、育成とデビューだけを早回しする）
+
+
+def _prehistory_pros(styles, registry):
+    """前史：奨励会リーグ→三段リーグ→デビューの流れ（othello_league/shoreikai.py）を、対局なしでPREHISTORY_SEASONS季分
+    早回しする。奨励会リーグには毎季同じ人数が12〜15歳で入会し（全員師匠なし。棋風は今の時代の選手の棋風を少し崩したもの）、
+    三段リーグの対局は強さの見積もりの差から勝敗を抽選する。デビュー後も毎季成長・衰えを反映し、引退年齢で抜ける。
+    戻り値：前史の終わりに現役のプロ（params, age）の一覧"""
+    from types import SimpleNamespace
+    from othello_league import shoreikai as SK
+    from othello_league.skills import ENDGAME_KEY, BOOK_KEY
+
+    from othello_league.league import mutate_params
+
+    def entrant():
+        # 棋風は、今の時代の選手の棋風（seed_styles.json）を師匠に見立てて、本番の弟子と同じ受け継ぎ方（mutate_params）で作る
+        if styles:
+            base = dict(random.choice(styles))
+        else:
+            base = {k: random.uniform(0.5, 10.0) for k in PARAM_KEYS}
+        params, _ = mutate_params(SimpleNamespace(params=base, generation=0))
+        age = random.randint(*SK.SHOREIKAI_ENTRY_AGE)
+        params[ENDGAME_KEY] = round(params[ENDGAME_KEY] * SK.YOUTH_ENDGAME_SCALE, 2)
+        params[BOOK_KEY] = int(max(0, (age - 10) * SK.YOUTH_BOOK_PER_YEAR * random.uniform(0.6, 1.4)))
+        return {"params": params, "age": age}
+
+    shorei, sandan, pros = [], [], []
+    for t in range(PREHISTORY_SEASONS):
+        for e in shorei + sandan:
+            SK.grow_entry(e)
+        for p in pros:
+            p["age"] += 1
+            season_growth(SimpleNamespace(age=p["age"], params=p["params"]))
+        pros = [p for p in pros if p["age"] < RETIREMENT_AGE]
+        sandan = [e for e in sandan if e["age"] <= SK.SANDAN_AGE_LIMIT]
+        shorei = [e for e in shorei if e["age"] <= SK.SHOREIKAI_AGE_LIMIT]
+        shorei += [entrant() for _ in range(SK.SHOREIKAI_INTAKE)]
+        vac = max(0, SK.SANDAN_SIZE - len(sandan))
+        shorei.sort(key=lambda e: SK.estimated_strength(e["params"]) + random.gauss(0, SK.PROMOTION_LUCK), reverse=True)
+        sandan, shorei = sandan + shorei[:vac], shorei[vac:]
+        if len(sandan) > 13:
+            est = {id(e): SK.estimated_strength(e["params"]) for e in sandan}
+            wins = {id(e): 0 for e in sandan}
+            for e in sandan:
+                for o in random.sample([x for x in sandan if x is not e], 12):
+                    wins[id(e)] += random.random() < 1 / (1 + 10 ** ((est[id(o)] - est[id(e)]) / 400))
+            order = sorted(sandan, key=lambda e: (wins[id(e)], random.random()), reverse=True)
+            pros += order[:D_NEWCOMER_INTAKE]
+            sandan = order[D_NEWCOMER_INTAKE:]
+    return pros
+
+
 def bootstrap_rosters(registry, data_dir="data"):
     """初回起動（リーグを初期化して始め直すとき）の初期個体を作る。
 
-    以前はA/B/Cをリーグごとの能力合計上限で傾斜をつけた完全ランダムの個体で作っていたが、初期個体の棋風が
-    その後に生まれる個体よりかなり弱く（強い配分への近さ 0.78 対 0.93〜0.95）、初期の新人が無双する原因になっていた。
-    そこで、今の時代の選手の棋風（seed_styles.json）を元に少し崩した棋風で作り、年齢に応じて
-    これまでのキャリアで身につけた終盤力・定跡（skills.py）を持たせる。リーグは強さの見積もり順に振り分ける。
-    初期の新人は定跡をまだ知らないので、ベテランと戦えるようになるまで数季の下積みが要る"""
+    初期メンバーも、その後の新人と同じく奨励会リーグ→三段リーグを通ってデビューしたことにして作る
+    （前史を対局なしで早回しする：_prehistory_pros）。以前は年齢に応じた終盤力・定跡を直接与えていたが、
+    Dリーグが定跡をほとんど知らない若手ばかりになり（強さの見積もりでA 237・D 38、奨励会リーグ経由の新人は110〜160）、
+    その後に入る新人が無双する形になっていた。前史を通せば初期メンバーと新人の強さが同じ物差しにそろう。
+    前史の現役から無作為に定員分を取り、強さの見積もり順にA〜Dへ振り分ける。全員が師匠を持たない祖になる"""
     styles = _seed_styles(data_dir)
     sizes = [("A", LEAGUE_CAPACITY["A"]), ("B", LEAGUE_CAPACITY["B"]), ("C", LEAGUE_CAPACITY["C"]), ("D", D_INITIAL_ROSTER_SIZE)]
+    total = sum(size for _, size in sizes)
+    from othello_league.shoreikai import estimated_strength
+    pros = _prehistory_pros(styles, registry)
+    # 強い順に選ぶと本番の世界より強い顔ぶれに偏るので、前史の現役から無作為に定員分を取る
+    random.shuffle(pros)
+    pros = pros[:total]
+    while len(pros) < total:  # 前史の人数が足りない場合（実質起きない）
+        pros += _prehistory_pros(styles, registry)[:total - len(pros)]
     members = []
-    for n in range(sum(size for _, size in sizes)):
-        if styles:
-            base = random.choice(styles)
-            params = {k: round(max(0.1, base[k] * random.uniform(0.8, 1.25)), 3) for k in PARAM_KEYS}
-        else:
-            params = {k: round(random.uniform(0.5, 10.0), 3) for k in PARAM_KEYS}
-        age = _random_initial_age()
-        params.update(veteran_skills(age))
+    for p in pros:
         display_name, gender = registry.generate()
-        members.append((params, age, display_name, gender))
-    members.sort(key=lambda m: -_estimated_strength(m[0]))
+        members.append((p["params"], p["age"], display_name, gender))
+    members.sort(key=lambda m: -estimated_strength(m[0]))
     rosters, pos = {}, 0
     for league, size in sizes:
         rosters[league] = []
