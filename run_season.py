@@ -21,7 +21,7 @@ from othello_league.title import (
     byakko_challenger_gen, run_byakko_challenge,
     genbu_challenger_gen, run_genbu_challenge,
     plan_byakko_bracket, plan_genbu_bracket, NEWCOMER_SLOT_PREFIX,
-    plan_kirin_bracket, kirin_challenger_gen, run_kirin_challenge, KIRIN_DEPTH, QUALIFIER_SLOT_PREFIX,
+    plan_kirin_bracket, kirin_challenger_gen, run_kirin_challenge, KIRIN_DEPTH, KIRIN_GROUPS,
     drive,
     SEIRYUU_LEAGUE_DEPTH, SEIRYUU_TITLE_DEPTH,
     SUZAKU_LEAGUE_DEPTH, SUZAKU_TITLE_DEPTH,
@@ -500,7 +500,10 @@ def title_tournament_gens(all_members, state, season):
     planned = state.get("planned_brackets") or {}
     if planned.get("season") != season:
         planned = {}
-    kirin_plan = planned.get("麒麟") or plan_kirin_bracket(
+    kirin_plan = planned.get("麒麟")
+    if not kirin_plan or kirin_plan.get("format") != "ryuo":
+        # 公開済みの組み合わせが無い、または旧方式（予選ブロック）のものなら、竜王戦型の組み合わせを作り直す
+        kirin_plan = plan_kirin_bracket(
         all_members, exclude_id=holder_id("麒麟"), groups=state.get("kirin_groups"),
         guaranteed_id=last_dethroned.get("麒麟"),
     )
@@ -944,7 +947,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
         })
 
     # ============================================================
-    # 麒麟：組別の予選→本戦（ベスト4から敗者復活あり）→挑戦者決定戦→7番勝負
+    # 麒麟：組ごとのランキング戦・残留決定戦→本戦（8名）→挑戦者決定三番勝負→7番勝負
     # ============================================================
     challenger, bracket_log, next_kirin_groups, kirin_entrants = kirin_out
     state["kirin_groups"] = next_kirin_groups
@@ -954,7 +957,7 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
     state["kirin_tenure"] = {
         iid: {"group": g, "seasons": (old_tenure[iid]["seasons"] + 1
                                        if old_tenure.get(iid, {}).get("group") == g else 1)}
-        for g in ("1", "2") for iid in next_kirin_groups.get(g, [])
+        for g in KIRIN_GROUPS for iid in next_kirin_groups.get(g, [])
     }
     extra_protected_ids.add(challenger.id)
     demotion_relief_ids.update(ind.id for ind in kirin_entrants)
@@ -1194,41 +1197,24 @@ def write_upcoming_brackets(data_dir, state, rosters):
     }
     out["leagues"] = {lg: [[slot(a), slot(b)] for a, b in pairs] for lg, pairs in (planned.get("leagues") or {}).items()}
     kirin = planned.get("麒麟")
-    if kirin:
-        def main_slot(pid):
-            if pid and pid.startswith(QUALIFIER_SLOT_PREFIX):
-                k = int(pid[len(QUALIFIER_SLOT_PREFIX):]) - 1
-                group = kirin["prelim"][k]["group"]
-                in_group = sum(1 for b in kirin["prelim"][:k] if b["group"] == group)
-                return {"qualifier": k, "group": group, "block_in_group": in_group}
-            return slot(pid)
+    if kirin and kirin.get("format") == "ryuo":
         backfill_kirin_tenure(state)
         tenure = state.get("kirin_tenure") or {}
 
-        def group1_entry(pid):
-            # 1組に入っている理由と、1組の在籍期数
+        def group_entry(pid, g):
+            # 組の在籍期数（同じ組に連続で何期いるか）と、前季失冠者の印
             e = dict(slot(pid) or {})
+            t = tenure.get(pid)
+            e["tenure"] = t["seasons"] if t and t["group"] == g else 1
             if pid == last_dethroned.get("麒麟"):
                 e["reason"] = "前季失冠"
-            elif not state.get("kirin_groups"):
-                e["reason"] = "Aリーグ所属（初回）"
-            else:
-                e["reason"] = "前季本戦ベスト8"
-            t = tenure.get(pid)
-            e["tenure"] = t["seasons"] if t and t["group"] == "1" else 1
-            return e
-
-        def group2_entry(pid):
-            e = dict(slot(pid) or {})
-            t = tenure.get(pid)
-            e["tenure"] = t["seasons"] if t and t["group"] == "2" else 1
             return e
         out["kirin"] = {
+            "format": "ryuo",
             "holder": titleholders.get("麒麟"),
-            "group1": [group1_entry(p) for p in kirin["groups"]["1"]],
-            "group2": [group2_entry(p) for p in kirin["groups"]["2"]],
-            "prelim": [{"group": b["group"], "slots": [slot(p) for p in b["slots"]]} for b in kirin["prelim"]],
-            "main": [main_slot(p) for p in kirin["main"]],
+            "groups": {g: [group_entry(p, g) for p in kirin["groups"].get(g, [])] for g in KIRIN_GROUPS},
+            "brackets": {g: [slot(p) for p in kirin["brackets"].get(g, [])] for g in KIRIN_GROUPS},
+            "main": kirin.get("main"),
         }
     with open(os.path.join(data_dir, UPCOMING_BRACKETS_FILE), "w", encoding="utf-8") as f:
         json.dump(out, f, ensure_ascii=False, indent=2)
@@ -1240,7 +1226,7 @@ BRACKET_TAGS_DIR = "bracket_tags"
 
 def bracket_tags_from_upcoming(out):
     """結果タブのトーナメント表で名前の右に添える表記（リーグタブの組み合わせ表と同じもの）。
-    {"白虎": {ID: "3位" / "前白虎"}, "玄武": {ID: "B3位" / "新人"}, "麒麟": {ID: "1組" / "2組" / "3組" / "新人"}}"""
+    {"白虎": {ID: "3位" / "前白虎"}, "玄武": {ID: "B3位" / "新人"}, "麒麟": {ID: "1組"〜"4組" / "新人"}}"""
     tags = {"白虎": {}, "玄武": {}, "麒麟": {}}
     by = out.get("byakko") or {}
     for p in by.get("slots") or []:
@@ -1250,16 +1236,14 @@ def bracket_tags_from_upcoming(out):
         if p and p.get("id"):
             tags["玄武"][p["id"]] = "新人" if p.get("newcomer") else f"{p.get('league') or ''}{str(p['league_pos']) + '位' if p.get('league_pos') else ''}"
     k = out.get("kirin")
-    if k:
-        g1 = {p.get("id") for p in k.get("group1") or []}
-        g2 = {p.get("id") for p in k.get("group2") or []}
-        for iid in g1:
-            if iid:
-                tags["麒麟"][iid] = "1組"
-        for block in k.get("prelim") or []:
-            for p in block.get("slots") or []:
+    if k and k.get("format") == "ryuo":
+        for g, members in (k.get("groups") or {}).items():
+            for p in members:
                 if p and p.get("id"):
-                    tags["麒麟"][p["id"]] = "2組" if p["id"] in g2 else ("新人" if p.get("newcomer") else "3組")
+                    tags["麒麟"][p["id"]] = f"{g}組"
+        for p in (k.get("brackets") or {}).get("4") or []:
+            if p and p.get("newcomer") and p.get("id"):
+                tags["麒麟"][p["id"]] = "新人"
     return tags
 
 

@@ -461,8 +461,9 @@ const RECORDS_TOP_N = 10;
 // 麒麟戦の1組に在籍した季：その季の本戦1回戦（stage=main1）に出て、予選（prelim〜）を戦っていない選手。
 // $idを渡すとその選手だけ。戻り値：[ID => [季, ...]]
 function kirin_group1_seasons($pdo, $id = null) {
+    // 竜王戦型（第208季〜）は、1組のランキング戦（stage=g1-…）に出た選手が1組。旧方式の季は本戦1回戦から出た選手
     $sql = "SELECT season, individual_a_id AS a, individual_b_id AS b, stage FROM matches
-            WHERE league = '麒麟予選' AND (stage = 'main1' OR stage LIKE 'prelim%')";
+            WHERE league = '麒麟予選' AND (stage = 'main1' OR stage LIKE 'prelim%' OR stage LIKE 'g1-%')";
     $params = [];
     if ($id !== null) {
         $sql .= " AND (individual_a_id = :a OR individual_b_id = :b)";
@@ -471,11 +472,16 @@ function kirin_group1_seasons($pdo, $id = null) {
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
     $main = []; $prelim = [];
-    foreach ($stmt->fetchAll() as $m) {
+    $rows = $stmt->fetchAll();
+    $newFormat = [];
+    foreach ($rows as $m) if (strpos($m['stage'], 'g1-') === 0) $newFormat[(int)$m['season']] = true;
+    foreach ($rows as $m) {
         $s = (int)$m['season'];
         foreach ([$m['a'], $m['b']] as $pid) {
             if ($pid === null || ($id !== null && $pid !== $id)) continue;
-            if ($m['stage'] === 'main1') $main[$pid][$s] = true;
+            if (isset($newFormat[$s])) {
+                if (strpos($m['stage'], 'g1-') === 0) $main[$pid][$s] = true;
+            } elseif ($m['stage'] === 'main1') $main[$pid][$s] = true;
             else $prelim[$pid][$s] = true;
         }
     }
@@ -617,7 +623,7 @@ function build_records($pdo) {
     return [
         ['key' => 'fastest_a', 'label' => 'Aリーグ最速到達', 'unit' => '季', 'note' => 'Dリーグでのデビューから、Aリーグに初めて在籍するまでの季数（最短3季）'] + $fastest,
         ['key' => 'a_seasons', 'label' => 'Aリーグ在籍', 'unit' => '季', 'note' => 'Aリーグの通算在籍季数'] + $countList($aCount),
-        ['key' => 'kirin_group1_seasons', 'label' => '麒麟戦1組在籍', 'unit' => '期', 'note' => '麒麟戦の1組（本戦から出場）の通算在籍期数（麒麟の保持者として防衛戦を戦った期を含む）'] + $countList(array_map('count', kirin_group1_seasons($pdo))),
+        ['key' => 'kirin_group1_seasons', 'label' => '麒麟戦1組在籍', 'unit' => '期', 'note' => '麒麟戦の1組の通算在籍期数（麒麟の保持者として防衛戦を戦った期を含む）'] + $countList(array_map('count', kirin_group1_seasons($pdo))),
         ['key' => 'suzaku_seasons', 'label' => '朱雀紅白リーグ在籍', 'unit' => '季', 'note' => '朱雀紅白リーグの通算在籍季数（朱雀位保持中を含む）'] + $countList($suzakuCount),
         ['key' => 'title_total', 'label' => 'タイトル獲得数', 'unit' => '期', 'note' => '全タイトルの通算獲得期数（防衛を含む）'] + $titleList,
         ['key' => 'title_streak', 'label' => '連続保持', 'unit' => '期', 'note' => '同じタイトルの最長連続保持（2期以上）'] + $streakList,

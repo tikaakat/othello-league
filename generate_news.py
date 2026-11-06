@@ -67,9 +67,9 @@ def _gender_label(gender):
 # 例えば「Aリーグ1位だから青龍を襲名した」のに「青龍襲名に加え、Aリーグでも好成績」のように
 # 同じ一つの実績を別々の功績として並べてしまう
 TITLE_QUALIFY_PATH = {
-    "麒麟": ("麒麟戦の挑戦者決定戦の勝者（麒麟戦独自の組分けで、1組は本戦から、2組・3組は組ごとの予選トーナメントを"
-             "勝ち抜いて本戦16名のトーナメントへ。ベスト4からは2敗で失格の敗者復活戦があり、本戦優勝者は1勝、"
-             "敗者復活戦の勝者は2連勝で挑戦権を得る）"),
+    "麒麟": ("麒麟戦の挑戦者決定戦の勝者（竜王戦と同じ組制度。全選手が1〜4組に所属し、組ごとのランキング戦の上位8名"
+             "（1組4名・2組2名・3組1名・4組1名）が本戦トーナメントを戦い、決勝の挑戦者決定三番勝負の勝者が挑戦。"
+             "組は昇級・降級で毎季入れ替わる）"),
     "青龍": "Aリーグ（青龍戦リーグ）の総当たり1位",
     "朱雀": "朱雀紅白リーグの紅組1位・白組1位による挑戦者決定戦の勝者",
     "白虎": "Elo上位16名による白虎トーナメントの優勝者",
@@ -777,13 +777,20 @@ def _match_stage_label(league, stage=None):
     if league in TITLE_NAMES:
         return f"{league}戦の番勝負（タイトル保持者と挑戦者によるタイトル戦本番）"
     if league == "麒麟予選":
-        if stage and stage.startswith("prelim"):
-            if stage[6] == "0":
+        stage = stage or ""
+        if stage.startswith("g") and stage[1:2].isdigit():
+            if stage.endswith("-stay"):
+                return f"麒麟戦{stage[1]}組の残留決定戦（ランキング戦1回戦の敗者どうし。負けると下の組へ降級）"
+            return f"麒麟戦{stage[1]}組のランキング戦（組ごとのトーナメント。上位が本戦へ・昇級）"
+        if stage == "decision":
+            return "麒麟戦の挑戦者決定三番勝負（2本先取）"
+        if stage.startswith("prelim"):
+            if stage.startswith("prelim0"):
                 return "麒麟戦の予選（ブロック別トーナメント。2組はシードとして後の回戦から登場）"
             return f"麒麟戦の{stage[6]}組予選（ブロック別トーナメント）"
-        if stage and stage.startswith("rep"):
+        if stage.startswith("rep"):
             return "麒麟戦の敗者復活戦"
-        if stage and stage.startswith("decision"):
+        if stage.startswith("decision"):
             return "麒麟戦の挑戦者決定戦（本戦優勝者は1勝、敗者復活戦の勝者は2連勝で挑戦権）"
         return "麒麟戦の本戦トーナメント（1対戦は先後入れ替えの2局を1本とする3本先取）"
     if league == "白虎予選":
