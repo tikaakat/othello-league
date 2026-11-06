@@ -1023,7 +1023,7 @@ async function renderIndividualProfile(id) {
 
       <div class="sponsor-box">
         <h4>サポーター</h4>
-        <p class="sponsor-desc">有料でこの選手を支援できます（準備中）。支援者はお名前と一言がここに表示されます。</p>
+        <p class="sponsor-desc">有料でこの選手を支援できます。支援者はお名前と一言がここに表示されます。</p>
         <button class="sponsor-cta-btn" id="sponsor-cta-btn">🎗 サポーターになる</button>
         <div class="sponsor-list" id="sponsor-list"></div>
       </div>
@@ -1419,8 +1419,7 @@ async function setupProfileCheer(id) {
   });
 }
 
-// サポーター（有料支援）：見た目・モーダルのみ先行実装。実際の決済（Stripe Checkout）
-// 連携は別途行うため、送信ボタンは「準備中」のステータス表示のみで実際の送信はしない
+// サポーター（有料支援）：決済はStripe Checkout（create_checkout.php）
 let _sponsorTargetId = null;
 
 function setupSponsorUI(id) {

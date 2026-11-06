@@ -17,7 +17,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CIRCUIT OTHELLO LEAGUE | lab.spia-net.com</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&family=Noto+Sans+JP:wght@400;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&family=Noto+Sans+JP:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root {
     --navy-950: #060a14; --navy-900: #0a0f1e; --navy-800: #10182c; --navy-700: #182238;
@@ -30,13 +30,15 @@
     margin: 0; background: radial-gradient(ellipse at top, var(--navy-800) 0%, var(--navy-950) 70%);
     color: var(--text-main); font-family: 'Noto Sans JP', sans-serif; min-height: 100vh; padding: 16px;
   }
-  h1, h2, h3 { font-family: 'Orbitron', sans-serif; }
+  /* 英数字も含めて本文と同じフォントに統一する（サイト名のロゴだけOrbitron） */
+  h1 { font-family: 'Orbitron', sans-serif; }
+  table { font-variant-numeric: tabular-nums; }
   .header { text-align: center; margin-bottom: 20px; }
   .header h1 { font-size: 1.3rem; letter-spacing: 0.1em; color: var(--cyan); text-shadow: 0 0 12px rgba(79,240,255,0.4); margin: 0 0 4px; }
   .header p { color: var(--text-dim); font-size: 0.78rem; margin: 0; }
   .tabs { display: flex; gap: 8px; justify-content: center; margin-bottom: 18px; flex-wrap: wrap; }
   .tab-btn {
-    font-family: 'Orbitron', sans-serif; font-size: 0.7rem; letter-spacing: 0.06em;
+    font-family: 'Noto Sans JP', sans-serif; font-size: 0.7rem; letter-spacing: 0.06em;
     background: var(--navy-800); color: var(--text-dim); border: 1px solid var(--navy-700); padding: 8px 14px; cursor: pointer;
   }
   .tab-btn.active { color: var(--cyan); border-color: var(--cyan-dim); box-shadow: 0 0 10px rgba(79,240,255,0.15) inset; }
@@ -46,14 +48,14 @@
   .panel::after { bottom: -1px; right: -1px; border-left: none; border-top: none; }
   .hidden { display: none; }
   table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
-  th { font-family: 'Orbitron', sans-serif; font-size: 0.65rem; color: var(--amber); text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--navy-700); }
+  th { font-family: 'Noto Sans JP', sans-serif; font-size: 0.65rem; color: var(--amber); text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--navy-700); }
   td { padding: 7px 8px; border-bottom: 1px solid rgba(24,34,56,0.6); cursor: pointer; }
   tr:hover td { background: rgba(79,240,255,0.06); }
   tr.zone-up td:first-child { box-shadow: inset 3px 0 var(--up); }
   tr.zone-down td:first-child { box-shadow: inset 3px 0 var(--down); }
-  .rank-num { color: var(--text-dim); font-family: 'Orbitron', sans-serif; width: 2em; }
+  .rank-num { color: var(--text-dim); font-family: 'Noto Sans JP', sans-serif; width: 2em; }
   .elo-val { color: var(--cyan); font-weight: 600; }
-  .league-tag { display: inline-block; font-family: 'Orbitron', sans-serif; font-size: 0.62rem; font-weight: 700; color: var(--navy-950); background: var(--amber); padding: 1px 6px; border-radius: 2px; margin-right: 6px; }
+  .league-tag { display: inline-block; font-family: 'Noto Sans JP', sans-serif; font-size: 0.62rem; font-weight: 700; color: var(--navy-950); background: var(--amber); padding: 1px 6px; border-radius: 2px; margin-right: 6px; }
   .league-tag.title-tag { background: linear-gradient(135deg, #ffd24f, #ff9d4f); }
   .chip { display: inline-block; font-size: 0.64rem; border: 1px solid var(--navy-700); color: var(--text-dim); padding: 0 6px; border-radius: 8px; white-space: nowrap; }
   .chip.gold { color: var(--amber); border-color: var(--amber-dim); }
@@ -65,17 +67,17 @@
   .params-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; font-size: 0.78rem; }
   .params-grid dt { color: var(--text-dim); } .params-grid dd { margin: 0; }
   .title-card { background: var(--navy-800); border: 1px solid var(--navy-700); padding: 12px; margin-bottom: 10px; }
-  .title-card h4 { margin: 0 0 6px; font-size: 0.85rem; color: var(--amber); font-family: 'Orbitron', sans-serif; }
+  .title-card h4 { margin: 0 0 6px; font-size: 0.85rem; color: var(--amber); font-family: 'Noto Sans JP', sans-serif; }
   footer { text-align: center; color: var(--text-dim); font-size: 0.7rem; margin-top: 24px; }
   .othello-board { display: grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr); width: 100%; max-width: 300px; aspect-ratio: 1/1; border: 2px solid var(--cyan-dim); background: #0d3b26; margin: 0 auto; }
   .osq { border: 1px solid rgba(79,240,255,0.15); display: flex; align-items: center; justify-content: center; }
   .disc { width: 78%; height: 78%; border-radius: 50%; }
   .disc-black { background: radial-gradient(circle at 35% 30%, #444, #060a14); }
   .disc-white { background: radial-gradient(circle at 35% 30%, #fff, #c8d4de); }
-  .board-controls { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 12px; font-family: 'Orbitron', sans-serif; }
+  .board-controls { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 12px; font-family: 'Noto Sans JP', sans-serif; }
   .board-controls button { background: var(--navy-800); border: 1px solid var(--navy-700); color: var(--cyan); font-size: 0.9rem; padding: 6px 12px; cursor: pointer; }
   .movement-mark { display: inline-block; font-size: 0.9rem; margin-right: 4px; }
-  .season-nav { display: flex; justify-content: center; align-items: center; gap: 14px; margin-bottom: 14px; font-family: 'Orbitron', sans-serif; }
+  .season-nav { display: flex; justify-content: center; align-items: center; gap: 14px; margin-bottom: 14px; font-family: 'Noto Sans JP', sans-serif; }
   .season-nav button { background: var(--navy-800); border: 1px solid var(--navy-700); color: var(--cyan); font-size: 0.85rem; padding: 6px 12px; cursor: pointer; }
   .season-nav button:disabled { color: var(--text-dim); cursor: default; }
   .subtabs { display: flex; gap: 6px; justify-content: center; margin: -10px auto 18px; flex-wrap: wrap; }
@@ -112,12 +114,12 @@
   }
   .fresh-banner.hidden { display: none; }
   .fresh-banner button {
-    font-family: 'Orbitron', sans-serif; font-size: 0.72rem; background: var(--navy-800); color: var(--cyan);
+    font-family: 'Noto Sans JP', sans-serif; font-size: 0.72rem; background: var(--navy-800); color: var(--cyan);
     border: 1px solid var(--cyan-dim); padding: 5px 12px; cursor: pointer; white-space: nowrap;
   }
   .fav-highlight { background: rgba(255,182,72,0.14) !important; }
   .fav-toggle {
-    font-family: 'Orbitron', sans-serif; font-size: 0.75rem; background: var(--navy-800); color: var(--text-dim);
+    font-family: 'Noto Sans JP', sans-serif; font-size: 0.75rem; background: var(--navy-800); color: var(--text-dim);
     border: 1px solid var(--navy-700); padding: 4px 10px; cursor: pointer;
   }
   .fav-toggle.is-fav { color: var(--amber); border-color: var(--amber); }
@@ -144,7 +146,7 @@
     border-left: 3px solid var(--amber); margin-bottom: 6px;
   }
   .permanent-sponsor-row b {
-    font-family: 'Orbitron', sans-serif; font-size: 1.02rem; letter-spacing: 0.02em;
+    font-family: 'Noto Sans JP', sans-serif; font-size: 1.02rem; letter-spacing: 0.02em;
     background: linear-gradient(120deg, #fff3d6, #ffd27a 40%, #a8762f 100%);
     -webkit-background-clip: text; background-clip: text; color: var(--amber);
   }
@@ -193,6 +195,7 @@
 <div class="panel hidden" id="tab-awards"><div id="awards-content" class="loading">読み込み中...</div></div>
 <div class="panel hidden" id="tab-newcomer_create"><div id="newcomer_create-content" class="loading">読み込み中...</div></div>
 <div class="panel hidden" id="tab-newcomer"><div id="newcomer-content" class="loading">読み込み中...</div></div>
+<div class="panel hidden" id="tab-shoreikai"><div id="shoreikai-content" class="loading">読み込み中...</div></div>
 <div class="panel hidden" id="tab-newcomer_history"><div id="newcomer_history-content" class="loading">読み込み中...</div></div>
 
 <div class="modal-overlay hidden" id="modal-overlay">
@@ -232,6 +235,7 @@ const tabPanels = {
   awards: document.getElementById('tab-awards'),
   newcomer_create: document.getElementById('tab-newcomer_create'),
   newcomer: document.getElementById('tab-newcomer'),
+  shoreikai: document.getElementById('tab-shoreikai'),
   newcomer_history: document.getElementById('tab-newcomer_history'),
 };
 
@@ -270,8 +274,8 @@ const TAB_GROUPS = {
   newcomer_group: {
     // キャラクリエイト（newcomer_create）は一旦非表示にする（機能自体は復活する可能性があるため、
     // コード・URLルーティング（#newcomer_create）・APIは残したまま、タブ一覧から外すだけにする）
-    label: '新人', tabs: ['newcomer', 'newcomer_history'],
-    subLabels: { newcomer_create: 'キャラクリエイト', newcomer: '三段・奨励会', newcomer_history: '歴代記録' },
+    label: '新人', tabs: ['newcomer', 'shoreikai', 'newcomer_history'],
+    subLabels: { newcomer_create: 'キャラクリエイト', newcomer: '三段リーグ', shoreikai: '奨励会リーグ', newcomer_history: '歴代記録' },
   },
 };
 // タブ一覧には出ないが、内容的にどのグループに属するか（ボタンのアクティブ表示用）
@@ -452,6 +456,7 @@ function render(hash, isPopstate) {
   else if (base === 'awards') { showTab('awards'); loadAwards(param ? parseInt(param, 10) : null); }
   else if (base === 'newcomer_create') { showTab('newcomer_create'); loadNewcomerCreate(); }
   else if (base === 'newcomer') { showTab('newcomer'); loadNewcomerLeague(param ? parseInt(param, 10) : null); }
+  else if (base === 'shoreikai') { showTab('shoreikai'); loadNewcomerLeague(param ? parseInt(param, 10) : null, 'shoreikai'); }
   else if (base === 'newcomer_history') { showTab('newcomer_history'); loadNewcomerHistory(); }
   else { showTab('leagues'); loadLeagues(); }
 
@@ -514,7 +519,7 @@ function crownLabel(id, name) {
   if (titles.length === 1) label = titles[0];
   else if (titles.length === 2) label = '二冠';
   else label = CROWN_LABELS[titles.length] || '五冠';
-  return `<span style="display:inline-block; font-family:'Orbitron',sans-serif; font-size:0.62rem; font-weight:700; color:var(--navy-950); background:linear-gradient(135deg,#ffd24f,#ff9d4f); padding:1px 6px; border-radius:2px; margin-right:6px;">${escapeHtml(label)}</span>`;
+  return `<span style="display:inline-block; font-family:'Noto Sans JP',sans-serif; font-size:0.62rem; font-weight:700; color:var(--navy-950); background:linear-gradient(135deg,#ffd24f,#ff9d4f); padding:1px 6px; border-radius:2px; margin-right:6px;">${escapeHtml(label)}</span>`;
 }
 
 // 季送りナビゲーション用：前季/次季ボタンに加え、プルダウンでも直接季を選べるようにする
@@ -549,7 +554,7 @@ function titleOrDanBadge(titles, dan) {
   titles = TITLE_ORDER.filter(t => (titles || []).includes(t));
   if (titles.length > 0) {
     const label = titles.length === 1 ? titles[0] : (CROWN_LABELS[titles.length] || '五冠');
-    return `<span style="display:inline-block; font-family:'Orbitron',sans-serif; font-size:0.62rem; font-weight:700; color:var(--navy-950); background:linear-gradient(135deg,#ffd24f,#ff9d4f); padding:1px 6px; border-radius:2px; margin-left:6px;">${escapeHtml(label)}</span>`;
+    return `<span style="display:inline-block; font-family:'Noto Sans JP',sans-serif; font-size:0.62rem; font-weight:700; color:var(--navy-950); background:linear-gradient(135deg,#ffd24f,#ff9d4f); padding:1px 6px; border-radius:2px; margin-left:6px;">${escapeHtml(label)}</span>`;
   }
   if (dan !== null && dan !== undefined) {
     return `<span class="chip gold" style="margin-left:6px;">${danLabel(dan)}</span>`;
@@ -994,7 +999,7 @@ function renderCurrentHoldersView(el, data) {
   let html = '';
   if (grandSlamHolder) {
     html += `<div style="text-align:center; margin-bottom:14px; padding:10px; border:1px solid var(--amber); background:linear-gradient(135deg, rgba(255,210,79,0.12), rgba(255,157,79,0.12));">
-      <span style="font-family:'Orbitron',sans-serif; font-size:0.85rem; font-weight:800; background:linear-gradient(135deg,#ffd24f,#ff9d4f); -webkit-background-clip:text; background-clip:text; color:transparent;">★★★★★ 五冠 ★★★★★</span>
+      <span style="font-family:'Noto Sans JP',sans-serif; font-size:0.85rem; font-weight:800; background:linear-gradient(135deg,#ffd24f,#ff9d4f); -webkit-background-clip:text; background-clip:text; color:transparent;">★★★★★ 五冠 ★★★★★</span>
       <div style="font-size:0.82rem; margin-top:4px;">${escapeHtml(grandSlamHolder)}</div>
     </div>`;
   }
@@ -1961,12 +1966,11 @@ function kirinRyuoHtml(bracket, participantInfo) {
     html += `<details style="margin-top:8px;"><summary style="cursor:pointer; font-size:0.72rem; color:var(--text-dim);">${g}組ランキング戦（${quota}）を表示</summary>
       <div style="margin-top:8px;">${renderBracketSVG(buildBracketTree(rank), participantInfo, false)}</div>`;
     if (stay.length > 0) {
-      html += `<div style="font-size:0.7rem; color:var(--amber); margin:6px 0 2px;">残留決定戦（1回戦の敗者どうし・敗者は${+g + 1}組へ降級）</div>`;
-      stay.forEach(m => {
-        const a = name(m.individual_a_id, m.individual_a_name), b = name(m.individual_b_id, m.individual_b_name);
-        const w = m.result === 'win' ? a : b;
-        html += `<div style="font-size:0.74rem; margin:2px 0;">${a} vs ${b} → ${w}が残留</div>`;
-      });
+      // 残留決定戦は1対戦ずつ独立しているので、1対戦ずつの小さなトーナメント図を並べる（勝者が残留）
+      html += `<div style="font-size:0.7rem; color:var(--amber); margin:6px 0 4px;">残留決定戦（1回戦の敗者どうし・勝者が残留、敗者は${+g + 1}組へ降級）</div>
+        <div style="display:flex; flex-wrap:wrap; gap:14px;">`
+        + stay.map(m => `<div style="min-width:170px;">${renderBracketSVG(buildBracketTree([m]), participantInfo, false, { roundLabels: ['残留'] })}</div>`).join('')
+        + '</div>';
     }
     html += '</details>';
   });
@@ -3008,8 +3012,9 @@ const CC_TYPE_BOOST_KEYS = {
   defensive: ['edge_stability_weight', 'danger_zone_weight'], corner: ['corner_weight', 'center_weight'],
 };
 
-async function loadNewcomerLeague(forSeason) {
-  const el = document.getElementById('newcomer-content');
+// mode：'newcomer'＝三段リーグの順位表、'shoreikai'＝奨励会リーグの動き（どちらも同じ季の結果ファイルから）
+async function loadNewcomerLeague(forSeason, mode = 'newcomer') {
+  const el = document.getElementById(mode + '-content');
   el.innerHTML = '<div class="loading">読み込み中...</div>';
   try {
     const url = forSeason ? `${API_BASE}?action=newcomer_league&for_season=${forSeason}` : `${API_BASE}?action=newcomer_league`;
@@ -3034,11 +3039,13 @@ async function loadNewcomerLeague(forSeason) {
       <button id="newcomer-prev" ${prevSeason ? '' : 'disabled'} style="background:var(--navy-800); color:var(--cyan); border:1px solid var(--navy-700); padding:4px 10px; cursor:pointer; white-space:nowrap; flex-shrink:0;">◀ 前回</button>
       <div style="font-size:0.8rem; color:var(--text-dim); text-align:center;">
         <select id="newcomer-season-select" style="background:var(--navy-800); color:var(--cyan); border:1px solid var(--navy-700); padding:4px 8px; font-size:0.8rem; border-radius:3px;">${seasonOptions}</select>
-        三段リーグ（応募${resData.meta.submission_count}名 / 昇格枠${resData.meta.slots_needed}名・昇格者は第${resData.for_season}季からDリーグ出走）</div>
+        ${mode === 'shoreikai' ? `奨励会リーグ（第${resData.for_season}季の三段リーグの前）` : `三段リーグ（昇格枠${resData.meta.slots_needed}名・昇格者は第${resData.for_season}季からDリーグ出走）`}</div>
       <button id="newcomer-next" ${nextSeason ? '' : 'disabled'} style="background:var(--navy-800); color:var(--cyan); border:1px solid var(--navy-700); padding:4px 10px; cursor:pointer; white-space:nowrap; flex-shrink:0;">次回 ▶</button>
     </div>`;
 
-    if (resData.standings.length === 0) {
+    if (mode === 'shoreikai') {
+      // 下の奨励会リーグの表示だけにする
+    } else if (resData.standings.length === 0) {
       html += '<div class="empty">出走者データがありません</div>';
     } else {
       const ages = resData.ages || {};
@@ -3069,11 +3076,12 @@ async function loadNewcomerLeague(forSeason) {
     }
 
     // 奨励会リーグ（三段リーグの下の育成段階）：この季の入会・三段リーグへの昇段・年齢制限による退会
-    const sk = resData.shoreikai;
+    const sk = mode === 'shoreikai' ? resData.shoreikai : null;
+    if (mode === 'shoreikai' && !sk) html += '<div class="empty">この季は奨励会リーグの記録がありません（第208季から）</div>';
     if (sk) {
       const list = (rows, f) => rows && rows.length ? rows.map(f).join('、') : 'なし';
       const nm = r => `${escapeHtml(r.name)}（${r.age}歳${r.master_name ? '・師匠 ' + escapeHtml(r.master_name) : ''}）`;
-      html += `<h3 style="font-size:0.8rem; color:var(--amber); border-bottom:1px solid var(--navy-700); padding-bottom:4px; margin:16px 0 8px;">奨励会リーグ（在籍${sk.size ?? '-'}名）</h3>
+      html += `<h3 style="font-size:0.8rem; color:var(--amber); border-bottom:1px solid var(--navy-700); padding-bottom:4px; margin:4px 0 8px;">奨励会リーグ（在籍${sk.size ?? '-'}名）</h3>
         <div style="font-size:0.75rem; color:var(--text-dim); margin-bottom:6px;">12〜15歳で入会し、成長と運で三段リーグへ昇段（21歳までに上がれなければ退会）。三段リーグは26歳が年齢制限</div>
         <div style="font-size:0.8rem; line-height:1.7;">
           <div><b style="color:var(--cyan);">三段リーグへ昇段</b>：${list(sk.to_sandan, nm)}</div>
@@ -3088,10 +3096,10 @@ async function loadNewcomerLeague(forSeason) {
       e.preventDefault(); e.stopPropagation();
       navigateTo('individual/' + a.dataset.masterId);
     }));
-    if (prevSeason) document.getElementById('newcomer-prev').addEventListener('click', () => navigateTo('newcomer/' + prevSeason));
-    if (nextSeason) document.getElementById('newcomer-next').addEventListener('click', () => navigateTo('newcomer/' + nextSeason));
-    const newcomerSeasonSelect = document.getElementById('newcomer-season-select');
-    if (newcomerSeasonSelect) newcomerSeasonSelect.addEventListener('change', () => navigateTo('newcomer/' + newcomerSeasonSelect.value));
+    if (prevSeason) el.querySelector('#newcomer-prev').addEventListener('click', () => navigateTo(mode + '/' + prevSeason));
+    if (nextSeason) el.querySelector('#newcomer-next').addEventListener('click', () => navigateTo(mode + '/' + nextSeason));
+    const newcomerSeasonSelect = el.querySelector('#newcomer-season-select');
+    if (newcomerSeasonSelect) newcomerSeasonSelect.addEventListener('change', () => navigateTo(mode + '/' + newcomerSeasonSelect.value));
   } catch (e) {
     el.innerHTML = `<div class="empty">読み込み失敗: ${escapeHtml(String(e))}</div>`;
   }
@@ -3169,7 +3177,7 @@ function renderCharacterEntryForm(statusData) {
       <div class="sliders">${paramRows}</div>
       <div style="display:flex; justify-content:center; margin-top:10px;" id="cc-radar">${renderRadarChart({})}</div>
     </div>
-    <button id="cc-submit" ${closed ? 'disabled' : ''} style="font-family:'Orbitron',sans-serif; font-size:0.8rem; background:var(--navy-800); color:${closed ? 'var(--text-dim)' : 'var(--cyan)'}; border:1px solid ${closed ? 'var(--navy-700)' : 'var(--cyan-dim)'}; padding:8px 16px; cursor:${closed ? 'default' : 'pointer'}; width:100%;">${closed ? '本日は締め切りました' : 'エントリーする'}</button>
+    <button id="cc-submit" ${closed ? 'disabled' : ''} style="font-family:'Noto Sans JP',sans-serif; font-size:0.8rem; background:var(--navy-800); color:${closed ? 'var(--text-dim)' : 'var(--cyan)'}; border:1px solid ${closed ? 'var(--navy-700)' : 'var(--cyan-dim)'}; padding:8px 16px; cursor:${closed ? 'default' : 'pointer'}; width:100%;">${closed ? '本日は締め切りました' : 'エントリーする'}</button>
     <div id="cc-status" style="margin-top:8px; font-size:0.74rem; color:var(--text-dim);"></div>
     <div id="cc-quota-line" style="margin-top:4px; font-size:0.72rem; color:${closed ? 'var(--amber)' : 'var(--text-dim)'};">${escapeHtml(quotaLine)}</div>
     <div style="margin:18px 0; border-bottom:1px solid var(--navy-700);"></div>`;
