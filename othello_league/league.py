@@ -1,4 +1,5 @@
 import random
+import re
 
 from .individual import LeagueIndividual
 from .buffs import maybe_awaken
@@ -514,18 +515,53 @@ def assign_lineage_roots(active_members, retired_records):
         _set(x, "clan_root_id", root(_get(x, "id")))
 
 
+# 師匠の選び方（系統が横に広がり、途絶えにくくなるように）：
+# 以前はEloやタイトルが高い師匠ほど選ばれやすく、弟子が強い系統に集まって、200季でほぼ2系統に収束していた。
+# 実際の将棋の師弟は強さより縁で決まり、引退した棋士も弟子を取るので、多くの系統が並んで残る。そこで
+#   ・現役（30歳以上）に加え、引退した選手も75歳まで師匠になれる（選ばれやすさは現役の半分）
+#   ・強さでは重み付けせず、弟子（本戦に入った弟子）が多い師匠ほど選ばれやすい（人気の師匠に入門者が集まる）
+#   ・新人の一部は師匠のいない新規開祖としてデビューする（新しい系統の祖になる）
+MASTER_RETIRED_MAX_AGE = 75
+RETIRED_MASTER_WEIGHT = 0.5
+POPULAR_MASTER_BONUS = 1.0     # 弟子1人あたりの選ばれやすさの上乗せ
+NEW_FOUNDER_CHANCE = 0.03      # 新人のうち師匠のいない新規開祖になる割合
+
+
+def _debut_season(ind_id):
+    m = re.match(r"^[A-Z]+(\d+)-", ind_id or "")
+    return int(m.group(1)) if m else 0
+
+
+def master_pool(active_pool, retired_records, season):
+    """師匠候補の一覧：30歳以上の現役と、75歳以下の引退者（LeagueIndividualに復元）。
+    各候補に、これまで本戦に入った弟子の数（disciple_count）を付ける"""
+    from .individual import LeagueIndividual
+    retired_records = retired_records or []
+    kids = {}
+    for x in list(active_pool) + [LeagueIndividual.from_dict(r) for r in retired_records]:
+        if x.parent_a_id:
+            kids[x.parent_a_id] = kids.get(x.parent_a_id, 0) + 1
+    cands = [ind for ind in active_pool if not ind.retired and ind.age >= MASTER_MIN_AGE]
+    for r in retired_records:
+        age_now = r.get("initial_age", 20) + (season - _debut_season(r.get("id")))
+        if MASTER_MIN_AGE <= age_now <= MASTER_RETIRED_MAX_AGE:
+            ind = LeagueIndividual.from_dict(r)
+            ind.retired = True
+            cands.append(ind)
+    for ind in cands:
+        ind.disciple_count = kids.get(ind.id, 0)
+    return cands
+
+
 def _master_weight(ind, titleholder_ids, times_picked=0):
-    """師匠として選ばれやすさの重み。Eloが高いほど、タイトルを保持しているほど選ばれやすくする
-    （強い一門ほど自然と子孫を残しやすくなる。ベースは1.0なので誰にでもチャンスはある）。
-    旧数値（÷200, +3.0）だと強い一門への集約が急激すぎたため、やや緩めた。
-    times_pickedは、このバッチ（1回の新人リーグ・1回のD新弟子一括生成）の中で既に
-    その個体が師匠として選ばれた回数。選ばれるたびに重みを半減させ、同じ1バッチの中で
-    同じ師匠ばかりに弟子が集中するのを抑える（「強い一門ほど残りやすい」傾向自体は
-    バッチをまたいで累積していくので保たれるが、1回の抽選で連続して同じ人に
-    当たり続けるだけの不自然な偏りは減らす）"""
-    elo_bonus = max(0.0, (ind.elo - 1500) / 300)
-    title_bonus = 2.0 if ind.id in titleholder_ids else 0.0
-    return (1.0 + elo_bonus + title_bonus) / (2 ** times_picked)
+    """師匠として選ばれやすさの重み。弟子が多い師匠ほど選ばれやすく、引退者は現役の半分。
+    times_pickedは、このバッチ（1回の新人リーグ）の中で既にその個体が師匠として選ばれた回数。
+    選ばれるたびに重みを半減させ、1回の抽選で同じ師匠ばかりに当たり続けるのを抑える。
+    titleholder_idsは以前の重み付け（タイトル保持者を優遇）の名残で、今は使わない"""
+    base = 1.0 + POPULAR_MASTER_BONUS * getattr(ind, "disciple_count", 0)
+    if ind.retired:
+        base *= RETIRED_MASTER_WEIGHT
+    return base / (2 ** times_picked)
 
 
 MAX_DISCIPLES_PER_BATCH = 2

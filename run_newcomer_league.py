@@ -23,6 +23,7 @@ import re
 
 from othello_league.league import (
     _build_character_creation_individual, _pick_master, MASTER_MIN_AGE, D_NEWCOMER_INTAKE,
+    master_pool, NEW_FOUNDER_CHANCE,
 )
 from othello_league.random_league import run_random_league
 from othello_league.play import play_decisive_match
@@ -166,7 +167,8 @@ def _determine_promotion(ranked, score, slots_needed, by_id, depth):
 def run_newcomer_league(submissions, slots_needed, registry, retry_pool=None,
                          depth=NEWCOMER_LEAGUE_DEPTH,
                          rounds=NEWCOMER_LEAGUE_ROUNDS, target_pool=NEWCOMER_TARGET_POOL,
-                         pool=None, titleholder_ids=frozenset(), retired_master_names=None):
+                         pool=None, titleholder_ids=frozenset(), retired_master_names=None,
+                         retired_records=None, season=None):
     """
     submissions: [{"name":, "type":, "params":}, ...]（当日投稿分、上限は呼び出し側で適用済み想定）
     slots_needed: 今夜のDリーグ新規参入枠（前回シーズンの新規参入人数）
@@ -194,7 +196,11 @@ def run_newcomer_league(submissions, slots_needed, registry, retry_pool=None,
     # 師匠候補（30歳以上の現役個体。該当者がいなければ制限なしにフォールバック）。
     # 系統（clan_root_id）は本戦側（assign_lineage_roots）で、実際にDリーグへ参入した弟子についてそろえる
     active_pool = [ind for ind in (pool or []) if not ind.retired]
-    eligible_masters = [ind for ind in active_pool if ind.age >= MASTER_MIN_AGE] or active_pool
+    if season is not None:
+        # 現役（30歳以上）に加え、75歳以下の引退者も師匠になれる（league.master_pool）
+        eligible_masters = master_pool(active_pool, retired_records, season) or active_pool
+    else:
+        eligible_masters = [ind for ind in active_pool if ind.age >= MASTER_MIN_AGE] or active_pool
     # 師匠選出の重みは、このバッチ（最大30名程度）の中で既に選ばれた回数に応じて
     # 選ばれるたびに下げる（master_pick_counts）。そうしないとElo上位やタイトル
     # 保持者に抽選が偏り、1回のバッチ内で同じ師匠が何度も重複してしまうため
@@ -212,6 +218,9 @@ def run_newcomer_league(submissions, slots_needed, registry, retry_pool=None,
         # submission・fresh_autoは、新人リーグのロスターを組むこの時点で師匠を決める
         # （本戦でのDリーグ参入時まで待たない）
         if "parent_a_id" in entry:
+            master = None
+        elif season is not None and random.random() < NEW_FOUNDER_CHANCE:
+            # 新規開祖：師匠のいない新人（新しい系統の祖になる）
             master = None
         else:
             master = _pick_master(
@@ -461,6 +470,7 @@ def main():
     winner_entries, standings, match_log, next_retry_pool, playoff_log = run_newcomer_league(
         submissions, slots_needed, registry, retry_pool=retry_pool,
         pool=pool, titleholder_ids=titleholder_ids, retired_master_names=retired_master_names,
+        retired_records=state.get("retired_archive") or [], season=target_season,
     )
     if playoff_log:
         print(f"[DEBUG] 昇格枠の境界で同成績が発生したため、プレーオフを{len(playoff_log)}ラウンド実施しました", flush=True)
