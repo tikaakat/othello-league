@@ -3110,15 +3110,18 @@ async function loadNewcomerLeague(forSeason, mode = 'newcomer') {
     const sk = mode === 'shoreikai' ? resData.shoreikai : null;
     if (mode === 'shoreikai' && !sk) html += '<div class="empty">この季は奨励会リーグの記録がありません（第208季から）</div>';
     if (sk) {
-      const list = (rows, f) => rows && rows.length ? rows.map(f).join('、') : 'なし';
-      const nm = r => `${escapeHtml(r.name)}（${r.age}歳${r.master_name ? '・師匠 ' + escapeHtml(r.master_name) : ''}）`;
-      html += `<h3 style="font-size:0.8rem; color:var(--amber); border-bottom:1px solid var(--navy-700); padding-bottom:4px; margin:4px 0 8px;">奨励会リーグ（在籍${sk.size ?? '-'}名）</h3>
-        <div style="font-size:0.75rem; color:var(--text-dim); margin-bottom:6px;">12〜15歳で入会し、成長と運で三段リーグへ昇段（21歳までに上がれなければ退会）。三段リーグは26歳が年齢制限</div>
-        <div style="font-size:0.8rem; line-height:1.7;">
-          <div><b style="color:var(--cyan);">三段リーグへ昇段</b>：${list(sk.to_sandan, nm)}</div>
-          <div><b style="color:var(--cyan);">入会</b>：${list(sk.joined, nm)}</div>
-          <div><b style="color:var(--cyan);">退会</b>：${list(sk.left, r => `${escapeHtml(r.name)}（${r.age}歳・${escapeHtml(r.reason)}）`)}</div>
-        </div>`;
+      // 表で見せる：見出しの下に「名前・年齢・師匠（・理由）」の表
+      const h = (t, n) => `<h3 style="text-align:left; font-size:0.8rem; color:var(--amber); border-bottom:1px solid var(--navy-700); padding-bottom:4px; margin:14px 0 6px;">${t}（${n}名）</h3>`;
+      const table = (rows, extra) => rows && rows.length
+        ? `<table><thead><tr><th>名前</th><th>年齢</th><th>師匠</th>${extra ? `<th>${extra.head}</th>` : ''}</tr></thead><tbody>${rows.map(r =>
+            `<tr style="cursor:default;"><td>${escapeHtml(r.name)}${r.named_by ? `<div style="font-size:0.66rem; color:var(--text-dim);">名付け親：${escapeHtml(r.named_by)}</div>` : ''}</td>
+              <td style="white-space:nowrap;">${r.age ?? ''}歳</td><td style="font-size:0.78rem;">${escapeHtml(r.master_name || 'なし')}</td>
+              ${extra ? `<td style="font-size:0.74rem;">${escapeHtml(extra.cell(r))}</td>` : ''}</tr>`).join('')}</tbody></table>`
+        : '<div class="empty" style="padding:6px 0;">なし</div>';
+      html += `<div style="text-align:left;"><div style="font-size:0.75rem; color:var(--text-dim); margin-bottom:4px;">在籍${sk.size ?? '-'}名。12〜15歳で入会し、成長と運で三段リーグへ昇段（21歳までに上がれなければ退会）。三段リーグは26歳が年齢制限</div>`
+        + h('三段リーグへ昇段', (sk.to_sandan || []).length) + table(sk.to_sandan)
+        + h('入会', (sk.joined || []).length) + table(sk.joined)
+        + h('退会', (sk.left || []).length) + table(sk.left, { head: '理由', cell: r => r.reason || '' }) + '</div>';
     }
 
     el.innerHTML = html;
