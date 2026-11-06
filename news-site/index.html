@@ -363,6 +363,18 @@
   .modal-status { font-size: 0.78rem; color: var(--text-dim); margin-top: 10px; text-align: center; }
 
   .rules h3 { font-size: 0.88rem; color: var(--accent-dark); margin: 22px 0 8px; }
+  /* 掲示板 */
+  .board-thread-row { display: block; padding: 10px 4px; border-bottom: 1px solid var(--border); cursor: pointer; }
+  .board-thread-row:hover { background: rgba(0,0,0,0.03); }
+  .board-thread-title { font-weight: 700; font-size: 0.92rem; }
+  .board-meta { font-size: 0.72rem; color: var(--text-dim); margin-top: 2px; }
+  .board-cat { display: inline-block; font-size: 0.68rem; border: 1px solid var(--border); border-radius: 10px; padding: 0 7px; margin-right: 6px; color: var(--text-dim); }
+  .board-post { padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .board-post-head { font-size: 0.74rem; color: var(--text-dim); margin-bottom: 4px; }
+  .board-post-body { font-size: 0.9rem; white-space: pre-wrap; word-break: break-word; line-height: 1.7; }
+  .board-admin-badge { display: inline-block; font-size: 0.66rem; color: #fff; background: var(--accent-dark); border-radius: 3px; padding: 0 5px; margin-left: 4px; }
+  .board-form input, .board-form select, .board-form textarea { display: block; width: 100%; max-width: 520px; padding: 7px; margin-bottom: 8px; font: inherit; box-sizing: border-box; }
+  .board-del { font-size: 0.7rem; margin-left: 8px; color: #b33; cursor: pointer; text-decoration: underline; }
   .rules h3:first-child { margin-top: 0; }
   .rules div.sec { font-size: 0.82rem; line-height: 1.8; color: #5B5349; }
   .rules b { color: var(--text-main); }
@@ -403,6 +415,7 @@
       <a class="nav-tab" id="nav-hof" href="#" onclick="navigateTo('hof');return false;">殿堂</a>
       <a class="nav-tab" id="nav-rules" href="#" onclick="navigateTo('rules');return false;">ルール</a>
       <a class="nav-tab" id="nav-about" href="#" onclick="navigateTo('about');return false;">このメディアについて</a>
+      <a class="nav-tab" id="nav-board" href="#" onclick="navigateTo('board');return false;">掲示板</a>
       <a class="nav-tab" id="nav-contact" href="#" onclick="navigateTo('contact');return false;">お問い合わせ</a>
       <a class="nav-external" href="https://lab.spia-net.com/othello-league/" target="_blank" rel="noopener">データサイトへ ↗</a>
       <button id="theme-toggle" class="theme-toggle-btn" title="表示テーマを切り替え" aria-label="表示テーマを切り替え">🌙</button>
@@ -666,6 +679,7 @@ function setActiveNav(tab) {
   document.getElementById('nav-rules').classList.toggle('active', tab === 'rules');
   document.getElementById('nav-about').classList.toggle('active', tab === 'about');
   document.getElementById('nav-contact').classList.toggle('active', tab === 'contact');
+  document.getElementById('nav-board').classList.toggle('active', tab === 'board');
 }
 
 // SEO対策：ルーティングのたびに<title>・meta descriptionをそのページ内容に合わせて
@@ -2321,8 +2335,9 @@ function renderContact() {
   el.innerHTML = `<div class="rules">
     <h3>お問い合わせ</h3>
     <div class="sec">
-      ご意見・ご感想のほか、「こういう棋戦（NHK杯・JT杯のような、段位や引退条件に
-      影響しない単発のお楽しみ棋戦）を協賛したい」といったご提案も歓迎します。
+      要望・バグ報告・感想は、みんなで読める<a href="#" onclick="navigateTo('board');return false;">掲示板</a>へどうぞ（運営も返信します）。<br>
+      こちらは公開したくないご連絡用です（「こういう棋戦（NHK杯・JT杯のような、段位や引退条件に
+      影響しない単発のお楽しみ棋戦）を協賛したい」といったご相談など）。内容は運営だけが読みます。
       内容によっては返信できない場合があります。
     </div>
     <div class="sec" style="margin-top:12px;">
@@ -2371,6 +2386,130 @@ function renderContact() {
   });
 }
 
+// ---------------- 掲示板 ----------------
+// board.php（結果サイト側）にスレッド・書き込みを保存する。運営は合言葉を入れると「運営」の印付きで書き込め、
+// 書き込みの削除と、非公開のお問い合わせ（inquiry.php）の閲覧ができる。合言葉はこのタブを閉じるまでだけ覚える
+const BOARD_URL = `${RESULTS_SITE_BASE}board.php`;
+let _boardCategory = '';
+function boardAdminKey() { try { return sessionStorage.getItem('board_admin_key') || ''; } catch (e) { return ''; } }
+function setBoardAdminKey(k) { try { k ? sessionStorage.setItem('board_admin_key', k) : sessionStorage.removeItem('board_admin_key'); } catch (e) {} }
+async function boardPost(payload) {
+  const key = boardAdminKey();
+  const res = await fetch(BOARD_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(key ? { ...payload, admin_key: key } : payload) });
+  return res.json();
+}
+const boardTime = t => String(t || '').replace(/:\d\d$/, '').replace(/-/g, '/');
+
+function boardAdminBarHtml() {
+  const on = !!boardAdminKey();
+  return `<div style="margin-top:28px; font-size:0.74rem; color:var(--text-dim);">
+    ${on ? `運営モード中　<a href="#" id="board-admin-inq">非公開のお問い合わせを見る</a>　<a href="#" id="board-admin-off">運営モードを終える</a>`
+         : `<a href="#" id="board-admin-on" style="color:var(--text-dim);">運営</a>`}
+    <div id="board-admin-area"></div></div>`;
+}
+function wireBoardAdmin(el, rerender) {
+  const on = el.querySelector('#board-admin-on');
+  if (on) on.addEventListener('click', async e => {
+    e.preventDefault();
+    const k = prompt('運営の合言葉');
+    if (!k) return;
+    const res = await fetch(BOARD_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'check_admin', admin_key: k }) }).then(r => r.json()).catch(() => ({}));
+    if (res.admin) { setBoardAdminKey(k); rerender(); } else { alert('合言葉が違います'); }
+  });
+  const off = el.querySelector('#board-admin-off');
+  if (off) off.addEventListener('click', e => { e.preventDefault(); setBoardAdminKey(''); rerender(); });
+  const inq = el.querySelector('#board-admin-inq');
+  if (inq) inq.addEventListener('click', async e => {
+    e.preventDefault();
+    const area = el.querySelector('#board-admin-area');
+    area.innerHTML = '読み込み中...';
+    const res = await fetch(`${RESULTS_SITE_BASE}inquiry.php`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'list', admin_key: boardAdminKey() }) }).then(r => r.json()).catch(() => ({ error: '読み込みに失敗しました' }));
+    if (res.error) { area.textContent = res.error; return; }
+    area.innerHTML = (res.inquiries || []).map(q => `<div class="board-post"><div class="board-post-head">${escapeHtml(boardTime(q.created_at))}　<span class="board-cat">${escapeHtml(q.category)}</span>返信先：${escapeHtml(q.contact || '（なし）')}</div>
+      <div class="board-post-body">${escapeHtml(q.message)}</div></div>`).join('') || 'まだお問い合わせはありません';
+  });
+}
+
+async function renderBoard(threadId) {
+  setActiveNav('board');
+  const el = document.getElementById('content');
+  el.innerHTML = skeletonHtml();
+  const admin = !!boardAdminKey();
+  if (threadId) {
+    setPageMeta('掲示板', 'オセロ界タイムズの掲示板。要望・バグ報告・感想をみんなで話せます。');
+    const data = await fetch(`${BOARD_URL}?action=thread&id=${encodeURIComponent(threadId)}`, { cache: 'no-store' }).then(r => r.json()).catch(() => null);
+    if (!data || data.error) { el.innerHTML = `<div class="empty">${escapeHtml((data && data.error) || '読み込みに失敗しました')}</div>`; return; }
+    const t = data.thread;
+    el.innerHTML = `<a class="back-link" href="#" onclick="navigateTo('board');return false;">← スレッド一覧へ</a>
+      <h1 class="profile-name" style="font-size:1.1rem;"><span class="board-cat">${escapeHtml(t.category)}</span>${escapeHtml(t.title)}</h1>
+      ${admin ? `<span class="board-del" data-del-thread="${t.id}">このスレッドを削除</span>` : ''}
+      <div>${data.posts.map((p, i) => `<div class="board-post">
+        <div class="board-post-head">${i + 1}．${escapeHtml(p.author)}${+p.is_admin ? '<span class="board-admin-badge">運営</span>' : ''}　${escapeHtml(boardTime(p.created_at))}
+          ${admin && !+p.deleted ? `<span class="board-del" data-del-post="${p.id}">削除</span>` : ''}</div>
+        <div class="board-post-body">${escapeHtml(p.body)}</div></div>`).join('')}</div>
+      <div class="board-form" style="margin-top:16px;">
+        <h3 style="font-size:0.85rem;">返信する</h3>
+        ${admin ? '<div class="board-meta" style="margin-bottom:6px;">運営として書き込みます</div>' : '<input id="board-name" maxlength="20" placeholder="名前（空欄なら「名無しさん」）">'}
+        <textarea id="board-body" rows="4" maxlength="1000" placeholder="本文（1000文字以内。リンクは貼れません）"></textarea>
+        <button id="board-submit" class="chip-btn">書き込む</button>
+        <div id="board-result" style="margin-top:6px; font-size:0.85rem;"></div>
+      </div>${boardAdminBarHtml()}`;
+    el.querySelector('#board-submit').addEventListener('click', async () => {
+      const r = el.querySelector('#board-result');
+      r.textContent = '送信中...';
+      const res = await boardPost({ action: 'reply', thread_id: t.id, name: (el.querySelector('#board-name') || {}).value || '', body: el.querySelector('#board-body').value })
+        .catch(() => ({ error: '送信に失敗しました' }));
+      if (res.error) { r.textContent = res.error; return; }
+      renderBoard(String(t.id));
+    });
+    el.querySelectorAll('[data-del-post]').forEach(b => b.addEventListener('click', async () => {
+      if (!confirm('この書き込みを削除しますか？')) return;
+      await boardPost({ action: 'delete', post_id: +b.dataset.delPost }); renderBoard(String(t.id));
+    }));
+    el.querySelectorAll('[data-del-thread]').forEach(b => b.addEventListener('click', async () => {
+      if (!confirm('このスレッドを削除しますか？')) return;
+      await boardPost({ action: 'delete', thread_id: +b.dataset.delThread }); navigateTo('board');
+    }));
+    wireBoardAdmin(el, () => renderBoard(String(t.id)));
+    return;
+  }
+  setPageMeta('掲示板', 'オセロ界タイムズの掲示板。要望・バグ報告・感想をみんなで話せます。');
+  const url = `${BOARD_URL}?action=list${_boardCategory ? '&category=' + encodeURIComponent(_boardCategory) : ''}`;
+  const data = await fetch(url, { cache: 'no-store' }).then(r => r.json()).catch(() => null);
+  if (!data || data.error) { el.innerHTML = '<div class="empty">掲示板の読み込みに失敗しました</div>'; return; }
+  const cats = data.categories || [];
+  el.innerHTML = `<h1 class="profile-name" style="font-size:1.1rem;">掲示板</h1>
+    <div style="font-size:0.78rem; color:var(--text-dim); margin-bottom:10px;">要望・バグ報告・感想など、なんでもどうぞ。運営も返信します。
+      公開したくないご連絡は<a href="#" onclick="navigateTo('contact');return false;">お問い合わせ</a>へ。</div>
+    <div class="chip-row">${['', ...cats].map(c => `<button class="chip-btn ${c === _boardCategory ? 'active' : ''}" data-board-cat="${escapeHtml(c)}">${c || 'すべて'}</button>`).join('')}</div>
+    <div>${(data.threads || []).map(t => `<div class="board-thread-row" data-board-thread="${t.id}">
+      <div class="board-thread-title"><span class="board-cat">${escapeHtml(t.category)}</span>${escapeHtml(t.title)}</div>
+      <div class="board-meta">${escapeHtml(t.author)}${+t.is_admin ? '<span class="board-admin-badge">運営</span>' : ''}　${t.post_count}件　最終 ${escapeHtml(boardTime(t.last_post_at))}</div></div>`).join('')
+      || '<div class="empty">まだスレッドがありません</div>'}</div>
+    <div class="board-form" style="margin-top:18px;">
+      <h3 style="font-size:0.85rem;">新しいスレッドを立てる</h3>
+      <select id="board-cat">${cats.map(c => `<option${c === _boardCategory ? ' selected' : ''}>${escapeHtml(c)}</option>`).join('')}</select>
+      <input id="board-title" maxlength="60" placeholder="タイトル（60文字以内）">
+      ${admin ? '<div class="board-meta" style="margin-bottom:6px;">運営として書き込みます</div>' : '<input id="board-name" maxlength="20" placeholder="名前（空欄なら「名無しさん」）">'}
+      <textarea id="board-body" rows="4" maxlength="1000" placeholder="本文（1000文字以内。リンクは貼れません）"></textarea>
+      <button id="board-submit" class="chip-btn">スレッドを立てる</button>
+      <div id="board-result" style="margin-top:6px; font-size:0.85rem;"></div>
+    </div>${boardAdminBarHtml()}`;
+  el.querySelectorAll('[data-board-cat]').forEach(b => b.addEventListener('click', () => { _boardCategory = b.dataset.boardCat; renderBoard(''); }));
+  el.querySelectorAll('[data-board-thread]').forEach(r => r.addEventListener('click', () => navigateTo('board/' + r.dataset.boardThread)));
+  el.querySelector('#board-submit').addEventListener('click', async () => {
+    const r = el.querySelector('#board-result');
+    r.textContent = '送信中...';
+    const res = await boardPost({ action: 'create', category: el.querySelector('#board-cat').value, title: el.querySelector('#board-title').value,
+      name: (el.querySelector('#board-name') || {}).value || '', body: el.querySelector('#board-body').value }).catch(() => ({ error: '送信に失敗しました' }));
+    if (res.error) { r.textContent = res.error; return; }
+    navigateTo('board/' + res.thread_id);
+  });
+  wireBoardAdmin(el, () => renderBoard(''));
+}
+
 function navigateTo(path) {
   location.hash = path ? `#${path}` : '';
 }
@@ -2384,6 +2523,8 @@ function route() {
     renderAbout();
   } else if (hash === 'contact') {
     renderContact();
+  } else if (hash === 'board' || hash.startsWith('board/')) {
+    renderBoard(hash.startsWith('board/') ? decodeURIComponent(hash.slice('board/'.length)) : '');
   } else if (hash === 'individuals') {
     renderIndividualList();
   } else if (hash === 'hof') {

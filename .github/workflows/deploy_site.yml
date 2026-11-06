@@ -30,6 +30,8 @@ on:
       - "site/create_checkout.php"
       - "site/stripe_webhook.php"
       - "site/inquiry.php"
+      - "site/board.php"
+      - "site/admin_auth.php"
   workflow_dispatch:
     inputs:
       list_only:
@@ -119,6 +121,8 @@ jobs:
           php -l site/create_checkout.php
           php -l site/stripe_webhook.php
           php -l site/inquiry.php
+          php -l site/board.php
+          php -l site/admin_auth.php
 
       - name: List / Delete / Deploy on xserver
         env:
@@ -792,7 +796,7 @@ jobs:
             site/index.html site/api.php site/create_character.php site/cheer.php \
             site/article_like.php site/supporter.php site/sponsor.php \
             site/stripe_client.php site/create_checkout.php site/stripe_webhook.php \
-            site/inquiry.php \
+            site/inquiry.php site/board.php site/admin_auth.php \
             "$XSERVER_USER@$XSERVER_HOST:${XSERVER_SITE_DIR}"
 
           rm -f /tmp/deploy_key
