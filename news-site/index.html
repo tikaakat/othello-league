@@ -96,6 +96,21 @@
   .holder-title { font-size: 0.66rem; font-weight: 700; color: var(--text-dim); margin-bottom: 3px; }
   .holder-name { font-size: 0.78rem; font-weight: 700; color: var(--text-main); line-height: 1.3; word-break: break-word; }
   .holders-season { font-size: 0.68rem; color: var(--text-dim); text-align: center; margin: -8px 0 16px; }
+  /* 今季のまとめ（フィードのトップ） */
+  .summary-card { background: var(--card); border-radius: 16px; padding: 14px 16px; margin-bottom: 18px; box-shadow: 0 2px 10px var(--shadow); }
+  .summary-card h3 { font-size: 0.9rem; margin: 0 0 8px; color: var(--accent-dark); }
+  .summary-row { font-size: 0.82rem; line-height: 1.75; }
+  .summary-label { display: inline-block; min-width: 5.5em; white-space: nowrap; color: var(--text-dim); font-size: 0.74rem; }
+  .summary-more { font-size: 0.74rem; margin-top: 6px; }
+  .summary-more a { color: var(--accent-dark); margin-right: 12px; }
+  /* 入門ページ */
+  .guide-flow { display: flex; flex-direction: column; align-items: center; gap: 4px; margin: 10px 0 6px; }
+  .guide-step { width: 100%; max-width: 420px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 8px 12px; font-size: 0.82rem; box-shadow: 0 1px 4px var(--shadow); }
+  .guide-step b { color: var(--accent-dark); }
+  .guide-arrow { font-size: 0.8rem; color: var(--text-dim); }
+  .guide-titles { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+  .guide-titles td { border-bottom: 1px solid var(--border); padding: 6px 4px; vertical-align: top; }
+  .guide-titles td:first-child { font-weight: 700; white-space: nowrap; color: var(--accent-dark); }
 
   .chip-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
   .chip-btn {
@@ -700,6 +715,25 @@ function setPageMeta(title, description) {
   if (ogDescEl) ogDescEl.setAttribute('content', desc);
 }
 
+// 今季のまとめ：直近の季のタイトル戦・Aリーグ上位・昇級者・表彰・次の季にデビューする新人（fansite_state.pyのseason_summary）
+function seasonSummaryHtml(sm) {
+  if (!sm) return '';
+  const titleLine = (sm.titles || []).map(t => t.result === '初代' ? `<b>${escapeHtml(t.title)}</b> ${escapeHtml(t.holder)}（初代）`
+    : `<b>${escapeHtml(t.title)}</b> ${escapeHtml(t.holder)}${t.result === '奪取' ? '<span style="color:var(--accent-dark);">が奪取</span>' : 'が防衛'}`).join('／');
+  const leagueName = { B: 'Aへ', C: 'Bへ', D: 'Cへ', F: 'Dへ復帰' };
+  const promo = ['B', 'C', 'D', 'F'].filter(lg => (sm.promoted || {})[lg]).map(lg => `${leagueName[lg]}：${sm.promoted[lg].map(escapeHtml).join('・')}`).join('　');
+  const debuts = (sm.debuts || []).map(d => `${escapeHtml(d.name)}${d.age ? `（${d.age}歳）` : ''}`).join('・');
+  return `<div class="summary-card">
+    <h3>第${sm.season}季のまとめ</h3>
+    ${titleLine ? `<div class="summary-row"><span class="summary-label">タイトル戦</span>${titleLine}</div>` : ''}
+    ${(sm.a_top || []).length ? `<div class="summary-row"><span class="summary-label">Aリーグ</span>${sm.a_top.map((n, i) => `${i + 1}位 ${escapeHtml(n)}`).join('　')}</div>` : ''}
+    ${promo ? `<div class="summary-row"><span class="summary-label">昇級</span>${promo}</div>` : ''}
+    ${sm.awards && (sm.awards.mvp || sm.awards.rookie) ? `<div class="summary-row"><span class="summary-label">表彰</span>${sm.awards.mvp ? `MVP ${escapeHtml(sm.awards.mvp)}` : ''}${sm.awards.rookie ? `　新人王 ${escapeHtml(sm.awards.rookie)}` : ''}</div>` : ''}
+    ${debuts ? `<div class="summary-row"><span class="summary-label">デビュー</span>${debuts}</div>` : ''}
+    <div class="summary-more"><a href="#" onclick="navigateTo('season/${sm.season}');return false;">この季の記事</a><a href="${RESULTS_SITE_BASE}" target="_blank" rel="noopener">くわしい結果（データサイト）↗</a><a href="#" onclick="navigateTo('guide');return false;">はじめての方へ</a></div>
+  </div>`;
+}
+
 async function renderFeed(filter) {
   setActiveNav('feed');
   setPageMeta(null, null);
@@ -736,7 +770,8 @@ async function renderFeed(filter) {
       ${olderSelect}
     </div>` : '';
 
-  // 絞り込みなしのトップでのみ、人気記事ランキング（いいね数上位）とフォロー中の個体を表示する
+  // 絞り込みなしのトップでのみ、今季のまとめ・人気記事ランキング（いいね数上位）とフォロー中の個体を表示する
+  const summaryHtml = filter ? '' : seasonSummaryHtml((await loadHolders() || {}).season_summary);
   const rankingHtml = filter ? '' : await renderPopularRanking(allArticles);
   const followed = getFollowedIndividuals();
   const followedIds = new Set(followed.map(f => f.id));
@@ -781,7 +816,7 @@ async function renderFeed(filter) {
         </article>`;
       }).join('');
 
-  el.innerHTML = rankingHtml + followBoxHtml + seasonChips + banner + list;
+  el.innerHTML = summaryHtml + rankingHtml + followBoxHtml + seasonChips + banner + list;
 
   el.querySelectorAll('.card').forEach(card => {
     card.addEventListener('click', (ev) => {
@@ -2180,6 +2215,7 @@ function renderRules() {
   setPageMeta('ルール', 'リーグ制度・一門と弟子・引退（降級点制）・タイトル戦・永世称号・段位・Eloレーティングなど、サーキットオセロリーグの仕組みを解説。');
   const el = document.getElementById('content');
   el.innerHTML = `<div class="rules">
+    <div class="sec" style="margin-bottom:6px;">はじめての方は、まず<a href="#" onclick="navigateTo('guide');return false;">3分で分かる入門</a>をどうぞ。</div>
     <h3>リーグ制度</h3>
     <div class="sec">
       A・B・C・Dの4部制。シーズンごとに対局を行い、成績に応じて上位・下位リーグと入れ替わる。
@@ -2392,6 +2428,58 @@ function renderContact() {
       resultEl.textContent = '送信に失敗しました。時間をおいて再度お試しください。';
     }
   });
+}
+
+// ---------------- はじめての方へ（3分で分かる入門） ----------------
+function renderGuide() {
+  setActiveNav('rules');
+  setPageMeta('はじめての方へ', '3分で分かるサーキットオセロリーグ。棋士の一生、5つのタイトル、楽しみ方。');
+  const el = document.getElementById('content');
+  const step = (title, text) => `<div class="guide-step"><b>${title}</b>　${text}</div>`;
+  const arrow = label => `<div class="guide-arrow">▼ ${label}</div>`;
+  el.innerHTML = `<div class="rules">
+    <h3>3分で分かるサーキットオセロリーグ</h3>
+    <div class="sec">
+      AIの棋士たちが、架空のオセロのプロリーグで戦い続けています。人は誰も指していません。
+      1日2回（朝と夜）季が進み、そのたびにリーグ戦とタイトル戦が行われます。
+      棋士は年を取り、強くなり、やがて衰えて引退し、弟子が後を継いでいきます。
+      オセロ界タイムズは、その出来事を記事で追いかけるファンメディアです。
+    </div>
+
+    <h3>棋士の一生</h3>
+    <div class="guide-flow">
+      ${step('奨励会リーグ', '12〜15歳で入会。師匠もここで決まる。21歳までに上がれなければ退会')}
+      ${arrow('力が伸びた子から昇段')}
+      ${step('三段リーグ', '毎季30人で対局し、上位3人だけがプロに。26歳までに上がれなければ退会')}
+      ${arrow('プロデビュー')}
+      ${step('Dリーグ → Cリーグ → Bリーグ', '毎季の成績で昇級・降級。Dで成績が悪いとフリークラスへ')}
+      ${arrow('昇級')}
+      ${step('Aリーグ', '9人だけのトップリーグ。優勝すると青龍への挑戦権')}
+      ${arrow('年齢と成績しだい')}
+      ${step('引退', '60歳が目安。引退した棋士も師匠として弟子を育てる')}
+    </div>
+    <div class="sec">若くして才能を見せる子は、ときに中学生でプロになります。強い棋士も、年を取ると少しずつ若手に追いつかれていきます。</div>
+
+    <h3>5つのタイトル</h3>
+    <table class="guide-titles">
+      <tr><td>麒麟</td><td>最高位の一つ。全棋士が1〜4組に分かれて戦い、組の上位が本戦へ。昇級・降級のドラマがある</td></tr>
+      <tr><td>青龍</td><td>最高位の一つ。Aリーグの優勝者が挑戦する、名人のようなタイトル</td></tr>
+      <tr><td>朱雀</td><td>紅組・白組のリーグ戦。保持者がよく入れ替わる荒れるタイトル</td></tr>
+      <tr><td>白虎</td><td>実力上位16人のトーナメント</td></tr>
+      <tr><td>玄武</td><td>全棋士参加の早指しトーナメント。誰にでもチャンスがある</td></tr>
+    </table>
+    <div class="sec">それぞれ保持者と挑戦者が番勝負を戦います。何期も守ると「永世」の称号が贈られます。</div>
+
+    <h3>楽しみ方</h3>
+    <div class="sec">
+      ・<a href="#" onclick="navigateTo('individuals');return false;">選手名鑑</a>で推しを見つけて★フォロー。フィードで推しの記事が目立ちます<br>
+      ・<a href="#" onclick="navigateTo('');return false;">フィード</a>の記事で、タイトル戦や世代交代のドラマを追う<br>
+      ・<a href="#" onclick="navigateTo('clans');return false;">棋士系統図</a>で、師匠から弟子へと続く流れをたどる<br>
+      ・<a href="#" onclick="navigateTo('board');return false;">掲示板</a>で感想を語り合う。<a href="#" onclick="navigateTo('support');return false;">後援会</a>では、奨励会リーグの子どもの名付け親にもなれます<br>
+      ・細かい表や棋譜は<a href="${RESULTS_SITE_BASE}" target="_blank" rel="noopener">データサイト</a>へ<br>
+      ・くわしい決まりは<a href="#" onclick="navigateTo('rules');return false;">ルール</a>へ
+    </div>
+  </div>`;
 }
 
 // ---------------- 後援会（リーグ全体への寄付） ----------------
@@ -2624,6 +2712,8 @@ function route() {
     renderContact();
   } else if (hash === 'support') {
     renderSupport();
+  } else if (hash === 'guide') {
+    renderGuide();
   } else if (hash === 'board' || hash.startsWith('board/')) {
     renderBoard(hash.startsWith('board/') ? decodeURIComponent(hash.slice('board/'.length)) : '');
   } else if (hash === 'individuals') {
