@@ -77,6 +77,7 @@ on:
           - "rename_numbered_names_20261027"
           - "fix_season_101_duplicates_20261028"
           - "patch_import_free_class_20261028"
+          - "archive_fan_site_world1_20261106"
           - "resync_server_data"
         default: ""
       create_dir:
@@ -374,6 +375,27 @@ jobs:
                   'DELETE FROM permanent_sponsors;'
                   'DELETE FROM supporters;'
                   'DELETE FROM inquiries;'
+                )
+                ;;
+              archive_fan_site_world1_20261106)
+                # 世界線のリセット（第210季まで→新しい第1季）に合わせ、選手ID・記事IDに紐づくファンサイトの蓄積
+                # （応援・いいね・スポンサー・永久スポンサー）を「_world1」付きの表へ移してから空にする。
+                # 新しい世界線でも同じ形のID（CC1-000、s1-digest など）が再び使われるため、残すと別人・別記事に付いてしまう。
+                # 寄付（donations）・掲示板・お問い合わせ・応援メッセージ（supporters）・キャラクリエイトの投稿は世界線に紐づかないので残す。
+                # 一度だけ実行すること（再実行すると、その時点の新しい世界線の分まで移してしまう）
+                SQL_LIST=(
+                  'CREATE TABLE IF NOT EXISTS cheer_log_world1 LIKE cheer_log;'
+                  'INSERT INTO cheer_log_world1 SELECT * FROM cheer_log;'
+                  'DELETE FROM cheer_log;'
+                  'CREATE TABLE IF NOT EXISTS article_likes_world1 LIKE article_likes;'
+                  'INSERT INTO article_likes_world1 SELECT * FROM article_likes;'
+                  'DELETE FROM article_likes;'
+                  'CREATE TABLE IF NOT EXISTS sponsors_world1 LIKE sponsors;'
+                  'INSERT INTO sponsors_world1 SELECT * FROM sponsors;'
+                  'DELETE FROM sponsors;'
+                  'CREATE TABLE IF NOT EXISTS permanent_sponsors_world1 LIKE permanent_sponsors;'
+                  'INSERT INTO permanent_sponsors_world1 SELECT * FROM permanent_sponsors;'
+                  'DELETE FROM permanent_sponsors;'
                 )
                 ;;
               fix_newcomer_standings_stale_master_20261011)
