@@ -165,7 +165,7 @@
 
 <div class="header">
   <h1>CIRCUIT OTHELLO LEAGUE</h1>
-  <p>選手たちがリーグ戦・タイトル戦を戦い抜き、麒麟・青龍・朱雀・白虎・玄武の座を目指す</p>
+  <p>選手たちがリーグ戦・タイトル戦を戦い抜き、青龍・麒麟・朱雀・白虎・玄武の座を目指す</p>
 </div>
 
 <div class="tabs" id="primary-tabs">
@@ -256,8 +256,8 @@ const TAB_GROUPS = {
     },
   },
   results: {
-    label: '結果', tabs: ['kirin', 'seiryuu', 'suzaku', 'byakko', 'genbu', 'awards', 'matches'],
-    subLabels: { kirin: '麒麟戦', seiryuu: '青龍戦', suzaku: '朱雀戦', byakko: '白虎戦', genbu: '玄武戦', awards: '表彰', matches: '対局記録' },
+    label: '結果', tabs: ['seiryuu', 'kirin', 'suzaku', 'byakko', 'genbu', 'awards', 'matches'],
+    subLabels: { seiryuu: '青龍戦', kirin: '麒麟戦', suzaku: '朱雀戦', byakko: '白虎戦', genbu: '玄武戦', awards: '表彰', matches: '対局記録' },
   },
   titles: {
     label: 'タイトル', tabs: ['titles'],
@@ -495,7 +495,7 @@ function ageCell(age) {
 }
 
 const TITLE_NAMES = new Set([
-  '麒麟', '青龍', '朱雀', '白虎', '玄武', '麒麟予選', '青龍予選', '朱雀予選', '白虎予選', '玄武予選',
+  '青龍', '麒麟', '朱雀', '白虎', '玄武', '青龍予選', '麒麟予選', '朱雀予選', '白虎予選', '玄武予選',
   '朱雀紅組', '朱雀白組', '朱雀紅組-playoff', '朱雀白組-playoff', '朱雀挑戦者決定戦', '朱雀紅白決定戦',
 ]);
 function leagueTag(league) {
@@ -506,7 +506,7 @@ function leagueTag(league) {
 // ---------------- リーグ ----------------
 // 現在のタイトル保持者マップ（全ページで使い回す）
 let CURRENT_TITLEHOLDERS = { by_id: {}, by_name: {} };
-const TITLE_ORDER = ['麒麟', '青龍', '朱雀', '白虎', '玄武']; // 表示順（序列順。麒麟・青龍が最上位）。両サイトでこの順にそろえる
+const TITLE_ORDER = ['青龍', '麒麟', '朱雀', '白虎', '玄武']; // 表示順＝序列順（青龍が序列1位、麒麟が2位）。両サイトでこの順にそろえる
 const CROWN_LABELS = { 2: '二冠', 3: '三冠', 4: '四冠', 5: '五冠' };
 
 function crownLabel(id, name) {
@@ -1002,7 +1002,7 @@ function renderTitlesPanel() {
 function renderCurrentHoldersView(el, data) {
   const currentList = (data && data.current) || [];
 
-  // 五冠：麒麟・青龍・朱雀・白虎・玄武を同一人物が同時に保持しているかを判定する
+  // 五冠：青龍・麒麟・朱雀・白虎・玄武を同一人物が同時に保持しているかを判定する
   const holderCounts = {};
   currentList.forEach(t => { holderCounts[t.holder_name] = (holderCounts[t.holder_name] || 0) + 1; });
   const grandSlamHolder = Object.keys(holderCounts).find(name => holderCounts[name] >= 5);
@@ -1124,9 +1124,6 @@ async function loadIndividualDetail(id) {
     html += `<h4 style="font-size:0.78rem; color:var(--amber); border-bottom:1px solid var(--navy-700); padding-bottom:4px;">タイトル獲得歴</h4>`;
     html += `<div id="ind-titles" style="font-size:0.8rem; margin-bottom:16px;">読み込み中...</div>`;
 
-    html += `<h4 style="font-size:0.78rem; color:var(--amber); border-bottom:1px solid var(--navy-700); padding-bottom:4px;">この選手の記事（オセロ界タイムズ）</h4>`;
-    html += `<div id="ind-articles" style="font-size:0.8rem; margin-bottom:16px;">読み込み中...</div>`;
-
     html += `<h4 style="font-size:0.78rem; color:var(--amber); border-bottom:1px solid var(--navy-700); padding-bottom:4px;">タイトル挑戦記録</h4>`;
     html += `<div id="ind-challenges" style="font-size:0.8rem; margin-bottom:16px;">読み込み中...</div>`;
 
@@ -1157,7 +1154,6 @@ async function loadIndividualDetail(id) {
     loadIndividualStandingsHistory(id);
     loadIndividualAwards(id);
     loadIndividualSponsors(id);
-    loadIndividualArticles(id);
   } catch (e) {
     el.innerHTML = `<div class="empty">読み込み失敗: ${escapeHtml(String(e))}</div>`;
   }
@@ -1419,23 +1415,6 @@ async function loadIndividualAwards(id) {
     });
     html += '</tbody></table>';
     el.innerHTML = html;
-  } catch (e) {
-    el.innerHTML = '<div style="color:var(--text-dim);">読み込み失敗</div>';
-  }
-}
-
-// この選手が出てくるファンサイトの記事（ファンサイトのarticles.jsonのrelated_individual_idsで探す）。新しい順に5件
-let _newsArticlesCache = null;
-async function loadIndividualArticles(id) {
-  const el = document.getElementById('ind-articles');
-  if (!el) return;
-  try {
-    if (!_newsArticlesCache) _newsArticlesCache = await fetch(`${NEWS_SITE_BASE}articles.json`).then(r => r.json());
-    const mine = _newsArticlesCache.filter(a => (a.related_individual_ids || []).includes(id))
-      .sort((a, b) => new Date(b.published_at) - new Date(a.published_at));
-    if (mine.length === 0) { el.innerHTML = '<div style="color:var(--text-dim);">まだ記事はありません</div>'; return; }
-    el.innerHTML = mine.slice(0, 5).map(a => `<div style="padding:3px 0;"><a href="${NEWS_SITE_BASE}#article/${encodeURIComponent(a.id)}" target="_blank" rel="noopener" style="color:var(--cyan);">${escapeHtml(a.title)}</a>${a.season ? `<span style="color:var(--text-dim); font-size:0.7rem;">　第${a.season}季</span>` : ''}</div>`).join('')
-      + `<div style="padding-top:4px;"><a href="${NEWS_SITE_BASE}#individual/${encodeURIComponent(id)}" target="_blank" rel="noopener" style="color:var(--cyan); font-size:0.75rem;">→ ファンサイトの選手ページ（記事${mine.length}件）</a></div>`;
   } catch (e) {
     el.innerHTML = '<div style="color:var(--text-dim);">読み込み失敗</div>';
   }
@@ -2990,7 +2969,7 @@ function renderHofView(el, view) {
         } else {
           const ranks = competitionRanks(rows, r => r.value);
           if (rec.key === 'title_total') {
-            // タイトル通算：タイトルごとの期数を列に並べた表（麒麟・青龍・朱雀・白虎・玄武の順）
+            // タイトル通算：タイトルごとの期数を列に並べた表（青龍・麒麟・朱雀・白虎・玄武の順）
             const order = TITLE_ORDER;
             const cell = 'text-align:center; white-space:nowrap; padding:4px 3px; font-size:0.74rem;';
             body = `<div style="overflow-x:auto;"><table><thead><tr><th>#</th><th>名前</th>${
