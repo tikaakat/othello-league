@@ -1237,10 +1237,11 @@ def bracket_tags_from_upcoming(out):
             tags["玄武"][p["id"]] = "新人" if p.get("newcomer") else f"{p.get('league') or ''}{str(p['league_pos']) + '位' if p.get('league_pos') else ''}"
     k = out.get("kirin")
     if k and k.get("format") == "ryuo":
+        # 「1組3位」＝前季の成績による組内の順位（組み合わせのシード順）
         for g, members in (k.get("groups") or {}).items():
-            for p in members:
+            for pos, p in enumerate(members, 1):
                 if p and p.get("id"):
-                    tags["麒麟"][p["id"]] = f"{g}組"
+                    tags["麒麟"][p["id"]] = f"{g}組{pos}位"
         for p in (k.get("brackets") or {}).get("4") or []:
             if p and p.get("newcomer") and p.get("id"):
                 tags["麒麟"][p["id"]] = "新人"

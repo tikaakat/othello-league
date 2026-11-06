@@ -876,20 +876,31 @@ async function loadCupDrawPanel(kind) {
         html += '<div class="empty">まだ発表されていません</div>';
       } else if (k.format === 'ryuo') {
         // 竜王戦型：1〜4組の顔ぶれ（在籍期数）と、組ごとのランキング戦の組み合わせ
-        const label = { '1-1': '1組優勝', '1-2': '1組準優勝', '1-3': '1組ベスト4', '1-4': '1組ベスト4', '2-1': '2組優勝', '2-2': '2組準優勝', '3-1': '3組優勝', '4-1': '4組優勝' };
+        const label = { '1-1': '1組優勝', '1-2': '1組2位', '1-3': '1組3位', '1-4': '1組4位', '2-1': '2組優勝', '2-2': '2組2位', '3-1': '3組優勝', '4-1': '4組優勝' };
         html += `<div class="league-block"><h3>第${data.season}季 麒麟戦</h3>`;
         html += small(`${holderLine(k.holder)}／組ごとのランキング戦の上位が本戦（8名）へ。1〜3組は1回戦の敗者が残留決定戦を行い、敗者4名が降級。2〜4組はベスト4が昇級`);
-        const pairs = [];
-        for (let i = 0; i < (k.main || []).length; i += 2) pairs.push(`${label[k.main[i]] || k.main[i]} 対 ${label[k.main[i + 1]] || k.main[i + 1]}`);
-        html += `<div style="font-size:0.72rem; color:var(--amber);">本戦の準々決勝</div><div style="font-size:0.74rem; margin-bottom:8px;">${pairs.join('／')}</div>`;
+        const lab = x => (label[x] || x).replace('ベスト4', '');
+        const slotLabel = { '1-3': '1組3位', '1-4': '1組4位' };
+        let nk = 0;  // まだ対局していないので、勝者は誰でもない（線を勝ち上がりの色にしない）
+        const toNode = t => typeof t === 'string' ? { leaf: true, id: t, name: slotLabel[t] || lab(t) }
+          : { left: toNode(t[0]), right: toNode(t[1]), winnerId: `__undecided${nk++}`, winnerName: '' };
+        if (Array.isArray(k.main) && k.main.length === 2 && Array.isArray(k.main[0])) {
+          const root = toNode(k.main); root.winnerName = '挑戦者';
+          html += `<div style="font-size:0.72rem; color:var(--amber);">本戦（組の成績が良いほど後から登場）</div>`
+            + renderBracketSVG(root, {}, false, { roundLabels: ['1回戦', '2回戦', '3回戦', '決定戦'], colW: 44 })
+            + small('決定戦は挑戦者決定三番勝負（2本先取）。1組優勝は2勝、3組・4組優勝は4勝で挑戦権');
+        }
         ['1', '2', '3', '4'].forEach(g => {
           const members = (k.groups || {})[g] || [];
           const slots = (k.brackets || {})[g] || [];
           html += `<details style="margin-top:8px;"${g === '1' ? ' open' : ''}><summary style="cursor:pointer; font-size:0.72rem; color:var(--amber);">${g}組（${members.length}名）ランキング戦</summary>`
             + renderDrawSVG(slots, `${g}組優勝`, p => {
               if (p.newcomer) return '新人';
-              const m = members.find(x => x.id === p.id);
-              return m ? (m.reason || (m.tenure > 1 ? `${m.tenure}期目` : '')) : '';
+              // 「1組3位」＝前季の成績による組内の順位（シード順）
+              const idx = members.findIndex(x => x.id === p.id);
+              if (idx < 0) return '';
+              const m = members[idx];
+              return m.reason ? `${g}組・${m.reason}` : `${g}組${idx + 1}位`;
             }) + '</details>';
         });
         html += '</div>';
@@ -1970,14 +1981,34 @@ function kirinBracketHtml(bracket, participantInfo) {
 
 // 麒麟戦（竜王戦型・第208季〜）：組ごとのランキング戦（stage g{組}-{回戦}）・残留決定戦（g{組}-stay）、
 // 本戦（main1＝準々決勝・main2＝準決勝）・挑戦者決定三番勝負（decision）
+// 組ランキング戦の成績：決勝の勝者＝優勝、決勝の敗者＝2位、準決勝の敗者＝3位・4位（対局の順）。{ID: "1組優勝"}
+function kirinGroupFinish(bracket) {
+  const out = {};
+  ['1', '2', '3', '4'].forEach(g => {
+    const ms = bracket.filter(m => new RegExp(`^g${g}-\\d+$`).test(m.stage || '') && m.result !== 'draw');
+    if (ms.length === 0) return;
+    const rnd = m => +m.stage.split('-')[1];
+    const last = Math.max(...ms.map(rnd));
+    const w = m => m.result === 'win' ? m.individual_a_id : m.individual_b_id;
+    const l = m => m.result === 'win' ? m.individual_b_id : m.individual_a_id;
+    const fin = ms.find(m => rnd(m) === last);
+    if (fin) { out[w(fin)] = `${g}組優勝`; out[l(fin)] = `${g}組2位`; }
+    ms.filter(m => rnd(m) === last - 1).forEach((m, i) => { out[l(m)] = `${g}組${3 + i}位`; });
+  });
+  return out;
+}
+
 function kirinRyuoHtml(bracket, participantInfo) {
   const name = (id, nm) => `<span data-id="${escapeHtml(id)}" style="cursor:pointer;">${escapeHtml(nm || id)}</span>`;
   let html = '';
   const main = bracket.filter(m => /^(main\d+|decision)$/.test(m.stage || ''));
   if (main.length > 0) {
+    // 本戦の出場者には、この季の組ランキング戦の成績（「1組優勝」「2組2位」など）を添える
+    const info = Object.assign({}, participantInfo);
+    Object.entries(kirinGroupFinish(bracket)).forEach(([id, label]) => { info[id] = Object.assign({}, info[id] || {}, { tag: label }); });
     html += `<div style="font-size:0.7rem; color:var(--amber); margin-bottom:6px;">本戦（1組4名・2組2名・3組1名・4組1名）</div>
-      <div style="font-size:0.66rem; color:var(--text-dim); margin-bottom:4px;">準々決勝・準決勝は先後入れ替えの2局を1本とする3本先取、決勝は挑戦者決定三番勝負（2本先取）</div>
-      <div style="margin-bottom:8px;">${renderBracketSVG(buildBracketTree(main), participantInfo)}</div>`;
+      <div style="font-size:0.66rem; color:var(--text-dim); margin-bottom:4px;">組の成績が良いほど後から登場する。決勝の前までは先後入れ替えの2局を1本とする3本先取、決勝は挑戦者決定三番勝負（2本先取）</div>
+      <div style="margin-bottom:8px;">${renderBracketSVG(buildBracketTree(main), info, true, { roundLabels: ['1回戦', '2回戦', '3回戦', '決定戦'], colW: 44 })}</div>`;
   }
   ['1', '2', '3', '4'].forEach(g => {
     const rank = bracket.filter(m => new RegExp(`^g${g}-\\d+$`).test(m.stage || ''));
