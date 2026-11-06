@@ -1069,6 +1069,14 @@ def assign_planned_newcomers(state, season, new_disciples):
         genbu[genbu.index(None)] = ind.id
 
 
+TITLE_HISTORY_HEAVY_KEYS = ("games", "bracket")
+
+
+def strip_title_games(entry):
+    """title_historyの1件から棋譜（games・bracket）を除いた写しを返す"""
+    return {k: v for k, v in entry.items() if k not in TITLE_HISTORY_HEAVY_KEYS}
+
+
 def backfill_kirin_tenure(state):
     """組の在籍期数（kirin_tenure）を記録し始める前の季の分を、麒麟戦の対局記録から復元する（1回限り）。
     各季の次の組は、1組＝本戦の準々決勝に出た8名、2組＝本戦1回戦の敗者＋予選ブロック決勝の敗者"""
@@ -1226,6 +1234,9 @@ def main():
     print(f"[DEBUG] パース済み引数: data_dir={args.data_dir}, seasons={args.seasons}, depth={args.depth}, swiss_rounds={args.swiss_rounds}", flush=True)
 
     state = load_season_state(args.data_dir)
+    # 以前の季の分も棋譜を除く（組の在籍期数の復元に予選の対局を使うので、復元済みの場合だけ）
+    if "kirin_tenure" in state:
+        state["title_history"] = [strip_title_games(e) for e in state.get("title_history", [])]
     registry = NameRegistry.from_dict(state.get("name_registry", {}))
 
     rosters = load_rosters(args.data_dir)
@@ -1315,7 +1326,9 @@ def main():
         state.setdefault("retired_archive", [])
         state["retired_archive"] += [ind.to_dict() for ind in retired]
         state.setdefault("title_history", [])
-        state["title_history"] += title_results
+        # 棋譜（games）・予選の対局（bracket）は対局記録（data/matches/season_N.json）に同じものを保存しているので、
+        # title_historyには載せない（載せるとseason_state.jsonが季ごとに肥大し、GitHubの1ファイル100MB上限を超える）
+        state["title_history"] += [strip_title_games(r) for r in title_results]
         # 新人リーグ（次回AM/PM実行）で何名を昇格させるかの目安として、今季確定した
         # 新人受け入れ枠数（毎季固定）を記録しておく（次シーズン開始前にrecruit_d_league()で補充される）
         state["pending_newcomer_slots"] = vacancy
