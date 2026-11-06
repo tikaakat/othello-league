@@ -673,8 +673,13 @@ KIRIN_GROUP_SIZE = 16                                   # 1〜3組の定員
 KIRIN_MAIN_QUOTA = {"1": 4, "2": 2, "3": 1, "4": 1}       # 本戦への出場枠
 KIRIN_PROMOTE = 4                                       # 2〜4組の昇級者（ランキング戦ベスト4）
 KIRIN_RELEGATE = 4                                      # 1〜3組の降級者（残留決定戦の敗者）
-# 本戦の並び（準々決勝の組み合わせ順）。"1-1"＝1組1位、"1-3"・"1-4"＝1組ベスト4（準決勝の敗者）
-KIRIN_MAIN_TEMPLATE = ["1-1", "4-1", "2-2", "1-3", "1-2", "3-1", "2-1", "1-4"]
+# 本戦の組み合わせ（竜王戦のように、組の成績が良いほど後から登場する段差のあるトーナメント）。
+# "1-1"＝1組優勝、"1-2"＝1組準優勝、"1-3"・"1-4"＝1組ベスト4（準決勝の敗者）。入れ子の2要素が1対戦。
+#   左の山：4組優勝 対 3組優勝 → 勝者 対 1組4位 → 勝者 対 1組優勝
+#   右の山：1組3位 対 2組優勝、1組2位 対 2組2位 → 勝者どうし
+#   決勝（左の山の勝者 対 右の山の勝者）が挑戦者決定三番勝負。1組優勝は2勝、4組・3組優勝は4勝で挑戦権
+KIRIN_MAIN_TREE = [["1-1", ["1-4", ["4-1", "3-1"]]], [["1-3", "2-1"], ["1-2", "2-2"]]]
+KIRIN_MAIN_TEMPLATE = KIRIN_MAIN_TREE  # 旧名（互換のため）
 # 本戦（準々決勝・準決勝）の1対戦は、2局セットの3本先取。組のランキング戦・残留決定戦は1本勝負。
 # 1局ごとの実力差は小さく（Elo差100でも勝率6割弱）、1本勝負の勝ち抜きが続くと挑戦者がほぼ抽選になるため、本戦は3本先取にする
 KIRIN_MAIN_SETS = 3
@@ -726,12 +731,12 @@ def _seeded_slots(order):
 def plan_kirin_bracket(all_members, exclude_id=None, groups=None, guaranteed_id=None, newcomer_slots=0):
     """麒麟戦の組み合わせを決める。戻り値：
     {"format": "ryuo", "groups": {"1": [...], ..., "4": [...]}, "brackets": {"1": [ランキング戦の並び], ...},
-     "main": KIRIN_MAIN_TEMPLATE}（4組には新人の枠 NEW1… を最後に加える）"""
+     "main": KIRIN_MAIN_TREE}（4組には新人の枠 NEW1… を最後に加える）"""
     g = normalize_kirin_groups(all_members, groups, exclude_id, guaranteed_id)
     g["4"] = g["4"] + [f"{NEWCOMER_SLOT_PREFIX}{k + 1}" for k in range(newcomer_slots)]
     brackets = {k: _seeded_slots(v) for k, v in g.items()}
     return {"format": "ryuo", "groups": {k: [i for i in v if not i.startswith(NEWCOMER_SLOT_PREFIX)] for k, v in g.items()},
-            "brackets": brackets, "main": list(KIRIN_MAIN_TEMPLATE)}
+            "brackets": brackets, "main": KIRIN_MAIN_TREE}
 
 
 def kirin_challenger_gen(all_members, plan, newcomer_ids=None, depth=KIRIN_DEPTH):
@@ -791,20 +796,45 @@ def kirin_challenger_gen(all_members, plan, newcomer_ids=None, depth=KIRIN_DEPTH
         for k, ((x, y), w) in enumerate(zip(stay_pairs, sw)):
             relegated[stay_owner[k]].append((y if w is x else x).id)
 
-    # --- 本戦：組の順位で決まる枠（"1-1"＝1組1位、"1-3"・"1-4"＝1組の準決勝の敗者）---
+    # --- 本戦：組の順位で決まる枠（KIRIN_MAIN_TREE）。決勝の前までは、両方の相手が決まった対戦から順にまとめて指す ---
     def entrant(label):
         g, pos = label.split("-")
         r = ranking.get(g, [])
         k = int(pos) - 1
         return by_id.get(r[k]) if k < len(r) else None
-    bracket = [entrant(label) for label in plan.get("main") or KIRIN_MAIN_TEMPLATE]
-    entrants = [ind for ind in bracket if ind is not None]
+    tree = plan.get("main")
+    if not (isinstance(tree, list) and len(tree) == 2):
+        tree = KIRIN_MAIN_TREE
+    nodes = []  # [左の子, 右の子, 勝者, 決まったか]
+
+    def build(t):
+        if isinstance(t, str):
+            return {"leaf": True, "who": entrant(t), "done": True}
+        n = {"leaf": False, "kids": [build(t[0]), build(t[1])], "who": None, "done": False}
+        nodes.append(n)
+        return n
+    root = build(tree)
+    entrants = []
+
+    def collect(n):
+        if n["leaf"]:
+            if n["who"] is not None:
+                entrants.append(n["who"])
+        else:
+            for k in n["kids"]:
+                collect(k)
+    collect(root)
     rnd = 1
-    while len(bracket) > 2:
-        pairs = [(bracket[i], bracket[i + 1]) for i in range(0, len(bracket), 2)]
-        bracket = yield from _round(pairs, depth, log, lambda k, r=rnd: {"stage": f"main{r}"}, KIRIN_MAIN_SETS)
+    while True:
+        ready = [n for n in nodes if not n["done"] and n is not root and all(k["done"] for k in n["kids"])]
+        if not ready:
+            break
+        pairs = [(n["kids"][0]["who"], n["kids"][1]["who"]) for n in ready]
+        winners = yield from _round(pairs, depth, log, lambda k, r=rnd: {"stage": f"main{r}"}, KIRIN_MAIN_SETS)
+        for n, w in zip(ready, winners):
+            n["who"], n["done"] = w, True
         rnd += 1
-    x, y = bracket
+    x, y = root["kids"][0]["who"], root["kids"][1]["who"]
     if x is None or y is None:
         challenger = x or y
     else:
