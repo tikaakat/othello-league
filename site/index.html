@@ -3123,6 +3123,24 @@ async function loadNewcomerLeague(forSeason, mode = 'newcomer') {
         + h('入会', (sk.joined || []).length) + table(sk.joined)
         + h('退会', (sk.left || []).length) + table(sk.left, { head: '理由', cell: r => r.reason || '' }) + '</div>';
     }
+    if (mode === 'shoreikai') {
+      // いまの在籍者（奨励会リーグ・三段リーグ）：ファンサイト用の軽量データ（season_state.jsonのshoreikai）から。年齢の高い順
+      try {
+        const st = await fetch(`${NEWS_SITE_BASE}season_state.json`, { cache: 'no-store' }).then(r => r.json());
+        const roster = st && st.shoreikai;
+        if (roster) {
+          const byAge = rows => rows.slice().sort((a, b) => (b.age || 0) - (a.age || 0));
+          const rosterTable = (rows, joined) => `<table><thead><tr><th>名前</th><th>年齢</th><th>師匠</th>${joined ? '<th>入会</th>' : ''}</tr></thead><tbody>${byAge(rows).map(r =>
+            `<tr style="cursor:default;"><td>${escapeHtml(r.name)}${r.named_by ? `<div style="font-size:0.66rem; color:var(--text-dim);">名付け親：${escapeHtml(r.named_by)}</div>` : ''}</td>
+              <td style="white-space:nowrap;">${r.age ?? ''}歳</td><td style="font-size:0.78rem;">${escapeHtml(r.master_name || 'なし')}</td>
+              ${joined ? `<td style="white-space:nowrap; font-size:0.74rem;">${r.joined_season ? `第${r.joined_season}季` : ''}</td>` : ''}</tr>`).join('')}</tbody></table>`;
+          const hh = (t, n) => `<h3 style="text-align:left; font-size:0.85rem; color:var(--cyan); border-bottom:1px solid var(--navy-700); padding-bottom:4px; margin:22px 0 6px;">${t}（${n}名）</h3>`;
+          html += `<div style="text-align:left;">`
+            + hh('いまの三段リーグ在籍者', (roster.sandan || []).length) + rosterTable(roster.sandan || [], false)
+            + hh('いまの奨励会リーグ在籍者', (roster.members || []).length) + rosterTable(roster.members || [], true) + '</div>';
+        }
+      } catch (e) { /* 名簿が読めなければ、季ごとの動きだけを出す */ }
+    }
 
     el.innerHTML = html;
     el.querySelectorAll('tr[data-id]').forEach(tr => tr.addEventListener('click', () => navigateTo('individual/' + tr.dataset.id)));
