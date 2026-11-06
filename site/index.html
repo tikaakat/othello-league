@@ -1113,6 +1113,9 @@ async function loadIndividualDetail(id) {
     html += `<h4 style="font-size:0.78rem; color:var(--amber); border-bottom:1px solid var(--navy-700); padding-bottom:4px;">タイトル獲得歴</h4>`;
     html += `<div id="ind-titles" style="font-size:0.8rem; margin-bottom:16px;">読み込み中...</div>`;
 
+    html += `<h4 style="font-size:0.78rem; color:var(--amber); border-bottom:1px solid var(--navy-700); padding-bottom:4px;">この選手の記事（オセロ界タイムズ）</h4>`;
+    html += `<div id="ind-articles" style="font-size:0.8rem; margin-bottom:16px;">読み込み中...</div>`;
+
     html += `<h4 style="font-size:0.78rem; color:var(--amber); border-bottom:1px solid var(--navy-700); padding-bottom:4px;">タイトル挑戦記録</h4>`;
     html += `<div id="ind-challenges" style="font-size:0.8rem; margin-bottom:16px;">読み込み中...</div>`;
 
@@ -1143,6 +1146,7 @@ async function loadIndividualDetail(id) {
     loadIndividualStandingsHistory(id);
     loadIndividualAwards(id);
     loadIndividualSponsors(id);
+    loadIndividualArticles(id);
   } catch (e) {
     el.innerHTML = `<div class="empty">読み込み失敗: ${escapeHtml(String(e))}</div>`;
   }
@@ -1404,6 +1408,23 @@ async function loadIndividualAwards(id) {
     });
     html += '</tbody></table>';
     el.innerHTML = html;
+  } catch (e) {
+    el.innerHTML = '<div style="color:var(--text-dim);">読み込み失敗</div>';
+  }
+}
+
+// この選手が出てくるファンサイトの記事（ファンサイトのarticles.jsonのrelated_individual_idsで探す）。新しい順に5件
+let _newsArticlesCache = null;
+async function loadIndividualArticles(id) {
+  const el = document.getElementById('ind-articles');
+  if (!el) return;
+  try {
+    if (!_newsArticlesCache) _newsArticlesCache = await fetch(`${NEWS_SITE_BASE}articles.json`).then(r => r.json());
+    const mine = _newsArticlesCache.filter(a => (a.related_individual_ids || []).includes(id))
+      .sort((a, b) => new Date(b.published_at) - new Date(a.published_at));
+    if (mine.length === 0) { el.innerHTML = '<div style="color:var(--text-dim);">まだ記事はありません</div>'; return; }
+    el.innerHTML = mine.slice(0, 5).map(a => `<div style="padding:3px 0;"><a href="${NEWS_SITE_BASE}#article/${encodeURIComponent(a.id)}" target="_blank" rel="noopener" style="color:var(--cyan);">${escapeHtml(a.title)}</a>${a.season ? `<span style="color:var(--text-dim); font-size:0.7rem;">　第${a.season}季</span>` : ''}</div>`).join('')
+      + `<div style="padding-top:4px;"><a href="${NEWS_SITE_BASE}#individual/${encodeURIComponent(id)}" target="_blank" rel="noopener" style="color:var(--cyan); font-size:0.75rem;">→ ファンサイトの選手ページ（記事${mine.length}件）</a></div>`;
   } catch (e) {
     el.innerHTML = '<div style="color:var(--text-dim);">読み込み失敗</div>';
   }

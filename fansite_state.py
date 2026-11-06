@@ -43,11 +43,59 @@ def _shoreikai_summary(data_dir, state):
             "log": log, "log_season": log_season}
 
 
+def _season_summary(data_dir, state):
+    """ファンサイトのトップに出す「今季のまとめ」：直近の季のタイトル戦・Aリーグ上位・昇級者・表彰・三段リーグからのデビュー"""
+    season = state.get("current_season") or 0
+    if not season:
+        return None
+    titles = []
+    for e in state.get("title_history", []):
+        if e.get("season") != season:
+            continue
+        if e.get("event") == "初代襲名":
+            titles.append({"title": e["title"], "holder": e.get("holder_name") or e.get("new_holder"), "result": "初代"})
+            continue
+        took = e.get("challenger_id") and e.get("challenger_id") == e.get("holder_id")
+        titles.append({"title": e["title"], "holder": e.get("holder_name"), "challenger": e.get("challenger_name"),
+                       "result": "奪取" if took else "防衛",
+                       "score": f"{e.get('challenger_wins', 0)}-{e.get('titleholder_wins', 0)}"})
+    order = ["麒麟", "青龍", "朱雀", "白虎", "玄武"]
+    titles.sort(key=lambda t: order.index(t["title"]) if t["title"] in order else 9)
+    a_top, promoted, to_free = [], {}, 0
+    sp = os.path.join(data_dir, "standings", f"season_{season}.json")
+    if os.path.exists(sp):
+        with open(sp, encoding="utf-8") as f:
+            rows = json.load(f)
+        a_top = [r["display_name"] for r in sorted((r for r in rows if r.get("league") == "A" and r.get("rank")),
+                                                     key=lambda r: r["rank"])[:3]]
+        for r in rows:
+            mv = r.get("movement") or ""
+            if "promoted" in mv and r.get("league") in ("B", "C", "D", "F"):
+                promoted.setdefault(r["league"], []).append(r["display_name"])
+            if r.get("league") == "D" and "relegated" in mv:
+                to_free += 1
+    awards = {}
+    ap = os.path.join(data_dir, "news", "awards.json")
+    if os.path.exists(ap):
+        with open(ap, encoding="utf-8") as f:
+            a = (json.load(f) or {}).get("seasons", {}).get(str(season)) or {}
+        awards = {k: (a.get(k) or {}).get("name") for k in ("mvp", "rookie") if a.get(k)}
+    debuts = []
+    np_ = os.path.join(data_dir, "newcomer_league", f"for_season_{season + 1}.json")
+    if os.path.exists(np_):
+        with open(np_, encoding="utf-8") as f:
+            nl = json.load(f)
+        debuts = [{"name": r["display_name"], "age": r.get("age")} for r in nl.get("standings", []) if r.get("promoted")]
+    return {"season": season, "titles": titles, "a_top": a_top, "promoted": promoted, "to_free": to_free,
+            "awards": awards, "debuts": debuts}
+
+
 def main(data_dir, out_path):
     with open(os.path.join(data_dir, "season_state.json"), encoding="utf-8") as f:
         state = json.load(f)
     out = {k: state.get(k) for k in KEYS}
     out["shoreikai"] = _shoreikai_summary(data_dir, state)
+    out["season_summary"] = _season_summary(data_dir, state)
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(out, f, ensure_ascii=False)
 
