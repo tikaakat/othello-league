@@ -984,12 +984,12 @@ async function renderIndividualProfile(id) {
 
   const ind = data.individual;
   const name = ind.display_name || id;
-  const statusLine = ind.retired ? '引退済み' : `現在：${escapeHtml(ind.league || '-')}リーグ`;
+  const statusLine = ind.retired ? '引退済み' : `現在：${ind.league === 'F' ? 'フリークラス' : escapeHtml(ind.league || '-') + 'リーグ'}`;
   const titleRanges = data.title_ranges || [];
   const eternalTitles = data.eternal_titles || [];
   setPageMeta(
     `${name}選手ページ`,
-    `${name}（${ind.retired ? '引退済み' : `${ind.league || '-'}リーグ`}）の対局成績・タイトル獲得歴・段位履歴をオセロ界タイムズでチェック。`
+    `${name}（${ind.retired ? '引退済み' : (ind.league === 'F' ? 'フリークラス' : `${ind.league || '-'}リーグ`)}）の対局成績・タイトル獲得歴・段位履歴をオセロ界タイムズでチェック。`
   );
   const titleHtml = titleRanges.length
     ? titleRanges.map(t => {
@@ -1284,7 +1284,7 @@ async function renderProfileCardDataUrl(id, name, ind, titleRanges, eternalTitle
   ctx.fillRect(rx, pad + 116, W - pad - 40 - rx, 4);
 
   // ステータス行（リーグ・現在/引退・Elo）
-  const statusText = ind.retired ? '引退済み' : `${ind.league || '-'}リーグ所属`;
+  const statusText = ind.retired ? '引退済み' : (ind.league === 'F' ? 'フリークラス' : `${ind.league || '-'}リーグ所属`);
   ctx.fillStyle = '#6B6258';
   ctx.font = "500 28px 'Noto Sans JP', sans-serif";
   ctx.fillText(statusText, rx, pad + 165);
@@ -1847,7 +1847,7 @@ function renderActiveRosterBody() {
 
   let groupsHtml;
   if (_rosterGroupBy === 'dan') {
-    const all = ['A', 'B', 'C', 'D'].flatMap(lg => leagues[lg] || []).concat(data.rikuou ? [data.rikuou] : [])
+    const all = ['A', 'B', 'C', 'D', 'F'].flatMap(lg => leagues[lg] || []).concat(data.rikuou ? [data.rikuou] : [])
       .filter(r => matchesRosterSearch(r.display_name));
     const byDan = {};
     all.forEach(r => { (byDan[r.dan] = byDan[r.dan] || []).push(r); });
@@ -1861,12 +1861,13 @@ function renderActiveRosterBody() {
       </div>`;
     }).join('') || '<div class="empty">該当する選手がいません</div>';
   } else {
-    groupsHtml = ['A', 'B', 'C', 'D'].map(lg => {
+    // フリークラス（F）：降級点でDリーグから外れた選手。タイトル戦の成績でDへ復帰できる（10季で引退）
+    groupsHtml = ['A', 'B', 'C', 'D', 'F'].map(lg => {
       const baseRows = lg === 'A' && data.rikuou ? [data.rikuou, ...(leagues[lg] || [])] : (leagues[lg] || []);
       const rows = baseRows.filter(r => matchesRosterSearch(r.display_name))
         .map(r => ({ ...r, eloLabel: `Elo ${Math.round(r.elo_rating)}` }));
       return `<div class="roster-league-group">
-        <h3>${lg}リーグ（${rows.length}名）</h3>
+        <h3>${lg === 'F' ? 'フリークラス' : lg + 'リーグ'}（${rows.length}名）</h3>
         ${rows.map(r => rosterRowHtml(r, titleCountBadgeHtml(r) + rikuouBadge(r))).join('') || '<div class="empty">該当する選手がいません</div>'}
       </div>`;
     }).join('');
