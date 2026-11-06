@@ -1,19 +1,11 @@
 """
-新人リーグ（AM実行）：その日投稿されたキャラクリエイトのリクエストを集めて、
-ランダム対戦のミニリーグ（1人あたり12局）で競わせる。上位者（前回のシーズンで
-Dリーグに新規参入した人数分）だけが、この日の夜に実行される本戦でDリーグへ
-新規参入する。
+新人リーグ（三段リーグ）：毎季1回、本戦の後に実行する。
 
-投稿が目標人数（30名）に満たない場合は、自動生成の候補で埋める。
-非昇格者のうち上位5名（投稿・自動生成を問わない）だけを次回の新人リーグに持ち越す
-（newcomer_candidate_pool.json）。年齢制限は設けない：持ち越し中も年齢は重ねるが、
-何歳でも上位5名に入り続ける限り再挑戦できる。
-
-新人リーグのロスターを組む時点（＝本戦でDリーグに参入するよりも前）で、師匠（弟子で
-あれば誰の弟子か）を決めておく。これにより、新人リーグを戦っている時点で既に
-師弟関係が決まった状態になる（本戦でのDリーグ参入時に初めて師匠を決めるのではない）。
-持ち越し中の候補は、最初に決まった師弟関係をそのまま引き継ぐ（再抽選しない）。
-本戦（run_season.py）とは別プロセス・別スケジュール（AM実行）で動かす想定。
+奨励会（othello_league/shoreikai.py）：12〜15歳で毎季12名が入会し（師匠もこのとき決まる）、対局はせず
+成長と運で三段リーグへ上がる。21歳までに上がれなければ退会。
+三段リーグ：定員30名（＋当日投稿のキャラクリエイト）で1人12局のランダム対戦を行い、上位3名が本戦のDリーグへ。
+昇格できなかった在籍者は全員が次季も残り（newcomer_candidate_pool.json）、26歳で年齢制限により退会。
+在籍者は最初に決まった師弟関係・能力をそのまま引き継ぐ（毎季、年を取って成長する）。
 """
 import argparse
 import json
@@ -31,13 +23,16 @@ from othello_league.names import NameRegistry
 from othello_league.io_utils import (
     load_season_state, load_rosters,
     load_newcomer_candidate_pool, save_newcomer_candidate_pool,
+    load_shoreikai, save_shoreikai,
 )
+from othello_league import shoreikai as SK
 
 NEWCOMER_LEAGUE_DEPTH = 3
 NEWCOMER_LEAGUE_ROUNDS = 12
 NEWCOMER_TARGET_POOL = 30
 NEWCOMER_SUBMISSION_CAP = 40
-NEWCOMER_RETRY_KEEP_TOP_N = 5  # 非昇格者のうち、次回へ持ち越すのは上位何名まで
+# 非昇格者のうち次回へ持ち越す人数。奨励会の導入後は全員を残す（三段リーグの在籍者。年齢制限はshoreikai.py）
+NEWCOMER_RETRY_KEEP_TOP_N = None
 CHARACTER_TYPES = ["balanced", "aggressive", "defensive", "corner"]
 
 # main()が計算したresult_pathを一時保存する場所（git管理外）。
@@ -290,6 +285,7 @@ def run_newcomer_league(submissions, slots_needed, registry, retry_pool=None,
             "promoted": iid in promoted_ids,
             "master_id": ind.parent_a_id,
             "master_name": master_name_by_id.get(ind.parent_a_id) if ind.parent_a_id else None,
+            "age": ind.initial_age,
         })
 
     # display_order（プレーオフ反映済みの最終順位）の順を使う。rankedのまま（プレーオフ前の
@@ -306,14 +302,15 @@ def run_newcomer_league(submissions, slots_needed, registry, retry_pool=None,
     # display_orderは既にプレーオフ結果を反映した最終順位なので、winner以降の先頭5名がそのまま対象
     non_promoted = [by_id[iid] for iid in display_order if iid not in promoted_ids]
     next_retry_pool = []
-    for ind in non_promoted[:NEWCOMER_RETRY_KEEP_TOP_N]:
+    for ind in (non_promoted if NEWCOMER_RETRY_KEEP_TOP_N is None else non_promoted[:NEWCOMER_RETRY_KEEP_TOP_N]):
         entry = entries_by_id[ind.id]
         next_retry_pool.append({
             # genderも引き継ぐ（以前は抜けており、持ち越しを経て昇格した個体が性別不明＝
             # ファンサイトの顔アイコン無しになっていた）
             "name": entry.get("name"), "gender": entry.get("gender"), "type": entry.get("type"),
             "params": entry["params"], "awakened_param": entry.get("awakened_param"),
-            "auto_generated": bool(entry.get("auto_generated")), "age": entry["initial_age"] + 1,
+            "auto_generated": bool(entry.get("auto_generated")), "age": entry["initial_age"],
+            "joined_season": entry.get("joined_season"), "entry_age": entry.get("entry_age"),
             "parent_a_id": entry.get("parent_a_id"), "clan_root_id": entry.get("clan_root_id"),
             "generation": entry.get("generation", 0), "volatility": entry.get("volatility"),
         })
@@ -446,7 +443,9 @@ def main():
     print(f"[DEBUG] 今夜のDリーグ新規参入枠: {slots_needed}名", flush=True)
 
     retry_pool = load_newcomer_candidate_pool(args.data_dir)
-    print(f"[DEBUG] 持ち越し中の候補（前回上位{NEWCOMER_RETRY_KEEP_TOP_N}名）: {len(retry_pool)}件", flush=True)
+    shoreikai_members = load_shoreikai(args.data_dir)
+    print(f"[DEBUG] 三段リーグの在籍者（前季の非昇格者）: {len(retry_pool)}件・奨励会: "
+          f"{'未作成' if shoreikai_members is None else len(shoreikai_members)}", flush=True)
 
     # 師匠選出用に現役ロスターとタイトル保持者IDを読み込む（新人リーグのロスターを
     # 組む時点で師弟関係を決めるため、本戦のDリーグ補充と同じ情報が要る）
@@ -465,12 +464,23 @@ def main():
         [ind.display_name for ind in pool]
         + [r.get("display_name") for r in (state.get("retired_archive") or [])]
         + [c.get("name") for c in retry_pool]
+        + [c.get("name") for c in (shoreikai_members or [])]
         + [s.get("name") for s in submissions]
     )
+    # 奨励会：1季分進め（成長・年齢制限・入会）、三段リーグの空きを奨励会から埋める
+    master_names = {ind.id: ind.display_name for ind in pool}
+    master_names.update(retired_master_names)
+    retry_pool, shoreikai_members, shoreikai_log = SK.advance(
+        retry_pool, shoreikai_members, registry, target_season, pool,
+        state.get("retired_archive") or [], titleholder_ids, master_names=master_names,
+    )
+    print(f"[DEBUG] 奨励会: 入会{len(shoreikai_log['joined'])}名・三段へ{len(shoreikai_log['to_sandan'])}名・"
+          f"退会{len(shoreikai_log['left'])}名・在籍{len(shoreikai_members)}名／三段リーグ{len(retry_pool)}名", flush=True)
     winner_entries, standings, match_log, next_retry_pool, playoff_log = run_newcomer_league(
         submissions, slots_needed, registry, retry_pool=retry_pool,
         pool=pool, titleholder_ids=titleholder_ids, retired_master_names=retired_master_names,
         retired_records=state.get("retired_archive") or [], season=target_season,
+        target_pool=len(retry_pool) + len(submissions),
     )
     if playoff_log:
         print(f"[DEBUG] 昇格枠の境界で同成績が発生したため、プレーオフを{len(playoff_log)}ラウンド実施しました", flush=True)
@@ -487,10 +497,12 @@ def main():
             "for_season": target_season, "slots_needed": slots_needed,
             "submission_count": len(submissions), "standings": standings, "match_log": match_log,
             "promotion_playoff": playoff_log,
+            "shoreikai": {**shoreikai_log, "size": len(shoreikai_members)},
         }, f, ensure_ascii=False, indent=2)
     print(f"[DEBUG] 新人リーグ結果を{result_path}に保存しました", flush=True)
 
     save_newcomer_candidate_pool(args.data_dir, next_retry_pool)
+    save_shoreikai(args.data_dir, shoreikai_members)
     print(f"[DEBUG] 次回へ持ち越す自動生成候補: {len(next_retry_pool)}件を保存しました", flush=True)
 
     with open(RESULT_MARKER_PATH, "w", encoding="utf-8") as f:

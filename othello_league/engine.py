@@ -224,13 +224,15 @@ def choose_move(bd, color, params, depth=5, noise_scale=1.0):
         return random.choice(moves)
     book = params.get("_book", 0)
     endgame = params.get("_endgame", 0)
-    if book or endgame:
+    if book or endgame or params.get("_genius"):
         empty = bd.count(B.EMPTY)
         if book and empty >= 60 - book:
             params, noise_scale = BOOK_PARAMS, 0.0
-        elif endgame and empty <= endgame:
-            depth += 1
-            # 天賦（skills.py）：さらに奥ではもう1手深く読む
+        else:
+            if endgame and empty <= endgame:
+                depth += 1
+            # 天賦（skills.py）：空きマスが天賦の範囲内なら、もう1手深く読む（終盤力とは別に効くので、
+            # 終盤力がまだ育っていない若いうちから才能が表に出る）
             if empty <= params.get("_genius", 0):
                 depth += 1
                 # 大天才：その奥でさらにもう1手

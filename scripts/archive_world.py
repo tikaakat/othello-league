@@ -57,7 +57,7 @@ def archive(data_dir, out_dir):
 
     with open(os.path.join(out_dir, "season_state.json"), "w", encoding="utf-8") as f:
         json.dump(_strip(state), f, ensure_ascii=False, separators=(",", ":"))
-    for name in ("rosters.json", "newcomer_winners.json"):
+    for name in ("rosters.json", "newcomer_winners.json", "shoreikai.json", "newcomer_candidate_pool.json"):
         src = os.path.join(data_dir, name)
         if os.path.exists(src):
             shutil.copy(src, os.path.join(out_dir, name))
