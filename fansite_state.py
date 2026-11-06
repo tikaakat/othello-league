@@ -27,7 +27,7 @@ def _shoreikai_summary(data_dir, state):
         with open(cp, encoding="utf-8") as f:
             sandan = json.load(f) or []
     row = lambda e: {"name": e.get("name"), "age": e.get("age"), "master_name": names.get(e.get("parent_a_id")),
-                     "joined_season": e.get("joined_season")}
+                     "joined_season": e.get("joined_season"), "named_by": e.get("named_by")}
     log, log_season = None, None
     nl_dir = os.path.join(data_dir, "newcomer_league")
     if os.path.isdir(nl_dir):

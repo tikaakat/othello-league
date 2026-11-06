@@ -416,6 +416,7 @@
       <a class="nav-tab" id="nav-rules" href="#" onclick="navigateTo('rules');return false;">ルール</a>
       <a class="nav-tab" id="nav-about" href="#" onclick="navigateTo('about');return false;">このメディアについて</a>
       <a class="nav-tab" id="nav-board" href="#" onclick="navigateTo('board');return false;">掲示板</a>
+      <a class="nav-tab" id="nav-support" href="#" onclick="navigateTo('support');return false;">後援会</a>
       <a class="nav-tab" id="nav-contact" href="#" onclick="navigateTo('contact');return false;">お問い合わせ</a>
       <a class="nav-external" href="https://lab.spia-net.com/othello-league/" target="_blank" rel="noopener">データサイトへ ↗</a>
       <button id="theme-toggle" class="theme-toggle-btn" title="表示テーマを切り替え" aria-label="表示テーマを切り替え">🌙</button>
@@ -680,6 +681,7 @@ function setActiveNav(tab) {
   document.getElementById('nav-about').classList.toggle('active', tab === 'about');
   document.getElementById('nav-contact').classList.toggle('active', tab === 'contact');
   document.getElementById('nav-board').classList.toggle('active', tab === 'board');
+  document.getElementById('nav-support').classList.toggle('active', tab === 'support');
 }
 
 // SEO対策：ルーティングのたびに<title>・meta descriptionをそのページ内容に合わせて
@@ -1533,6 +1535,12 @@ function setupSponsorUI(id) {
 // ページ読み込み時に一度だけチェックしてURLから消す
 function handleSponsorReturn() {
   const params = new URLSearchParams(location.search);
+  const donation = params.get('donation');
+  if (donation) {
+    alert(donation === 'success' ? 'ご寄付ありがとうございます！後援会名簿への反映まで少し時間がかかる場合があります。' : '決済がキャンセルされました。');
+    history.replaceState(null, '', location.pathname + location.hash);
+    return;
+  }
   const sponsor = params.get('sponsor');
   if (!sponsor) return;
   if (sponsor === 'success') {
@@ -1917,7 +1925,7 @@ async function renderShoreikai() {
   const sk = st && st.shoreikai;
   if (!sk) { el.innerHTML = '<div class="empty">奨励会リーグの名簿はまだありません</div>'; return; }
   const table = (rows, showJoined) => rows.length ? `<table class="rule-history"><tr><td>名前</td><td>年齢</td><td>師匠</td>${showJoined ? '<td>入会</td>' : ''}</tr>${
-    rows.map(r => `<tr><td>${escapeHtml(r.name || '')}</td><td>${r.age ?? ''}歳</td><td>${escapeHtml(r.master_name || '（なし）')}</td>${showJoined ? `<td>${r.joined_season ? `第${r.joined_season}季` : ''}</td>` : ''}</tr>`).join('')}</table>`
+    rows.map(r => `<tr><td>${escapeHtml(r.name || '')}${r.named_by ? `<span class="board-meta" style="display:block;">名付け親：${escapeHtml(r.named_by)}</span>` : ''}</td><td>${r.age ?? ''}歳</td><td>${escapeHtml(r.master_name || '（なし）')}</td>${showJoined ? `<td>${r.joined_season ? `第${r.joined_season}季` : ''}</td>` : ''}</tr>`).join('')}</table>`
     : '<div class="empty">該当者なし</div>';
   const byAge = rows => rows.slice().sort((a, b) => (b.age || 0) - (a.age || 0));
   const log = sk.log;
@@ -2386,6 +2394,73 @@ function renderContact() {
   });
 }
 
+// ---------------- 後援会（リーグ全体への寄付） ----------------
+// donation.php（結果サイト側）でStripe Checkoutを作る。見返りなし・名簿への掲載（任意）、
+// 1,000円以上は奨励会リーグの新入会員の「名付け親」になれる
+async function renderSupport() {
+  setActiveNav('support');
+  setPageMeta('後援会', 'サーキットオセロリーグとオセロ界タイムズを応援する後援会。寄付と、奨励会リーグの新入会員の名付け親の受付。');
+  const el = document.getElementById('content');
+  el.innerHTML = skeletonHtml();
+  const data = await fetch(`${RESULTS_SITE_BASE}donation.php?action=list`, { cache: 'no-store' }).then(r => r.json()).catch(() => null);
+  const members = (data && data.members) || [];
+  const namings = (data && data.namings) || [];
+  el.innerHTML = `<div class="rules">
+    <h3>後援会</h3>
+    <div class="sec">
+      リーグの運営（サーバー代・対局の計算・記事の作成）を応援していただける方のための寄付の窓口です。
+      金額は自由で、見返りなしでも大歓迎です。<br>
+      ・<b>後援会名簿</b>：ご希望の方は、お名前とひとことをこのページの名簿に載せます（載せない・匿名も選べます）。<br>
+      ・<b>名付け親（1,000円以上）</b>：次の季に奨励会リーグへ入会する子どもの一人に、好きな名前を付けられます。
+      その子が三段リーグを勝ち抜いてプロになるか、タイトルを取るかは、その子の才能と運しだいです。
+      名付けた子はこのページと奨励会リーグの名簿に「名付け親」として載ります。
+      実在の有名人の名前など、運営が不適切と判断した名前はお受けできない場合があります（その場合は返金します）。<br>
+      特定の選手を応援したい方は、各選手のページの「サポーター」からどうぞ。
+    </div>
+    <h3>寄付する</h3>
+    <div class="sec board-form">
+      <div class="amount-chip-row">${[500, 1000, 3000, 5000].map(a => `<button type="button" class="amount-chip" data-amt="${a}">${a.toLocaleString()}円</button>`).join('')}</div>
+      <input id="don-amount" type="number" min="100" max="50000" step="100" placeholder="金額（100〜50,000円）">
+      <input id="don-name" maxlength="30" placeholder="お名前（任意）">
+      <label style="font-size:0.8rem; display:block; margin-bottom:8px;"><input id="don-show" type="checkbox" style="width:auto; display:inline; margin-right:6px;">後援会名簿に名前を載せる</label>
+      <input id="don-msg" maxlength="100" placeholder="ひとこと（任意・100文字以内）">
+      <div id="don-naming" style="display:none; border-top:1px dashed var(--border); padding-top:8px; margin-top:4px;">
+        <div class="board-meta" style="margin-bottom:6px;">名付け親になる（任意。漢字・ひらがな・カタカナで姓・名それぞれ1〜5文字）</div>
+        <input id="don-family" maxlength="5" placeholder="姓">
+        <input id="don-given" maxlength="5" placeholder="名">
+        <select id="don-gender"><option value="male">男の子</option><option value="female">女の子</option></select>
+      </div>
+      <button id="don-submit" class="chip-btn">寄付する（決済ページへ）</button>
+      <div id="don-result" style="margin-top:6px; font-size:0.85rem;"></div>
+    </div>
+    <h3>名付けた子どもたち</h3>
+    <div class="sec">${namings.length ? namings.map(n => `${escapeHtml(n.named)}　<span class="board-meta">名付け親：${escapeHtml(n.by)}${n.season ? `・第${n.season}季に入会` : '・次の季に入会予定'}</span>`).join('<br>') : 'まだいません'}</div>
+    <h3>後援会名簿</h3>
+    <div class="sec">${members.length ? members.map(m => `<b>${escapeHtml(m.name)}</b>${m.message ? `　${escapeHtml(m.message)}` : ''}`).join('<br>') : 'まだいません'}
+      ${data && data.anonymous_count ? `<div class="board-meta" style="margin-top:6px;">ほか、お名前を伏せた後援会員 ${data.anonymous_count}名</div>` : ''}</div>
+  </div>`;
+  const amountEl = el.querySelector('#don-amount');
+  const sync = () => { el.querySelector('#don-naming').style.display = (+amountEl.value >= 1000) ? 'block' : 'none'; };
+  el.querySelectorAll('[data-amt]').forEach(b => b.addEventListener('click', () => {
+    el.querySelectorAll('[data-amt]').forEach(x => x.classList.toggle('active', x === b));
+    amountEl.value = b.dataset.amt; sync();
+  }));
+  amountEl.addEventListener('input', sync);
+  el.querySelector('#don-submit').addEventListener('click', async () => {
+    const r = el.querySelector('#don-result');
+    const amount = parseInt(amountEl.value, 10);
+    if (!(amount >= 100 && amount <= 50000)) { r.textContent = '金額は100〜50,000円で入力してください'; return; }
+    const naming = amount >= 1000 ? { family: el.querySelector('#don-family').value.trim(), given: el.querySelector('#don-given').value.trim(), gender: el.querySelector('#don-gender').value } : null;
+    r.textContent = '決済ページを準備しています…';
+    const res = await fetch(`${RESULTS_SITE_BASE}donation.php`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'checkout', amount, display_name: el.querySelector('#don-name').value.trim(),
+        show_name: el.querySelector('#don-show').checked, message: el.querySelector('#don-msg').value.trim(), naming }) })
+      .then(x => x.json()).catch(() => ({ error: '通信に失敗しました' }));
+    if (res.error || !res.url) { r.textContent = res.error || '決済ページを作れませんでした'; return; }
+    location.href = res.url;
+  });
+}
+
 // ---------------- 掲示板 ----------------
 // board.php（結果サイト側）にスレッド・書き込みを保存する。運営は合言葉を入れると「運営」の印付きで書き込め、
 // 書き込みの削除と、非公開のお問い合わせ（inquiry.php）の閲覧ができる。合言葉はこのタブを閉じるまでだけ覚える
@@ -2404,7 +2479,7 @@ const boardTime = t => String(t || '').replace(/:\d\d$/, '').replace(/-/g, '/');
 function boardAdminBarHtml() {
   const on = !!boardAdminKey();
   return `<div style="margin-top:28px; font-size:0.74rem; color:var(--text-dim);">
-    ${on ? `運営モード中　<a href="#" id="board-admin-inq">非公開のお問い合わせを見る</a>　<a href="#" id="board-admin-off">運営モードを終える</a>`
+    ${on ? `運営モード中　<a href="#" id="board-admin-inq">非公開のお問い合わせを見る</a>　<a href="#" id="board-admin-don">寄付・名付けの一覧</a>　<a href="#" id="board-admin-off">運営モードを終える</a>`
          : `<a href="#" id="board-admin-on" style="color:var(--text-dim);">運営</a>`}
     <div id="board-admin-area"></div></div>`;
 }
@@ -2419,6 +2494,30 @@ function wireBoardAdmin(el, rerender) {
   });
   const off = el.querySelector('#board-admin-off');
   if (off) off.addEventListener('click', e => { e.preventDefault(); setBoardAdminKey(''); rerender(); });
+  const don = el.querySelector('#board-admin-don');
+  if (don) don.addEventListener('click', async e => {
+    e.preventDefault();
+    const area = el.querySelector('#board-admin-area');
+    area.innerHTML = '読み込み中...';
+    const load = async () => {
+      const res = await fetch(`${RESULTS_SITE_BASE}donation.php`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'admin_list', admin_key: boardAdminKey() }) }).then(r => r.json()).catch(() => ({ error: '読み込みに失敗しました' }));
+      if (res.error) { area.textContent = res.error; return; }
+      const total = (res.donations || []).reduce((a, d) => a + (+d.amount_jpy || 0), 0);
+      area.innerHTML = `<div class="board-meta" style="margin:8px 0;">${(res.donations || []).length}件・合計${total.toLocaleString()}円</div>` + (res.donations || []).map(d => `<div class="board-post">
+        <div class="board-post-head">${escapeHtml(boardTime(d.created_at))}　${(+d.amount_jpy).toLocaleString()}円　${escapeHtml(d.display_name || '（名前なし）')}${+d.show_name ? '' : '（非公開）'}</div>
+        ${d.message ? `<div class="board-post-body">${escapeHtml(d.message)}</div>` : ''}
+        ${d.naming_family ? `<div class="board-post-body">名付け：${escapeHtml(d.naming_family + d.naming_given)}（${d.naming_gender === 'female' ? '女性' : '男性'}・${escapeHtml(d.naming_status || '')}${d.named_season ? '・第' + d.named_season + '季' : ''}）
+          ${d.naming_status === 'pending' ? `<span class="board-del" data-reject="${d.id}">名付けを取り消す</span>` : ''}</div>` : ''}</div>`).join('');
+      area.querySelectorAll('[data-reject]').forEach(b => b.addEventListener('click', async () => {
+        if (!confirm('この名付けを取り消しますか？（返金はStripeの管理画面で行ってください）')) return;
+        await fetch(`${RESULTS_SITE_BASE}donation.php`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'reject_name', admin_key: boardAdminKey(), id: +b.dataset.reject }) });
+        load();
+      }));
+    };
+    load();
+  });
   const inq = el.querySelector('#board-admin-inq');
   if (inq) inq.addEventListener('click', async e => {
     e.preventDefault();
@@ -2523,6 +2622,8 @@ function route() {
     renderAbout();
   } else if (hash === 'contact') {
     renderContact();
+  } else if (hash === 'support') {
+    renderSupport();
   } else if (hash === 'board' || hash.startsWith('board/')) {
     renderBoard(hash.startsWith('board/') ? decodeURIComponent(hash.slice('board/'.length)) : '');
   } else if (hash === 'individuals') {
