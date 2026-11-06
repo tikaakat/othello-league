@@ -27,7 +27,10 @@ BOOK_RATE_KEY = "_book_rate"
 FORM_KEY = "_form"
 GENIUS_KEY = "_genius"             # 天賦：空きマスがこの数以下（かつ終盤力の範囲内）なら、さらにもう1手深く読む
 GENIUS_MAX_KEY = "_genius_max"     # 天賦のピーク（その選手が伸びきったときの範囲）
-SKILL_KEYS = (ENDGAME_KEY, ENDGAME_GROWTH_KEY, BOOK_KEY, BOOK_RATE_KEY, FORM_KEY, GENIUS_KEY, GENIUS_MAX_KEY)
+PRODIGY_KEY = "_genius2"           # 大天才（天賦の最上位）：空きマスがこの数以下なら、天賦のさらに奥でもう1手深く読む
+PRODIGY_MAX_KEY = "_genius2_max"   # 大天才の2段目のピーク
+SKILL_KEYS = (ENDGAME_KEY, ENDGAME_GROWTH_KEY, BOOK_KEY, BOOK_RATE_KEY, FORM_KEY, GENIUS_KEY, GENIUS_MAX_KEY,
+              PRODIGY_KEY, PRODIGY_MAX_KEY)
 
 ENDGAME_CAP = 44.0
 ENDGAME_BIRTH_MAX = 20.0          # 生まれつき：20 × Beta(1, 3)（平均5マス、10マス超は3割弱）
@@ -60,7 +63,13 @@ GENIUS_CHANCE = 1 / 40             # 新人のうち天賦を持って生まれ�
 GENIUS_PEAK_RANGE = (20, 28)
 GENIUS_GROWTH = 4                  # 30歳未満の1季あたりの伸び（マス）
 GENIUS_DECLINE_AGE = 45
-GENIUS_DECLINE = 2                 # 衰える年齢からの1季あたりの縮み（マス）                  # 調子：その季の終盤力が ±（ムラ気×3マス）程度上下する
+GENIUS_DECLINE = 2                 # 衰える年齢からの1季あたりの縮み（マス）
+# 大天才（藤井聡太級）：50季に1人ほど。天賦の範囲が定跡明けから全部（36マス）に広がり、さらに終盤24マスでは
+# もう1手深く読む（ほかの選手より2手深い）。トップ選手どうしの対局で、ピークの大天才は1局約80%・7番勝負約97%で勝つ
+PRODIGY_CHANCE = 1 / 150           # 新人のうち大天才として生まれる割合（1季3人の入門で約50季に1人）
+PRODIGY_PEAK = 36
+PRODIGY2_PEAK = 24
+PRODIGY_GROWTH = 6                 # 大天才の30歳未満の1季あたりの伸び（デビューが遅めでも30歳までにピークへ届くように）                  # 調子：その季の終盤力が ±（ムラ気×3マス）程度上下する
 
 # 定跡として使う共通の評価（シミュレーションで最も強かった配分。合計40）
 BOOK_PARAMS = {
@@ -83,6 +92,16 @@ def _age_factor(age):
     return -ENDGAME_DECLINE
 
 
+def _roll_genius():
+    """天賦の抽選：まれに大天才（PRODIGY_CHANCE）、それ以外の天賦は従来どおり（GENIUS_CHANCE）"""
+    r = random.random()
+    if r < PRODIGY_CHANCE:
+        return {GENIUS_KEY: 4, GENIUS_MAX_KEY: PRODIGY_PEAK, PRODIGY_KEY: 0, PRODIGY_MAX_KEY: PRODIGY2_PEAK}
+    if r < PRODIGY_CHANCE + GENIUS_CHANCE:
+        return {GENIUS_KEY: 4, GENIUS_MAX_KEY: random.randint(*GENIUS_PEAK_RANGE)}
+    return {}
+
+
 def birth_skills(master_params=None):
     """新しく生まれる個体の終盤力・定跡を決める（師匠がいれば終盤力を2割、定跡を7割受け継ぐ。定跡は最低16手）"""
     endgame = ENDGAME_BIRTH_MAX * random.betavariate(1.0, ENDGAME_BIRTH_BETA)
@@ -93,7 +112,7 @@ def birth_skills(master_params=None):
         ENDGAME_GROWTH_KEY: round(_growth_speed(), 3),
         BOOK_KEY: min(BOOK_CAP, max(BOOK_NEWCOMER_MIN, int(BOOK_INHERIT * (master_params or {}).get(BOOK_KEY, 0)))),
         BOOK_RATE_KEY: round(random.uniform(*BOOK_RATE_RANGE), 2),
-        **({GENIUS_KEY: 4, GENIUS_MAX_KEY: random.randint(*GENIUS_PEAK_RANGE)} if random.random() < GENIUS_CHANCE else {}),
+        **_roll_genius(),
     }
 
 
@@ -143,8 +162,14 @@ def season_growth(ind, growth_scale=1.0):
     p[ENDGAME_KEY] = round(min(ENDGAME_CAP, max(0.0, p[ENDGAME_KEY] + delta)), 2)
     if p.get(GENIUS_MAX_KEY):
         if ind.age < 30:
-            p[GENIUS_KEY] = min(p[GENIUS_MAX_KEY], p.get(GENIUS_KEY, 0) + GENIUS_GROWTH)
+            grow = PRODIGY_GROWTH if p.get(PRODIGY_MAX_KEY) else GENIUS_GROWTH
+            p[GENIUS_KEY] = min(p[GENIUS_MAX_KEY], p.get(GENIUS_KEY, 0) + grow)
         elif ind.age >= GENIUS_DECLINE_AGE:
             p[GENIUS_KEY] = max(0, p.get(GENIUS_KEY, 0) - GENIUS_DECLINE)
+    if p.get(PRODIGY_MAX_KEY):
+        if ind.age < 30:
+            p[PRODIGY_KEY] = min(p[PRODIGY_MAX_KEY], p.get(PRODIGY_KEY, 0) + PRODIGY_GROWTH)
+        elif ind.age >= GENIUS_DECLINE_AGE:
+            p[PRODIGY_KEY] = max(0, p.get(PRODIGY_KEY, 0) - GENIUS_DECLINE)
     young = BOOK_YOUNG_SPEEDUP if ind.age < BOOK_YOUNG_AGE else 1.0
     p[BOOK_KEY] = int(min(BOOK_CAP, p.get(BOOK_KEY, 0) + p.get(BOOK_RATE_KEY, 0.0) * young + random.random()))
