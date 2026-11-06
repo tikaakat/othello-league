@@ -1875,6 +1875,7 @@ function renderActiveRosterBody() {
 
   return `${groupChipsHtml}
     <div class="roster-link-out" data-goto-clans="true">→ 系統一覧・棋士系統図を見る</div>
+    <div class="roster-link-out" data-goto-shoreikai="true" style="margin-left:12px;">→ 奨励会・三段リーグの名簿を見る</div>
     ${groupsHtml}`;
 }
 
@@ -1887,6 +1888,39 @@ function rerenderRosterBody() {
   wireRosterCommon(body);
   const clansLink = body.querySelector('[data-goto-clans]');
   if (clansLink) clansLink.addEventListener('click', () => navigateTo('clans'));
+  const skLink = body.querySelector('[data-goto-shoreikai]');
+  if (skLink) skLink.addEventListener('click', () => navigateTo('shoreikai'));
+}
+
+// 奨励会：三段リーグ（新人リーグ）の下の育成段階。12〜15歳で入会し、対局はせず成長と運で三段リーグへ上がる。
+// 名簿はファンサイト用のseason_state.json（fansite_state.py）に入っている
+async function renderShoreikai() {
+  setActiveNav('individuals');
+  setPageMeta('奨励会・三段リーグ', 'プロ（Dリーグ）を目指す奨励会員と三段リーグの在籍者の名簿。');
+  const el = document.getElementById('content');
+  el.innerHTML = skeletonHtml();
+  const st = await loadHolders();
+  const sk = st && st.shoreikai;
+  if (!sk) { el.innerHTML = '<div class="empty">奨励会の名簿はまだありません</div>'; return; }
+  const table = (rows, showJoined) => rows.length ? `<table class="rule-history"><tr><td>名前</td><td>年齢</td><td>師匠</td>${showJoined ? '<td>入会</td>' : ''}</tr>${
+    rows.map(r => `<tr><td>${escapeHtml(r.name || '')}</td><td>${r.age ?? ''}歳</td><td>${escapeHtml(r.master_name || '（なし）')}</td>${showJoined ? `<td>${r.joined_season ? `第${r.joined_season}季` : ''}</td>` : ''}</tr>`).join('')}</table>`
+    : '<div class="empty">該当者なし</div>';
+  const byAge = rows => rows.slice().sort((a, b) => (b.age || 0) - (a.age || 0));
+  const log = sk.log;
+  const list = (rows, f) => rows && rows.length ? rows.map(f).join('、') : 'なし';
+  el.innerHTML = `
+    <a class="back-link" href="#" onclick="navigateTo('individuals');return false;">← 選手名鑑へ戻る</a>
+    <h1 class="profile-name" style="font-size:1.1rem;">奨励会・三段リーグ</h1>
+    <div style="font-size:0.78rem; color:var(--text-dim); margin-bottom:10px;">
+      奨励会は12〜15歳で入会し、成長しながら三段リーグへの昇段を目指す（21歳までに上がれなければ退会）。
+      三段リーグは毎季の対局で上位3名がプロ（Dリーグ）としてデビューする（26歳までに上がれなければ退会）。</div>
+    ${log ? `<div class="rules"><h3>第${sk.log_season}季の動き</h3><div class="sec">
+      ・入会：${list(log.joined, r => `${escapeHtml(r.name)}（${r.age}歳）`)}<br>
+      ・三段リーグへ昇段：${list(log.to_sandan, r => `${escapeHtml(r.name)}（${r.age}歳）`)}<br>
+      ・退会：${list(log.left, r => `${escapeHtml(r.name)}（${r.age}歳・${escapeHtml(r.reason)}）`)}
+    </div></div>` : ''}
+    <div class="rules"><h3>三段リーグ（${sk.sandan.length}名）</h3><div class="sec">${table(byAge(sk.sandan), false)}</div>
+    <h3>奨励会（${sk.members.length}名）</h3><div class="sec">${table(byAge(sk.members), true)}</div></div>`;
 }
 
 async function renderIndividualList() {
@@ -2130,12 +2164,20 @@ function renderRules() {
       Dリーグには毎シーズン新人が加わる。
     </div>
 
-    <h3>一門と弟子</h3>
+    <h3>奨励会と三段リーグ</h3>
     <div class="sec">
-      新しくDリーグに加わる新人は、必ず現役選手の中から選ばれた「師匠」に弟子入りする。
-      自動で生まれる新人は師匠の能力を平均6割ほど受け継いで生まれてくる。どの能力を濃く受け継ぐかは弟子ごとに違い、
-      師匠の得意をそのまま受け継ぐ能力もあれば、ほとんど受け継がない能力もある（キャラクリエイトで
-      投稿された新人は、本人の設定した能力のまま弟子入りする）。実力のある選手ほど弟子を持ちやすいが、1回の新人リーグで同じ師匠に付く弟子は2人まで。<br>
+      プロ（Dリーグ）を目指す子どもは12〜15歳で「奨励会」に入会し、毎季成長しながら「三段リーグ」（新人リーグ）への昇段を待つ。
+      奨励会では対局をせず、力の伸びと運で上がる。21歳までに三段リーグへ上がれなければ退会。<br>
+      三段リーグは毎季1人12局の対局を行い、上位3名がプロとしてDリーグにデビューする。26歳までにデビューできなければ退会。
+      才能のある子ほど若くして抜け出し、ときに中学生でプロになる。
+    </div>
+
+    <h3>師匠と弟子</h3>
+    <div class="sec">
+      奨励会に入会するとき、師匠が決まる。師匠は30歳以上の現役選手か、75歳までの引退した選手。
+      弟子を多く育てた師匠ほど入門者が集まりやすい（強さでは決まらない）。ごく一部（約3%）は師匠を持たずに入会し、新しい系統の祖になる。<br>
+      自動で生まれる新人は師匠の能力を平均6割ほど受け継いで生まれてくる。どの能力を濃く受け継ぐかは弟子ごとに違う（キャラクリエイトで
+      投稿された新人は、本人の設定した能力のまま三段リーグに参加する）。<br>
       師弟関係は「棋士系統図」でたどれる。師匠をたどった最上位の選手（祖）の名を取って「◯◯系」と呼ぶ。<br>
     </div>
 
@@ -2225,6 +2267,7 @@ const RULE_HISTORY = [
   [171, 'フリークラスの復帰条件を「出場した棋戦数＋6勝以上かつ勝率7割以上、またはタイトル挑戦」に厳格化'],
   [172, 'Dリーグの降級点を「下位4分の1に入ると1点、勝ち越すと1点減る（1点目も消える）、2点でフリークラス」に（以前は負け越しで1点・1点目は昇級まで消えない・3点でフリークラス）'],
   [207, '永世青龍の資格者は、資格を満たした順に代数が付き、引退後に「第◯世永世青龍」と名乗る（現役中は「永世青龍資格」）'],
+  [208, '奨励会を新設（12〜15歳で入会、21歳までに三段リーグへ）。新人リーグは三段リーグとして在籍者が残り続け、26歳が年齢制限に。師匠は入会時に決まり、引退した選手（75歳まで）も弟子を取れる。弟子の多い師匠ほど入門者が集まり、一部は師匠を持たない新しい系統の祖になる'],
 ];
 
 // 「このメディアについて」タブ：架空リーグ・AI自動運営という性質を明示する
@@ -2345,6 +2388,8 @@ function route() {
     renderHallOfFame();
   } else if (hash === 'keito' || hash.startsWith('keito/')) {
     renderKeitoChart(hash.startsWith('keito/') ? decodeURIComponent(hash.slice('keito/'.length)) : null);
+  } else if (hash === 'shoreikai') {
+    renderShoreikai();
   } else if (hash === 'clans') {
     renderClanList();
   } else if (hash.startsWith('clans/')) {

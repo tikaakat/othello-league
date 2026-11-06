@@ -75,6 +75,21 @@ def load_newcomer_candidate_pool(data_dir):
         return json.load(f) or []
 
 
+def load_shoreikai(data_dir):
+    """奨励会の在籍者（shoreikai.py）。ファイルが無ければNone（初回：奨励会を新たに作る合図）"""
+    path = os.path.join(data_dir, "shoreikai.json")
+    if not os.path.exists(path):
+        return None
+    with open(path, "r", encoding="utf-8") as f:
+        return (json.load(f) or {}).get("members", [])
+
+
+def save_shoreikai(data_dir, members):
+    os.makedirs(data_dir, exist_ok=True)
+    with open(os.path.join(data_dir, "shoreikai.json"), "w", encoding="utf-8") as f:
+        json.dump({"members": members}, f, ensure_ascii=False, indent=1)
+
+
 def save_newcomer_candidate_pool(data_dir, pool):
     os.makedirs(data_dir, exist_ok=True)
     path = os.path.join(data_dir, "newcomer_candidate_pool.json")

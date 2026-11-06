@@ -59,14 +59,14 @@ FORM_SCALE = 3.0
 # （終盤力は定跡と合わせて36あれば対局のほぼ全部を覆うので、上限を上げても差は付かない）。
 # 天賦を持つ選手だけ、終盤でさらに1手深く読む。トップ選手どうしの対局で、ピーク（空き20〜28マス）の天才は
 # 1局57〜70%・7番勝負65〜87%で勝つ。若いうちに伸び、45歳を過ぎると狭まる
-GENIUS_CHANCE = 1 / 40             # 新人のうち天賦を持って生まれる割合（1季3人の入門で十数季に1人）
+GENIUS_CHANCE = 1 / 80             # 奨励会の入会者のうち天賦を持って生まれる割合（毎季12名入会・約半数がデビューし、十数季に1人）
 GENIUS_PEAK_RANGE = (20, 28)
 GENIUS_GROWTH = 4                  # 30歳未満の1季あたりの伸び（マス）
 GENIUS_DECLINE_AGE = 45
 GENIUS_DECLINE = 2                 # 衰える年齢からの1季あたりの縮み（マス）
 # 大天才（藤井聡太級）：50季に1人ほど。天賦の範囲が定跡明けから全部（36マス）に広がり、さらに終盤24マスでは
 # もう1手深く読む（ほかの選手より2手深い）。トップ選手どうしの対局で、ピークの大天才は1局約80%・7番勝負約97%で勝つ
-PRODIGY_CHANCE = 1 / 150           # 新人のうち大天才として生まれる割合（1季3人の入門で約50季に1人）
+PRODIGY_CHANCE = 1 / 600           # 奨励会の入会者のうち大天才として生まれる割合（毎季12名入会、ほぼ全員がデビューし約50季に1人）
 PRODIGY_PEAK = 36
 PRODIGY2_PEAK = 24
 PRODIGY_GROWTH = 6                 # 大天才の30歳未満の1季あたりの伸び（デビューが遅めでも30歳までにピークへ届くように）                  # 調子：その季の終盤力が ±（ムラ気×3マス）程度上下する
@@ -80,6 +80,17 @@ BOOK_PARAMS = {
 
 def _growth_speed():
     return min(ENDGAME_GROWTH_MAX, random.lognormvariate(math.log(ENDGAME_GROWTH_MEDIAN), ENDGAME_GROWTH_SIGMA))
+
+
+def _book_rate_for(growth):
+    """才能の共通因子：定跡を覚える速さを、終盤力の伸びる速さと連動させる（伸びる子は覚えるのも速い）。
+    伸びる速さの順位（対数正規分布の累積）を1〜3手/季に写し、少しだけばらつかせる。
+    以前は独立に抽選していたため、若くして頭角を現す子（定跡を早く覚える）が、その後大成するとは限らなかった"""
+    z = math.log(max(growth, 1e-3) / ENDGAME_GROWTH_MEDIAN) / ENDGAME_GROWTH_SIGMA
+    pct = 0.5 * (1 + math.erf(z / math.sqrt(2)))
+    pct = min(1.0, max(0.0, pct + random.gauss(0, 0.1)))
+    lo, hi = BOOK_RATE_RANGE
+    return round(lo + (hi - lo) * pct, 2)
 
 
 def _age_factor(age):
@@ -105,13 +116,14 @@ def _roll_genius():
 def birth_skills(master_params=None):
     """新しく生まれる個体の終盤力・定跡を決める（師匠がいれば終盤力を2割、定跡を7割受け継ぐ。定跡は最低16手）"""
     endgame = ENDGAME_BIRTH_MAX * random.betavariate(1.0, ENDGAME_BIRTH_BETA)
+    growth = _growth_speed()
     if master_params:
         endgame += ENDGAME_INHERIT * master_params.get(ENDGAME_KEY, 0.0)
     return {
         ENDGAME_KEY: round(min(ENDGAME_CAP, endgame), 2),
-        ENDGAME_GROWTH_KEY: round(_growth_speed(), 3),
+        ENDGAME_GROWTH_KEY: round(growth, 3),
         BOOK_KEY: min(BOOK_CAP, max(BOOK_NEWCOMER_MIN, int(BOOK_INHERIT * (master_params or {}).get(BOOK_KEY, 0)))),
-        BOOK_RATE_KEY: round(random.uniform(*BOOK_RATE_RANGE), 2),
+        BOOK_RATE_KEY: _book_rate_for(growth),
         **_roll_genius(),
     }
 
