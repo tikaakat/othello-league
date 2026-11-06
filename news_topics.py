@@ -18,7 +18,7 @@ import os
 from collections import Counter, defaultdict
 
 LEAGUES = ("A", "B", "C", "D")
-TITLE_NAMES = ["麒麟", "青龍", "朱雀", "白虎", "玄武"]
+TITLE_NAMES = ["青龍", "麒麟", "朱雀", "白虎", "玄武"]  # 序列順（青龍が1位）
 
 # 直近この季数に使ったテーマは避ける（話題がよほど大きければ選ばれうるよう、点数を下げるだけにする）
 RECENT_TOPIC_SEASONS = 3

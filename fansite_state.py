@@ -59,7 +59,7 @@ def _season_summary(data_dir, state):
         titles.append({"title": e["title"], "holder": e.get("holder_name"), "challenger": e.get("challenger_name"),
                        "result": "奪取" if took else "防衛",
                        "score": f"{e.get('challenger_wins', 0)}-{e.get('titleholder_wins', 0)}"})
-    order = ["麒麟", "青龍", "朱雀", "白虎", "玄武"]
+    order = ["青龍", "麒麟", "朱雀", "白虎", "玄武"]  # 序列順（青龍が1位）
     titles.sort(key=lambda t: order.index(t["title"]) if t["title"] in order else 9)
     a_top, promoted, to_free = [], {}, 0
     sp = os.path.join(data_dir, "standings", f"season_{season}.json")

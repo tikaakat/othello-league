@@ -106,9 +106,9 @@ function resolve_newcomer_real_ids($pdo, $rows) {
     return $rows;
 }
 
-// 5大タイトル。序列順（麒麟・青龍が竜王・名人格の最上位）。旧タイトル名（陸王・海王・空王）は
+// 5大タイトル。序列順（青龍が序列1位、麒麟が2位。どちらも最上位格）。旧タイトル名（陸王・海王・空王）は
 // シミュレーション側で移行済みのため、サイト側はこの新名称のみを扱う
-const TITLE_NAMES_LIST = ['麒麟', '青龍', '朱雀', '白虎', '玄武'];  // 序列順（両サイトの表示順）
+const TITLE_NAMES_LIST = ['青龍', '麒麟', '朱雀', '白虎', '玄武'];  // 序列順＝両サイトの表示順（青龍が序列1位）
 // 1季の中でタイトル戦が決着する順（run_season.pyの実行順）
 const TITLE_SEASON_ORDER = ['青龍', '朱雀', '白虎', '玄武', '麒麟'];
 // 獲得すると1期で八段になるタイトル（竜王・名人格）
@@ -1735,7 +1735,7 @@ switch ($action) {
 
     // --------------------------------------------------------
     case 'titles':
-        $title_order = "FIELD(title, '麒麟', '青龍', '朱雀', '白虎', '玄武')";
+        $title_order = "FIELD(title, '青龍', '麒麟', '朱雀', '白虎', '玄武')";
         $current = $pdo->query(
             "SELECT title, holder_name, holder_id, event_type, season
              FROM title_history t1
