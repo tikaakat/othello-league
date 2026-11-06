@@ -1213,8 +1213,8 @@ def try_generate_milestone(args, season, articles_path, articles):
 
 def gather_newcomer_facts(data_dir, season):
     """
-    その季からDリーグへ出走する新人リーグ結果（data/newcomer_league/for_season_{season}.json）
-    から、記事生成に使う構造化データを集める。ファイルが無い（新人リーグ未実施・
+    その季からDリーグへ出走する三段リーグ結果（data/newcomer_league/for_season_{season}.json）
+    から、記事生成に使う構造化データを集める。ファイルが無い（三段リーグ未実施・
     応募ゼロ等）場合はNoneを返す。
     """
     nl = load_json(os.path.join(data_dir, "newcomer_league", f"for_season_{season}.json"), None)
@@ -1239,6 +1239,7 @@ def gather_newcomer_facts(data_dir, season):
         promoted.append({
             "name": row["display_name"], "win": row["win"], "loss": row["loss"], "draw": row.get("draw", 0),
             "auto_generated": bool(row.get("auto_generated")), "master_name": row.get("master_name"),
+            "age": row.get("age"),
         })
         if resolved_id:
             related.append((resolved_id, row["display_name"]))
@@ -1257,7 +1258,7 @@ def gather_newcomer_facts(data_dir, season):
 
 def build_newcomer_prompt(facts):
     lines = [
-        f"第{facts['season']}季から出走する新人リーグ結果データ（事実のみ。これ以外の出来事は起きていない）:", "",
+        f"第{facts['season']}季から出走する三段リーグ結果データ（事実のみ。これ以外の出来事は起きていない）:", "",
         # 読者投稿の受付を止めている間（投稿0件）は、投稿・自動生成の区別自体を渡さない
         # （渡すと「読者からの投稿はなく全員が自動生成」のような、受付停止中には不自然な一文が入る）
         f"・参加者数：{facts['participant_count']}名"
@@ -1267,18 +1268,21 @@ def build_newcomer_prompt(facts):
     for p in facts["promoted"]:
         master_part = f"（師匠：{p['master_name']}）" if p.get("master_name") else "（師匠なし）"
         origin = ("　読者投稿" if not p["auto_generated"] else "　自動生成") if facts["submission_count"] else ""
-        lines.append(f"・昇格：{p['name']}{master_part}　{p['win']}勝{p['loss']}敗{p['draw']}分{origin}")
+        age_part = f"{p['age']}歳" if p.get("age") else ""
+        lines.append(f"・昇格：{p['name']}{age_part}{master_part}　{p['win']}勝{p['loss']}敗{p['draw']}分{origin}")
     if facts["had_playoff"]:
         lines.append("・昇格枠の境界で同成績が並び、プレーオフで昇格者を決定した。")
+    if any(p.get("age") and p["age"] <= 15 for p in facts["promoted"]):
+        lines.append("・15歳以下でのプロ入り（中学生棋士）は、ごくまれな快挙である。")
     lines.append("")
     lines.append(
-        "以上の事実だけをもとに、今回の新人リーグ結果を紹介する短い記事を書いてください。"
+        "以上の事実だけをもとに、今回の三段リーグ結果を紹介する短い記事を書いてください。"
         "新たにDリーグへ参入する顔ぶれを紹介する、記者（犬飼）の速報記事という位置づけです。"
         "データに無い出来事・数字は書かないこと。"
         + ("" if facts["submission_count"] else "読者からの投稿や、自動生成かどうかには触れないこと。")
         + "出力は次のJSON形式のみ（説明文やコードフェンスなど、他のテキストは一切含めない）：\n"
         '{"title": "見出し", "summary": "1〜2文の要約", "body": "本文（200〜350字程度）", '
-        '"tags": ["新人リーグ", "結果"]}'
+        '"tags": ["三段リーグ", "結果"]}'
     )
     return "\n".join(lines)
 
@@ -1298,18 +1302,18 @@ def try_generate_newcomer(args, season, articles_path, articles):
                     json.dump(articles, f, ensure_ascii=False, indent=2)
                 print(f"[DEBUG] {article_id}に関連個体を追加しました", flush=True)
                 return
-        print(f"[DEBUG] 第{season}季の新人リーグ記事は既に生成済みです（{article_id}）。スキップします", flush=True)
+        print(f"[DEBUG] 第{season}季の三段リーグ記事は既に生成済みです（{article_id}）。スキップします", flush=True)
         return
 
     facts = gather_newcomer_facts(args.data_dir, season)
     if facts is None:
-        print(f"[DEBUG] 第{season}季の新人リーグ結果データが見つかりません。記事生成をスキップします", flush=True)
+        print(f"[DEBUG] 第{season}季の三段リーグ結果データが見つかりません。記事生成をスキップします", flush=True)
         return
     if not facts["promoted"]:
-        print(f"[DEBUG] 第{season}季は新人リーグの昇格者がいません。記事生成をスキップします", flush=True)
+        print(f"[DEBUG] 第{season}季は三段リーグの昇格者がいません。記事生成をスキップします", flush=True)
         return
 
-    print(f"[DEBUG] 第{season}季の新人リーグ記事を生成します（model={args.model}）", flush=True)
+    print(f"[DEBUG] 第{season}季の三段リーグ記事を生成します（model={args.model}）", flush=True)
     generated = run_claude(build_newcomer_prompt(facts) + variety_note(articles), model=args.model, persona_path=PERSONA_PATH)
 
     # 新人リーグは、新人が出走する季の本戦より前に行われる。保険として本戦の後に生成した場合も、
@@ -1330,7 +1334,7 @@ def try_generate_newcomer(args, season, articles_path, articles):
         "published_at": published_at.isoformat(timespec="seconds"),
         "related_individual_ids": facts["related_individual_ids"],
         "related_individual_names": facts["related_individual_names"],
-        "tags": generated.get("tags") or ["新人リーグ", "結果"],
+        "tags": generated.get("tags") or ["三段リーグ", "結果"],
         "generated_by": args.model,
     })
 
@@ -1346,13 +1350,13 @@ def main():
     parser.add_argument("--regenerate-milestone", action="store_true",
                         help="対象季の永世称号の特集記事が既にあっても作り直す（記事の誤りを修正する場合）")
     parser.add_argument("--regenerate-newcomer", action="store_true",
-                        help="対象季の新人リーグ記事が既にあっても作り直す（掲載日時は元のまま）")
+                        help="対象季の三段リーグ記事が既にあっても作り直す（掲載日時は元のまま）")
     parser.add_argument("--regenerate-column", action="store_true",
                         help="対象季のコラム（2本）が既にあっても作り直す（記事の誤りを修正する場合。掲載日時は元のまま）")
     parser.add_argument("--regenerate-upset", action="store_true",
                         help="--regenerate-columnと同じ（旧「波乱の一局」コラム用の指定。今はコラム2本をまとめて作り直す）")
     parser.add_argument("--newcomer-only", action="store_true",
-                        help="対象季（＝新人が出走する季）の新人リーグ記事だけを生成する。新人リーグ（newcomer_league.yml）の"
+                        help="対象季（＝新人が出走する季）の三段リーグ記事だけを生成する。三段リーグ（newcomer_league.yml）の"
                              "直後に、その回の記事をすぐ出すために使う")
     args = parser.parse_args()
 

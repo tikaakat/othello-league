@@ -271,7 +271,7 @@ const TAB_GROUPS = {
     // キャラクリエイト（newcomer_create）は一旦非表示にする（機能自体は復活する可能性があるため、
     // コード・URLルーティング（#newcomer_create）・APIは残したまま、タブ一覧から外すだけにする）
     label: '新人', tabs: ['newcomer', 'newcomer_history'],
-    subLabels: { newcomer_create: 'キャラクリエイト', newcomer: '結果', newcomer_history: '歴代記録' },
+    subLabels: { newcomer_create: 'キャラクリエイト', newcomer: '三段・奨励会', newcomer_history: '歴代記録' },
   },
 };
 // タブ一覧には出ないが、内容的にどのグループに属するか（ボタンのアクティブ表示用）
@@ -629,10 +629,10 @@ async function loadLeagues() {
         const nc = pendingNewcomers[i];
         if (nc) {
           html += `<tr style="opacity:0.75;"><td class="rank-num"><span style="color:var(--text-dim); font-size:0.68rem;">新</span></td>
-            <td>${escapeHtml(nc.display_name || nc.individual_id)}<span style="font-size:0.62rem; color:var(--cyan); margin-left:4px;">（新人リーグ選抜）</span></td>
+            <td>${escapeHtml(nc.display_name || nc.individual_id)}<span style="font-size:0.62rem; color:var(--cyan); margin-left:4px;">（三段リーグ選抜）</span></td>
             <td>-</td><td class="elo-val">-</td></tr>`;
         } else {
-          const label = newcomerResultsReady ? '自動生成予定' : '新人リーグ結果待ち';
+          const label = newcomerResultsReady ? '自動生成予定' : '三段リーグ結果待ち';
           html += `<tr style="opacity:0.5;"><td class="rank-num">-</td>
             <td style="color:var(--text-dim);">${label}</td><td>-</td><td>-</td></tr>`;
         }
@@ -667,7 +667,7 @@ function cupDrawPlayerHtml(p) {
     return `<span style="color:var(--text-dim);">${p.group ? p.group + '組' : ''}予選 ブロック${p.block_in_group + 1}の勝者</span>`;
   }
   if (p.newcomer) {
-    const label = p.name ? escapeHtml(p.name) : '<span style="color:var(--text-dim);">新人リーグ結果待ち</span>';
+    const label = p.name ? escapeHtml(p.name) : '<span style="color:var(--text-dim);">三段リーグ結果待ち</span>';
     const tag = '<span style="font-size:0.62rem; color:var(--cyan); margin-left:4px;">（新人枠）</span>';
     return p.id ? `<span data-id="${escapeHtml(p.id)}" style="cursor:pointer;">${label}</span>${tag}` : label + tag;
   }
@@ -2965,7 +2965,7 @@ async function loadNewcomerLeague(forSeason) {
     const resData = await fetch(url).then(r => r.json());
 
     if (!resData.for_season || !resData.meta) {
-      el.innerHTML = '<div class="empty">まだ新人リーグの結果がありません（1日2回、7:00・19:00 JSTまでに実施）</div>';
+      el.innerHTML = '<div class="empty">まだ三段リーグの結果がありません（1日2回、7:00・19:00 JSTまでに実施）</div>';
       return;
     }
 
@@ -2983,14 +2983,16 @@ async function loadNewcomerLeague(forSeason) {
       <button id="newcomer-prev" ${prevSeason ? '' : 'disabled'} style="background:var(--navy-800); color:var(--cyan); border:1px solid var(--navy-700); padding:4px 10px; cursor:pointer; white-space:nowrap; flex-shrink:0;">◀ 前回</button>
       <div style="font-size:0.8rem; color:var(--text-dim); text-align:center;">
         <select id="newcomer-season-select" style="background:var(--navy-800); color:var(--cyan); border:1px solid var(--navy-700); padding:4px 8px; font-size:0.8rem; border-radius:3px;">${seasonOptions}</select>
-        新人リーグ（応募${resData.meta.submission_count}名 / 昇格枠${resData.meta.slots_needed}名・昇格者は第${resData.for_season}季からDリーグ出走）</div>
+        三段リーグ（応募${resData.meta.submission_count}名 / 昇格枠${resData.meta.slots_needed}名・昇格者は第${resData.for_season}季からDリーグ出走）</div>
       <button id="newcomer-next" ${nextSeason ? '' : 'disabled'} style="background:var(--navy-800); color:var(--cyan); border:1px solid var(--navy-700); padding:4px 10px; cursor:pointer; white-space:nowrap; flex-shrink:0;">次回 ▶</button>
     </div>`;
 
     if (resData.standings.length === 0) {
       html += '<div class="empty">出走者データがありません</div>';
     } else {
-      html += `<table><thead><tr><th>#</th><th>名前</th><th>師匠</th><th>成績</th><th></th></tr></thead><tbody>`;
+      const ages = resData.ages || {};
+      const hasAge = Object.keys(ages).length > 0;
+      html += `<table><thead><tr><th>#</th><th>名前</th>${hasAge ? '<th>年齢</th>' : ''}<th>師匠</th><th>成績</th><th></th></tr></thead><tbody>`;
       resData.standings.forEach(s => {
         const tags = [];
         if (s.promoted) tags.push('<span style="display:inline-block; font-size:0.62rem; color:var(--navy-950); background:var(--cyan); border-radius:2px; padding:1px 5px; margin-right:4px; font-weight:700;">昇格</span>');
@@ -3006,12 +3008,27 @@ async function loadNewcomerLeague(forSeason) {
         html += `<tr${idAttr} style="${rowStyle}${s.real_individual_id ? '' : ' cursor:default;'}">
           <td class="rank-num">${s.rank ?? '-'}</td>
           <td>${escapeHtml(s.display_name || s.individual_id)}</td>
+          ${hasAge ? `<td style="font-size:0.78rem; white-space:nowrap;">${ages[s.display_name] ?? ''}${ages[s.display_name] != null ? '歳' : ''}</td>` : ''}
           <td style="font-size:0.78rem;">${masterCell}</td>
           <td>${s.win}勝${s.loss}敗${s.draw}分</td>
           <td>${tags.join('')}</td>
         </tr>`;
       });
       html += '</tbody></table>';
+    }
+
+    // 奨励会リーグ（三段リーグの下の育成段階）：この季の入会・三段リーグへの昇段・年齢制限による退会
+    const sk = resData.shoreikai;
+    if (sk) {
+      const list = (rows, f) => rows && rows.length ? rows.map(f).join('、') : 'なし';
+      const nm = r => `${escapeHtml(r.name)}（${r.age}歳${r.master_name ? '・師匠 ' + escapeHtml(r.master_name) : ''}）`;
+      html += `<h3 style="font-size:0.8rem; color:var(--amber); border-bottom:1px solid var(--navy-700); padding-bottom:4px; margin:16px 0 8px;">奨励会リーグ（在籍${sk.size ?? '-'}名）</h3>
+        <div style="font-size:0.75rem; color:var(--text-dim); margin-bottom:6px;">12〜15歳で入会し、成長と運で三段リーグへ昇段（21歳までに上がれなければ退会）。三段リーグは26歳が年齢制限</div>
+        <div style="font-size:0.8rem; line-height:1.7;">
+          <div><b style="color:var(--cyan);">三段リーグへ昇段</b>：${list(sk.to_sandan, nm)}</div>
+          <div><b style="color:var(--cyan);">入会</b>：${list(sk.joined, nm)}</div>
+          <div><b style="color:var(--cyan);">退会</b>：${list(sk.left, r => `${escapeHtml(r.name)}（${r.age}歳・${escapeHtml(r.reason)}）`)}</div>
+        </div>`;
     }
 
     el.innerHTML = html;
@@ -3066,7 +3083,7 @@ function renderCharacterEntryForm(statusData) {
   const typeOptions = Object.entries(CHARACTER_TYPE_LABELS)
     .map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
 
-  const flowTip = '新人リーグは1日2回、本戦の直後に行われ、朝7:00・夜19:00（JST）頃までに終わる見込みです（本戦は0:30・12:30以降に順次開始。GitHub側の都合で遅れることがあります）。新人リーグが始まるまでのエントリーがその回で選抜され、次の本戦（朝の回なら同じ日の夕方、夜の回なら翌朝）から出走します。';
+  const flowTip = '三段リーグは1日2回、本戦の直後に行われ、朝7:00・夜19:00（JST）頃までに終わる見込みです（本戦は0:30・12:30以降に順次開始。GitHub側の都合で遅れることがあります）。三段リーグが始まるまでのエントリーがその回で選抜され、次の本戦（朝の回なら同じ日の夕方、夜の回なら翌朝）から出走します。';
   const typeTip = 'バランス型：全パラメータを均等に配分。攻撃型：着手可能数（機動力）を重視。守備型：確定石（辺の安定度）を重視。隅重視型：角の確保と危険マスの回避を重視。';
 
   const paramRows = CC_PARAM_KEYS.map(k => `<div class="slider">
@@ -3079,7 +3096,7 @@ function renderCharacterEntryForm(statusData) {
   const fieldLabelStyle = 'display:block; font-size:0.72rem; color:var(--text-dim); margin-bottom:4px;';
 
   return `<h3 style="font-size:0.8rem; color:var(--amber); border-bottom:1px solid var(--navy-700); padding-bottom:4px; margin-bottom:2px;">キャラクリエイト${infoIcon(flowTip)}</h3>
-    <div style="font-size:0.7rem; color:var(--text-dim); margin-bottom:10px;">新人リーグは1日2回（7:00／19:00 JSTまでに実施）。選抜されれば、次の本戦からすぐ出走します</div>
+    <div style="font-size:0.7rem; color:var(--text-dim); margin-bottom:10px;">三段リーグは1日2回（7:00／19:00 JSTまでに実施）。選抜されれば、次の本戦からすぐ出走します</div>
     <div style="margin-bottom:10px;">
       <label style="${fieldLabelStyle}" for="cc-name">名前（20文字まで）</label>
       <input type="text" id="cc-name" maxlength="20" ${closed ? 'disabled' : ''} style="${fieldStyle}">
@@ -3218,10 +3235,10 @@ async function loadNewcomerHistory() {
     const data = await fetch(`${API_BASE}?action=newcomer_league_history`).then(r => r.json());
     const rows = data.history || [];
     if (rows.length === 0) {
-      el.innerHTML = '<div class="empty">まだ新人リーグ経由での新規参入記録がありません</div>';
+      el.innerHTML = '<div class="empty">まだ三段リーグ経由での新規参入記録がありません</div>';
       return;
     }
-    let html = `<h3 style="font-size:0.8rem; color:var(--amber); border-bottom:1px solid var(--navy-700); padding-bottom:4px; margin-bottom:8px;">新人リーグ経由 新規参入者（歴代）</h3>`;
+    let html = `<h3 style="font-size:0.8rem; color:var(--amber); border-bottom:1px solid var(--navy-700); padding-bottom:4px; margin-bottom:8px;">三段リーグ経由 新規参入者（歴代）</h3>`;
     html += `<table><thead><tr><th>季</th><th>名前</th><th>師匠</th><th>成績</th><th></th></tr></thead><tbody>`;
     rows.forEach(r => {
       const tag = r.auto_generated ? '<span style="display:inline-block; font-size:0.62rem; color:var(--text-dim); border:1px solid var(--navy-700); border-radius:2px; padding:1px 5px;">自動生成</span>' : '';
