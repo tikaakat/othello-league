@@ -37,7 +37,8 @@ def _shoreikai_summary(data_dir, state):
             with open(os.path.join(nl_dir, f"for_season_{s}.json"), encoding="utf-8") as f:
                 d = json.load(f)
             if d.get("shoreikai"):
-                log, log_season = d["shoreikai"], s
+                # for_season_{s} は第s季から出走する分＝第s−1季の本戦のあとに開いた奨励会・三段リーグ
+                log, log_season = d["shoreikai"], s - 1
                 break
     return {"members": [row(e) for e in members], "sandan": [row(e) for e in sandan],
             "log": log, "log_season": log_season}

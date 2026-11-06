@@ -38,6 +38,7 @@
     --shadow: rgba(58,51,46,0.07); --shadow-hover: rgba(58,51,46,0.12);
     --hover-bg: #FFF6EE; --filter-border: #F3DCC9; --skeleton-shimmer: #F7F0E6;
     --clan-member-bg: #FDE6D6; --clan-member-bar-retired: #D9B8A2;
+    --text-sub: #5B5349; --gold-text: #8A6A2E; --chip-bg: #FFF1E0; --amount-bg: #FFFBF0;
   }
   /* ダークモード：OSの設定に自動追従（prefers-color-scheme）。
      data-theme属性での手動切り替え（ヘッダーのボタン、localStorageに保存）が
@@ -49,6 +50,7 @@
       --shadow: rgba(0,0,0,0.35); --shadow-hover: rgba(0,0,0,0.45);
       --hover-bg: #2E2419; --filter-border: #4A3A2C; --skeleton-shimmer: #3A2F27;
       --clan-member-bg: #45301F; --clan-member-bar-retired: #7A5A44;
+      --text-sub: #D9CCBF; --gold-text: #E2C27A; --chip-bg: #3A2C20; --amount-bg: #2E2419;
     }
   }
   :root[data-theme="dark"] {
@@ -57,8 +59,11 @@
     --shadow: rgba(0,0,0,0.35); --shadow-hover: rgba(0,0,0,0.45);
     --hover-bg: #2E2419; --filter-border: #4A3A2C; --skeleton-shimmer: #3A2F27;
       --clan-member-bg: #45301F; --clan-member-bar-retired: #7A5A44;
+      --text-sub: #D9CCBF; --gold-text: #E2C27A; --chip-bg: #3A2C20; --amount-bg: #2E2419;
   }
   * { box-sizing: border-box; }
+  input, textarea, select { background: var(--card); color: var(--text-main); border: 1px solid var(--border); }
+  input::placeholder, textarea::placeholder { color: var(--text-dim); }
   body {
     margin: 0; background: var(--bg); color: var(--text-main);
     font-family: 'Noto Sans JP', sans-serif; min-height: 100vh;
@@ -164,7 +169,7 @@
   .byline { color: var(--text-dim); font-size: 0.7rem; }
   .byline b { color: var(--accent-dark); font-weight: 700; }
   .card-title { font-size: 1rem; margin: 0 0 6px; line-height: 1.4; }
-  .card-summary { font-size: 0.82rem; color: #5B5349; line-height: 1.6; margin: 0 0 6px; }
+  .card-summary { font-size: 0.82rem; color: var(--text-sub); line-height: 1.6; margin: 0 0 6px; }
   .card-individuals { display: flex; gap: 6px; flex-wrap: wrap; }
   .ind-chip {
     font-size: 0.68rem; color: var(--accent-dark); background: var(--hover-bg); border-radius: 8px;
@@ -188,7 +193,7 @@
   .related-row:hover { box-shadow: 0 2px 8px var(--shadow-hover); }
   .ext-link { font-size: 0.78rem; white-space: nowrap; }
   .like-btn {
-    font-size: 0.74rem; font-weight: 700; color: var(--accent-dark); background: #fff;
+    font-size: 0.74rem; font-weight: 700; color: var(--accent-dark); background: var(--card);
     border: 1px solid var(--border); border-radius: 10px; padding: 4px 11px; cursor: pointer; white-space: nowrap;
   }
   .like-btn.liked { color: #fff; background: var(--accent); border-color: var(--accent); cursor: default; }
@@ -260,7 +265,7 @@
   .clan-branched-from:hover { color: var(--accent-dark); }
 
   /* 人気記事ランキング */
-  .ranking-box { margin-bottom: 16px; padding: 10px 14px; background: #FFFBF6; border: 1px solid var(--border); border-radius: 10px; }
+  .ranking-box { margin-bottom: 16px; padding: 10px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; }
   .ranking-box h4 { font-size: 0.78rem; color: var(--text-dim); margin: 0 0 6px; }
   .ranking-row {
     display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 0.82rem; cursor: pointer;
@@ -273,7 +278,7 @@
   /* 推し個体フォロー */
   .follow-btn {
     font-size: 0.78rem; font-weight: 700; padding: 6px 14px; border-radius: 10px;
-    border: 1px solid var(--accent); background: #fff; color: var(--accent-dark); cursor: pointer;
+    border: 1px solid var(--accent); background: var(--card); color: var(--accent-dark); cursor: pointer;
     margin-top: 6px;
   }
   .follow-btn.following { background: var(--accent); color: #fff; }
@@ -281,11 +286,11 @@
   .follow-box h4 { font-size: 0.78rem; color: var(--text-dim); margin: 0 0 6px; }
   .follow-chip-row { display: flex; gap: 6px; flex-wrap: wrap; }
   .follow-chip {
-    font-size: 0.78rem; padding: 4px 10px; border-radius: 10px; background: #fff;
+    font-size: 0.78rem; padding: 4px 10px; border-radius: 10px; background: var(--card);
     border: 1px solid var(--border); color: var(--text-main); cursor: pointer;
   }
   .card.followed { border-left: 3px solid var(--accent); }
-  .oshi-badge { font-size: 0.68rem; font-weight: 700; color: var(--accent-dark); background: #FFF1E0; border-radius: 8px; padding: 2px 8px; margin-right: 4px; }
+  .oshi-badge { font-size: 0.68rem; font-weight: 700; color: var(--accent-dark); background: var(--chip-bg); border-radius: 8px; padding: 2px 8px; margin-right: 4px; }
   .oshi-star { color: var(--accent-dark); margin-right: 2px; }
   .roster-new-badge { font-size: 0.68rem; color: var(--text-dim); border: 1px solid var(--border); border-radius: 8px; padding: 1px 6px; margin-right: 4px; }
 
@@ -323,7 +328,7 @@
     display: flex; align-items: baseline; gap: 6px; font-size: 0.8rem; color: var(--text-main);
     background: var(--hover-bg); border-left: 3px solid #D9A24B; border-radius: 6px; padding: 6px 10px;
   }
-  .sponsor-item .sponsor-name { font-weight: 700; color: #8A6A2E; flex-shrink: 0; }
+  .sponsor-item .sponsor-name { font-weight: 700; color: var(--gold-text); flex-shrink: 0; }
   .sponsor-item .sponsor-message { overflow: hidden; text-overflow: ellipsis; color: var(--text-dim); font-style: italic; }
   /* 松竹梅：支援ランクごとに一覧を区分けして表示する（金額そのものは出さない） */
   .sponsor-tier-group { margin-top: 10px; }
@@ -350,7 +355,7 @@
     background: linear-gradient(120deg, #96701A, #E8C878 45%, #96701A 85%);
     -webkit-background-clip: text; background-clip: text; color: #96701A;
   }
-  .sponsor-item.tier-matsu .sponsor-message { color: #8A6A2E; }
+  .sponsor-item.tier-matsu .sponsor-message { color: var(--gold-text); }
 
   .modal-overlay {
     position: fixed; inset: 0; background: rgba(43, 36, 26, 0.45);
@@ -358,7 +363,7 @@
   }
   .modal-overlay.hidden { display: none; }
   .modal-box {
-    background: #fff; border-radius: 16px; padding: 20px; max-width: 360px; width: 100%;
+    background: var(--card); color: var(--text-main); border-radius: 16px; padding: 20px; max-width: 360px; width: 100%;
     max-height: 90vh; overflow-y: auto;
   }
   .modal-box h3 { font-size: 0.95rem; margin: 0 0 4px; color: var(--text-main); }
@@ -370,7 +375,7 @@
   .amount-chip-row { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
   .amount-chip {
     font-size: 0.84rem; font-weight: 700; padding: 8px 14px; border-radius: 10px;
-    border: 1px solid #F0DDB8; background: #FFFBF0; color: #8A6A2E; cursor: pointer;
+    border: 1px solid #F0DDB8; background: var(--amount-bg); color: var(--gold-text); cursor: pointer;
   }
   .amount-chip.active { background: #B8692E; color: #fff; border-color: #B8692E; }
   .modal-box label { display: block; font-size: 0.76rem; color: var(--text-dim); margin: 10px 0 4px; }
@@ -398,7 +403,7 @@
   .board-form input, .board-form select, .board-form textarea { display: block; width: 100%; max-width: 520px; padding: 7px; margin-bottom: 8px; font: inherit; box-sizing: border-box; }
   .board-del { font-size: 0.7rem; margin-left: 8px; color: #b33; cursor: pointer; text-decoration: underline; }
   .rules h3:first-child { margin-top: 0; }
-  .rules div.sec { font-size: 0.82rem; line-height: 1.8; color: #5B5349; }
+  .rules div.sec { font-size: 0.82rem; line-height: 1.8; color: var(--text-sub); }
   .rules b { color: var(--text-main); }
   .rules table.rule-history { border-collapse: collapse; margin-top: 8px; width: 100%; }
   .rules table.rule-history td { padding: 5px 8px 5px 0; border-bottom: 1px solid var(--border); vertical-align: top; }
@@ -1983,7 +1988,7 @@ async function renderShoreikai() {
   const sk = st && st.shoreikai;
   if (!sk) { el.innerHTML = '<div class="empty">奨励会リーグの名簿はまだありません</div>'; return; }
   const table = (rows, showJoined) => rows.length ? `<table class="rule-history"><tr><td>名前</td><td>年齢</td><td>師匠</td>${showJoined ? '<td>入会</td>' : ''}</tr>${
-    rows.map(r => `<tr><td>${escapeHtml(r.name || '')}${r.named_by ? `<span class="board-meta" style="display:block;">名付け親：${escapeHtml(r.named_by)}</span>` : ''}</td><td>${r.age ?? ''}歳</td><td>${escapeHtml(r.master_name || '（なし）')}</td>${showJoined ? `<td>${r.joined_season ? `第${r.joined_season}季` : ''}</td>` : ''}</tr>`).join('')}</table>`
+    rows.map(r => `<tr><td>${escapeHtml(r.name || '')}${r.named_by ? `<span class="board-meta" style="display:block;">名付け親：${escapeHtml(r.named_by)}</span>` : ''}</td><td>${r.age ?? ''}歳</td><td>${escapeHtml(r.master_name || '（なし）')}</td>${showJoined ? `<td>${r.joined_season == null ? '' : r.joined_season >= 1 ? `第${r.joined_season}季` : '開幕前'}</td>` : ''}</tr>`).join('')}</table>`
     : '<div class="empty">該当者なし</div>';
   const byAge = rows => rows.slice().sort((a, b) => (b.age || 0) - (a.age || 0));
   const log = sk.log;
