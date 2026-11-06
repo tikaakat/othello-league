@@ -70,7 +70,7 @@ $checkStmt = $pdo->prepare(
 $checkStmt->execute(['id' => $individualId, 'id2' => $individualId]);
 if (!$checkStmt->fetchColumn()) {
     http_response_code(404);
-    echo json_encode(['error' => '個体が見つかりません']);
+    echo json_encode(['error' => '選手が見つかりません']);
     exit;
 }
 

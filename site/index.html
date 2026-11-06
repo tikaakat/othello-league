@@ -28,9 +28,11 @@
   * { box-sizing: border-box; }
   body {
     margin: 0; background: radial-gradient(ellipse at top, var(--navy-800) 0%, var(--navy-950) 70%);
-    color: var(--text-main); font-family: 'Noto Sans JP', sans-serif; min-height: 100vh; padding: 16px;
+    color: var(--text-main); font-family: 'OrbitronLetters', 'Noto Sans JP', sans-serif; min-height: 100vh; padding: 16px;
   }
-  /* 英数字も含めて本文と同じフォントに統一する（サイト名のロゴだけOrbitron） */
+  /* 英字（A〜Z・a〜z）だけOrbitron、数字と日本語はNoto Sans JP。Orbitronのフォントファイルを英字の範囲に限って読み込む */
+  @font-face { font-family: 'OrbitronLetters'; font-style: normal; font-weight: 400 900; font-display: swap;
+    src: url(https://fonts.gstatic.com/s/orbitron/v35/yMJRMIlzdpvBhQQL_Qq7dy0.woff2) format('woff2'); unicode-range: U+0041-005A, U+0061-007A; }
   h1 { font-family: 'Orbitron', sans-serif; }
   table { font-variant-numeric: tabular-nums; }
   .header { text-align: center; margin-bottom: 20px; }
@@ -169,11 +171,11 @@
 </div>
 
 <div class="tabs" id="primary-tabs">
-  <button class="tab-btn" data-group="newcomer_group">新人</button>
-  <button class="tab-btn active" data-group="leagues">リーグ</button>
+  <button class="tab-btn active" data-group="leagues">今季組合せ</button>
   <button class="tab-btn" data-group="results">結果</button>
   <button class="tab-btn" data-group="titles">タイトル</button>
   <button class="tab-btn" data-group="hof">殿堂</button>
+  <button class="tab-btn" data-group="newcomer_group">新人</button>
 </div>
 <div class="subtabs hidden" id="subtabs"></div>
 
@@ -184,7 +186,7 @@
 <div class="panel hidden" id="tab-draw_byakko"><div id="draw_byakko-content" class="loading">読み込み中...</div></div>
 <div class="panel hidden" id="tab-draw_genbu"><div id="draw_genbu-content" class="loading">読み込み中...</div></div>
 <div class="panel hidden" id="tab-titles"><div id="titles-content" class="loading">読み込み中...</div></div>
-<div class="panel hidden" id="tab-individual"><div id="individual-content" class="empty">リーグタブから個体を選択してください</div></div>
+<div class="panel hidden" id="tab-individual"><div id="individual-content" class="empty">今季組合せタブから選手を選んでください</div></div>
 <div class="panel hidden" id="tab-matches"><div id="matches-content" class="loading">読み込み中...</div></div>
 <div class="panel hidden" id="tab-seiryuu"><div id="seiryuu-content" class="loading">読み込み中...</div></div>
 <div class="panel hidden" id="tab-suzaku"><div id="suzaku-content" class="loading">読み込み中...</div></div>
@@ -249,7 +251,7 @@ const tabPanels = {
 // （以前はsubViews系だけパネル内部に独自描画しており、タブ直下のsubLabels系と縦位置が揃っていなかった）
 const TAB_GROUPS = {
   leagues: {
-    label: 'リーグ', tabs: ['leagues', 'draw_kirin', 'suzaku_league', 'draw_byakko', 'draw_genbu'],
+    label: '今季組合せ', tabs: ['leagues', 'draw_kirin', 'suzaku_league', 'draw_byakko', 'draw_genbu'],
     subLabels: {
       leagues: '青龍戦リーグ表', suzaku_league: '朱雀戦紅白リーグ表',
       draw_kirin: '麒麟戦トーナメント表', draw_byakko: '白虎戦トーナメント表', draw_genbu: '玄武戦トーナメント表',
@@ -275,7 +277,7 @@ const TAB_GROUPS = {
     // キャラクリエイト（newcomer_create）は一旦非表示にする（機能自体は復活する可能性があるため、
     // コード・URLルーティング（#newcomer_create）・APIは残したまま、タブ一覧から外すだけにする）
     label: '新人', tabs: ['newcomer', 'shoreikai', 'newcomer_history'],
-    subLabels: { newcomer_create: 'キャラクリエイト', newcomer: '三段リーグ', shoreikai: '奨励会リーグ', newcomer_history: '歴代記録' },
+    subLabels: { newcomer_create: 'キャラクリエイト', newcomer: '三段リーグ', shoreikai: '奨励会リーグ', newcomer_history: '歴代のデビュー' },
   },
 };
 // タブ一覧には出ないが、内容的にどのグループに属するか（ボタンのアクティブ表示用）
@@ -651,8 +653,27 @@ async function loadLeagues() {
       html += '</div>';
     });
 
+    // 選手の名前検索（現役・引退）
+    html = `<div style="margin-bottom:12px;"><input id="player-search" type="search" placeholder="選手を名前で探す（現役・引退）"
+        style="width:100%; padding:8px 10px; background:var(--navy-800); color:var(--text-main); border:1px solid var(--navy-700); border-radius:4px; font:inherit; font-size:0.85rem;">
+      <div id="player-search-results" style="font-size:0.82rem;"></div></div>` + html;
     el.innerHTML = html;
     el.querySelectorAll('tr[data-id], [data-id]').forEach(tr => tr.addEventListener('click', () => navigateTo('individual/' + tr.dataset.id)));
+    const sInput = el.querySelector('#player-search'), sOut = el.querySelector('#player-search-results');
+    let sTimer = null;
+    sInput.addEventListener('input', () => {
+      clearTimeout(sTimer);
+      sTimer = setTimeout(async () => {
+        const q = sInput.value.trim();
+        if (!q) { sOut.innerHTML = ''; return; }
+        const r = await fetch(`${API_BASE}?action=search&q=${encodeURIComponent(q)}`).then(x => x.json()).catch(() => ({ results: [] }));
+        const rows = r.results || [];
+        sOut.innerHTML = rows.length ? rows.map(p => `<div data-sid="${escapeHtml(p.id)}" style="padding:5px 2px; border-bottom:1px solid var(--navy-700); cursor:pointer;">${escapeHtml(p.display_name)}
+            <span style="color:var(--text-dim); font-size:0.72rem;">${+p.retired ? '引退' : (p.league === 'F' ? 'フリークラス' : (p.league || '') + 'リーグ')}</span></div>`).join('')
+          : '<div style="color:var(--text-dim); padding:5px 2px;">見つかりません</div>';
+        sOut.querySelectorAll('[data-sid]').forEach(d => d.addEventListener('click', () => navigateTo('individual/' + d.dataset.sid)));
+      }, 250);
+    });
   } catch (e) {
     el.innerHTML = `<div class="empty">読み込み失敗: ${escapeHtml(String(e))}</div>`;
   }
@@ -879,6 +900,13 @@ async function loadCupDrawPanel(kind) {
         const label = { '1-1': '1組優勝', '1-2': '1組2位', '1-3': '1組3位', '1-4': '1組4位', '2-1': '2組優勝', '2-2': '2組2位', '3-1': '3組優勝', '4-1': '4組優勝' };
         html += `<div class="league-block"><h3>第${data.season}季 麒麟戦</h3>`;
         html += small(`${holderLine(k.holder)}／組ごとのランキング戦の上位が本戦（8名）へ。1〜3組は1回戦の敗者が残留決定戦を行い、敗者4名が降級。2〜4組はベスト4が昇級`);
+        // 組の顔ぶれ（前季の成績順。在籍2期以上は期数を添える）
+        html += `<div style="font-size:0.72rem; color:var(--amber); margin:6px 0 4px;">組の顔ぶれ（前季の成績順）</div><table><thead><tr><th>組</th><th>選手</th></tr></thead><tbody>`
+          + ['1', '2', '3', '4'].map(g => {
+            const ms = (k.groups || {})[g] || [];
+            return `<tr style="cursor:default;"><td style="white-space:nowrap; vertical-align:top;">${g}組<div style="font-size:0.66rem; color:var(--text-dim);">${ms.length}名</div></td><td style="font-size:0.74rem; line-height:1.7; text-align:left;">${
+              ms.map((m, i) => `<span data-id="${escapeHtml(m.id || '')}" style="cursor:pointer; white-space:nowrap; margin-right:10px;">${i + 1}.${escapeHtml(m.name || '')}${m.reason ? `<span style="color:var(--amber);">（${escapeHtml(m.reason)}）</span>` : (m.tenure > 1 ? `<span style="color:var(--text-dim);">（${m.tenure}期目）</span>` : '')}</span>`).join('')}</td></tr>`;
+          }).join('') + '</tbody></table>';
         const lab = x => (label[x] || x).replace('ベスト4', '');
         const slotLabel = { '1-3': '1組3位', '1-4': '1組4位' };
         let nk = 0;  // まだ対局していないので、勝者は誰でもない（線を勝ち上がりの色にしない）
@@ -1021,7 +1049,7 @@ function renderCurrentHoldersView(el, data) {
     const eternalBadge = t.eternal ? `<span style="display:inline-block; background:rgba(255,182,72,0.15); border:1px solid var(--amber); color:var(--amber); font-size:0.68rem; padding:2px 8px; border-radius:2px; margin-left:8px;">★永世${escapeHtml(t.title)}${t.title === '青龍' ? '資格' : ''}</span>` : '';
     html += `<div class="title-card"><h4>${escapeHtml(t.title)}</h4><div>
       <span class="title-name-link" data-id="${escapeHtml(t.holder_id || '')}" style="cursor:pointer;">${escapeHtml(t.holder_name)}</span>
-      （第${t.season}シーズン〜）${eternalBadge}</div></div>`;
+      （第${t.season}季〜）${eternalBadge}</div></div>`;
   });
 
   el.innerHTML = html;
@@ -1098,7 +1126,7 @@ async function loadIndividualDetail(id) {
     html += `<div style="text-align:center; margin-bottom:14px;">
       <div style="margin-bottom:6px;">${ind.retired ? '<span style="color:var(--text-dim); font-size:0.7rem;">（引退）</span>' : `${leagueTag(ind.league)}`}</div>
       <h3 style="margin:0; font-size:1.1rem;">${crownLabel(ind.id, ind.display_name)}${escapeHtml(ind.display_name || ind.id)}</h3>
-      <div style="font-size:0.75rem; color:var(--text-dim); margin-top:2px;">通算${ind.total_seasons}シーズン${(ind.age !== null && ind.age !== undefined) ? `　${ind.age}歳` : ''}</div>
+      <div style="font-size:0.75rem; color:var(--text-dim); margin-top:2px;">通算${ind.total_seasons}季${(ind.age !== null && ind.age !== undefined) ? `　${ind.age}歳` : ''}</div>
       ${(ind.dan !== null && ind.dan !== undefined) ? `<div style="margin-top:4px;"><span class="chip cyan" style="font-size:0.78rem; padding:2px 10px;">${danLabel(ind.dan)}</span></div>` : ''}
       <div style="margin-top:6px;">Elo: <span class="elo-val" style="font-size:1.1rem;">${Math.round(ind.elo_rating)}</span>
         <span style="font-size:0.72rem; color:var(--amber); margin-left:8px;">最高 ${Math.round(ind.peak_elo ?? ind.elo_rating)}</span></div>
@@ -1133,7 +1161,7 @@ async function loadIndividualDetail(id) {
     html += `<h4 style="font-size:0.78rem; color:var(--amber); border-bottom:1px solid var(--navy-700); padding-bottom:4px;">今季の表彰</h4>`;
     html += `<div id="ind-awards" style="font-size:0.8rem; margin-bottom:16px;">読み込み中...</div>`;
 
-    html += `<h4 style="font-size:0.78rem; color:var(--amber); border-bottom:1px solid var(--navy-700); padding-bottom:4px;">シーズンごとの成績</h4>`;
+    html += `<h4 style="font-size:0.78rem; color:var(--amber); border-bottom:1px solid var(--navy-700); padding-bottom:4px;">季ごとの成績</h4>`;
     html += `<div id="ind-standings-summary" style="font-size:0.76rem; color:var(--text-dim); margin-bottom:6px;"></div>`;
     html += `<div id="ind-standings" style="font-size:0.78rem; margin-bottom:16px;">読み込み中...</div>`;
 
@@ -1402,7 +1430,7 @@ async function loadIndividualAwards(id) {
       { key: 'wins', label: '勝数ランキング', fmt: p => `${p.win}勝`, keyFn: p => p.win },
       { key: 'win_rate', label: '勝率ランキング', fmt: p => `${p.win_rate.toFixed(3)}（${p.win}勝${p.loss}敗）`, keyFn: p => p.win_rate },
       { key: 'streak', label: '連勝ランキング', fmt: p => `${p.best_streak}連勝`, keyFn: p => p.best_streak },
-      { key: 'elo_end', label: 'シーズン終了時Eloランキング', fmt: p => `${Math.round(p.elo)}`, keyFn: p => p.elo },
+      { key: 'elo_end', label: '季の終了時Eloランキング', fmt: p => `${Math.round(p.elo)}`, keyFn: p => p.elo },
     ];
     let html = `<div style="font-size:0.68rem; color:var(--text-dim); margin-bottom:6px;">第${data.season}季（最新季）時点</div><table><tbody>`;
     categories.forEach(cat => {
@@ -2407,7 +2435,7 @@ async function loadSeiryuuPanel(season) {
     <h3 style="font-size:0.8rem; color:var(--amber); margin-top:0;">青龍戦リーグ表（A〜D）</h3>`;
 
     if (rows.length === 0) {
-      html += '<div class="empty">このシーズンの記録がありません</div>';
+      html += '<div class="empty">この季の記録がありません</div>';
       el.innerHTML = html;
     } else {
       const byLeague = { A: [], B: [], C: [], D: [], F: [] };
@@ -2731,7 +2759,7 @@ async function loadAwards(season) {
       { key: 'wins', title: '勝数ランキング', fmt: p => `${p.win}勝`, keyFn: p => p.win },
       { key: 'win_rate', title: `勝率ランキング（${data.min_games_for_rate}対局以上）`, fmt: p => `${p.win_rate.toFixed(3)}（${p.win}勝${p.loss}敗）`, keyFn: p => p.win_rate },
       { key: 'streak', title: '連勝ランキング', fmt: p => `${p.best_streak}連勝`, keyFn: p => p.best_streak },
-      { key: 'elo_end', title: 'シーズン終了時Eloランキング', fmt: p => `${Math.round(p.elo)}`, keyFn: p => p.elo },
+      { key: 'elo_end', title: '季の終了時Eloランキング', fmt: p => `${Math.round(p.elo)}`, keyFn: p => p.elo },
     ];
     sections.forEach(sec => {
       const list = data[sec.key] || [];

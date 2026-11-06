@@ -71,8 +71,11 @@
 
   header {
     display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
-    gap: 12px; margin-bottom: 18px;
+    gap: 12px; margin-bottom: 18px; position: relative;
   }
+  /* 表示テーマの切り替えはヘッダー右上に置き、メニューの折り返しに巻き込まれないようにする */
+  header #theme-toggle { position: absolute; top: 2px; right: 0; }
+  header > div:first-child { padding-right: 36px; }
   .brand-link { text-decoration: none; }
   .brand { font-size: 1.4rem; font-weight: 900; color: var(--accent); cursor: pointer; }
   .tagline { font-size: 0.74rem; color: var(--text-dim); margin-top: 2px; }
@@ -413,6 +416,9 @@
   }
   @keyframes skeleton-shimmer { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
 
+  .footer-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 18px; margin: 28px 0 0; padding-top: 14px; border-top: 1px solid var(--border); font-size: 0.8rem; }
+  .footer-links a { color: var(--text-dim); text-decoration: none; }
+  .footer-links a.active, .footer-links a:hover { color: var(--accent-dark); }
   .footer-note {
     margin-top: 30px; padding-top: 16px; border-top: 1px solid var(--border);
     font-size: 0.7rem; color: var(--text-dim); line-height: 1.7;
@@ -433,11 +439,8 @@
       <a class="nav-tab" id="nav-individuals" href="#" onclick="navigateTo('individuals');return false;">選手名鑑</a>
       <a class="nav-tab" id="nav-hof" href="#" onclick="navigateTo('hof');return false;">殿堂</a>
       <a class="nav-tab" id="nav-rules" href="#" onclick="navigateTo('rules');return false;">ルール</a>
-      <a class="nav-tab" id="nav-about" href="#" onclick="navigateTo('about');return false;">このメディアについて</a>
       <a class="nav-tab" id="nav-board" href="#" onclick="navigateTo('board');return false;">掲示板</a>
       <a class="nav-tab" id="nav-support" href="#" onclick="navigateTo('support');return false;">後援会</a>
-      <a class="nav-tab" id="nav-contact" href="#" onclick="navigateTo('contact');return false;">お問い合わせ</a>
-      <a class="nav-external" href="https://lab.spia-net.com/othello-league/" target="_blank" rel="noopener">データサイトへ ↗</a>
       <button id="theme-toggle" class="theme-toggle-btn" title="表示テーマを切り替え" aria-label="表示テーマを切り替え">🌙</button>
     </nav>
   </header>
@@ -447,7 +450,7 @@
     <div class="modal-box">
       <button class="modal-close-x" id="sponsor-modal-close">×</button>
       <h3>サポーターになる</h3>
-      <p class="modal-sub">100円：名前を掲載／300円：一言メッセージも掲載／500円：スペシャルサポーターとして掲載（1個体につき先着1名限定。データサイトの選手ページにも表示されます）。支援した金額自体は表示されません。</p>
+      <p class="modal-sub">100円：名前を掲載／300円：一言メッセージも掲載／500円：スペシャルサポーターとして掲載（1選手につき先着1名限定。データサイトの選手ページにも表示されます）。支援した金額自体は表示されません。</p>
       <div class="amount-chip-row" id="sponsor-amount-chips">
         <button type="button" class="amount-chip" data-amount="100">100円</button>
         <button type="button" class="amount-chip" data-amount="300">300円</button>
@@ -464,6 +467,11 @@
       <button class="modal-submit-btn" id="sponsor-submit-btn">この内容でStripeに進む</button>
       <div class="modal-status" id="sponsor-modal-status"></div>
     </div>
+  </div>
+  <div class="footer-links">
+    <a id="nav-about" href="#" onclick="navigateTo('about');return false;">このメディアについて</a>
+    <a id="nav-contact" href="#" onclick="navigateTo('contact');return false;">お問い合わせ</a>
+    <a href="https://lab.spia-net.com/othello-league/" target="_blank" rel="noopener">データサイト ↗</a>
   </div>
   <div class="footer-note">
     「オセロ界タイムズ」は架空のオセロリーグ（CIRCUIT OTHELLO LEAGUE）を題材にした、ファンによる非公式のニュースメディアです。登場する選手・対局結果はすべて自動対局シミュレーションによるものであり、実在の人物・団体とは関係ありません。
@@ -1079,17 +1087,6 @@ async function renderIndividualProfile(id) {
       </div>
     </div>
 
-    <div class="cheer-box">
-      <button type="button" id="profile-cheer-btn" class="cheer-btn-standalone">♡ 応援する<span class="cheer-count"></span></button>
-
-      <div class="sponsor-box">
-        <h4>サポーター</h4>
-        <p class="sponsor-desc">有料でこの選手を支援できます。支援者はお名前と一言がここに表示されます。</p>
-        <button class="sponsor-cta-btn" id="sponsor-cta-btn">🎗 サポーターになる</button>
-        <div class="sponsor-list" id="sponsor-list"></div>
-      </div>
-    </div>
-
     <div class="profile-section">
       <h4>タイトル獲得歴</h4>
       ${titleHtml}
@@ -1106,6 +1103,18 @@ async function renderIndividualProfile(id) {
       <h4>関連記事</h4>
       ${mentionsHtml}
     </div>
+
+    <div class="cheer-box">
+      <button type="button" id="profile-cheer-btn" class="cheer-btn-standalone">♡ 応援する<span class="cheer-count"></span></button>
+
+      <div class="sponsor-box">
+        <h4>サポーター</h4>
+        <p class="sponsor-desc">有料でこの選手を支援できます。支援者はお名前と一言がここに表示されます。</p>
+        <button class="sponsor-cta-btn" id="sponsor-cta-btn">🎗 サポーターになる</button>
+        <div class="sponsor-list" id="sponsor-list"></div>
+      </div>
+    </div>
+
 
     <div class="profile-footer">
       <a class="ext-link" href="${resultsSiteIndividualUrl(id)}" target="_blank" rel="noopener">もっと詳しいデータを見る（対局履歴・系譜・Elo推移など） ↗</a>
@@ -1695,10 +1704,15 @@ function rosterRowHtml(r, extraBadge) {
     </div>`;
 }
 
-function rosterViewChipsHtml() {
+// 選手名鑑の切り替え：現役／引退は名鑑の中で、系統図・奨励会リーグは別ページへ（どのページでも同じ並びで出す）
+function rosterViewChipsHtml(page) {
+  const on = key => (page ? page === key : _rosterView === key) ? 'active' : '';
+  const go = key => page ? `onclick="_rosterView='${key}'; navigateTo('individuals')"` : `data-roster-view="${key}"`;
   return `<div class="chip-row">
-      <button class="chip-btn ${_rosterView === 'active' ? 'active' : ''}" data-roster-view="active">現役</button>
-      <button class="chip-btn ${_rosterView === 'retired' ? 'active' : ''}" data-roster-view="retired">引退</button>
+      <button class="chip-btn ${on('active')}" ${go('active')}>現役</button>
+      <button class="chip-btn ${on('retired')}" ${go('retired')}>引退</button>
+      <button class="chip-btn ${on('clans')}" onclick="navigateTo('clans')">系統図</button>
+      <button class="chip-btn ${on('shoreikai')}" onclick="navigateTo('shoreikai')">奨励会・三段</button>
     </div>`;
 }
 
@@ -1854,7 +1868,8 @@ function renderHallOfFameBody() {
           <span class="ranking-title">${escapeHtml(p.display_name)}${p.retired ? '<span style="color:var(--text-dim); font-size:0.72rem;">（引退）</span>' : ''}${(p.eternal_titles || []).length ? ' <span style="color:var(--accent-dark); font-size:0.72rem;">永世</span>' : ''}${p.detail ? `<span style="display:block; color:var(--text-dim); font-size:0.72rem; white-space:normal;">${escapeHtml(p.detail)}</span>` : ''}</span>
           <span class="ranking-likes">${escapeHtml(p.valueLabel)}</span>
         </div>`).join('')}
-    </div>`;
+    </div>
+    <div style="font-size:0.78rem; margin-top:8px;"><a href="${RESULTS_SITE_BASE}#hof" target="_blank" rel="noopener" style="color:var(--accent-dark);">もっと細かい記録・全員のランキングはデータサイトの殿堂へ ↗</a></div>`;
 
   el.querySelectorAll('[data-hof-metric]').forEach(btn => {
     btn.addEventListener('click', () => { _hofMetric = btn.dataset.hofMetric; renderHallOfFameBody(); });
@@ -1941,8 +1956,6 @@ function renderActiveRosterBody() {
   }
 
   return `${groupChipsHtml}
-    <div class="roster-link-out" data-goto-clans="true">→ 系統一覧・棋士系統図を見る</div>
-    <div class="roster-link-out" data-goto-shoreikai="true" style="margin-left:12px;">→ 奨励会リーグ・三段リーグの名簿を見る</div>
     ${groupsHtml}`;
 }
 
@@ -1975,8 +1988,7 @@ async function renderShoreikai() {
   const byAge = rows => rows.slice().sort((a, b) => (b.age || 0) - (a.age || 0));
   const log = sk.log;
   const list = (rows, f) => rows && rows.length ? rows.map(f).join('、') : 'なし';
-  el.innerHTML = `
-    <a class="back-link" href="#" onclick="navigateTo('individuals');return false;">← 選手名鑑へ戻る</a>
+  el.innerHTML = rosterViewChipsHtml('shoreikai') + `
     <h1 class="profile-name" style="font-size:1.1rem;">奨励会リーグ・三段リーグ</h1>
     <div style="font-size:0.78rem; color:var(--text-dim); margin-bottom:10px;">
       奨励会リーグは12〜15歳で入会し、成長しながら三段リーグへの昇段を目指す（21歳までに上がれなければ退会）。
@@ -2082,8 +2094,7 @@ async function renderClanList() {
       <span><b>${escapeHtml(g.top.display_name)}系</b>${g.top.debut_season ? `<span class="clan-right" style="font-size:0.7rem;">　第${g.top.debut_season}季〜</span>` : ''}</span>
       <span class="clan-right">現役${g.active}名（通算${g.n}名・${g.depth}代）　タイトル${g.titles}期</span>
     </div>`;
-  el.innerHTML = `
-    <a class="back-link" href="#" onclick="navigateTo('individuals');return false;">← 選手名鑑へ戻る</a>
+  el.innerHTML = rosterViewChipsHtml('clans') + `
     <div class="empty" style="padding:0 0 10px; text-align:left; color:var(--text-dim); font-size:0.8rem;">
       師匠をたどった最上位の祖ごとの系統です。系統名を押すと、師匠から弟子へ続く棋士系統図を見られます。
     </div>
@@ -2194,7 +2205,7 @@ async function renderKeitoChart(topId) {
   });
 
   const chips = big.map(g => `<button class="chip-btn ${g.top.id === top.top.id ? 'active' : ''}" data-keito-top="${escapeHtml(g.top.id)}">${escapeHtml(g.top.display_name)}系（${g.n}名）</button>`).join('');
-  el.innerHTML = `
+  el.innerHTML = rosterViewChipsHtml('clans') + `
     <a class="back-link" href="#" onclick="navigateTo('clans');return false;">← 系統一覧へ戻る</a>
     <h1 class="profile-name" style="font-size:1.1rem;">棋士系統図</h1>
     <div class="profile-sub" style="margin-bottom:8px;">${escapeHtml(top.top.display_name)}系（通算${top.n}名・現役${top.active}名）</div>
@@ -2220,12 +2231,17 @@ async function renderKeitoChart(topId) {
   el.querySelectorAll('[data-goto-individual]').forEach(e2 => e2.addEventListener('click', () => navigateTo('individual/' + encodeURIComponent(e2.dataset.gotoIndividual))));
 }
 
+function rulesSwitchHtml(active) {
+  return `<div class="chip-row" style="margin-bottom:10px;">
+    <button class="chip-btn ${active === 'guide' ? 'active' : ''}" onclick="navigateTo('guide')">はじめての方へ</button>
+    <button class="chip-btn ${active === 'rules' ? 'active' : ''}" onclick="navigateTo('rules')">くわしいルール</button></div>`;
+}
+
 function renderRules() {
   setActiveNav('rules');
   setPageMeta('ルール', 'リーグ制度・一門と弟子・引退（降級点制）・タイトル戦・永世称号・段位・Eloレーティングなど、サーキットオセロリーグの仕組みを解説。');
   const el = document.getElementById('content');
-  el.innerHTML = `<div class="rules">
-    <div class="sec" style="margin-bottom:6px;">はじめての方は、まず<a href="#" onclick="navigateTo('guide');return false;">3分で分かる入門</a>をどうぞ。</div>
+  el.innerHTML = rulesSwitchHtml('rules') + `<div class="rules">
     <h3>リーグ制度</h3>
     <div class="sec">
       A・B・C・Dの4部制。シーズンごとに対局を行い、成績に応じて上位・下位リーグと入れ替わる。
@@ -2356,7 +2372,7 @@ function renderAbout() {
 
     <h3>仕組み</h3>
     <div class="sec">
-      選手（個体）・対局・リーグ運営はすべてプログラムとAIによって自動で進行しています。
+      選手・対局・リーグ運営はすべてプログラムとAIによって自動で進行しています。
       対局はAI同士の思考アルゴリズムに基づいて行われ、結果に応じて昇降格・タイトル戦・
       引退（降級点制度）などが自動的に処理されます。ニュース記事もAIが対局データから
       自動生成しています。人間が個々の勝敗や記事内容に介入することはありません。
@@ -2447,7 +2463,7 @@ function renderGuide() {
   const el = document.getElementById('content');
   const step = (title, text) => `<div class="guide-step"><b>${title}</b>　${text}</div>`;
   const arrow = label => `<div class="guide-arrow">▼ ${label}</div>`;
-  el.innerHTML = `<div class="rules">
+  el.innerHTML = rulesSwitchHtml('guide') + `<div class="rules">
     <h3>3分で分かるサーキットオセロリーグ</h3>
     <div class="sec">
       AIの棋士たちが、架空のオセロのプロリーグで戦い続けています。人は誰も指していません。
