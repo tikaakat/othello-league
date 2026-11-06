@@ -890,6 +890,14 @@ def _title_holder_history(data_dir, title_history, title, holder_name, season):
     return lines
 
 
+def kanji_num(n):
+    """漢数字（1〜99）：「第十八世永世青龍」の表記用"""
+    d = ["", "一", "二", "三", "四", "五", "六", "七", "八", "九"]
+    if n < 10:
+        return d[n]
+    return (d[n // 10] if n >= 20 else "") + "十" + d[n % 10]
+
+
 def gather_milestone_facts(data_dir, season):
     """この季に、誰かが初めて永世称号の基準を新たに満たしたかを検出する
     （既に前季までに達成済みなら対象外）。最初に見つかった1件のみをネタとする"""
@@ -909,8 +917,19 @@ def gather_milestone_facts(data_dir, season):
         if is_eternal_title(title, total_before, streak_before):
             continue  # 前季までに既に達成済み（新規達成ではない）
 
+        gen = None
+        if title == "青龍":
+            # 永世青龍は資格を満たした順に代数が付く（引退後に「第◯世永世青龍」と名乗る）
+            achieved = set()
+            for s_ in range(1, season):
+                for e2 in title_history:
+                    if e2.get("title") == "青龍" and e2.get("season") == s_:
+                        n2 = _title_holder_name(e2)
+                        if n2 and n2 not in achieved and is_eternal_title("青龍", *compute_title_stats_up_to(title_history, "青龍", n2, s_)):
+                            achieved.add(n2)
+            gen = len(achieved) + 1
         return {
-            "season": season, "title": title, "name": holder_name,
+            "season": season, "title": title, "name": holder_name, "seiryu_generation": gen,
             "total": total_after, "streak": streak_after,
             "history": _title_holder_history(data_dir, title_history, title, holder_name, season),
             "related_individual_ids": [e["holder_id"]] if e.get("holder_id") else [],
@@ -924,6 +943,8 @@ def build_milestone_prompt(facts):
         f"第{facts['season']}季の事実データ（これ以外の出来事は起きていない）:", "",
         f"・{facts['name']}が、{facts['title']}位で「永世{facts['title']}」の称号基準を満たした"
         f"（通算保持{facts['total']}期、最大連続保持{facts['streak']}期）。",
+        *([f"・{facts['seiryu_generation']}人目の永世青龍資格者で、引退後に「第{kanji_num(facts['seiryu_generation'])}世永世青龍」を名乗る"
+           "（現役のうちは「永世青龍資格」と呼ぶ）。"] if facts.get("seiryu_generation") else []),
         "・保持した各季の経緯：",
         *[f"　・{h}" for h in facts.get("history", [])],
         "",

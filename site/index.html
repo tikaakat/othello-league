@@ -983,7 +983,7 @@ function renderCurrentHoldersView(el, data) {
     html += '<div class="empty">まだ記録がありません</div>';
   }
   currentList.forEach(t => {
-    const eternalBadge = t.eternal ? `<span style="display:inline-block; background:rgba(255,182,72,0.15); border:1px solid var(--amber); color:var(--amber); font-size:0.68rem; padding:2px 8px; border-radius:2px; margin-left:8px;">★永世${escapeHtml(t.title)}</span>` : '';
+    const eternalBadge = t.eternal ? `<span style="display:inline-block; background:rgba(255,182,72,0.15); border:1px solid var(--amber); color:var(--amber); font-size:0.68rem; padding:2px 8px; border-radius:2px; margin-left:8px;">★永世${escapeHtml(t.title)}${t.title === '青龍' ? '資格' : ''}</span>` : '';
     html += `<div class="title-card"><h4>${escapeHtml(t.title)}</h4><div>
       <span class="title-name-link" data-id="${escapeHtml(t.holder_id || '')}" style="cursor:pointer;">${escapeHtml(t.holder_name)}</span>
       （第${t.season}シーズン〜）${eternalBadge}</div></div>`;

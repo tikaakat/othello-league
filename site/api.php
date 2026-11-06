@@ -149,6 +149,19 @@ function is_eternal_title($title, $total, $consec) {
     return $consec >= 5; // 白虎
 }
 
+// 永世青龍の代数：青龍の永世称号（通算5期）を満たした順に1, 2, 3…（同じ季に満たした場合はID順）。
+// 実際の将棋の「第十八世名人」に倣い、資格者は引退後に「第◯世永世青龍」と名乗る（現役中は「永世青龍資格」）
+function seiryu_generations($pdo) {
+    $rows = $pdo->query("SELECT season, holder_id FROM title_history WHERE title = '青龍' AND holder_id IS NOT NULL ORDER BY season ASC, holder_id ASC")->fetchAll();
+    $total = []; $gen = []; $n = 0;
+    foreach ($rows as $r) {
+        $h = $r['holder_id'];
+        $total[$h] = ($total[$h] ?? 0) + 1;
+        if (!isset($gen[$h]) && is_eternal_title('青龍', $total[$h], 0)) $gen[$h] = ++$n;
+    }
+    return $gen;
+}
+
 // 段位（将棋の段位制度を模した表示専用のランキング指標）。新規のテーブル・状態は持たず、
 // 既存の対局結果（matches）・リーグ経験（standings）・タイトル実績（title_history）から
 // 都度算出する。実際の将棋の昇段規定（「八段昇段後250勝」等）に合わせ、勝数は
@@ -1686,6 +1699,7 @@ switch ($action) {
             'parent' => $parent, 'ancestors' => $ancestors, 'children' => $children,
             'title_ranges' => $titleRanges, 'title_total_seasons' => $titleTotalSeasons,
             'eternal_titles' => $eternalTitlesRow,
+            'seiryu_generation' => seiryu_generations($pdo)[$id] ?? null,
             'challenge_ranges' => $challengeRanges, 'challenge_total_seasons' => $challengeTotalSeasons,
         ]);
         break;
