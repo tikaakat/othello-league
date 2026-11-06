@@ -2748,10 +2748,15 @@ async function loadAwards(season) {
           seasons.map(sn => { const e = awards.seasons[sn]; return `<tr><td>${sn}</td><td>${who(e.mvp)}</td><td>${who(e.rookie)}</td></tr>`; }).join('')
         }</tbody></table></div>
         <div style="font-size:0.68rem; color:var(--text-dim); margin-top:6px;">選考基準（その季の当時の基準で選んでいます）<br>${
-          Object.entries(awards.criteria.mvp || {}).map(([v, t]) => {
-            const range = { 1: '第1〜9季', 2: '第10〜61季', 3: '第62季〜' }[v] || '';
-            return `${range}：${escapeHtml(t)}`;
-          }).join('<br>')}<br>${escapeHtml(awards.criteria.rookie || '')}</div></details>`;
+          (() => {
+            // 実際にその基準で選んだ季の範囲だけを出す（リセット後は使われた版だけが並ぶ）
+            const used = {};
+            seasons.forEach(sn => { const v = awards.seasons[sn].mvp_criteria; if (v != null) (used[v] = used[v] || []).push(sn); });
+            return Object.entries(awards.criteria.mvp || {}).filter(([v]) => used[v]).map(([v, t]) => {
+              const ss = used[v], lo = Math.min(...ss), hi = Math.max(...ss);
+              return `${lo === hi ? `第${lo}季` : `第${lo}〜${hi}季`}：${escapeHtml(t)}`;
+            }).join('<br>');
+          })()}<br>${escapeHtml(awards.criteria.rookie || '')}</div></details>`;
     }
 
     const sections = [
@@ -3136,7 +3141,7 @@ async function loadNewcomerLeague(forSeason, mode = 'newcomer') {
 
     // 奨励会リーグ（三段リーグの下の育成段階）：この季の入会・三段リーグへの昇段・年齢制限による退会
     const sk = mode === 'shoreikai' ? resData.shoreikai : null;
-    if (mode === 'shoreikai' && !sk) html += '<div class="empty">この季は奨励会リーグの記録がありません（第208季から）</div>';
+    if (mode === 'shoreikai' && !sk) html += '<div class="empty">この季は奨励会リーグの記録がありません</div>';
     if (sk) {
       // 表で見せる：見出しの下に「名前・年齢・師匠（・理由）」の表
       const h = (t, n) => `<h3 style="text-align:left; font-size:0.8rem; color:var(--amber); border-bottom:1px solid var(--navy-700); padding-bottom:4px; margin:14px 0 6px;">${t}（${n}名）</h3>`;
