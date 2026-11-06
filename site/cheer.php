@@ -95,7 +95,7 @@ if ($updated->rowCount() === 0) {
     $delStmt = $pdo->prepare("DELETE FROM cheer_log WHERE individual_id = :id AND ip_hash = :ip AND cheered_date = CURDATE()");
     $delStmt->execute(['id' => $individualId, 'ip' => $ipHash]);
     http_response_code(404);
-    echo json_encode(['error' => '個体が見つかりません']);
+    echo json_encode(['error' => '選手が見つかりません']);
     exit;
 }
 

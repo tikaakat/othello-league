@@ -1368,7 +1368,7 @@ switch ($action) {
             $stmt2 = $pdo->prepare("SELECT * FROM retired_archive WHERE id = :id");
             $stmt2->execute(['id' => $id]);
             $row = $stmt2->fetch();
-            if (!$row) json_error('個体が見つかりません', 404);
+            if (!$row) json_error('選手が見つかりません', 404);
             $row['retired'] = 1;
         }
         $row['params'] = json_decode($row['params_json'], true);
@@ -2454,6 +2454,21 @@ switch ($action) {
         break;
 
     // --------------------------------------------------------
+    case 'search':
+        // 選手の名前検索（現役・引退）。部分一致で最大30件
+        $q = trim((string)($_GET['q'] ?? ''));
+        if ($q === '' || mb_strlen($q) > 20) json_out(['results' => []]);
+        $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $q) . '%';
+        $st = $pdo->prepare(
+            "SELECT id, display_name, league, 0 AS retired FROM individuals WHERE retired = 0 AND display_name LIKE :q1
+             UNION ALL
+             SELECT id, display_name, NULL AS league, 1 AS retired FROM retired_archive WHERE display_name LIKE :q2
+             LIMIT 30"
+        );
+        $st->execute(['q1' => $like, 'q2' => $like]);
+        json_out(['results' => $st->fetchAll()]);
+        break;
+
     case 'retired_archive':
         // タイトル獲得数順に並べるため、表示件数で絞る前に引退者全員を取得する
         // （retired_atで先にLIMITしてしまうと、昔に引退した歴代タイトル王が
