@@ -169,6 +169,7 @@ function seiryu_generations($pdo) {
 //   起点：新人は4段スタート。ただし第1季創設メンバーは、その季点の所属リーグの
 //     最低段位（Cリーグ5段・Bリーグ6段・Aリーグ7段）からスタートする
 //     （新人リーグ経由でDリーグにデビューする選手と違い、Dリーグから積み上げる過程が無いため）
+//     開幕メンバーのうち系統の祖（大師匠8人。師匠がいない）は九段から（開幕前に長い実績があるため）
 //   勝数：現在の段になってからの勝数（タイトル戦を含む全対局）が、次の段への
 //     必要勝数（5段へ+40 / 6段へ+50 / 7段へ+60 / 8段へ+80 / 9段へ+100）に達するたびに1段ずつ昇段
 //     （第1〜12季の実績では1季あたり平均6〜7.5勝（タイトル戦・予選込み）。以前の
@@ -208,7 +209,7 @@ const DAN_KANJI = [1 => '一', 2 => '二', 3 => '三', 4 => '四', 5 => '五', 6
 // $cumWinBySeason：season(int) => その季終了時点の通算勝数（キーの並び順は問わない）
 // 戻り値：['dan' => 現在の段位, 'history' => [['season'=>,'dan'=>,'reason'=>], ...]（発生順。
 //   飛び級で経由しなかった段位も、直後に「飛び級」注記付きで含まれる）]
-function simulate_dan_progression($debutSeason, $debutLeague, array $nonWinCandidates, array $titleWinEvents, array $challengeEvents, array $cumWinBySeason) {
+function simulate_dan_progression($debutSeason, $debutLeague, array $nonWinCandidates, array $titleWinEvents, array $challengeEvents, array $cumWinBySeason, $grandMaster = false) {
     usort($nonWinCandidates, fn($a, $b) => $a['season'] <=> $b['season'] ?: $a['dan'] <=> $b['dan']);
     $nonWinBySeasonList = [];
     foreach ($nonWinCandidates as $c) { $nonWinBySeasonList[$c['season']][] = $c; }
@@ -221,10 +222,11 @@ function simulate_dan_progression($debutSeason, $debutLeague, array $nonWinCandi
     $challengeBySeasonList = [];
     foreach ($challengeEvents as $s) { $challengeBySeasonList[$s][] = $s; }
 
-    $startDan = DAN_LEAGUE_FLOOR[$debutLeague] ?? 4;
+    // 大師匠（開幕メンバーのうち系統の祖。開幕前に長い実績がある）は九段から
+    $startDan = $grandMaster ? 9 : (DAN_LEAGUE_FLOOR[$debutLeague] ?? 4);
     $dan = $startDan;
     $winBaseline = 0; // 現在の段位になった時点の通算勝数（勝数昇段はここからの増分で判定）
-    $history = [['season' => $debutSeason, 'dan' => $startDan, 'reason' => '新規参入']];
+    $history = [['season' => $debutSeason, 'dan' => $startDan, 'reason' => $grandMaster ? '大師匠として参加（開幕前からの実績）' : '新規参入']];
 
     // 段位を$newDanまで引き上げる。1段を超えて飛び級する場合、間の段位も
     // 「飛び級」注記付きで同じ季の履歴に記録してから、実際の理由で$newDanを記録する
@@ -296,6 +298,12 @@ function simulate_dan_progression($debutSeason, $debutLeague, array $nonWinCandi
     return ['dan' => $dan, 'history' => $history];
 }
 
+// 大師匠：第1季から参加した開幕メンバー（IDがCCで始まらない）のうち、師匠のいない人（系統の祖）。
+// 開幕後に師匠なしで入門した新しい祖（IDがCC…）は含めない
+function is_grand_master($id, $parentId, $debutSeason) {
+    return ($parentId === null || $parentId === '') && strncmp((string)$id, 'CC', 2) !== 0 && (int)$debutSeason === 1;
+}
+
 // 複数個体分の段位をまとめて算出する（1個体ずつ算出する場合と違い、対局・順位・
 // タイトル実績のクエリをそれぞれ1回で済ませる）。$currentLeagueById（省略可）を渡すと、
 // standingsにまだ反映されていない「現在の所属リーグ」も昇段候補として加味する
@@ -308,6 +316,15 @@ function calc_dan_bulk($pdo, array $ids, array $currentLeagueById = []) {
 
     // デビュー季・所属リーグの変遷：individual_id昇順→season昇順で1回取得し、PHP側で
     // 「最初の行＝デビュー季とその時点のリーグ」「リーグごとの初到達季」を組み立てる
+    // 師匠（大師匠の判定に使う）
+    $parentStmt = $pdo->prepare(
+        "SELECT id, parent_a_id FROM individuals WHERE id IN ($placeholders)
+         UNION ALL SELECT id, parent_a_id FROM retired_archive WHERE id IN ($placeholders)"
+    );
+    $parentStmt->execute(array_merge($ids, $ids));
+    $parentById = [];
+    foreach ($parentStmt->fetchAll() as $r) { $parentById[$r['id']] = $r['parent_a_id']; }
+
     $standStmt = $pdo->prepare(
         "SELECT individual_id, season, league FROM standings
          WHERE individual_id IN ($placeholders) AND league IN ('A', 'B', 'C', 'D')
@@ -429,7 +446,8 @@ function calc_dan_bulk($pdo, array $ids, array $currentLeagueById = []) {
 
         $result = simulate_dan_progression(
             $debutSeasonById[$id] ?? 1, $debutLeagueById[$id] ?? null,
-            $nonWinCandidates, $titleWinEvents, $challengeSeasons, $cumWinBySeasonById[$id] ?? []
+            $nonWinCandidates, $titleWinEvents, $challengeSeasons, $cumWinBySeasonById[$id] ?? [],
+            array_key_exists($id, $parentById) && is_grand_master($id, $parentById[$id], $debutSeasonById[$id] ?? 1)
         );
         $danById[$id] = $result['dan'];
     }
@@ -1625,7 +1643,8 @@ switch ($action) {
         $debutSeason = $debutRow ? (int)$debutRow['season'] : 1;
         $debutLeague = $debutRow ? $debutRow['league'] : null;
 
-        $danResult = simulate_dan_progression($debutSeason, $debutLeague, $nonWinCandidates, $titleWinEvents, $challengeEvents, $cumWinBySeason);
+        $danResult = simulate_dan_progression($debutSeason, $debutLeague, $nonWinCandidates, $titleWinEvents, $challengeEvents, $cumWinBySeason,
+            is_grand_master($id, $row['parent_a_id'] ?? null, $debutSeason));
         $row['dan'] = $danResult['dan'];
         $history = $danResult['history'];
         // 引退済みであれば、引退理由（年齢規定／降級点）を履歴の最後に追加する。
