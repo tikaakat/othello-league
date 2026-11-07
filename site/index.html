@@ -1237,7 +1237,7 @@ function renderLineage(ancestors, children) {
 
   let parentHtml;
   if (ancestors.length === 0) {
-    parentHtml = '<div style="padding:4px 0; color:var(--text-dim);">師匠：なし（開祖 または 無流派の新規参入）</div>';
+    parentHtml = '<div style="padding:4px 0; color:var(--text-dim);">師匠：なし</div>';
   } else {
     const master = ancestors[0];
     parentHtml = `<div style="padding:4px 0;">師匠：${ancestorItem(master).replace('padding:3px 0;', '')}</div>`;
