@@ -129,7 +129,8 @@ def bootstrap_rosters(registry, data_dir="data"):
     （前史を対局なしで早回しする：_prehistory_pros）。以前は年齢に応じた終盤力・定跡を直接与えていたが、
     Dリーグが定跡をほとんど知らない若手ばかりになり（強さの見積もりでA 237・D 38、奨励会リーグ経由の新人は110〜160）、
     その後に入る新人が無双する形になっていた。前史を通せば初期メンバーと新人の強さが同じ物差しにそろう。
-    前史の現役から無作為に定員分を取り、強さの見積もり順にA〜Dへ振り分ける。全員が師匠を持たない祖になる"""
+    前史の現役から無作為に定員分を取り、強さの見積もり順にA〜Dへ振り分ける。
+    師弟関係は、最年長の8人を大師匠（祖）にし、残りをその弟子・孫弟子にする（assign_initial_masters）"""
     styles = _seed_styles(data_dir)
     sizes = [("A", LEAGUE_CAPACITY["A"]), ("B", LEAGUE_CAPACITY["B"]), ("C", LEAGUE_CAPACITY["C"]), ("D", D_INITIAL_ROSTER_SIZE)]
     total = sum(size for _, size in sizes)
@@ -158,6 +159,12 @@ def bootstrap_rosters(registry, data_dir="data"):
             )
             ind.volatility = _random_volatility()
             rosters[league].append(ind)
+    # 開幕前からの師弟関係：全員が祖だと系統が数十に分かれるので、大師匠8人の系統にまとめる
+    from othello_league.league import assign_initial_masters, assign_generations
+    everyone = [ind for lst in rosters.values() for ind in lst]
+    assign_initial_masters(everyone, score=lambda ind: estimated_strength(ind.params))
+    assign_generations(everyone)
+    assign_lineage_roots(everyone, [])
     return rosters
 
 

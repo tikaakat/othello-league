@@ -78,6 +78,7 @@ on:
           - "fix_season_101_duplicates_20261028"
           - "patch_import_free_class_20261028"
           - "archive_fan_site_world1_20261106"
+          - "sync_lineage_20261108"
           - "resync_server_data"
         default: ""
       create_dir:
@@ -451,6 +452,28 @@ jobs:
                     "UPDATE newcomer_league_standings SET master_name = '${new}' WHERE master_name = '${old}';"
                   )
                 done
+                ;;
+              sync_lineage_20261108)
+                # 開幕メンバーに開幕前からの師弟関係を後から付けた（scripts/regroup_initial_lineage.py。大師匠8人の系統にまとめた）。
+                # 取り込み（import_from_github.php等）は既存行の師匠・系統を更新しないため、data/のrosters.json・
+                # season_state.jsonのretired_archiveを正として、parent_a_idとclan_root_idをDBへ同期する。何度実行しても同じ結果になる
+                mapfile -t SQL_LIST < <(python3 - <<'PYEOF'
+          import json, re
+          ok = re.compile(r"^[A-Za-z0-9_-]+$")
+          q = lambda v: f"'{v}'" if v else "NULL"
+          def emit(table, r):
+              iid, root, par = r.get("id"), r.get("clan_root_id"), r.get("parent_a_id")
+              if not (iid and ok.match(iid)) or (root and not ok.match(root)) or (par and not ok.match(par)):
+                  return
+              print(f"UPDATE {table} SET parent_a_id = {q(par)}, clan_root_id = {q(root)} WHERE id = '{iid}';")
+          state = json.load(open("data/season_state.json", encoding="utf-8"))
+          for r in state.get("retired_archive", []):
+              emit("retired_archive", r)
+          for members in json.load(open("data/rosters.json", encoding="utf-8")).values():
+              for r in members:
+                  emit("individuals", r)
+          PYEOF
+                )
                 ;;
               sync_retired_clan_roots)
                 # 一門の独立（apply_clan_independence）は引退済みの子孫のclan_root_idも付け替えるが、
