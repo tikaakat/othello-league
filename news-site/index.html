@@ -2103,6 +2103,7 @@ async function renderClanList() {
     <div class="empty" style="padding:0 0 10px; text-align:left; color:var(--text-dim); font-size:0.8rem;">
       師匠をたどった最上位の祖ごとの系統です。系統名を押すと、師匠から弟子へ続く棋士系統図を見られます。
     </div>
+    <div class="chip-row" style="margin-bottom:10px;"><button class="chip-btn" data-goto-keito="__all">全系統を1枚の系統図で見る</button></div>
     <div class="roster-league-group"><h3>系統一覧（${alive.length}系統）</h3>${alive.map(row).join('') || '<div class="empty">まだ系統がありません</div>'}</div>
     ${gone.length ? `<details class="roster-league-group"><summary style="cursor:pointer; font-size:0.85rem; color:var(--text-dim);">途絶えた系統（${gone.length}件）</summary>${gone.map(row).join('')}</details>` : ''}`;
   el.querySelectorAll('[data-goto-keito]').forEach(e2 => e2.addEventListener('click', () => navigateTo('keito/' + encodeURIComponent(e2.dataset.gotoKeito))));
@@ -2132,7 +2133,13 @@ async function renderKeitoChart(topId) {
   const hasActive = g => g.active > 0;
   const big = groups.filter(g => g.n >= 10 || (g.n >= 3 && hasActive(g))).sort((x, y) => y.n - x.n);
   const small = groups.length - big.length;
-  const top = (topId && big.find(g => g.top.id === topId)) || big[0];
+  // 全系統モード（topId＝'__all'）：見えない仮の頂点の下に、すべての系統の祖を並べて1枚に描く
+  const allMode = topId === '__all';
+  const shown = allMode ? groups.filter(g => !_keitoActiveOnly || g.active > 0).sort((x, y) => y.n - x.n || byDebut(x.top, y.top)) : null;
+  const virtualTop = allMode ? { id: '__all', display_name: '' } : null;
+  if (allMode) kids['__all'] = shown.map(g => g.top);
+  const top = allMode ? { top: virtualTop, n: shown.reduce((a, g) => a + g.n, 0), active: shown.reduce((a, g) => a + g.active, 0) }
+    : (topId && big.find(g => g.top.id === topId)) || big[0];
 
   // 「現役のいる系統だけ」：現役のいない枝は、その枝の一番上の選手で折りたたむ（下に「他N名」）
   const activeOnly = _keitoActiveOnly;
@@ -2148,7 +2155,7 @@ async function renderKeitoChart(topId) {
     const n = { m, g, kids: [], folded: 0, dx: 0 };
     nodes.push(n); maxGen = Math.max(maxGen, g);
     let ks = kids[m.id] || [];
-    if (activeOnly && !alive(m) && g > 0) { n.folded = subSize(m); ks = []; }
+    if (activeOnly && !alive(m) && g > (allMode ? 1 : 0)) { n.folded = subSize(m); ks = []; }
     if (!ks.length) { n.L = [0]; n.R = [0]; return n; }
     n.kids = ks.map(k => build(k, g + 1));
     let L = [], R = [];
@@ -2172,10 +2179,12 @@ async function renderKeitoChart(topId) {
   const contentH = n => 21 + [...String(n.m.display_name || '')].length * (FS + 0.5) + 3 + 3 * (FS2 + 0.5)
     + (n.folded ? [...`他${n.folded}名`].length * (FS2 + 0.5) + 4 : 0);
   const ROW = Math.ceil(Math.max(...nodes.map(contentH))) + 20;
-  const W = Math.ceil(20 + CW + maxR - minL), H = TOP + (maxGen + 1) * ROW + 10;
-  const y0 = g => TOP + g * ROW;
+  const gOff = allMode ? 1 : 0;  // 全系統モードは仮の頂点の段を描かない
+  const W = Math.ceil(20 + CW + maxR - minL), H = TOP + (maxGen + 1 - gOff) * ROW + 10;
+  const y0 = g => TOP + (g - gOff) * ROW;
   let lines = '', texts = '';
   nodes.forEach(n => {
+    if (n.m === virtualTop) return;
     const m = n.m, x = n.x, y = y0(n.g);
     const titles = Object.values(m.titles || {}).reduce((a, b) => a + b, 0);
     let cy = y;
@@ -2211,17 +2220,18 @@ async function renderKeitoChart(topId) {
     n.kids.forEach(k => { lines += `<line x1="${k.x}" y1="${bar}" x2="${k.x}" y2="${y0(k.g)}"/>`; });
   });
 
-  const chips = big.map(g => `<button class="chip-btn ${g.top.id === top.top.id ? 'active' : ''}" data-keito-top="${escapeHtml(g.top.id)}">${escapeHtml(g.top.display_name)}系（${g.n}名）</button>`).join('');
+  const chips = `<button class="chip-btn ${allMode ? 'active' : ''}" data-keito-top="__all">全系統</button>`
+    + big.map(g => `<button class="chip-btn ${g.top.id === top.top.id ? 'active' : ''}" data-keito-top="${escapeHtml(g.top.id)}">${escapeHtml(g.top.display_name)}系（${g.n}名）</button>`).join('');
   el.innerHTML = rosterViewChipsHtml('clans') + `
     <a class="back-link" href="#" onclick="navigateTo('clans');return false;">← 系統一覧へ戻る</a>
     <h1 class="profile-name" style="font-size:1.1rem;">棋士系統図</h1>
-    <div class="profile-sub" style="margin-bottom:8px;">${escapeHtml(top.top.display_name)}系（通算${top.n}名・現役${top.active}名）</div>
+    <div class="profile-sub" style="margin-bottom:8px;">${allMode ? `全系統（${shown.length}系統・通算${top.n}名・現役${top.active}名）` : `${escapeHtml(top.top.display_name)}系（通算${top.n}名・現役${top.active}名）`}</div>
     <div class="chip-row" style="margin-bottom:8px;">${chips}</div>
     <div class="chip-row" style="margin-bottom:8px;">
       <button class="chip-btn ${activeOnly ? 'active' : ''}" data-keito-mode="active">現役のいる系統だけ</button>
       <button class="chip-btn ${activeOnly ? '' : 'active'}" data-keito-mode="all">すべて表示</button>
     </div>
-    <div style="font-size:0.72rem; color:var(--text-dim); margin-bottom:6px;">上が師匠、下が弟子（同じ師匠の弟子は左ほど先に入門）。名前の上の<span style="color:var(--accent-dark);">数字は参戦した季</span>、△は引退、太字はタイトル獲得者。名前を押すと選手ページへ。${activeOnly ? '現役のいない枝は一番上の選手で折りたたみ、「他N名」と表示。' : ''}横にスクロールできます${small ? `（小さな系統${small}件は省略）` : ''}</div>
+    <div style="font-size:0.72rem; color:var(--text-dim); margin-bottom:6px;">上が師匠、下が弟子（同じ師匠の弟子は左ほど先に入門）。名前の上の<span style="color:var(--accent-dark);">数字は参戦した季</span>、△は引退、太字はタイトル獲得者。名前を押すと選手ページへ。${activeOnly ? '現役のいない枝は一番上の選手で折りたたみ、「他N名」と表示。' : ''}横にスクロールできます${allMode ? '（左ほど大きな系統）' : small ? `（小さな系統${small}件は省略。「全系統」ですべて表示）` : ''}</div>
     <div class="keito-wrap" style="overflow:auto; -webkit-overflow-scrolling:touch; border:1px solid var(--border); border-radius:8px; background:var(--card);">
       <svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" style="display:block; font-family:'Noto Serif JP','Hiragino Mincho ProN','Yu Mincho',serif;">
         <g stroke="var(--text-dim)" stroke-width="0.9" fill="none">${lines}</g>${texts}
@@ -2229,7 +2239,7 @@ async function renderKeitoChart(topId) {
     </div>`;
   // 最初は祖が真ん中に来るように横スクロールしておく
   const wrap = el.querySelector('.keito-wrap');
-  if (wrap) wrap.scrollLeft = Math.max(0, nodes[0].x - wrap.clientWidth / 2);
+  if (wrap && !allMode) wrap.scrollLeft = Math.max(0, nodes[0].x - wrap.clientWidth / 2);
   el.querySelectorAll('[data-keito-mode]').forEach(b => b.addEventListener('click', () => {
     _keitoActiveOnly = b.dataset.keitoMode === 'active';
     renderKeitoChart(top.top.id);
