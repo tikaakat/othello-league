@@ -2193,9 +2193,11 @@ async function renderKeitoChart(topId) {
     [...dan].forEach((ch, i) => {
       texts += `<text x="${x}" y="${cy + (i + 1) * (FS2 + 0.5)}" font-size="${FS2}" text-anchor="middle" fill="var(--text-dim)">${escapeHtml(ch)}</text>`;
     });
+    // 段位の下まで進める（弟子へ伸ばす線が段位に重ならないように）
+    cy += [...dan].length * (FS2 + 0.5) + 2;
     if (n.folded) {
       // 折りたたんだ枝：段位の下に「他N名」（縦書き）
-      cy += [...dan].length * (FS2 + 0.5) + 4;
+      cy += 2;
       [...`他${n.folded}名`].forEach((ch, i) => {
         texts += `<text x="${x}" y="${cy + (i + 1) * (FS2 + 0.5)}" font-size="${FS2}" text-anchor="middle" fill="var(--accent-dark)">${escapeHtml(ch)}</text>`;
       });
