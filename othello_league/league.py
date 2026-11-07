@@ -515,6 +515,58 @@ def assign_lineage_roots(active_members, retired_records):
         _set(x, "clan_root_id", root(_get(x, "id")))
 
 
+INITIAL_GRAND_MASTERS = 8      # 開幕メンバーのうち系統の祖（大師匠）になる人数。残りは開幕前からの弟子・孫弟子
+
+
+def assign_initial_masters(members, score, n_roots=INITIAL_GRAND_MASTERS, rng=None):
+    """開幕メンバーに、開幕前からの師弟関係を付ける（全員が祖だと系統が数十に分かれてしまうため）。
+    最年長のn_roots人を大師匠（祖）にし、残りは年齢の高い順に、10歳以上年上の師匠
+    （大師匠を優先し、40歳以上の兄弟子も選べる）へ振り分ける。10歳差の師匠がいなければ差を縮めて探す
+    （大師匠と同年代の選手は、大師匠の弟子になる）。
+    members：id・initial_age・parent_a_idを持つ選手（LeagueIndividualまたはdict）。score：強さ（大きいほど大師匠向き）。
+    戻り値：大師匠のIDの一覧"""
+    rng = rng or random
+    age = lambda x: _get(x, "initial_age") or 0
+    # 大師匠は最年長の8人（同じ年齢なら強い方）。誰もが自分より年上の師匠を持てるように
+    roots = sorted(members, key=lambda x: (-age(x), -score(x)))[:n_roots]
+    root_ids = {_get(x, "id") for x in roots}
+    placed = list(roots)
+    direct = {}
+    for x in roots:
+        _set(x, "parent_a_id", None)
+    for x in sorted([x for x in members if _get(x, "id") not in root_ids], key=lambda x: -age(x)):
+        cands = []
+        for gap in (10, 7, 4, 1, 0):
+            cands = [c for c in placed if age(c) - age(x) >= gap and age(c) >= 30]
+            if cands:
+                break
+        if not cands:
+            cands = list(roots)
+        weights = [(4.0 if _get(c, "id") in root_ids else (1.0 if age(c) >= 40 else 0.3))
+                   / (1 + 0.25 * direct.get(_get(c, "id"), 0)) for c in cands]
+        m = rng.choices(cands, weights=weights, k=1)[0]
+        _set(x, "parent_a_id", _get(m, "id"))
+        direct[_get(m, "id")] = direct.get(_get(m, "id"), 0) + 1
+        placed.append(x)
+    return [_get(x, "id") for x in roots]
+
+
+def assign_generations(everyone):
+    """generation（祖から何代目か。祖＝0）を師弟関係からそろえる"""
+    by_id = {_get(x, "id"): x for x in everyone}
+    memo = {}
+
+    def gen(iid, depth=0):
+        if iid in memo:
+            return memo[iid]
+        p = _get(by_id[iid], "parent_a_id")
+        memo[iid] = 0 if (p not in by_id or depth > 50) else gen(p, depth + 1) + 1
+        return memo[iid]
+
+    for x in everyone:
+        _set(x, "generation", gen(_get(x, "id")))
+
+
 # 師匠の選び方（系統が横に広がり、途絶えにくくなるように）：
 # 以前はEloやタイトルが高い師匠ほど選ばれやすく、弟子が強い系統に集まって、200季でほぼ2系統に収束していた。
 # 実際の将棋の師弟は強さより縁で決まり、引退した棋士も弟子を取るので、多くの系統が並んで残る。そこで
