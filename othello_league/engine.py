@@ -43,6 +43,47 @@ for _sq in C_SQUARES:
 # 評価ノイズの基準幅（evaluate()末尾のコメント参照）
 EVAL_NOISE_BASE = 5.0
 
+# 終盤の強さの差を勝敗に効かせる仕組み（早指しの棋戦では使わない）：
+#   - 空きマスが終盤力の半分以下になったら、さらに1手深く読む（終盤力の範囲で+1、その半分でさらに+1）
+#   - 空きマスが「終盤力×0.3（最大10マス）」以下になったら、終局まで読み切って最善手を指す
+# 以前は終盤力の範囲で1手深く読むだけで、実力差が勝敗に出にくかった（強さの見積もりで80差の勝率が約6割）。
+# 手元の対局試験（400組・読みの深さ3）で、この2つを入れると約7割になり、強い選手ほど終盤で間違えなくなった
+ENDGAME_SECOND_STEP = 0.5
+EXACT_READ_RATIO = 0.3
+EXACT_READ_MAX = 10
+
+
+class QuickDepth(int):
+    """早指し（玄武）の読みの深さ。ふつうの整数として使えるが、終盤の強化（上記）を使わない目印になる"""
+    quick = True
+
+    def __reduce__(self):
+        return (QuickDepth, (int(self),))
+
+
+def exact_endgame(bd, color, alpha=-65, beta=65, passed=False):
+    """終局まで読み切る（石の差で評価するアルファベータ）。戻り値：(手番側から見た石の差, 最善手)"""
+    moves = B.legal_moves(bd, color)
+    if not moves:
+        if passed:
+            black, white = B.count_discs(bd)
+            diff = black - white
+            return (diff if color == B.BLACK else -diff), None
+        value, _ = exact_endgame(bd, B.opponent(color), -beta, -alpha, True)
+        return -value, None
+    best, best_move = -65, None
+    for mv in _order_moves(moves):
+        nb = bd.copy()
+        B.apply_move(nb, mv, color)
+        value, _ = exact_endgame(nb, B.opponent(color), -beta, -alpha)
+        value = -value
+        if value > best:
+            best, best_move = value, mv
+        alpha = max(alpha, value)
+        if alpha >= beta:
+            break
+    return best, best_move
+
 def _order_moves(moves):
     """良さそうな手を先に並べる（枝刈り効率を上げるためだけの処理）"""
     return sorted(moves, key=lambda mv: -_STATIC_WEIGHTS[mv])
@@ -222,6 +263,8 @@ def choose_move(bd, color, params, depth=5, noise_scale=1.0):
     # 最初のOPENING_RANDOM_PLIES手はランダムに選ぶ（コンピュータ同士の大会で使われる、開局を抽選する方式）
     if bd.count(B.EMPTY) > 60 - OPENING_RANDOM_PLIES:
         return random.choice(moves)
+    quick = getattr(depth, "quick", False)  # 早指し（QuickDepth）は終盤の強化を使わない
+    depth = int(depth)
     book = params.get("_book", 0)
     endgame = params.get("_endgame", 0)
     if book or endgame or params.get("_genius"):
@@ -231,6 +274,13 @@ def choose_move(bd, color, params, depth=5, noise_scale=1.0):
         else:
             if endgame and empty <= endgame:
                 depth += 1
+                if not quick:
+                    if empty <= min(EXACT_READ_MAX, endgame * EXACT_READ_RATIO):
+                        _, move = exact_endgame(bd, color)
+                        if move is not None:
+                            return move
+                    if empty <= endgame * ENDGAME_SECOND_STEP:
+                        depth += 1
             # 天賦（skills.py）：空きマスが天賦の範囲内なら、もう1手深く読む（終盤力とは別に効くので、
             # 終盤力がまだ育っていない若いうちから才能が表に出る）
             if empty <= params.get("_genius", 0):

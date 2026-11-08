@@ -3,7 +3,7 @@
 
 奨励会（othello_league/shoreikai.py）：12〜15歳で毎季12名が入会し（師匠もこのとき決まる）、対局はせず
 成長と運で三段リーグへ上がる。21歳までに上がれなければ退会。
-三段リーグ：定員30名（＋当日投稿のキャラクリエイト）で1人12局のランダム対戦を行い、上位3名が本戦のDリーグへ。
+三段リーグ：定員30名（＋当日投稿のキャラクリエイト）で1人24局のランダム対戦を行い、上位3名が本戦のDリーグへ。
 昇格できなかった在籍者は全員が次季も残り（newcomer_candidate_pool.json）、26歳で年齢制限により退会。
 在籍者は最初に決まった師弟関係・能力をそのまま引き継ぐ（毎季、年を取って成長する）。
 """
@@ -28,7 +28,7 @@ from othello_league.io_utils import (
 from othello_league import shoreikai as SK
 
 NEWCOMER_LEAGUE_DEPTH = 3
-NEWCOMER_LEAGUE_ROUNDS = 12
+NEWCOMER_LEAGUE_ROUNDS = 24  # 1人あたりの対局数。12局では運の要素が大きく、早く抜けた子が強いとは限らなかったため倍に
 NEWCOMER_TARGET_POOL = 30
 NEWCOMER_SUBMISSION_CAP = 40
 # 非昇格者のうち次回へ持ち越す人数。奨励会の導入後は全員を残す（三段リーグの在籍者。年齢制限はshoreikai.py）

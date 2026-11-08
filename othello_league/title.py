@@ -9,18 +9,23 @@ from .parallel import run_calls, drive
 
 # 各タイトル戦の探索深さ。1つの棋戦の中では、予選・リーグ・挑戦者決定戦・番勝負まで同じ深さで指す
 # （番勝負だけ深くすると、予選やリーグで強い選手と番勝負で強い選手が別物になり、
-# 終盤力・定跡などの個性の効き方も棋戦の中で変わってしまうため）。棋戦の格（序列）が上ほど深い：
-# 麒麟・青龍（竜王・名人格）4、朱雀・白虎 3、玄武（早指し）2。
+# 終盤力・定跡などの個性の効き方も棋戦の中で変わってしまうため）。
+# 棋戦の個性は「長考・中間・早指し」の3段階。将棋と同じく、長考の棋戦ほど実力どおりの結果になる：
+#   長考（リーグ戦・青龍・麒麟・三段リーグ）：深さ3＋終盤の強化（engine.py）
+#   中間（朱雀・白虎）：深さ2＋終盤の強化
+#   早指し（玄武）：深さ2、終盤の強化なし（QuickDepth）。番狂わせが多い
+# 以前は青龍・麒麟・リーグ戦が深さ4だったが、深さ4では終盤の強化がほとんど効かず（実力の出やすさが深さ3の
+# 約3分の2）、長考の棋戦ほど運に左右される逆転が起きていたため、3段階を作り直した（深さ4は1局に深さ3の約4倍かかる）。
 # 「LEAGUE」「TITLE」の2つの名前は、呼び出し側との互換のために残している（値は同じ）
-SEIRYUU_LEAGUE_DEPTH = 4
-SEIRYUU_TITLE_DEPTH = 4
-SUZAKU_LEAGUE_DEPTH = 3
-SUZAKU_TITLE_DEPTH = 3
-BYAKKO_LEAGUE_DEPTH = 3
-BYAKKO_TITLE_DEPTH = 3
-GENBU_LEAGUE_DEPTH = 2
-GENBU_TITLE_DEPTH = 2
-KIRIN_DEPTH = 4
+SEIRYUU_LEAGUE_DEPTH = 3
+SEIRYUU_TITLE_DEPTH = 3
+SUZAKU_LEAGUE_DEPTH = 2
+SUZAKU_TITLE_DEPTH = 2
+BYAKKO_LEAGUE_DEPTH = 2
+BYAKKO_TITLE_DEPTH = 2
+GENBU_LEAGUE_DEPTH = E.QuickDepth(2)
+GENBU_TITLE_DEPTH = E.QuickDepth(2)
+KIRIN_DEPTH = 3
 
 
 def _play_one_game(params_black, params_white, depth, noise_black=1.0, noise_white=1.0):
