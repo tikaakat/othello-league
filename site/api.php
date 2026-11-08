@@ -491,8 +491,10 @@ function kirin_group1_seasons($pdo, $id = null) {
     $stmt->execute($params);
     $main = []; $prelim = [];
     $rows = $stmt->fetchAll();
-    $newFormat = [];
-    foreach ($rows as $m) if (strpos($m['stage'], 'g1-') === 0) $newFormat[(int)$m['season']] = true;
+    // 竜王戦型の季かどうかは、その選手の対局ではなく季全体で判定する（選手1人分だけで判定すると、
+    // 2〜4組から本戦に進んだ季が旧方式の「本戦1回戦から出場＝1組」とみなされ、殿堂の記録より多く数えていた）
+    $newFormat = array_fill_keys(array_map('intval', $pdo->query(
+        "SELECT DISTINCT season FROM matches WHERE league = '麒麟予選' AND stage LIKE 'g1-%'")->fetchAll(PDO::FETCH_COLUMN)), true);
     foreach ($rows as $m) {
         $s = (int)$m['season'];
         foreach ([$m['a'], $m['b']] as $pid) {
