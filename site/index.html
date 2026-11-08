@@ -2306,8 +2306,9 @@ async function loadOneBracket(season, title, containerId = 'bracket-view') {
           // ブロック優勝者（前季失冠者が合流した季はブロック優勝者+1名）による
           // 挑戦者決定リーグ戦（総当たり）の成績表を別立てで示す。総当たりなので
           // 人数に関わらず組め、バイが発生しない（旧トーナメント方式の名残は無い）
-          html += `<div style="font-size:0.7rem; color:var(--amber); margin-bottom:6px;">予選（${genbuBlocks.length}ブロック）</div>
-            <div style="display:flex; flex-wrap:wrap; gap:18px; margin-bottom:10px;">`;
+          // 予選のトーナメント表は大きいので折りたたむ（挑戦者決定リーグ戦の表はそのまま見せる）
+          html += `<details style="margin-bottom:10px;"><summary style="cursor:pointer; font-size:0.7rem; color:var(--amber); margin-bottom:6px;">予選（${genbuBlocks.length}ブロック）のトーナメント表を表示</summary>
+            <div style="display:flex; flex-wrap:wrap; gap:18px; margin:6px 0 10px;">`;
           genbuBlocks.forEach((blockMatches, i) => {
             const tree = buildBracketTree(blockMatches);
             html += `<div style="min-width:180px;">
@@ -2315,7 +2316,7 @@ async function loadOneBracket(season, title, containerId = 'bracket-view') {
               ${renderBracketSVG(tree, data.participant_info, false)}
             </div>`;
           });
-          html += '</div>';
+          html += '</div></details>';
           if (genbuFinalStandings && genbuFinalStandings.length > 0) {
             html += `<div style="font-size:0.7rem; color:var(--amber); margin:10px 0 6px;">挑戦者決定リーグ戦（ブロック優勝者${genbuFinalStandings.length}名・総当たり）</div>
               <div style="overflow-x:auto; margin-bottom:8px;">
