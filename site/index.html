@@ -3104,7 +3104,9 @@ async function loadNewcomerLeague(forSeason, mode = 'newcomer') {
     } else {
       const ages = resData.ages || {};
       const hasAge = Object.keys(ages).length > 0;
-      html += `<table><thead><tr><th>#</th><th>名前</th>${hasAge ? '<th>年齢</th>' : ''}<th>師匠</th><th>成績</th><th></th></tr></thead><tbody>`;
+      const terms = resData.sandan_terms || {};
+      const hasTerms = Object.keys(terms).length > 0;
+      html += `<table><thead><tr><th>#</th><th>名前</th>${hasAge ? '<th>年齢</th>' : ''}${hasTerms ? '<th>在籍</th>' : ''}<th>師匠</th><th>成績</th><th></th></tr></thead><tbody>`;
       resData.standings.forEach(s => {
         const tags = [];
         if (s.promoted) tags.push('<span style="display:inline-block; font-size:0.62rem; color:var(--navy-950); background:var(--cyan); border-radius:2px; padding:1px 5px; margin-right:4px; font-weight:700;">昇格</span>');
@@ -3121,6 +3123,7 @@ async function loadNewcomerLeague(forSeason, mode = 'newcomer') {
           <td class="rank-num">${s.rank ?? '-'}</td>
           <td>${escapeHtml(s.display_name || s.individual_id)}</td>
           ${hasAge ? `<td style="font-size:0.78rem; white-space:nowrap;">${ages[s.display_name] ?? ''}${ages[s.display_name] != null ? '歳' : ''}</td>` : ''}
+          ${hasTerms ? `<td style="font-size:0.78rem; white-space:nowrap;">${terms[s.display_name] != null ? `${terms[s.display_name]}期目` : ''}</td>` : ''}
           <td style="font-size:0.78rem;">${masterCell}</td>
           <td>${s.win}勝${s.loss}敗${s.draw}分</td>
           <td>${tags.join('')}</td>
@@ -3142,9 +3145,9 @@ async function loadNewcomerLeague(forSeason, mode = 'newcomer') {
               ${extra ? `<td style="font-size:0.74rem;">${escapeHtml(extra.cell(r))}</td>` : ''}</tr>`).join('')}</tbody></table>`
         : '<div class="empty" style="padding:6px 0;">なし</div>';
       html += `<div style="text-align:left;"><div style="font-size:0.75rem; color:var(--text-dim); margin-bottom:4px;">在籍${sk.size ?? '-'}名。12〜15歳で入会し、成長と運で三段リーグへ昇段（21歳までに上がれなければ退会）。三段リーグは26歳が年齢制限</div>`
-        + h('三段リーグへ昇段', (sk.to_sandan || []).length) + table(sk.to_sandan)
+        + h('三段リーグへ昇段', (sk.to_sandan || []).length) + table(sk.to_sandan, { head: '奨励会', cell: r => r.terms ? `${r.terms}期で昇段` : '' })
         + h('入会', (sk.joined || []).length) + table(sk.joined)
-        + h('退会', (sk.left || []).length) + table(sk.left, { head: '理由', cell: r => r.reason || '' }) + '</div>';
+        + h('退会', (sk.left || []).length) + table(sk.left, { head: '理由', cell: r => (r.reason || '') + (r.terms ? `（在籍${r.terms}期）` : '') }) + '</div>';
     }
     if (mode === 'shoreikai') {
       // いまの在籍者（奨励会リーグ・三段リーグ）：ファンサイト用の軽量データ（season_state.jsonのshoreikai）から。年齢の高い順
@@ -3153,10 +3156,17 @@ async function loadNewcomerLeague(forSeason, mode = 'newcomer') {
         const roster = st && st.shoreikai;
         if (roster) {
           const byAge = rows => rows.slice().sort((a, b) => (b.age || 0) - (a.age || 0));
-          const rosterTable = (rows, joined) => `<table><thead><tr><th>名前</th><th>年齢</th><th>師匠</th>${joined ? '<th>入会</th>' : ''}</tr></thead><tbody>${byAge(rows).map(r =>
+          const held = st.shoreikai.log_season;  // 名簿は第held季の奨励会・三段リーグが終わった後のもの
+          const termCell = (r, joined) => {
+            const since = joined ? r.joined_season : r.sandan_season;
+            if (since == null || held == null) return '';
+            return joined ? `在籍${Math.max(1, held - since + 1)}期` : `${held - since + 1}期`;
+          };
+          const rosterTable = (rows, joined) => `<table><thead><tr><th>名前</th><th>年齢</th><th>師匠</th>${joined ? '<th>入会</th>' : ''}<th>${joined ? '在籍' : '三段リーグ'}</th></tr></thead><tbody>${byAge(rows).map(r =>
             `<tr style="cursor:default;"><td>${escapeHtml(r.name)}${r.named_by ? `<div style="font-size:0.66rem; color:var(--text-dim);">名付け親：${escapeHtml(r.named_by)}</div>` : ''}</td>
               <td style="white-space:nowrap;">${r.age ?? ''}歳</td><td style="font-size:0.78rem;">${escapeHtml(r.master_name || 'なし')}</td>
-              ${joined ? `<td style="white-space:nowrap; font-size:0.74rem;">${r.joined_season == null ? '' : r.joined_season >= 1 ? `第${r.joined_season}季` : '開幕前'}</td>` : ''}</tr>`).join('')}</tbody></table>`;
+              ${joined ? `<td style="white-space:nowrap; font-size:0.74rem;">${r.joined_season == null ? '' : r.joined_season >= 1 ? `第${r.joined_season}季` : '開幕前'}</td>` : ''}
+              <td style="white-space:nowrap; font-size:0.74rem;">${termCell(r, joined)}</td></tr>`).join('')}</tbody></table>`;
           const hh = (t, n) => `<h3 style="text-align:left; font-size:0.85rem; color:var(--cyan); border-bottom:1px solid var(--navy-700); padding-bottom:4px; margin:22px 0 6px;">${t}（${n}名）</h3>`;
           html += `<div style="text-align:left;">`
             + hh('いまの三段リーグ在籍者', (roster.sandan || []).length) + rosterTable(roster.sandan || [], false)

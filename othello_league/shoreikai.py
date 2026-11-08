@@ -46,6 +46,19 @@ def estimated_strength(params):
     return eg_elo + book_elo + (cos - 0.94) * 1500 + 2.5 * params.get("_genius", 0) + 9 * params.get("_genius2", 0)
 
 
+def _terms(season, since):
+    """在籍した期数（sinceの季からseasonの前の季まで。sinceが分からなければ空）。入会と同じ季の昇段は1期と数える"""
+    if since is None:
+        return {}
+    return {"terms": max(1, season - since)}
+
+
+def sandan_terms(season, entry):
+    """第season季の三段リーグが、その子にとって何期目か（三段入りの季が分からなければNone）"""
+    s = entry.get("sandan_season")
+    return season - s + 1 if s is not None else None
+
+
 def grow_entry(entry):
     """1季分、年を取って成長する（本戦と同じ規則。entryのparamsを更新し、ageを1つ進める）"""
     entry["age"] = entry.get("age", 18) + 1
@@ -128,7 +141,8 @@ def advance(sandan, shoreikai, registry, season, pool, retired_records, titlehol
     for e in sandan:
         if e["age"] > SANDAN_AGE_LIMIT:
             log["left"].append({"name": e["name"], "age": e["age"], "reason": "三段リーグの年齢制限",
-                                "master_name": master_names.get(e.get("parent_a_id"))})
+                                "master_name": master_names.get(e.get("parent_a_id")),
+                                **_terms(season, e.get("sandan_season"))})
         else:
             kept.append(e)
     sandan = kept
@@ -136,7 +150,8 @@ def advance(sandan, shoreikai, registry, season, pool, retired_records, titlehol
     for e in shoreikai:
         if e["age"] > SHOREIKAI_AGE_LIMIT:
             log["left"].append({"name": e["name"], "age": e["age"], "reason": "奨励会リーグの年齢制限",
-                                "master_name": master_names.get(e.get("parent_a_id"))})
+                                "master_name": master_names.get(e.get("parent_a_id")),
+                                **_terms(season, e.get("joined_season"))})
         else:
             kept.append(e)
     shoreikai = kept
@@ -152,7 +167,10 @@ def advance(sandan, shoreikai, registry, season, pool, retired_records, titlehol
     ranked = sorted(shoreikai, key=lambda e: estimated_strength(e["params"]) + random.gauss(0, PROMOTION_LUCK),
                     reverse=True)
     up, shoreikai = ranked[:vacancy], ranked[vacancy:]
-    log["to_sandan"] = [{"name": e["name"], "age": e["age"], "master_name": master_names.get(e.get("parent_a_id"))}
+    for e in up:
+        e["sandan_season"] = season  # 三段リーグに入った季（この季の三段リーグが1期目）
+    log["to_sandan"] = [{"name": e["name"], "age": e["age"], "master_name": master_names.get(e.get("parent_a_id")),
+                         **_terms(season, e.get("joined_season"))}
                         for e in up]
     sandan = sandan + up
     shoreikai.sort(key=lambda e: (e.get("joined_season", 0), e["name"]))

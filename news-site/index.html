@@ -1987,8 +1987,18 @@ async function renderShoreikai() {
   const st = await loadHolders();
   const sk = st && st.shoreikai;
   if (!sk) { el.innerHTML = '<div class="empty">奨励会リーグの名簿はまだありません</div>'; return; }
-  const table = (rows, showJoined) => rows.length ? `<table class="rule-history"><tr><td>名前</td><td>年齢</td><td>師匠</td>${showJoined ? '<td>入会</td>' : ''}</tr>${
-    rows.map(r => `<tr><td>${escapeHtml(r.name || '')}${r.named_by ? `<span class="board-meta" style="display:block;">名付け親：${escapeHtml(r.named_by)}</span>` : ''}</td><td>${r.age ?? ''}歳</td><td>${escapeHtml(r.master_name || '（なし）')}</td>${showJoined ? `<td>${r.joined_season == null ? '' : r.joined_season >= 1 ? `第${r.joined_season}季` : '開幕前'}</td>` : ''}</tr>`).join('')}</table>`
+  // mode：'sandan'＝三段リーグ何期目、'member'＝奨励会の入会季と在籍期数、'up'＝何期で三段へ昇段、null＝なし
+  const held = sk.log_season;
+  const extraHead = { sandan: '<td>三段リーグ</td>', member: '<td>入会</td><td>在籍</td>', up: '<td>奨励会</td>' };
+  const extraCell = (r, mode) => {
+    if (mode === 'sandan') return `<td>${r.sandan_season != null && held != null ? `${held - r.sandan_season + 1}期` : ''}</td>`;
+    if (mode === 'member') return `<td>${r.joined_season == null ? '' : r.joined_season >= 1 ? `第${r.joined_season}季` : '開幕前'}</td>`
+      + `<td>${r.joined_season != null && held != null ? `${Math.max(1, held - r.joined_season + 1)}期` : ''}</td>`;
+    if (mode === 'up') return `<td>${r.terms ? `${r.terms}期で昇段` : ''}</td>`;
+    return '';
+  };
+  const table = (rows, mode) => rows.length ? `<table class="rule-history"><tr><td>名前</td><td>年齢</td><td>師匠</td>${extraHead[mode] || ''}</tr>${
+    rows.map(r => `<tr><td>${escapeHtml(r.name || '')}${r.named_by ? `<span class="board-meta" style="display:block;">名付け親：${escapeHtml(r.named_by)}</span>` : ''}</td><td>${r.age ?? ''}歳</td><td>${escapeHtml(r.master_name || '（なし）')}</td>${extraCell(r, mode)}</tr>`).join('')}</table>`
     : '<div class="empty">該当者なし</div>';
   const byAge = rows => rows.slice().sort((a, b) => (b.age || 0) - (a.age || 0));
   const log = sk.log;
@@ -1999,12 +2009,12 @@ async function renderShoreikai() {
       奨励会リーグは12〜15歳で入会し、成長しながら三段リーグへの昇段を目指す（21歳までに上がれなければ退会）。
       三段リーグは毎季の対局で上位3名がプロ（Dリーグ）としてデビューする（26歳までに上がれなければ退会）。</div>
     ${log ? `<div class="rules"><h3>第${sk.log_season}季の動き</h3>
-      <div class="sec"><b>三段リーグへ昇段</b>（${(log.to_sandan || []).length}名）${table(log.to_sandan || [], false)}</div>
-      <div class="sec"><b>入会</b>（${(log.joined || []).length}名）${table(log.joined || [], false)}</div>
-      <div class="sec"><b>退会</b>（${(log.left || []).length}名）${(log.left || []).length ? `<table class="rule-history"><tr><td>名前</td><td>年齢</td><td>理由</td></tr>${log.left.map(r => `<tr><td>${escapeHtml(r.name)}</td><td>${r.age}歳</td><td>${escapeHtml(r.reason)}</td></tr>`).join('')}</table>` : '<div class="empty">なし</div>'}</div>
+      <div class="sec"><b>三段リーグへ昇段</b>（${(log.to_sandan || []).length}名）${table(log.to_sandan || [], 'up')}</div>
+      <div class="sec"><b>入会</b>（${(log.joined || []).length}名）${table(log.joined || [], null)}</div>
+      <div class="sec"><b>退会</b>（${(log.left || []).length}名）${(log.left || []).length ? `<table class="rule-history"><tr><td>名前</td><td>年齢</td><td>理由</td></tr>${log.left.map(r => `<tr><td>${escapeHtml(r.name)}</td><td>${r.age}歳</td><td>${escapeHtml(r.reason)}${r.terms ? `（在籍${r.terms}期）` : ''}</td></tr>`).join('')}</table>` : '<div class="empty">なし</div>'}</div>
     </div>` : ''}
-    <div class="rules"><h3>三段リーグ（${sk.sandan.length}名）</h3><div class="sec">${table(byAge(sk.sandan), false)}</div>
-    <h3>奨励会リーグ（${sk.members.length}名）</h3><div class="sec">${table(byAge(sk.members), true)}</div></div>`;
+    <div class="rules"><h3>三段リーグ（${sk.sandan.length}名）</h3><div class="sec">${table(byAge(sk.sandan), 'sandan')}</div>
+    <h3>奨励会リーグ（${sk.members.length}名）</h3><div class="sec">${table(byAge(sk.members), 'member')}</div></div>`;
 }
 
 async function renderIndividualList() {

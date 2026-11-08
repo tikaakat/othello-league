@@ -286,6 +286,9 @@ def run_newcomer_league(submissions, slots_needed, registry, retry_pool=None,
             "master_id": ind.parent_a_id,
             "master_name": master_name_by_id.get(ind.parent_a_id) if ind.parent_a_id else None,
             "age": ind.initial_age,
+            # 三段リーグ何期目か（第season−1季の開催。投稿されたキャラクリエイトなど三段入りの季が無い子は空）
+            **({"sandan_terms": season - 1 - entry["sandan_season"] + 1}
+               if entry.get("sandan_season") is not None and season is not None else {}),
         })
 
     # display_order（プレーオフ反映済みの最終順位）の順を使う。rankedのまま（プレーオフ前の
@@ -313,6 +316,7 @@ def run_newcomer_league(submissions, slots_needed, registry, retry_pool=None,
             "joined_season": entry.get("joined_season"), "entry_age": entry.get("entry_age"),
             "parent_a_id": entry.get("parent_a_id"), "clan_root_id": entry.get("clan_root_id"),
             "generation": entry.get("generation", 0), "volatility": entry.get("volatility"),
+            "sandan_season": entry.get("sandan_season"),
         })
 
     return winner_entries, standings, match_log, next_retry_pool, playoff_log
