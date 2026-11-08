@@ -1882,7 +1882,7 @@ switch ($action) {
 
         // 奨励会リーグの動き（入会・三段リーグへの昇段・退会）と三段リーグ出場者の年齢は、DBには取り込まず
         // 結果ファイル（deploy_siteのresync_server_dataがleague_export/に置く）から直接読む
-        $shoreikai = null; $ages = [];
+        $shoreikai = null; $ages = []; $terms = [];
         $nlFile = __DIR__ . "/league_export/newcomer_league/for_season_{$forSeason}.json";
         if (is_file($nlFile)) {
             $nl = json_decode(file_get_contents($nlFile), true);
@@ -1890,6 +1890,7 @@ switch ($action) {
                 $shoreikai = $nl['shoreikai'] ?? null;
                 foreach (($nl['standings'] ?? []) as $r) {
                     if (isset($r['age'], $r['display_name'])) $ages[$r['display_name']] = (int)$r['age'];
+                    if (isset($r['sandan_terms'], $r['display_name'])) $terms[$r['display_name']] = (int)$r['sandan_terms'];
                 }
             }
         }
@@ -1900,6 +1901,7 @@ switch ($action) {
             'available_seasons' => $available,
             'shoreikai' => $shoreikai,
             'ages' => (object)$ages,
+            'sandan_terms' => (object)$terms,  // 三段リーグ何期目か（表示名 => 期数）
         ]);
         break;
 
