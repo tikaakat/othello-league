@@ -226,7 +226,7 @@ function simulate_dan_progression($debutSeason, $debutLeague, array $nonWinCandi
     $startDan = $grandMaster ? 9 : (DAN_LEAGUE_FLOOR[$debutLeague] ?? 4);
     $dan = $startDan;
     $winBaseline = 0; // 現在の段位になった時点の通算勝数（勝数昇段はここからの増分で判定）
-    $history = [['season' => $debutSeason, 'dan' => $startDan, 'reason' => $grandMaster ? '大師匠として参加（開幕前からの実績）' : '新規参入']];
+    $history = [['season' => $debutSeason, 'dan' => $startDan, 'reason' => $grandMaster ? '新規参入（開幕前の実績により九段）' : '新規参入']];
 
     // 段位を$newDanまで引き上げる。1段を超えて飛び級する場合、間の段位も
     // 「飛び級」注記付きで同じ季の履歴に記録してから、実際の理由で$newDanを記録する
