@@ -10,7 +10,12 @@ concurrency:
   cancel-in-progress: false
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      chain_remaining:
+        description: "連続実行：この新人リーグの後にさらに何季、本戦を進めるか（1以上なら終了後に本戦を自動で起動する）"
+        required: false
+        default: "0"
   # 定期実行のcronは持たない。本戦（evolve.yml）が成功した直後に、本戦側から
   # workflow_dispatchで起動される（本戦がその季の対局を終えてDリーグの欠員数を確定させた
   # 直後に実行することで、「直前に確定したばかりの正確な欠員数」を募集人数として使える）。
@@ -176,3 +181,21 @@ jobs:
             "https://api.github.com/repos/${{ github.repository }}/actions/workflows/generate_news.yml/dispatches" \
             -d "{\"ref\":\"main\",\"inputs\":{\"season\":\"${TARGET_SEASON}\",\"newcomer_only\":\"true\"}}" \
             || echo "::warning::新人リーグ記事の生成起動に失敗しました。後で手動実行してください（season=${TARGET_SEASON}、newcomer_only=true）"
+
+      - name: Chain next season (連続実行)
+        # 本戦から引き継いだ残り季数が1以上なら、次の本戦を残り-1で起動する。
+        # 以前は手元の端末から1季ずつ起動していたが、端末側が止まると連続実行も止まっていたため、
+        # GitHub側だけで「本戦→新人リーグ→次の本戦…」が最後まで続くようにする
+        if: success() && inputs.chain_remaining != '' && inputs.chain_remaining != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CHAIN_REMAINING: ${{ inputs.chain_remaining }}
+        run: |
+          NEXT=$((CHAIN_REMAINING - 1))
+          echo "=== 連続実行：次の本戦を起動（その後さらに${NEXT}季） ==="
+          curl -sS -f -X POST \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/evolve.yml/dispatches" \
+            -d "{\"ref\":\"main\",\"inputs\":{\"chain_remaining\":\"${NEXT}\"}}" \
+            || { echo "::error::次の本戦の起動に失敗しました。evolve.ymlをchain_remaining=${NEXT}で手動実行してください"; exit 1; }
