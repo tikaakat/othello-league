@@ -51,6 +51,11 @@ EVAL_NOISE_BASE = 5.0
 ENDGAME_SECOND_STEP = 0.5
 EXACT_READ_RATIO = 0.3
 EXACT_READ_MAX = 10
+# 大天才（_genius2_max を持つ選手。表には出さない）は読み切りの範囲が広い：終盤力×0.6（最大14マス）。早指しの玄武でも読み切る。
+# 対局試験（トップ10人が相手）で、今のままの大天才の勝率は約63%と別格ではなかったが、これで長考の棋戦は約81%・
+# 玄武は約78%・朱雀と白虎は約65%になり、約50季に1人の大天才が5冠を狙える力を持つ
+PRODIGY_EXACT_READ_RATIO = 0.6
+PRODIGY_EXACT_READ_MAX = 14
 
 
 class QuickDepth(int):
@@ -272,10 +277,13 @@ def choose_move(bd, color, params, depth=5, noise_scale=1.0):
         if book and empty >= 60 - book:
             params, noise_scale = BOOK_PARAMS, 0.0
         else:
+            prodigy = bool(params.get("_genius2_max"))
             if endgame and empty <= endgame:
                 depth += 1
-                if not quick:
-                    if empty <= min(EXACT_READ_MAX, endgame * EXACT_READ_RATIO):
+                if not quick or prodigy:
+                    exact_ratio, exact_max = ((PRODIGY_EXACT_READ_RATIO, PRODIGY_EXACT_READ_MAX) if prodigy
+                                              else (EXACT_READ_RATIO, EXACT_READ_MAX))
+                    if empty <= min(exact_max, endgame * exact_ratio):
                         _, move = exact_endgame(bd, color)
                         if move is not None:
                             return move
