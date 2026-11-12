@@ -61,6 +61,7 @@ jobs:
           python-version: "3.11"
 
       - name: Run season(s) one at a time (with per-season push)
+        id: season
         timeout-minutes: 340
         env:
           XSERVER_HOST: ${{ secrets.XSERVER_HOST }}
@@ -361,6 +362,9 @@ jobs:
             echo "::error::季の結果をGitHubにpushできませんでした（上のgit pushのエラーを確認してください）。この実行の結果は保存されていません。"
             exit 1
           fi
+          # ここまで来れば季の結果はGitHubに保存済み。サイトへの最終同期が失敗してこのステップが
+          # 失敗扱いになっても、新人リーグ（と連続実行）は続けられるよう、保存済みであることを出力する
+          echo "saved=true" >> "$GITHUB_OUTPUT"
 
           # 最終同期（プッシュ型・プル型とも）が最後まで失敗した場合のみ、ジョブそのものを
           # 失敗扱いにする（GitHub Actionsの失敗通知メールで気付けるようにするため。
@@ -372,7 +376,9 @@ jobs:
           fi
 
       - name: Chain newcomer league
-        if: success() && (github.event_name != 'workflow_dispatch' || inputs.chain_newcomer != 'false')
+        # サイト（xserver）への最終同期だけが失敗した場合も、季の結果はGitHubに保存済みなので続けて起動する
+        # （以前はサーバー側の一時的な接続不良で連続実行ごと止まっていた）
+        if: (success() || (failure() && steps.season.outputs.saved == 'true')) && (github.event_name != 'workflow_dispatch' || inputs.chain_newcomer != 'false')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # 連続実行の残り季数を新人リーグへ引き継ぐ（新人リーグの終了後に次の本戦を起動するため）
