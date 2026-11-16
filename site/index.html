@@ -104,11 +104,12 @@
   .season-nav { display: flex; justify-content: center; align-items: center; gap: 14px; margin-bottom: 14px; font-family: 'Noto Sans JP', sans-serif; }
   .season-nav button { background: var(--navy-800); border: 1px solid var(--navy-700); color: var(--cyan); font-size: 0.85rem; padding: 6px 12px; cursor: pointer; }
   .season-nav button:disabled { color: var(--text-dim); cursor: default; }
-  .subtabs { display: flex; gap: 6px; justify-content: center; margin: -10px auto 18px; flex-wrap: wrap; }
+  /* 上のタブとの間を空け、指で押しやすい大きさにする（以前は上に詰めていて押し間違えやすかった） */
+  .subtabs { display: flex; gap: 8px; justify-content: center; margin: 6px auto 18px; padding: 0 8px; flex-wrap: wrap; }
   .subtabs.hidden { display: none; }
   .subtab-btn {
     font-family: 'Noto Sans JP', sans-serif; font-size: 0.72rem; background: transparent; color: var(--text-dim);
-    border: 1px solid var(--navy-700); border-radius: 2px; padding: 3px 10px; cursor: pointer;
+    border: 1px solid var(--navy-700); border-radius: 2px; padding: 7px 12px; min-height: 34px; cursor: pointer;
   }
   .subtab-btn.active { color: #fff; border-color: var(--head); background: var(--head); }
   .info-icon {
