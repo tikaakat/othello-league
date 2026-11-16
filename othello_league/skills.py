@@ -14,6 +14,13 @@
   デビュー時に師匠の定跡の7割（最低16手）を受け継ぎ、30歳未満は1.3倍の速さで覚える（若手が育つ前に辞めてしまわないように）。
   読みの量は普段と同じなので、所要時間は増えない。
 - 調子（_form）：季ごとの好不調。その季の終盤力が上下する。ムラ気（volatility）が大きいほど振れ幅が大きい。
+- 読みの深さ（_read）：中盤以降の毎手の読みの深さの補正（−1〜+1手）。端数は確率で、+0.5なら半分の手で1手深く読む。
+  棋風・終盤力・定跡だけでは選手どうしの差が小さく（同じ深さで読むため）、リーグの上下で勝率がほぼ五分になり、
+  タイトル保持者が下のリーグに残る・衰えたベテランがAに残るといった状態が続いていた。
+  試算（同じ選手どうし）：−1手で勝率24%（約−200）、+1手で69%（約+135）。16人の総当たりで、−1〜+1を割り振ると
+  レートの標準偏差が約100→約140、上位4人の下位4人への勝率が85→91%。1局の時間は平均で約1.5倍。
+  ピーク（_read_max、−0.8〜+1.0）は才能で決まり、入会時はピークより1手浅い。25歳まで速く伸び、30歳まで少し、
+  45歳から衰える（衰えの速さは_agingに従う）。
 
 いずれもparamsの中に「_」で始まるキーとして持たせる（評価関数は8つの能力のキーしか見ないため影響しない）。
 """
@@ -30,8 +37,20 @@ GENIUS_MAX_KEY = "_genius_max"     # 天賦のピーク（その選手が伸び�
 PRODIGY_KEY = "_genius2"           # 大天才（天賦の最上位）：空きマスがこの数以下なら、天賦のさらに奥でもう1手深く読む
 PRODIGY_MAX_KEY = "_genius2_max"   # 大天才の2段目のピーク
 AGING_KEY = "_aging"               # 衰えの速さの倍率（1.0＝ふつう。一部の選手は衰えが緩やか。表には出さない）
+READ_KEY = "_read"                 # 読みの深さの補正（−1〜+1手。端数は確率。engine.choose_move参照）
+READ_MAX_KEY = "_read_max"         # 読みの深さのピーク（才能）
 SKILL_KEYS = (ENDGAME_KEY, ENDGAME_GROWTH_KEY, BOOK_KEY, BOOK_RATE_KEY, FORM_KEY, GENIUS_KEY, GENIUS_MAX_KEY,
-              PRODIGY_KEY, PRODIGY_MAX_KEY, AGING_KEY)
+              PRODIGY_KEY, PRODIGY_MAX_KEY, AGING_KEY, READ_KEY, READ_MAX_KEY)
+
+READ_FLOOR = -1.0
+READ_PEAK_RANGE = (-0.8, 1.0)      # ピークの幅（才能の順位を写す）
+READ_TALENT_NOISE = 0.25           # 終盤力の伸びる速さ（才能の共通因子）とどれだけ別に決まるか
+READ_START_GAP = 1.0               # 生まれたときはピークよりこれだけ浅い
+READ_GENIUS_MIN = 0.8              # 天賦を持つ選手のピークの下限（大天才は上限の1.0）
+READ_GROWTH_YOUNG = 0.12           # 25歳未満の1季あたりの伸び
+READ_GROWTH_MID = 0.06             # 30歳未満
+READ_DECLINE_AGE = 45
+READ_DECLINE = 0.06                # 45歳からの1季あたりの衰え（×_aging）
 
 ENDGAME_CAP = 44.0
 ENDGAME_BIRTH_MAX = 20.0          # 生まれつき：20 × Beta(1, 3)（平均5マス、10マス超は3割弱）
@@ -96,6 +115,47 @@ def _book_rate_for(growth):
     return round(lo + (hi - lo) * pct, 2)
 
 
+def _talent_pct(growth, noise):
+    """終盤力の伸びる速さの順位（0〜1）に、ばらつきを足したもの（才能の共通因子）"""
+    z = math.log(max(growth, 1e-3) / ENDGAME_GROWTH_MEDIAN) / ENDGAME_GROWTH_SIGMA
+    pct = 0.5 * (1 + math.erf(z / math.sqrt(2)))
+    return min(1.0, max(0.0, pct + random.gauss(0, noise)))
+
+
+def _read_max_for(p):
+    """読みの深さのピーク。伸びる子ほど深く読めるようになりやすい（ばらつきは大きめ）。天賦・大天才は深い"""
+    lo, hi = READ_PEAK_RANGE
+    peak = lo + (hi - lo) * _talent_pct(p.get(ENDGAME_GROWTH_KEY, ENDGAME_GROWTH_MEDIAN), READ_TALENT_NOISE)
+    if p.get(PRODIGY_MAX_KEY):
+        peak = hi
+    elif p.get(GENIUS_MAX_KEY):
+        peak = max(peak, READ_GENIUS_MIN)
+    return round(peak, 2)
+
+
+def _read_delta(age):
+    if age < 25:
+        return READ_GROWTH_YOUNG
+    if age < 30:
+        return READ_GROWTH_MID
+    if age < READ_DECLINE_AGE:
+        return 0.0
+    return -READ_DECLINE
+
+
+def ensure_read(p, age):
+    """読みの深さをまだ持っていない選手（この仕組みより前の選手）に、才能と年齢に応じた値を与える
+    （13歳でピーク−1から始めて、成長の規則どおりに今の年齢まで進めた値）"""
+    if READ_KEY in p and READ_MAX_KEY in p:
+        return
+    p[READ_MAX_KEY] = _read_max_for(p)
+    r = max(READ_FLOOR, p[READ_MAX_KEY] - READ_START_GAP)
+    for a in range(14, (age or 13) + 1):
+        d = _read_delta(a)
+        r = min(p[READ_MAX_KEY], r + d) if d > 0 else max(READ_FLOOR, r + d * p.get(AGING_KEY, 1.0))
+    p[READ_KEY] = round(r, 3)
+
+
 def _age_factor(age):
     """年齢ごとの終盤力の伸び（成長の速さにかける倍率）。25歳まで大きく伸び、30代前半まで少しずつ、
     44歳まで横ばい、45歳から衰える（衰えは成長の速さ×0.75ずつ）。以前は「30歳まで1倍・37歳まで半分・49歳まで横ばい・50歳から衰え」で、
@@ -128,13 +188,16 @@ def birth_skills(master_params=None):
     growth = _growth_speed()
     if master_params:
         endgame += ENDGAME_INHERIT * master_params.get(ENDGAME_KEY, 0.0)
-    return {
+    out = {
         ENDGAME_KEY: round(min(ENDGAME_CAP, endgame), 2),
         ENDGAME_GROWTH_KEY: round(growth, 3),
         BOOK_KEY: min(BOOK_CAP, max(BOOK_NEWCOMER_MIN, int(BOOK_INHERIT * (master_params or {}).get(BOOK_KEY, 0)))),
         BOOK_RATE_KEY: _book_rate_for(growth),
         **_roll_genius(),
     }
+    out[READ_MAX_KEY] = _read_max_for(out)
+    out[READ_KEY] = round(max(READ_FLOOR, out[READ_MAX_KEY] - READ_START_GAP), 3)
+    return out
 
 
 def veteran_skills(age):
@@ -145,6 +208,8 @@ def veteran_skills(age):
         endgame = min(ENDGAME_CAP, max(0.0, endgame + s[ENDGAME_GROWTH_KEY] * _age_factor(a + 1)))
     s[ENDGAME_KEY] = round(endgame, 2)
     s[BOOK_KEY] = int(min(BOOK_CAP, s[BOOK_RATE_KEY] * max(0, age - 20)))
+    del s[READ_KEY]
+    ensure_read(s, age)
     return s
 
 
@@ -152,6 +217,7 @@ def ensure_skills(ind):
     """終盤力・定跡を持っていない個体（この仕組みの導入前からの個体）に、年齢相応の値を与える"""
     if ENDGAME_KEY not in ind.params:
         ind.params.update(veteran_skills(ind.age))
+    ensure_read(ind.params, ind.age)
 
 
 def awaken_endgame(params):
@@ -203,5 +269,14 @@ def season_growth(ind, growth_scale=1.0):
             p[PRODIGY_KEY] = min(p[PRODIGY_MAX_KEY], p.get(PRODIGY_KEY, 0) + PRODIGY_GROWTH)
         elif ind.age >= GENIUS_DECLINE_AGE:
             p[PRODIGY_KEY] = max(0, round(p.get(PRODIGY_KEY, 0) - GENIUS_DECLINE * aging, 2))
+    # 読みの深さ：まだ持っていなければ年齢相応の値を与え、以降は1季ずつ伸び・衰える
+    if READ_KEY not in p or READ_MAX_KEY not in p:
+        ensure_read(p, ind.age)
+    else:
+        d = _read_delta(ind.age)
+        if d > 0:
+            p[READ_KEY] = round(min(p[READ_MAX_KEY], p[READ_KEY] + d * growth_scale), 3)
+        elif d < 0:
+            p[READ_KEY] = round(max(READ_FLOOR, p[READ_KEY] + d * aging), 3)
     young = BOOK_YOUNG_SPEEDUP if ind.age < BOOK_YOUNG_AGE else 1.0
     p[BOOK_KEY] = int(min(BOOK_CAP, p.get(BOOK_KEY, 0) + p.get(BOOK_RATE_KEY, 0.0) * young + random.random()))

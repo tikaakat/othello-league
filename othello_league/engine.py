@@ -271,6 +271,12 @@ def choose_move(bd, color, params, depth=5, noise_scale=1.0):
     quick = getattr(depth, "quick", False)  # 早指し（QuickDepth）は終盤の強化を使わない
     depth = int(depth)
     book = params.get("_book", 0)
+    # 読みの深さ（skills.pyの_read、−1〜+1手）：定跡を抜けた後の毎手、読みを補正する。端数は確率
+    # （+0.5なら半分の手で1手深く、−0.3なら3割の手で1手浅く）。定跡の手には使わない
+    read = params.get("_read", 0.0)
+    if read and not (book and bd.count(B.EMPTY) >= 60 - book):
+        base = math.floor(read)
+        depth = max(1, depth + base + (1 if random.random() < read - base else 0))
     endgame = params.get("_endgame", 0)
     if book or endgame or params.get("_genius"):
         empty = bd.count(B.EMPTY)

@@ -43,7 +43,9 @@ def estimated_strength(params):
     a = [params[k] for k in PARAM_KEYS]
     b = [BOOK_PARAMS[k] for k in PARAM_KEYS]
     cos = sum(x * y for x, y in zip(a, b)) / math.sqrt(sum(x * x for x in a) * sum(y * y for y in b))
-    return eg_elo + book_elo + (cos - 0.94) * 1500 + 2.5 * params.get("_genius", 0) + 9 * params.get("_genius2", 0)
+    # 読みの深さ：1手あたり約170（試算：−1手で約−200、+1手で約+135）
+    return (eg_elo + book_elo + (cos - 0.94) * 1500 + 2.5 * params.get("_genius", 0) + 9 * params.get("_genius2", 0)
+            + 170 * params.get("_read", 0.0))
 
 
 def _terms(season, since):
