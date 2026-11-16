@@ -79,6 +79,7 @@ on:
           - "patch_import_free_class_20261028"
           - "archive_fan_site_world1_20261106"
           - "sync_lineage_20261108"
+          - "sync_retired_flags"
           - "resync_server_data"
         default: ""
       create_dir:
@@ -472,6 +473,24 @@ jobs:
           for members in json.load(open("data/rosters.json", encoding="utf-8")).values():
               for r in members:
                   emit("individuals", r)
+          PYEOF
+                )
+                ;;
+              sync_retired_flags)
+                # 引退した選手が、データサイトの今季の組み合わせ（individualsのretired = 0）に残り続けることがある。
+                # 引退した季のサーバーへの取り込みが失敗すると、individuals側に引退の印が付かないまま残り、
+                # 以降の季の取り込みは現役（rosters.json）しか更新しないため直らない（新世界線の第4季に60歳で引退した
+                # 森田由紀・山内健一で発生）。data/season_state.jsonのretired_archiveを正として、引退者の印を付け直す。
+                # 何度実行しても同じ結果になる
+                mapfile -t SQL_LIST < <(python3 - <<'PYEOF'
+          import json, re
+          ok = re.compile(r"^[A-Za-z0-9_-]+$")
+          state = json.load(open("data/season_state.json", encoding="utf-8"))
+          active = {r["id"] for members in json.load(open("data/rosters.json", encoding="utf-8")).values() for r in members}
+          for r in state.get("retired_archive", []):
+              iid = r.get("id")
+              if iid and ok.match(iid) and iid not in active:
+                  print(f"UPDATE individuals SET retired = 1 WHERE id = '{iid}' AND retired = 0;")
           PYEOF
                 )
                 ;;
