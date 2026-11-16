@@ -1859,14 +1859,14 @@ function seriesTable(games, nameA, nameB, totals, finalSet) {
   function rowHtml(name, isA) {
     const cells = games.map(g => {
       const m = markFor(g.result, isA);
-      return `<td style="text-align:center; color:${m.color}; font-weight:700; padding:2px 6px; ${g.final_set ? setBg : ''}">${m.symbol}</td>`;
+      return `<td style="text-align:center; color:${m.color}; font-weight:700; padding:2px 3px; white-space:nowrap; ${g.final_set ? setBg : ''}">${m.symbol}</td>`;
     }).join('');
-    return `<tr><td style="white-space:nowrap; padding-right:10px; font-size:0.78rem;">${escapeHtml(name || '?')}</td>${cells}<td style="padding-left:10px; color:var(--text-dim); font-size:0.72rem; white-space:nowrap;">${scoreLabel(isA)}</td></tr>`;
+    return `<tr><td style="white-space:nowrap; padding:2px 6px 2px 0; font-size:0.76rem;">${escapeHtml(name || '?')}</td>${cells}<td style="padding:2px 0 2px 6px; color:var(--text-dim); font-size:0.7rem; white-space:nowrap;">${scoreLabel(isA)}</td></tr>`;
   }
   let normalNo = 0, setNo = 0;
   const headerCells = games.map(g => {
-    const label = g.final_set ? `最終${'①②③④⑤⑥'[setNo++] || ''}` : `第${++normalNo}局`;
-    return `<th style="text-align:center; font-weight:400; color:${g.final_set ? 'var(--amber)' : 'var(--text-dim)'}; font-size:0.62rem; padding:2px 6px; ${g.final_set ? setBg : ''}">${label}</th>`;
+    const label = g.final_set ? `最終${'①②③④⑤⑥'[setNo++] || ''}` : `${++normalNo}局`;
+    return `<th style="text-align:center; font-weight:400; color:${g.final_set ? 'var(--amber)' : 'var(--text-dim)'}; font-size:0.58rem; padding:2px 2px; white-space:nowrap; ${g.final_set ? setBg : ''}">${label}</th>`;
   }).join('');
   let note = '';
   if (finalSet) {
@@ -2043,19 +2043,14 @@ function kirinRepechageSVG(main, rep, dec, participantInfo) {
   return `${svg}<div style="font-size:0.66rem; color:var(--text-dim); margin-top:2px;">挑戦者決定戦：${escapeHtml(flow)}</div>`;
 }
 
-// 朱雀戦紅白リーグの同率決定戦を図で示す。決定戦はシミュレーター側（round_robin.pyの_rank_suzaku_group）で
-// ・1位タイ：同率者で総当たり→最多勝が複数なら、その者だけでもう一巡（最大5巡）
-// ・残留/陥落の境目の同率：同率者で総当たり→勝数ごとの組に分け、組内で並べばその組だけでもう一巡（深さ優先）
-// の順に行われ、対局はその順にID順で記録されている。それを同じ手順でなぞって「巡」に分け直し、
-// 2人の巡は1試合のトーナメント図、3人以上の巡は小さな星取表で描く。なぞれない場合は文章で示す
-function suzakuPlayoffHtml(groupLabel, rows, standings, participantInfo) {
+// 紅白リーグの同率決定戦（シミュレーター側：round_robin.pyの_rank_suzaku_group。同率者で総当たりし、
+// 1位タイは最多勝が複数ならその者だけでもう一巡、境目の同率は勝数ごとの組に分けて組内でもう一巡）（1位決定・残留と陥落の境目）を、玄武戦と同じく1行の文章で示す
+// 例：※紅組1位タイのため決定戦を実施：竹中綾 vs 武藤和彦 → 武藤和彦
+function suzakuPlayoffHtml(groupLabel, rows, standings) {
   rows = rows.filter(m => m.result === 'win' || m.result === 'loss');
   if (rows.length === 0) return '';
   const byId = {}; standings.forEach(r => { byId[r.individual_id] = r; });
-  const nameOf = id => (byId[id] && byId[id].display_name) || id;
-  rows.forEach(m => { [[m.individual_a_id, m.individual_a_name], [m.individual_b_id, m.individual_b_name]].forEach(([id, nm]) => { if (!byId[id]) byId[id] = { individual_id: id, display_name: nm }; }); });
-  const winnerOf = m => m.result === 'win' ? m.individual_a_id : m.individual_b_id;
-
+  const nameOf = (id, fallback) => (byId[id] && byId[id].display_name) || fallback || id;
   // 対局した者同士をつないで、独立した決定戦（1位決定・境目の決定）ごとに分ける
   const events = [];
   rows.forEach(m => {
@@ -2063,93 +2058,17 @@ function suzakuPlayoffHtml(groupLabel, rows, standings, participantInfo) {
     if (!ev) { ev = { ids: new Set(), rows: [] }; events.push(ev); }
     ev.ids.add(m.individual_a_id); ev.ids.add(m.individual_b_id); ev.rows.push(m);
   });
-
-  const pairKey = (a, b) => [a, b].sort().join('|');
-  const parseRounds = ev => {
+  return events.map(ev => {
     const isTop = [...ev.ids].some(id => byId[id] && byId[id].rank === 1);
-    const rounds = []; let pos = 0; let ok = true;
-    const playRound = ids => {
-      const n = ids.length * (ids.length - 1) / 2;
-      const ms = ev.rows.slice(pos, pos + n);
-      const want = new Set();
-      for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) want.add(pairKey(ids[i], ids[j]));
-      if (ms.length !== n || ms.some(m => !want.has(pairKey(m.individual_a_id, m.individual_b_id)))) { ok = false; return null; }
-      pos += n;
-      const wins = {}; ids.forEach(i => { wins[i] = 0; });
-      ms.forEach(m => { wins[winnerOf(m)]++; });
-      rounds.push({ ids, matches: ms, wins });
-      return wins;
-    };
-    // 最初の巡は記録順に出てくる選手の並び（総当たりはこの順の組み合わせで行われている）
-    const firstIds = [];
-    ev.rows.forEach(m => { [m.individual_a_id, m.individual_b_id].forEach(id => { if (!firstIds.includes(id)) firstIds.push(id); }); });
-    const all = [...ev.ids];
-    const ordered = firstIds.filter(id => all.includes(id));
-    if (isTop) {
-      let cur = ordered;
-      while (ok && cur.length > 1 && pos < ev.rows.length) {
-        const wins = playRound(cur);
-        if (!wins) break;
-        const best = Math.max(...Object.values(wins));
-        cur = cur.filter(i => wins[i] === best);
-      }
-    } else {
-      const rec = ids => {
-        if (!ok || ids.length <= 1 || pos >= ev.rows.length) return;
-        const wins = playRound(ids);
-        if (!wins) return;
-        [...new Set(Object.values(wins))].sort((a, b) => b - a)
-          .forEach(w => rec(ids.filter(i => wins[i] === w)));
-      };
-      rec(ordered);
-    }
-    if (pos !== ev.rows.length) ok = false;
-    return { isTop, rounds, ok };
-  };
-
-  const roundHtml = (r, k, total) => {
-    const head = total > 1 ? `<div style="font-size:0.64rem; color:var(--text-dim); margin:4px 0 2px;">${k + 1}巡目</div>` : '';
-    if (r.ids.length === 2) {
-      const m = r.matches[0], w = winnerOf(m);
-      const root = { matchId: m.id, winnerId: w, winnerName: nameOf(w),
-        left: { leaf: true, id: m.individual_a_id, name: nameOf(m.individual_a_id) },
-        right: { leaf: true, id: m.individual_b_id, name: nameOf(m.individual_b_id) } };
-      return head + `<div style="max-width:360px;">${renderBracketSVG(root, participantInfo, false, { roundLabels: ['決定戦'], colW: 40 })}</div>`;
-    }
-    const best = Math.max(...Object.values(r.wins));
-    const res = {};
-    r.matches.forEach(m => { const w = winnerOf(m); const l = w === m.individual_a_id ? m.individual_b_id : m.individual_a_id; res[w + '>' + l] = true; });
-    const cells = a => r.ids.map(b => {
-      if (a === b) return '<td style="background:var(--cell-diag);"></td>';
-      const won = res[a + '>' + b];
-      return `<td style="text-align:center; font-weight:700; color:${won ? 'var(--cyan)' : '#b8322a'};">${won ? '〇' : '✕'}</td>`;
-    }).join('');
-    return head + `<div style="overflow-x:auto;"><table style="width:auto; font-size:0.72rem;">
-      <thead><tr><th></th>${r.ids.map(id => `<th style="font-weight:400; font-size:0.62rem; color:var(--text-dim); max-width:4.5em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(nameOf(id))}</th>`).join('')}<th></th></tr></thead>
-      <tbody>${r.ids.map(a => `<tr><td data-id="${escapeHtml(a)}" style="white-space:nowrap; padding-right:8px; ${r.wins[a] === best ? 'font-weight:700; color:var(--amber);' : ''}">${escapeHtml(nameOf(a))}</td>${cells(a)}<td style="padding-left:8px; color:var(--text-dim); white-space:nowrap;">${r.wins[a]}勝</td></tr>`).join('')}</tbody>
-    </table></div>`;
-  };
-
-  let html = '';
-  events.forEach(ev => {
-    const { isTop, rounds, ok } = parseRounds(ev);
-    const ids = [...ev.ids].sort((a, b) => (byId[a].rank || 99) - (byId[b].rank || 99));
-    const title = isTop ? `${groupLabel}1位決定戦` : `${groupLabel}残留・陥落の決定戦`;
-    const names = ids.map(id => escapeHtml(nameOf(id))).join('・');
-    html += `<div style="margin:0 0 10px; padding:6px 8px; border:1px solid rgba(160,120,0,0.25); border-radius:6px;">
-      <div style="font-size:0.7rem; color:var(--amber);">${title}<span style="color:var(--text-dim); font-size:0.64rem;">（同率：${names}）</span></div>`;
-    if (ok && rounds.length > 0) {
-      rounds.forEach((r, k) => { html += roundHtml(r, k, rounds.length); });
-    } else {
-      ev.rows.forEach(m => { html += `<div style="font-size:0.7rem;">${escapeHtml(nameOf(m.individual_a_id))} vs ${escapeHtml(nameOf(m.individual_b_id))} → ${escapeHtml(nameOf(winnerOf(m)))}の勝ち</div>`; });
-    }
-    const outcome = isTop
-      ? `${groupLabel}1位：${escapeHtml(nameOf(ids[0]))}`
-      : ids.map(id => `${escapeHtml(nameOf(id))}（${byId[id].rank || '?'}位・${byId[id].movement === 'relegated' ? '陥落' : '残留'}）`).join('、');
-    html += `<div style="font-size:0.7rem; margin-top:4px;">→ ${outcome}</div>
-      <div style="font-size:0.62rem; color:var(--text-dim);">順位決定のための対局。上の成績には含まない</div></div>`;
-  });
-  return html;
+    const games = ev.rows.map(m => {
+      const a = nameOf(m.individual_a_id, m.individual_a_name), b = nameOf(m.individual_b_id, m.individual_b_name);
+      return `${escapeHtml(a)} vs ${escapeHtml(b)} → ${escapeHtml(m.result === 'win' ? a : b)}`;
+    }).join('／');
+    const outcome = isTop ? '' : '（' + [...ev.ids].sort((x, y) => (byId[x] ? byId[x].rank : 99) - (byId[y] ? byId[y].rank : 99))
+      .map(id => `${escapeHtml(nameOf(id))}${byId[id] && byId[id].movement === 'relegated' ? '陥落' : '残留'}`).join('・') + '）';
+    const why = isTop ? `${groupLabel}1位タイのため決定戦を実施` : `${groupLabel}の残留・陥落の境目が同率のため決定戦を実施`;
+    return `<div style="font-size:0.68rem; color:var(--text-dim); margin-bottom:6px;">※${why}：${games}${outcome}</div>`;
+  }).join('');
 }
 
 async function loadOneBracket(season, title, containerId = 'bracket-view') {
@@ -2197,8 +2116,8 @@ async function loadOneBracket(season, title, containerId = 'bracket-view') {
           const record = `${r.win}勝${r.loss}敗${r.draw ? r.draw + '分' : ''}`;
           const po = playoffIds.has(r.individual_id) ? '<span title="同率決定戦あり" style="font-size:0.62rem; color:var(--amber); border:1px solid var(--amber); border-radius:3px; padding:0 2px; margin-left:3px;">決</span>' : '';
           return `<td class="rank-num">${r.rank}</td>
-            <td data-id="${escapeHtml(r.individual_id)}">${mark}${escapeHtml(r.display_name || r.individual_id)}${po}</td>
-            <td>${record}</td>`;
+            <td data-id="${escapeHtml(r.individual_id)}" style="white-space:nowrap;">${mark}${escapeHtml(r.display_name || r.individual_id)}${po}</td>
+            <td style="white-space:nowrap;">${record}</td>`;
         };
         let t = `<div style="overflow-x:auto; margin-bottom:10px;">
           <table style="width:100%;"><thead><tr>
@@ -2238,8 +2157,8 @@ async function loadOneBracket(season, title, containerId = 'bracket-view') {
         html += combinedStandingsTable(redStandings, whiteStandings);
 
         // 同率決定戦は順位表の成績に含めず、表の下に図で示す
-        html += suzakuPlayoffHtml('紅組', data.red_playoff || [], redStandings, data.participant_info)
-              + suzakuPlayoffHtml('白組', data.white_playoff || [], whiteStandings, data.participant_info);
+        html += suzakuPlayoffHtml('紅組', data.red_playoff || [], redStandings)
+              + suzakuPlayoffHtml('白組', data.white_playoff || [], whiteStandings);
 
         if (decisionM.length > 0) {
           html += `<div style="padding:10px 0; border-top:1px solid var(--rule);">
