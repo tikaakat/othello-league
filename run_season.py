@@ -67,7 +67,7 @@ def _estimated_strength(params):
     book_elo = 113 * min(book, 16) / 16 + (10 * (min(book, 24) - 16) / 8 if book > 16 else 0)
     a = [params[k] for k in PARAM_KEYS]; b = [BOOK_PARAMS[k] for k in PARAM_KEYS]
     cos = sum(x * y for x, y in zip(a, b)) / math.sqrt(sum(x * x for x in a) * sum(y * y for y in b))
-    return eg_elo + book_elo + (cos - 0.94) * 1500
+    return eg_elo + book_elo + (cos - 0.94) * 1500 + 170 * params.get("_read", 0.0)  # 読みの深さ：1手あたり約170
 
 
 PREHISTORY_SEASONS = 60  # 初期メンバーを作るための「前史」の季数（対局はせず、育成とデビューだけを早回しする）

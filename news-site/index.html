@@ -30,36 +30,37 @@
 {"@context":"https://schema.org","@type":"WebSite","name":"オセロ界タイムズ","url":"https://lab.spia-net.com/othello-news/","description":"AI同士が戦う架空のオセロリーグ「サーキットオセロリーグ」を追いかける非公式ファンメディア"}
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&family=Noto+Sans+JP:wght@400;500;700&family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@600;700;900&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #FFFBF4; --card: #FFFFFF; --text-main: #3A332E; --text-dim: #8C8378;
-    --accent: #D9704F; --accent-dark: #B8573A; --border: #EEE6DB;
-    --shadow: rgba(58,51,46,0.07); --shadow-hover: rgba(58,51,46,0.12);
-    --hover-bg: #FFF6EE; --filter-border: #F3DCC9; --skeleton-shimmer: #F7F0E6;
-    --clan-member-bg: #FDE6D6; --clan-member-bar-retired: #D9B8A2;
-    --text-sub: #5B5349; --gold-text: #8A6A2E; --chip-bg: #FFF1E0; --amount-bg: #FFFBF0;
+    /* 新聞のような配色：白に近い紙色の地、墨色の文字、差し色は深い朱だけ。影は付けず細い罫線で区切る */
+    --bg: #F7F6F2; --card: #FFFFFF; --text-main: #1E1D1B; --text-dim: #77716A;
+    --accent: #9E2A20; --accent-dark: #7A1F17; --border: #E2DED6;
+    --shadow: transparent; --shadow-hover: transparent;
+    --hover-bg: #F4F1EB; --filter-border: #E2DED6; --skeleton-shimmer: #EFECE6;
+    --clan-member-bg: #F1E7DC; --clan-member-bar-retired: #CDBBA9;
+    --text-sub: #44403B; --gold-text: #7A5A1A; --chip-bg: #F3EFE8; --amount-bg: #FAF8F3;
   }
   /* ダークモード：OSの設定に自動追従（prefers-color-scheme）。
      data-theme属性での手動切り替え（ヘッダーのボタン、localStorageに保存）が
      優先されるよう、自動追従側は[data-theme="light"]が付いていない場合のみ効かせる */
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-      --bg: #18120D; --card: #251D17; --text-main: #F0E4D7; --text-dim: #A8988A;
-      --accent: #E8956D; --accent-dark: #F2B290; --border: #3D322A;
-      --shadow: rgba(0,0,0,0.35); --shadow-hover: rgba(0,0,0,0.45);
-      --hover-bg: #2E2419; --filter-border: #4A3A2C; --skeleton-shimmer: #3A2F27;
-      --clan-member-bg: #45301F; --clan-member-bar-retired: #7A5A44;
-      --text-sub: #D9CCBF; --gold-text: #E2C27A; --chip-bg: #3A2C20; --amount-bg: #2E2419;
+      --bg: #161514; --card: #1F1E1C; --text-main: #ECE8E1; --text-dim: #9A948B;
+      --accent: #D46A5C; --accent-dark: #E89184; --border: #34312D;
+      --shadow: transparent; --shadow-hover: transparent;
+      --hover-bg: #2A2826; --filter-border: #3A3632; --skeleton-shimmer: #2E2B28;
+      --clan-member-bg: #3A2C22; --clan-member-bar-retired: #6E5A4A;
+      --text-sub: #D2CCC3; --gold-text: #D9BC7A; --chip-bg: #2E2B28; --amount-bg: #24221F;
     }
   }
   :root[data-theme="dark"] {
-    --bg: #18120D; --card: #251D17; --text-main: #F0E4D7; --text-dim: #A8988A;
-    --accent: #E8956D; --accent-dark: #F2B290; --border: #3D322A;
-    --shadow: rgba(0,0,0,0.35); --shadow-hover: rgba(0,0,0,0.45);
-    --hover-bg: #2E2419; --filter-border: #4A3A2C; --skeleton-shimmer: #3A2F27;
-      --clan-member-bg: #45301F; --clan-member-bar-retired: #7A5A44;
-      --text-sub: #D9CCBF; --gold-text: #E2C27A; --chip-bg: #3A2C20; --amount-bg: #2E2419;
+    --bg: #161514; --card: #1F1E1C; --text-main: #ECE8E1; --text-dim: #9A948B;
+    --accent: #D46A5C; --accent-dark: #E89184; --border: #34312D;
+    --shadow: transparent; --shadow-hover: transparent;
+    --hover-bg: #2A2826; --filter-border: #3A3632; --skeleton-shimmer: #2E2B28;
+    --clan-member-bg: #3A2C22; --clan-member-bar-retired: #6E5A4A;
+    --text-sub: #D2CCC3; --gold-text: #D9BC7A; --chip-bg: #2E2B28; --amount-bg: #24221F;
   }
   * { box-sizing: border-box; }
   input, textarea, select { background: var(--card); color: var(--text-main); border: 1px solid var(--border); }
@@ -70,7 +71,7 @@
   }
   a { color: var(--accent); text-decoration: none; }
   a:hover { color: var(--accent-dark); text-decoration: underline; }
-  h1, h2, h3, .brand { font-family: 'Zen Maru Gothic', sans-serif; }
+  h1, h2, h3, .brand { font-family: 'Noto Serif JP', serif; }
 
   .page { width: 100%; max-width: 720px; margin: 0 auto; padding: 24px 18px 80px; }
 
@@ -96,16 +97,16 @@
 
   .holders-card {
     display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px;
-    background: var(--card); border-radius: 16px; padding: 12px 10px;
+    background: var(--card); border-radius: 3px; padding: 12px 10px;
     margin-bottom: 18px; box-shadow: 0 2px 10px var(--shadow);
   }
-  .holder-slot { text-align: center; cursor: pointer; padding: 4px 2px; border-radius: 10px; }
+  .holder-slot { text-align: center; cursor: pointer; padding: 4px 2px; border-radius: 3px; }
   .holder-slot:hover { background: var(--hover-bg); }
   .holder-title { font-size: 0.66rem; font-weight: 700; color: var(--text-dim); margin-bottom: 3px; }
   .holder-name { font-size: 0.76rem; font-weight: 700; color: var(--text-main); line-height: 1.3; word-break: break-all; }
   .holders-season { font-size: 0.68rem; color: var(--text-dim); text-align: center; margin: -8px 0 16px; }
   /* 今季のまとめ（フィードのトップ）：スマホで読みやすいよう、項目名を上の行に置き、中身は1件ずつ並べる */
-  .summary-card { background: var(--card); border-radius: 16px; padding: 14px 16px; margin-bottom: 18px; box-shadow: 0 2px 10px var(--shadow); }
+  .summary-card { background: var(--card); border-radius: 3px; padding: 14px 16px; margin-bottom: 18px; box-shadow: 0 2px 10px var(--shadow); }
   .summary-card h3 { font-size: 0.9rem; margin: 0 0 6px; color: var(--accent-dark); }
   .summary-sec { margin-top: 8px; }
   .summary-label { font-size: 0.7rem; font-weight: 700; color: var(--text-dim); margin-bottom: 2px; }
@@ -117,7 +118,7 @@
   .summary-more a { color: var(--accent-dark); white-space: nowrap; }
   /* 入門ページ */
   .guide-flow { display: flex; flex-direction: column; align-items: center; gap: 4px; margin: 10px 0 6px; }
-  .guide-step { width: 100%; max-width: 420px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 8px 12px; font-size: 0.82rem; box-shadow: 0 1px 4px var(--shadow); }
+  .guide-step { width: 100%; max-width: 420px; background: var(--card); border: 1px solid var(--border); border-radius: 3px; padding: 8px 12px; font-size: 0.82rem; box-shadow: 0 1px 4px var(--shadow); }
   .guide-step b { color: var(--accent-dark); }
   .guide-arrow { font-size: 0.8rem; color: var(--text-dim); }
   .guide-titles { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
@@ -126,12 +127,12 @@
 
   .chip-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
   .chip-btn {
-    font-size: 0.72rem; font-weight: 700; padding: 5px 12px; border-radius: 12px;
+    font-size: 0.72rem; font-weight: 700; padding: 5px 12px; border-radius: 3px;
     background: var(--card); color: var(--text-dim); border: 1px solid var(--border); cursor: pointer;
   }
   .chip-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
   .chip-select {
-    font-size: 0.72rem; font-weight: 700; padding: 5px 10px; border-radius: 12px;
+    font-size: 0.72rem; font-weight: 700; padding: 5px 10px; border-radius: 3px;
     background: var(--card); color: var(--text-dim); border: 1px solid var(--border); cursor: pointer;
   }
   .chip-select.active { background: var(--accent); color: #fff; border-color: var(--accent); }
@@ -139,16 +140,16 @@
 
   .filter-banner {
     display: flex; align-items: center; justify-content: space-between; gap: 10px;
-    background: var(--hover-bg); border: 1px solid var(--filter-border); border-radius: 12px;
+    background: var(--hover-bg); border: 1px solid var(--filter-border); border-radius: 3px;
     padding: 8px 14px; margin-bottom: 14px; font-size: 0.78rem; color: var(--accent-dark);
   }
   .filter-banner button {
     font-size: 0.72rem; font-weight: 700; color: var(--text-dim); background: none;
-    border: 1px solid var(--border); border-radius: 10px; padding: 3px 10px; cursor: pointer;
+    border: 1px solid var(--border); border-radius: 3px; padding: 3px 10px; cursor: pointer;
   }
 
   .card {
-    background: var(--card); border-radius: 18px; padding: 18px;
+    background: var(--card); border-radius: 3px; padding: 18px;
     margin-bottom: 16px; box-shadow: 0 2px 10px var(--shadow);
     display: flex; gap: 14px; cursor: pointer;
   }
@@ -156,13 +157,13 @@
   .avatar {
     flex: 0 0 auto; width: 48px; height: 48px; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
-    font-weight: 700; font-size: 1rem; font-family: 'Zen Maru Gothic', sans-serif;
+    font-weight: 700; font-size: 1rem; font-family: 'Noto Serif JP', serif;
     object-fit: cover; background: var(--card);
   }
   .card-body { flex: 1; min-width: 0; }
   .card-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
   .tag {
-    font-size: 0.66rem; font-weight: 700; padding: 3px 10px; border-radius: 10px;
+    font-size: 0.66rem; font-weight: 700; padding: 3px 10px; border-radius: 3px;
     white-space: nowrap; cursor: pointer;
   }
   .card-time { color: var(--text-dim); font-size: 0.7rem; }
@@ -172,7 +173,7 @@
   .card-summary { font-size: 0.82rem; color: var(--text-sub); line-height: 1.6; margin: 0 0 6px; }
   .card-individuals { display: flex; gap: 6px; flex-wrap: wrap; }
   .ind-chip {
-    font-size: 0.68rem; color: var(--accent-dark); background: var(--hover-bg); border-radius: 8px;
+    font-size: 0.68rem; color: var(--accent-dark); background: var(--hover-bg); border-radius: 3px;
     padding: 2px 8px; cursor: pointer;
   }
   .ind-chip:hover { text-decoration: underline; }
@@ -187,14 +188,14 @@
   .related-box h4 { font-size: 0.78rem; color: var(--text-dim); margin: 0 0 8px; }
   .related-row {
     display: flex; align-items: center; justify-content: space-between; gap: 10px;
-    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    background: var(--card); border: 1px solid var(--border); border-radius: 3px;
     padding: 8px 12px; margin-bottom: 6px; font-size: 0.82rem; cursor: pointer;
   }
   .related-row:hover { box-shadow: 0 2px 8px var(--shadow-hover); }
   .ext-link { font-size: 0.78rem; white-space: nowrap; }
   .like-btn {
     font-size: 0.74rem; font-weight: 700; color: var(--accent-dark); background: var(--card);
-    border: 1px solid var(--border); border-radius: 10px; padding: 4px 11px; cursor: pointer; white-space: nowrap;
+    border: 1px solid var(--border); border-radius: 3px; padding: 4px 11px; cursor: pointer; white-space: nowrap;
   }
   .like-btn.liked { color: #fff; background: var(--accent); border-color: var(--accent); cursor: default; }
   .card-actions { display: flex; justify-content: flex-end; margin-top: 8px; }
@@ -221,12 +222,12 @@
   .dan-history-row b { color: var(--text-main); font-weight: 700; }
   .dan-badge {
     display: inline-block; font-size: 0.72rem; font-weight: 700; color: var(--accent-dark);
-    background: var(--hover-bg); border-radius: 8px; padding: 2px 9px; margin-left: 6px;
+    background: var(--hover-bg); border-radius: 3px; padding: 2px 9px; margin-left: 6px;
   }
   .profile-footer { margin-top: 24px; font-size: 0.8rem; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
   .card-save-btn {
     font-size: 0.78rem; font-weight: 700; color: var(--accent-dark); background: var(--hover-bg);
-    border: 1px solid var(--filter-border); border-radius: 10px; padding: 7px 14px; cursor: pointer;
+    border: 1px solid var(--filter-border); border-radius: 3px; padding: 7px 14px; cursor: pointer;
   }
   .card-save-btn:hover { background: var(--border); }
 
@@ -253,19 +254,19 @@
   .clan-row:hover { color: var(--accent-dark); }
   .clan-row .clan-right { color: var(--text-dim); font-size: 0.78rem; flex-shrink: 0; }
   .ct-root-mark { color: var(--accent-dark); font-weight: 700; font-size: 0.72rem; margin-right: 2px; }
-  .clan-legend { font-size: 0.7rem; color: var(--text-main); line-height: 1.9; background: var(--hover-bg); border-radius: 6px; padding: 6px 8px; margin-bottom: 8px; }
-  .clan-legend .lg-box { display: inline-block; width: 14px; height: 10px; border-radius: 3px; vertical-align: -1px; margin: 0 3px 0 4px; }
-  .clan-legend .lg-pill { display: inline-block; font-size: 0.62rem; font-weight: 700; border-radius: 8px; padding: 0 5px; margin-right: 3px; }
+  .clan-legend { font-size: 0.7rem; color: var(--text-main); line-height: 1.9; background: var(--hover-bg); border-radius: 2px; padding: 6px 8px; margin-bottom: 8px; }
+  .clan-legend .lg-box { display: inline-block; width: 14px; height: 10px; border-radius: 2px; vertical-align: -1px; margin: 0 3px 0 4px; }
+  .clan-legend .lg-pill { display: inline-block; font-size: 0.62rem; font-weight: 700; border-radius: 3px; padding: 0 5px; margin-right: 3px; }
   .clan-head-line { flex-basis: 100%; font-size: 0.74rem; color: var(--accent-dark); padding-top: 2px; }
-  .clan-head-card { border: 1px solid var(--filter-border); background: var(--hover-bg); border-radius: 8px; padding: 8px 10px; margin: -2px 0 10px; }
+  .clan-head-card { border: 1px solid var(--filter-border); background: var(--hover-bg); border-radius: 3px; padding: 8px 10px; margin: -2px 0 10px; }
   .clan-head-now { font-size: 0.95rem; color: var(--text-main); }
-  .clan-head-gen { display: inline-block; background: var(--accent); color: #fff; font-weight: 700; font-size: 0.76rem; border-radius: 10px; padding: 1px 8px; margin-right: 4px; }
+  .clan-head-gen { display: inline-block; background: var(--accent); color: #fff; font-weight: 700; font-size: 0.76rem; border-radius: 3px; padding: 1px 8px; margin-right: 4px; }
   .clan-head-history { font-size: 0.72rem; color: var(--text-main); margin-top: 6px; line-height: 1.8; }
-  .clan-branched-from { display: inline-block; font-size: 0.78rem; color: #D9463B; border: 1px dashed #D9463B; border-radius: 6px; padding: 3px 8px; margin-bottom: 10px; cursor: pointer; }
+  .clan-branched-from { display: inline-block; font-size: 0.78rem; color: #D9463B; border: 1px dashed #D9463B; border-radius: 2px; padding: 3px 8px; margin-bottom: 10px; cursor: pointer; }
   .clan-branched-from:hover { color: var(--accent-dark); }
 
   /* 人気記事ランキング */
-  .ranking-box { margin-bottom: 16px; padding: 10px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; }
+  .ranking-box { margin-bottom: 16px; padding: 10px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 3px; }
   .ranking-box h4 { font-size: 0.78rem; color: var(--text-dim); margin: 0 0 6px; }
   .ranking-row {
     display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 0.82rem; cursor: pointer;
@@ -277,85 +278,32 @@
 
   /* 推し個体フォロー */
   .follow-btn {
-    font-size: 0.78rem; font-weight: 700; padding: 6px 14px; border-radius: 10px;
+    font-size: 0.78rem; font-weight: 700; padding: 6px 14px; border-radius: 3px;
     border: 1px solid var(--accent); background: var(--card); color: var(--accent-dark); cursor: pointer;
     margin-top: 6px;
   }
   .follow-btn.following { background: var(--accent); color: #fff; }
-  .follow-box { margin-bottom: 16px; padding: 10px 14px; background: var(--hover-bg); border: 1px solid var(--border); border-radius: 10px; }
+  .follow-box { margin-bottom: 16px; padding: 10px 14px; background: var(--hover-bg); border: 1px solid var(--border); border-radius: 3px; }
   .follow-box h4 { font-size: 0.78rem; color: var(--text-dim); margin: 0 0 6px; }
   .follow-chip-row { display: flex; gap: 6px; flex-wrap: wrap; }
   .follow-chip {
-    font-size: 0.78rem; padding: 4px 10px; border-radius: 10px; background: var(--card);
+    font-size: 0.78rem; padding: 4px 10px; border-radius: 3px; background: var(--card);
     border: 1px solid var(--border); color: var(--text-main); cursor: pointer;
   }
   .card.followed { border-left: 3px solid var(--accent); }
-  .oshi-badge { font-size: 0.68rem; font-weight: 700; color: var(--accent-dark); background: var(--chip-bg); border-radius: 8px; padding: 2px 8px; margin-right: 4px; }
+  .oshi-badge { font-size: 0.68rem; font-weight: 700; color: var(--accent-dark); background: var(--chip-bg); border-radius: 3px; padding: 2px 8px; margin-right: 4px; }
   .oshi-star { color: var(--accent-dark); margin-right: 2px; }
-  .roster-new-badge { font-size: 0.68rem; color: var(--text-dim); border: 1px solid var(--border); border-radius: 8px; padding: 1px 6px; margin-right: 4px; }
+  .roster-new-badge { font-size: 0.68rem; color: var(--text-dim); border: 1px solid var(--border); border-radius: 3px; padding: 1px 6px; margin-right: 4px; }
 
   .cheer-box {
-    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    background: var(--card); border: 1px solid var(--border); border-radius: 3px;
     padding: 14px 16px; margin-bottom: 4px;
   }
   .cheer-btn-standalone {
     font-size: 0.82rem; font-weight: 700; color: #fff; background: var(--accent);
-    border: none; border-radius: 10px; padding: 8px 16px; cursor: pointer; white-space: nowrap;
+    border: none; border-radius: 3px; padding: 8px 16px; cursor: pointer; white-space: nowrap;
   }
   .cheer-btn-standalone.cheered { background: #FF6B8A; cursor: default; }
-
-  /* サポーター（有料支援）：無料の応援とは見た目を分け、少し特別感を出す */
-  .sponsor-box {
-    position: relative; background: var(--card); border: 1px solid var(--border); border-radius: 14px;
-    padding: 16px 18px; margin-top: 10px; overflow: hidden;
-  }
-  .sponsor-box::before {
-    content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
-    background: linear-gradient(180deg, #F0C878, #A8762F 50%, #F0C878);
-  }
-  .sponsor-box h4 {
-    font-size: 0.78rem; letter-spacing: 0.04em; font-weight: 700; margin: 0 0 8px;
-    background: linear-gradient(120deg, #C9972F, #8A6A2E 55%, #C9972F);
-    -webkit-background-clip: text; background-clip: text; color: #8A6A2E;
-  }
-  .sponsor-box p.sponsor-desc { font-size: 0.78rem; color: var(--text-dim); margin: 0 0 10px; }
-  .sponsor-cta-btn {
-    font-size: 0.82rem; font-weight: 700; color: #fff; background: #B8692E;
-    border: none; border-radius: 10px; padding: 8px 16px; cursor: pointer;
-  }
-  .sponsor-list { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
-  .sponsor-item {
-    display: flex; align-items: baseline; gap: 6px; font-size: 0.8rem; color: var(--text-main);
-    background: var(--hover-bg); border-left: 3px solid #D9A24B; border-radius: 6px; padding: 6px 10px;
-  }
-  .sponsor-item .sponsor-name { font-weight: 700; color: var(--gold-text); flex-shrink: 0; }
-  .sponsor-item .sponsor-message { overflow: hidden; text-overflow: ellipsis; color: var(--text-dim); font-style: italic; }
-  /* 松竹梅：支援ランクごとに一覧を区分けして表示する（金額そのものは出さない） */
-  .sponsor-tier-group { margin-top: 10px; }
-  .sponsor-tier-group:first-child { margin-top: 0; }
-  .sponsor-tier-label {
-    font-size: 0.72rem; font-weight: 700; margin-bottom: 4px; display: flex; align-items: center; gap: 4px;
-  }
-  .sponsor-tier-label.tier-matsu {
-    color: #96701A; font-size: 0.74rem; letter-spacing: 0.06em;
-  }
-  .sponsor-tier-label.tier-take { color: #4F7A3D; }
-  .sponsor-tier-label.tier-ume { color: #B8567A; }
-  .sponsor-item.tier-take { border-left-color: #7FAE63; background: rgba(127,174,99,0.1); }
-  .sponsor-item.tier-ume { border-left-color: #E08CAE; background: rgba(224,140,174,0.1); }
-  /* スペシャルサポーター（先着1名）だけは、金箔のプレートのように一段高級感を出す */
-  .sponsor-item.tier-matsu {
-    position: relative; border: 1px solid #D9B872; border-left: none; border-radius: 8px;
-    padding: 10px 14px; background:
-      linear-gradient(135deg, rgba(240,200,120,0.22), rgba(240,200,120,0.05) 60%);
-    box-shadow: 0 0 0 1px rgba(217,184,114,0.25) inset, 0 2px 10px rgba(168,118,47,0.12);
-  }
-  .sponsor-item.tier-matsu .sponsor-name {
-    font-family: 'Zen Maru Gothic', sans-serif; font-weight: 900; font-size: 0.95rem; letter-spacing: 0.02em;
-    background: linear-gradient(120deg, #96701A, #E8C878 45%, #96701A 85%);
-    -webkit-background-clip: text; background-clip: text; color: #96701A;
-  }
-  .sponsor-item.tier-matsu .sponsor-message { color: var(--gold-text); }
 
   .modal-overlay {
     position: fixed; inset: 0; background: rgba(43, 36, 26, 0.45);
@@ -363,7 +311,7 @@
   }
   .modal-overlay.hidden { display: none; }
   .modal-box {
-    background: var(--card); color: var(--text-main); border-radius: 16px; padding: 20px; max-width: 360px; width: 100%;
+    background: var(--card); color: var(--text-main); border-radius: 3px; padding: 20px; max-width: 360px; width: 100%;
     max-height: 90vh; overflow-y: auto;
   }
   .modal-box h3 { font-size: 0.95rem; margin: 0 0 4px; color: var(--text-main); }
@@ -374,18 +322,18 @@
   }
   .amount-chip-row { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
   .amount-chip {
-    font-size: 0.84rem; font-weight: 700; padding: 8px 14px; border-radius: 10px;
+    font-size: 0.84rem; font-weight: 700; padding: 8px 14px; border-radius: 3px;
     border: 1px solid #F0DDB8; background: var(--amount-bg); color: var(--gold-text); cursor: pointer;
   }
   .amount-chip.active { background: #B8692E; color: #fff; border-color: #B8692E; }
   .modal-box label { display: block; font-size: 0.76rem; color: var(--text-dim); margin: 10px 0 4px; }
   .modal-box input[type="text"], .modal-box input[type="number"] {
     width: 100%; font-family: inherit; font-size: 0.84rem; padding: 8px 10px;
-    border-radius: 8px; border: 1px solid var(--border); box-sizing: border-box;
+    border-radius: 3px; border: 1px solid var(--border); box-sizing: border-box;
   }
   .modal-submit-btn {
     width: 100%; margin-top: 16px; font-size: 0.86rem; font-weight: 700; color: #fff;
-    background: #B8692E; border: none; border-radius: 10px; padding: 10px 0; cursor: pointer;
+    background: #B8692E; border: none; border-radius: 3px; padding: 10px 0; cursor: pointer;
   }
   .modal-status { font-size: 0.78rem; color: var(--text-dim); margin-top: 10px; text-align: center; }
 
@@ -395,11 +343,11 @@
   .board-thread-row:hover { background: rgba(0,0,0,0.03); }
   .board-thread-title { font-weight: 700; font-size: 0.92rem; }
   .board-meta { font-size: 0.72rem; color: var(--text-dim); margin-top: 2px; }
-  .board-cat { display: inline-block; font-size: 0.68rem; border: 1px solid var(--border); border-radius: 10px; padding: 0 7px; margin-right: 6px; color: var(--text-dim); }
+  .board-cat { display: inline-block; font-size: 0.68rem; border: 1px solid var(--border); border-radius: 3px; padding: 0 7px; margin-right: 6px; color: var(--text-dim); }
   .board-post { padding: 10px 0; border-bottom: 1px solid var(--border); }
   .board-post-head { font-size: 0.74rem; color: var(--text-dim); margin-bottom: 4px; }
   .board-post-body { font-size: 0.9rem; white-space: pre-wrap; word-break: break-word; line-height: 1.7; }
-  .board-admin-badge { display: inline-block; font-size: 0.66rem; color: #fff; background: var(--accent-dark); border-radius: 3px; padding: 0 5px; margin-left: 4px; }
+  .board-admin-badge { display: inline-block; font-size: 0.66rem; color: #fff; background: var(--accent-dark); border-radius: 2px; padding: 0 5px; margin-left: 4px; }
   .board-form input, .board-form select, .board-form textarea { display: block; width: 100%; max-width: 520px; padding: 7px; margin-bottom: 8px; font: inherit; box-sizing: border-box; }
   .board-del { font-size: 0.7rem; margin-left: 8px; color: #b33; cursor: pointer; text-decoration: underline; }
   .rules h3:first-child { margin-top: 0; }
@@ -415,7 +363,7 @@
      何も動いていないように見えるため、カード形のプレースホルダーをアニメーションさせる） */
   .skeleton-block { padding: 4px 0; }
   .skeleton-row {
-    height: 14px; border-radius: 6px; margin: 10px 0;
+    height: 14px; border-radius: 2px; margin: 10px 0;
     background: linear-gradient(90deg, var(--border) 25%, var(--skeleton-shimmer) 37%, var(--border) 63%);
     background-size: 400% 100%; animation: skeleton-shimmer 1.4s ease infinite;
   }
@@ -428,6 +376,21 @@
     margin-top: 30px; padding-top: 16px; border-top: 1px solid var(--border);
     font-size: 0.7rem; color: var(--text-dim); line-height: 1.7;
   }
+
+  /* ---- 紙面風の見た目（上の各指定を上書き） ---- */
+  h1, h2, h3, .brand { letter-spacing: 0.02em; }
+  header { border-bottom: 3px double var(--text-main); padding-bottom: 10px; }
+  .brand { color: var(--text-main); font-size: 1.6rem; font-weight: 900; }
+  .tagline { color: var(--text-dim); }
+  nav a.nav-tab.active { color: var(--text-main); border-bottom-color: var(--accent); }
+  .card, .summary-card, .holders-card { border: 1px solid var(--border); }
+  .card:hover { border-color: var(--text-dim); }
+  .card-title { font-family: 'Noto Serif JP', serif; font-weight: 700; }
+  .tag { background: none; border: 1px solid currentColor; padding: 1px 6px; font-weight: 500; }
+  :root[data-theme="dark"] .tag { filter: brightness(1.8); }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .tag { filter: brightness(1.8); } }
+  .article-title { font-family: 'Noto Serif JP', serif; }
+  .chip-btn.active, .chip-select.active { background: var(--text-main); border-color: var(--text-main); color: var(--bg); }
 </style>
 </head>
 <body>
@@ -451,28 +414,6 @@
   </header>
   <div id="holders"></div>
   <div id="content"><div class="skeleton-block"><div class="skeleton-row" style="width:88%;"></div><div class="skeleton-row" style="width:62%;"></div><div class="skeleton-row" style="width:95%;"></div><div class="skeleton-row" style="width:70%;"></div></div></div>
-  <div class="modal-overlay hidden" id="sponsor-modal-overlay">
-    <div class="modal-box">
-      <button class="modal-close-x" id="sponsor-modal-close">×</button>
-      <h3>サポーターになる</h3>
-      <p class="modal-sub">100円：名前を掲載／300円：一言メッセージも掲載／500円：スペシャルサポーターとして掲載（1選手につき先着1名限定。データサイトの選手ページにも表示されます）。支援した金額自体は表示されません。</p>
-      <div class="amount-chip-row" id="sponsor-amount-chips">
-        <button type="button" class="amount-chip" data-amount="100">100円</button>
-        <button type="button" class="amount-chip" data-amount="300">300円</button>
-        <button type="button" class="amount-chip" data-amount="500" data-permanent="true">500円（スペシャルサポーター）</button>
-      </div>
-      <p class="modal-sub" id="sponsor-special-note" style="display:none; color:#B8567A;">⭐ スペシャルサポーター枠は既に埋まっています</p>
-      <p class="modal-sub" id="sponsor-amount-hint" style="min-height:1.2em;"></p>
-      <label for="sponsor-name">表示名</label>
-      <input type="text" id="sponsor-name" maxlength="30" placeholder="名無しの支援者">
-      <div id="sponsor-message-row" style="display:none;">
-        <label for="sponsor-message">一言（100文字まで）</label>
-        <input type="text" id="sponsor-message" maxlength="100" placeholder="応援しています！">
-      </div>
-      <button class="modal-submit-btn" id="sponsor-submit-btn">この内容でStripeに進む</button>
-      <div class="modal-status" id="sponsor-modal-status"></div>
-    </div>
-  </div>
   <div class="footer-links">
     <a id="nav-about" href="#" onclick="navigateTo('about');return false;">このメディアについて</a>
     <a id="nav-contact" href="#" onclick="navigateTo('contact');return false;">お問い合わせ</a>
@@ -484,19 +425,11 @@
 </div>
 
 <script>
+// 記事の分類ラベルの色（文字と枠線だけに使う。パステルの塗りはやめ、紙面の見出しラベルのように控えめにする）
 const TAG_COLORS = {
-  '速報': { bg: '#EAF4FC', fg: '#2D6FA6' },
-  '結果': { bg: '#F1EBFB', fg: '#6B4FA0' },
-  '展望': { bg: '#FDEFF5', fg: '#B84C78' },
-  '特集': { bg: '#FFF1E6', fg: '#B8692E' },
-  'コラム': { bg: '#E6F7F3', fg: '#1F8A72' },
-  '挑戦者決定': { bg: '#E9F7EE', fg: '#2F7A52' },
-  '深掘り': { bg: '#FFF1E6', fg: '#B8692E' },
-  '麒麟': { bg: '#FFF8DC', fg: '#A07A12' },
-  '青龍': { bg: '#EAF4FC', fg: '#2D6FA6' },
-  '朱雀': { bg: '#FDEFF5', fg: '#B84C78' },
-  '白虎': { bg: '#F1EBFB', fg: '#6B4FA0' },
-  '玄武': { bg: '#FFF1E6', fg: '#B8692E' },
+  '速報': { fg: '#9E2A20' }, '結果': { fg: '#44403B' }, '展望': { fg: '#2B5EA8' }, '特集': { fg: '#7A5A1A' },
+  'コラム': { fg: '#2F6B4F' }, '挑戦者決定': { fg: '#9E2A20' }, '深掘り': { fg: '#7A5A1A' },
+  '麒麟': { fg: '#8A6A12' }, '青龍': { fg: '#2B5EA8' }, '朱雀': { fg: '#9E2A20' }, '白虎': { fg: '#55524D' }, '玄武': { fg: '#4E3C7A' },
 };
 const AVATAR_PALETTE = [
   { bg: '#E6F0FA', fg: '#2D6FA6' }, { bg: '#FDEFF5', fg: '#B84C78' },
@@ -577,8 +510,8 @@ function avatarFor(name, seed, gender) {
 }
 
 function tagChip(tag) {
-  const c = TAG_COLORS[tag] || { bg: '#F1EBFB', fg: '#6B4FA0' };
-  return `<span class="tag" style="background:${c.bg}; color:${c.fg};" data-filter-tag="${escapeHtml(tag)}">${escapeHtml(tag)}</span>`;
+  const c = TAG_COLORS[tag] || { fg: '#44403B' };
+  return `<span class="tag" style="color:${c.fg};" data-filter-tag="${escapeHtml(tag)}">${escapeHtml(tag)}</span>`;
 }
 
 function resultsSiteIndividualUrl(id) {
@@ -1111,13 +1044,6 @@ async function renderIndividualProfile(id) {
 
     <div class="cheer-box">
       <button type="button" id="profile-cheer-btn" class="cheer-btn-standalone">♡ 応援する<span class="cheer-count"></span></button>
-
-      <div class="sponsor-box">
-        <h4>サポーター</h4>
-        <p class="sponsor-desc">有料でこの選手を支援できます。支援者はお名前と一言がここに表示されます。</p>
-        <button class="sponsor-cta-btn" id="sponsor-cta-btn">🎗 サポーターになる</button>
-        <div class="sponsor-list" id="sponsor-list"></div>
-      </div>
     </div>
 
 
@@ -1135,8 +1061,6 @@ async function renderIndividualProfile(id) {
   });
 
   setupProfileCheer(id);
-  setupSponsorUI(id);
-  loadSponsorList(id);
   setupFollowButton(id, name);
   setupProfileCardSave(id, name, ind, titleRanges, eternalTitles);
 }
@@ -1270,7 +1194,7 @@ async function renderProfileCardDataUrl(id, name, ind, titleRanges, eternalTitle
 
   // レアリティバッジ（右上）
   ctx.save();
-  ctx.font = "900 22px 'Orbitron', 'Zen Maru Gothic', sans-serif";
+  ctx.font = "900 22px 'Noto Serif JP', serif";
   const badgeText = `✦ ${tier.label}`;
   const badgeW = ctx.measureText(badgeText).width + 36;
   const badgeGrad = ctx.createLinearGradient(W - pad - 24 - badgeW, 0, W - pad - 24, 0);
@@ -1314,7 +1238,7 @@ async function renderProfileCardDataUrl(id, name, ind, titleRanges, eternalTitle
     ctx.fillStyle = palette.bg;
     ctx.fillRect(avatarCx - avatarR, avatarCy - avatarR, avatarR * 2, avatarR * 2);
     ctx.fillStyle = palette.fg;
-    ctx.font = "700 150px 'Zen Maru Gothic', sans-serif";
+    ctx.font = "700 150px 'Noto Serif JP', serif";
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText((name || '?').charAt(0), avatarCx, avatarCy + 10);
@@ -1340,7 +1264,7 @@ async function renderProfileCardDataUrl(id, name, ind, titleRanges, eternalTitle
   ctx.lineWidth = 4; ctx.strokeStyle = '#FFFFFF';
   ctx.beginPath(); ctx.arc(danCx, danCy, danR, 0, Math.PI * 2); ctx.stroke();
   ctx.fillStyle = tier.text;
-  ctx.font = "900 30px 'Zen Maru Gothic', sans-serif";
+  ctx.font = "900 30px 'Noto Serif JP', serif";
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillText(danLabel(ind.dan).replace('段', ''), danCx, danCy - 7);
   ctx.font = "700 16px 'Noto Sans JP', sans-serif";
@@ -1350,7 +1274,7 @@ async function renderProfileCardDataUrl(id, name, ind, titleRanges, eternalTitle
   const rx = pad + 400;
   ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = '#3A332E';
-  ctx.font = "900 62px 'Zen Maru Gothic', sans-serif";
+  ctx.font = "900 62px 'Noto Serif JP', serif";
   ctx.fillText(name, rx, pad + 100);
   // 名前の下に箔ライン
   const lineGrad = ctx.createLinearGradient(rx, 0, W - pad - 40, 0);
@@ -1366,7 +1290,7 @@ async function renderProfileCardDataUrl(id, name, ind, titleRanges, eternalTitle
 
   // Eloを大きなステータス数値として見せる（TCGの「攻撃力」のような演出）
   ctx.fillStyle = tier.text;
-  ctx.font = "900 72px 'Orbitron', 'Zen Maru Gothic', sans-serif";
+  ctx.font = "900 72px 'Noto Serif JP', serif";
   ctx.fillText(`${Math.round(ind.elo_rating)}`, rx, pad + 250);
   const eloBigW = ctx.measureText(`${Math.round(ind.elo_rating)}`).width;
   ctx.font = "700 22px 'Noto Sans JP', sans-serif";
@@ -1424,7 +1348,7 @@ async function renderProfileCardDataUrl(id, name, ind, titleRanges, eternalTitle
     ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 2;
     roundRectPath(ctx, -66, -16, 132, 32, 5); ctx.stroke();
     ctx.fillStyle = '#FFFFFF';
-    ctx.font = "900 20px 'Zen Maru Gothic', sans-serif";
+    ctx.font = "900 20px 'Noto Serif JP', serif";
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText('引 退', 0, 1);
     ctx.restore();
@@ -1433,13 +1357,13 @@ async function renderProfileCardDataUrl(id, name, ind, titleRanges, eternalTitle
   // フッター（ブランド表記・カード番号風の個体ID）
   ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = tier.text;
-  ctx.font = "900 26px 'Zen Maru Gothic', sans-serif";
+  ctx.font = "900 26px 'Noto Serif JP', serif";
   ctx.fillText('オセロ界タイムズ', rx, H - pad - 28);
   ctx.fillStyle = '#8C8378';
   ctx.font = "400 18px 'Noto Sans JP', sans-serif";
   ctx.fillText('lab.spia-net.com/othello-news/', rx, H - pad - 4);
   ctx.textAlign = 'right';
-  ctx.font = "400 18px 'Orbitron', 'Noto Sans JP', sans-serif";
+  ctx.font = "400 18px 'Noto Sans JP', sans-serif";
   ctx.fillStyle = '#8C8378';
   ctx.fillText(`No. ${id || '-'}`, W - pad - 40, H - pad - 4);
   ctx.textAlign = 'left';
@@ -1459,8 +1383,7 @@ function setupFollowButton(id, name) {
   btn.onclick = () => { toggleFollow(id, name); render(); };
 }
 
-// 無料の応援はいいね（カウントのみ）に統一する。一言コメントは有料サポーター
-// （竹300円以上）の特典のため、ここには持たせない
+// 応援はいいね（カウントのみ）。選手個人への金銭の支援は受け付けない（寄付は後援会＝サイト全体の運営へ）
 async function setupProfileCheer(id) {
   const btn = document.getElementById('profile-cheer-btn');
   const countEl = btn.querySelector('.cheer-count');
@@ -1494,165 +1417,15 @@ async function setupProfileCheer(id) {
   });
 }
 
-// サポーター（有料支援）：決済はStripe Checkout（create_checkout.php）
-let _sponsorTargetId = null;
-
-function setupSponsorUI(id) {
-  const ctaBtn = document.getElementById('sponsor-cta-btn');
-  const overlay = document.getElementById('sponsor-modal-overlay');
-  const closeBtn = document.getElementById('sponsor-modal-close');
-  const chips = document.querySelectorAll('#sponsor-amount-chips .amount-chip');
-  const submitBtn = document.getElementById('sponsor-submit-btn');
-  const statusEl = document.getElementById('sponsor-modal-status');
-
-  const messageRow = document.getElementById('sponsor-message-row');
-  const messageInput = document.getElementById('sponsor-message');
-
-  const specialChip = document.querySelector('#sponsor-amount-chips .amount-chip[data-permanent]');
-  const specialNote = document.getElementById('sponsor-special-note');
-
-  ctaBtn.onclick = async () => {
-    _sponsorTargetId = id;
-    chips.forEach(c => c.classList.remove('active'));
-    document.getElementById('sponsor-name').value = '';
-    messageInput.value = '';
-    messageRow.style.display = 'none';
-    messageInput.required = false;
-    statusEl.textContent = '';
-    document.getElementById('sponsor-amount-hint').textContent = '';
-    specialChip.style.display = '';
-    specialNote.style.display = 'none';
-    overlay.classList.remove('hidden');
-
-    // 500円＝スペシャルサポーター枠は1個体につき先着1名限定。既に埋まっている
-    // 場合はその選択肢自体を出さない（最終的な排他制御はcreate_checkout.php側）
-    try {
-      const res = await fetch(`${RESULTS_SITE_BASE}sponsor.php?individual_id=${encodeURIComponent(id)}`);
-      const data = await res.json();
-      if (data.permanent) {
-        specialChip.style.display = 'none';
-        specialNote.style.display = '';
-      }
-    } catch (e) { /* 取得失敗時は選べる状態のままにし、サーバー側の最終チェックに委ねる */ }
-  };
-  closeBtn.onclick = () => overlay.classList.add('hidden');
-  overlay.onclick = (ev) => { if (ev.target === overlay) overlay.classList.add('hidden'); };
-
-  const hintEl = document.getElementById('sponsor-amount-hint');
-  chips.forEach(chip => {
-    chip.onclick = () => {
-      chips.forEach(c => c.classList.remove('active'));
-      chip.classList.add('active');
-      hintEl.textContent = chip.dataset.permanent
-        ? '⭐ この選手のスペシャルサポーター（先着1名）として掲載されます'
-        : '';
-      // 100円は名前のみ掲載のため一言入力欄は出さない。300円以上は一言必須で掲載する
-      const hasMessage = chip.dataset.amount !== '100';
-      messageRow.style.display = hasMessage ? '' : 'none';
-      messageInput.required = hasMessage;
-      if (!hasMessage) messageInput.value = '';
-    };
-  });
-
-  submitBtn.onclick = () => {
-    const activeChip = document.querySelector('#sponsor-amount-chips .amount-chip.active');
-    if (!activeChip) {
-      statusEl.textContent = '金額を選択してください';
-      return;
-    }
-    if (messageInput.required && !messageInput.value.trim()) {
-      statusEl.textContent = '一言メッセージを入力してください';
-      return;
-    }
-    submitBtn.disabled = true;
-    statusEl.textContent = '決済ページを準備しています…';
-    fetch(`${RESULTS_SITE_BASE}create_checkout.php`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        individual_id: _sponsorTargetId,
-        amount: Number(activeChip.dataset.amount),
-        display_name: document.getElementById('sponsor-name').value.trim(),
-        message: messageInput.value.trim(),
-      }),
-    })
-      .then(res => res.json())
-      .then(data => {
-        if (data.url) { window.location.href = data.url; return; }
-        statusEl.textContent = data.error || '決済ページの作成に失敗しました';
-        submitBtn.disabled = false;
-      })
-      .catch(() => {
-        statusEl.textContent = '通信エラーが発生しました。しばらくしてから再度お試しください';
-        submitBtn.disabled = false;
-      });
-  };
-}
-
-// Stripe Checkoutからの戻り（成功／キャンセル）をURLクエリ（?sponsor=...）で受け取る。
+// 後援会の寄付（Stripe Checkout）からの戻り（成功／キャンセル）をURLクエリ（?donation=...）で受け取る。
 // ハッシュルーティングと干渉しないよう#より前のクエリ文字列を使っているため、
 // ページ読み込み時に一度だけチェックしてURLから消す
-function handleSponsorReturn() {
+function handleDonationReturn() {
   const params = new URLSearchParams(location.search);
   const donation = params.get('donation');
   if (donation) {
     alert(donation === 'success' ? 'ご寄付ありがとうございます！後援会名簿への反映まで少し時間がかかる場合があります。' : '決済がキャンセルされました。');
     history.replaceState(null, '', location.pathname + location.hash);
-    return;
-  }
-  const sponsor = params.get('sponsor');
-  if (!sponsor) return;
-  if (sponsor === 'success') {
-    alert('ご支援ありがとうございます！反映まで少し時間がかかる場合があります。');
-  } else if (sponsor === 'cancel') {
-    alert('決済がキャンセルされました。');
-  }
-  history.replaceState(null, '', location.pathname + location.hash);
-}
-
-// スペシャルサポーター（500円、1個体につき先着1名限定。permanent_sponsorsで
-// 管理）・サポーター（竹300円〜・梅それ未満。sponsorsで管理）を金額の大きい順に
-// 1つの欄にまとめて表示する。金額そのものはAPIが返さず、tierラベルだけを使う。
-// 竹・スペシャルサポーターは名前＋一言コメント、梅は名前のみ表示する
-const SPONSOR_TIERS = [
-  { key: '竹', cls: 'tier-take', label: '🎍 サポーター', showMessage: true },
-  { key: '梅', cls: 'tier-ume', label: '🌸 サポーター', showMessage: false },
-];
-function sponsorTierGroupsHtml(list) {
-  return SPONSOR_TIERS.map(t => {
-    const rows = list.filter(s => (s.tier || '梅') === t.key);
-    if (!rows.length) return '';
-    return `<div class="sponsor-tier-group">
-        <div class="sponsor-tier-label ${t.cls}">${t.label}（${rows.length}名）</div>
-        ${rows.map(s => `<div class="sponsor-item ${t.cls}">
-            <span class="sponsor-name">${escapeHtml(s.display_name)}</span>
-            ${(t.showMessage && s.message) ? `<span class="sponsor-message">${escapeHtml(s.message)}</span>` : ''}
-          </div>`).join('')}
-      </div>`;
-  }).join('');
-}
-function specialSponsorHtml(permanent) {
-  if (!permanent) return '';
-  return `<div class="sponsor-tier-group">
-      <div class="sponsor-tier-label tier-matsu">👑 スペシャルサポーター（先着1名）</div>
-      <div class="sponsor-item tier-matsu">
-        <span class="sponsor-name">${escapeHtml(permanent.display_name)}</span>
-        ${permanent.message ? `<span class="sponsor-message">「${escapeHtml(permanent.message)}」</span>` : ''}
-      </div>
-    </div>`;
-}
-
-async function loadSponsorList(id) {
-  const el = document.getElementById('sponsor-list');
-  if (!el) return;
-  try {
-    const res = await fetch(`${RESULTS_SITE_BASE}sponsor.php?individual_id=${encodeURIComponent(id)}`);
-    const data = await res.json();
-    const list = data.sponsors || [];
-    const html = specialSponsorHtml(data.permanent) + sponsorTierGroupsHtml(list);
-    el.innerHTML = html || '<div style="color:var(--text-dim); font-size:0.78rem;">まだサポーターはいません</div>';
-  } catch (e) {
-    el.innerHTML = '';
   }
 }
 
@@ -1670,7 +1443,7 @@ function rosterSearchBoxHtml() {
   return `<input type="text" id="roster-search" class="roster-search-input"
       placeholder="名前で検索" value="${escapeHtml(_rosterSearchQuery)}"
       style="width:100%; box-sizing:border-box; margin:8px 0; padding:8px 10px; font-size:0.85rem;
-        background:var(--card); color:var(--text-main); border:1px solid var(--border); border-radius:8px;">`;
+        background:var(--card); color:var(--text-main); border:1px solid var(--border); border-radius:3px;">`;
 }
 
 function wireRosterSearchBox(el, onInput) {
@@ -2242,7 +2015,7 @@ async function renderKeitoChart(topId) {
       <button class="chip-btn ${activeOnly ? '' : 'active'}" data-keito-mode="all">すべて表示</button>
     </div>
     <div style="font-size:0.72rem; color:var(--text-dim); margin-bottom:6px;">上が師匠、下が弟子（同じ師匠の弟子は左ほど先に入門）。名前の上の<span style="color:var(--accent-dark);">数字は参戦した季</span>、△は引退、太字はタイトル獲得者。名前を押すと選手ページへ。${activeOnly ? '現役のいない枝は一番上の選手で折りたたみ、「他N名」と表示。' : ''}横にスクロールできます${allMode ? '（左ほど大きな系統）' : small ? `（小さな系統${small}件は省略。「全系統」ですべて表示）` : ''}</div>
-    <div class="keito-wrap" style="overflow:auto; -webkit-overflow-scrolling:touch; border:1px solid var(--border); border-radius:8px; background:var(--card);">
+    <div class="keito-wrap" style="overflow:auto; -webkit-overflow-scrolling:touch; border:1px solid var(--border); border-radius:3px; background:var(--card);">
       <svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" style="display:block; font-family:'Noto Serif JP','Hiragino Mincho ProN','Yu Mincho',serif;">
         <g stroke="var(--text-dim)" stroke-width="0.9" fill="none">${lines}</g>${texts}
       </svg>
@@ -2577,7 +2350,7 @@ async function renderSupport() {
       その子が三段リーグを勝ち抜いてプロになるか、タイトルを取るかは、その子の才能と運しだいです。
       名付けた子はこのページと奨励会リーグの名簿に「名付け親」として載ります。
       実在の有名人の名前など、運営が不適切と判断した名前はお受けできない場合があります（その場合は返金します）。<br>
-      特定の選手を応援したい方は、各選手のページの「サポーター」からどうぞ。
+      選手個人への金銭の支援は受け付けていません。いただいた寄付は、すべてリーグとサイト全体の運営に使います。
     </div>
     <h3>寄付する</h3>
     <div class="sec board-form">
@@ -2848,7 +2621,7 @@ if (window.matchMedia) {
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', updateThemeToggleIcon);
 }
 
-handleSponsorReturn();
+handleDonationReturn();
 renderHolders();
 window.addEventListener('hashchange', route);
 route();

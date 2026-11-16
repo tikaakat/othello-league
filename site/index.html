@@ -17,91 +17,89 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CIRCUIT OTHELLO LEAGUE | lab.spia-net.com</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&family=Noto+Sans+JP:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root {
-    --navy-950: #060a14; --navy-900: #0a0f1e; --navy-800: #10182c; --navy-700: #182238;
-    --cyan: #4ff0ff; --cyan-dim: #2a8f99; --amber: #ffb648; --amber-dim: #a8762f;
-    --text-main: #dce6f0; --text-dim: #7488a0;
-    --up: #4ff0ff; --down: #ff9d4f;
+    --navy-950: #1f1f1f; --navy-900: #ffffff; --navy-800: #f6f6f3; --navy-700: #dedcd5;
+    --cyan: #1d6b4a; --cyan-dim: #5b8f78; --amber: #8a5a1a; --amber-dim: #c2a27a;
+    --text-main: #222222; --text-dim: #707070;
+    --up: #1d6b4a; --down: #b5482d;
   }
   * { box-sizing: border-box; }
   body {
-    margin: 0; background: radial-gradient(ellipse at top, var(--navy-800) 0%, var(--navy-950) 70%);
-    color: var(--text-main); font-family: 'OrbitronLetters', 'Noto Sans JP', sans-serif; min-height: 100vh; padding: 16px;
+    margin: 0; background: #f2f1ec;
+    color: var(--text-main); font-family: 'Noto Sans JP', sans-serif; min-height: 100vh; padding: 0 0 16px; line-height: 1.6;
   }
-  /* 英字（A〜Z・a〜z）だけOrbitron、数字と日本語はNoto Sans JP。Orbitronのフォントファイルを英字の範囲に限って読み込む */
-  @font-face { font-family: 'OrbitronLetters'; font-style: normal; font-weight: 400 900; font-display: swap;
-    src: url(https://fonts.gstatic.com/s/orbitron/v35/yMJRMIlzdpvBhQQL_Qq7dy0.woff2) format('woff2'); unicode-range: U+0041-005A, U+0061-007A; }
-  h1 { font-family: 'Orbitron', sans-serif; }
+  h1 { font-family: 'Noto Sans JP', sans-serif; }
   table { font-variant-numeric: tabular-nums; }
-  .header { text-align: center; margin-bottom: 20px; }
-  .header h1 { font-size: 1.3rem; letter-spacing: 0.1em; color: var(--cyan); text-shadow: 0 0 12px rgba(79,240,255,0.4); margin: 0 0 4px; }
-  .header p { color: var(--text-dim); font-size: 0.78rem; margin: 0; }
-  .tabs { display: flex; gap: 8px; justify-content: center; margin-bottom: 18px; flex-wrap: wrap; }
+  /* 見出し：盤面の緑の帯に白文字。光彩・グラデーションは使わない */
+  .header { background: #1d4f3a; color: #fff; padding: 14px 16px 12px; margin-bottom: 0; }
+  .header h1 { font-size: 1.05rem; font-weight: 700; letter-spacing: 0.04em; color: #fff; margin: 0 auto 2px; max-width: 760px; }
+  .header p { color: rgba(255,255,255,0.75); font-size: 0.74rem; margin: 0 auto; max-width: 760px; }
+  .tabs { display: flex; gap: 0; justify-content: center; margin: 0 0 14px; flex-wrap: wrap; background: #fff; border-bottom: 1px solid var(--navy-700); padding: 0 8px; }
   .tab-btn {
-    font-family: 'OrbitronLetters', 'Noto Sans JP', sans-serif; font-size: 0.7rem; letter-spacing: 0.06em;
-    background: var(--navy-800); color: var(--text-dim); border: 1px solid var(--navy-700); padding: 8px 14px; cursor: pointer;
+    font-family: 'Noto Sans JP', sans-serif; font-size: 0.8rem; font-weight: 700;
+    background: none; color: var(--text-dim); border: none; border-bottom: 3px solid transparent; padding: 10px 14px 7px; cursor: pointer;
   }
-  .tab-btn.active { color: var(--cyan); border-color: var(--cyan-dim); box-shadow: 0 0 10px rgba(79,240,255,0.15) inset; }
-  .panel { position: relative; background: rgba(16,24,44,0.6); border: 1px solid var(--navy-700); padding: 18px; margin: 0 auto 16px; max-width: 760px; }
-  .panel::before, .panel::after { content: ''; position: absolute; width: 14px; height: 14px; border: 2px solid var(--cyan); }
-  .panel::before { top: -1px; left: -1px; border-right: none; border-bottom: none; }
-  .panel::after { bottom: -1px; right: -1px; border-left: none; border-top: none; }
+  .tab-btn.active { color: var(--text-main); border-bottom-color: #1d4f3a; }
+  .panel { position: relative; background: #fff; border: 1px solid var(--navy-700); padding: 16px; margin: 0 auto 16px; max-width: 760px; }
+  @media (max-width: 792px) { .panel { margin-left: 8px; margin-right: 8px; } }
   .hidden { display: none; }
   table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
-  th { font-family: 'OrbitronLetters', 'Noto Sans JP', sans-serif; font-size: 0.65rem; color: var(--amber); text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--navy-700); }
-  td { padding: 7px 8px; border-bottom: 1px solid rgba(24,34,56,0.6); cursor: pointer; }
-  tr:hover td { background: rgba(79,240,255,0.06); }
+  th { font-family: 'Noto Sans JP', sans-serif; font-size: 0.7rem; font-weight: 600; color: var(--text-dim); background: #f6f6f3; text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--navy-700); }
+  td { padding: 7px 8px; border-bottom: 1px solid #ebeae5; cursor: pointer; }
+  tr:hover td { background: rgba(29,107,74,0.06); }
   tr.zone-up td:first-child { box-shadow: inset 3px 0 var(--up); }
   tr.zone-down td:first-child { box-shadow: inset 3px 0 var(--down); }
-  .rank-num { color: var(--text-dim); font-family: 'OrbitronLetters', 'Noto Sans JP', sans-serif; width: 2em; }
+  .rank-num { color: var(--text-dim); font-family: 'Noto Sans JP', sans-serif; width: 2em; }
   .elo-val { color: var(--cyan); font-weight: 600; }
-  .league-tag { display: inline-block; font-family: 'OrbitronLetters', 'Noto Sans JP', sans-serif; font-size: 0.62rem; font-weight: 700; color: var(--navy-950); background: var(--amber); padding: 1px 6px; border-radius: 2px; margin-right: 6px; }
-  .league-tag.title-tag { background: linear-gradient(135deg, #ffd24f, #ff9d4f); }
-  .chip { display: inline-block; font-size: 0.64rem; border: 1px solid var(--navy-700); color: var(--text-dim); padding: 0 6px; border-radius: 8px; white-space: nowrap; }
+  .league-tag { display: inline-block; font-family: 'Noto Sans JP', sans-serif; font-size: 0.62rem; font-weight: 700; color: #fff; background: var(--amber); padding: 1px 6px; border-radius: 2px; margin-right: 6px; }
+  .league-tag.title-tag { background: #9a2f24; color: #fff; }
+  .chip { display: inline-block; font-size: 0.64rem; border: 1px solid var(--navy-700); color: var(--text-dim); padding: 0 5px; border-radius: 2px; white-space: nowrap; }
   .chip.gold { color: var(--amber); border-color: var(--amber-dim); }
   .chip.cyan { color: var(--cyan); border-color: var(--cyan-dim); }
   .loading, .empty { text-align: center; color: var(--text-dim); padding: 30px 0; font-size: 0.85rem; }
+  /* 読み込みが終わって中身が入った後も class="loading" が残る欄があるため、中身がある間は中央寄せ・余白・文字色を解除する */
+  .loading:has(> *) { text-align: left; padding: 0; color: inherit; font-size: inherit; }
   .league-block { margin-bottom: 20px; }
   .league-block h3 { font-size: 0.8rem; color: var(--amber); border-bottom: 1px solid var(--navy-700); padding-bottom: 4px; margin-bottom: 8px; }
   .back-link { display: inline-block; margin-bottom: 12px; color: var(--cyan-dim); font-size: 0.78rem; cursor: pointer; }
   .params-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; font-size: 0.78rem; }
   .params-grid dt { color: var(--text-dim); } .params-grid dd { margin: 0; }
   .title-card { background: var(--navy-800); border: 1px solid var(--navy-700); padding: 12px; margin-bottom: 10px; }
-  .title-card h4 { margin: 0 0 6px; font-size: 0.85rem; color: var(--amber); font-family: 'OrbitronLetters', 'Noto Sans JP', sans-serif; }
+  .title-card h4 { margin: 0 0 6px; font-size: 0.85rem; color: var(--amber); font-family: 'Noto Sans JP', sans-serif; }
   footer { text-align: center; color: var(--text-dim); font-size: 0.7rem; margin-top: 24px; }
   .othello-board { display: grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr); width: 100%; max-width: 300px; aspect-ratio: 1/1; border: 2px solid var(--cyan-dim); background: #0d3b26; margin: 0 auto; }
-  .osq { border: 1px solid rgba(79,240,255,0.15); display: flex; align-items: center; justify-content: center; }
+  .osq { border: 1px solid rgba(29,107,74,0.15); display: flex; align-items: center; justify-content: center; }
   .disc { width: 78%; height: 78%; border-radius: 50%; }
-  .disc-black { background: radial-gradient(circle at 35% 30%, #444, #060a14); }
+  .disc-black { background: radial-gradient(circle at 35% 30%, #444, #111); }
   .disc-white { background: radial-gradient(circle at 35% 30%, #fff, #c8d4de); }
-  .board-controls { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 12px; font-family: 'OrbitronLetters', 'Noto Sans JP', sans-serif; }
+  .board-controls { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 12px; font-family: 'Noto Sans JP', sans-serif; }
   .board-controls button { background: var(--navy-800); border: 1px solid var(--navy-700); color: var(--cyan); font-size: 0.9rem; padding: 6px 12px; cursor: pointer; }
   .movement-mark { display: inline-block; font-size: 0.9rem; margin-right: 4px; }
-  .season-nav { display: flex; justify-content: center; align-items: center; gap: 14px; margin-bottom: 14px; font-family: 'OrbitronLetters', 'Noto Sans JP', sans-serif; }
+  .season-nav { display: flex; justify-content: center; align-items: center; gap: 14px; margin-bottom: 14px; font-family: 'Noto Sans JP', sans-serif; }
   .season-nav button { background: var(--navy-800); border: 1px solid var(--navy-700); color: var(--cyan); font-size: 0.85rem; padding: 6px 12px; cursor: pointer; }
   .season-nav button:disabled { color: var(--text-dim); cursor: default; }
   .subtabs { display: flex; gap: 6px; justify-content: center; margin: -10px auto 18px; flex-wrap: wrap; }
   .subtabs.hidden { display: none; }
   .subtab-btn {
-    font-family: 'OrbitronLetters', 'Noto Sans JP', sans-serif; font-size: 0.72rem; background: transparent; color: var(--text-dim);
-    border: 1px solid var(--navy-700); border-radius: 12px; padding: 4px 12px; cursor: pointer;
+    font-family: 'Noto Sans JP', sans-serif; font-size: 0.72rem; background: transparent; color: var(--text-dim);
+    border: 1px solid var(--navy-700); border-radius: 2px; padding: 3px 10px; cursor: pointer;
   }
-  .subtab-btn.active { color: var(--cyan); border-color: var(--cyan-dim); background: rgba(79,240,255,0.08); }
+  .subtab-btn.active { color: #fff; border-color: #1d4f3a; background: #1d4f3a; }
   .info-icon {
     display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px;
     border-radius: 50%; margin-left: 3px; background: var(--navy-800); color: var(--cyan-dim);
     border: 1px solid var(--navy-700); font-size: 0.62rem; cursor: pointer; vertical-align: middle;
   }
   .modal-overlay {
-    position: fixed; inset: 0; background: rgba(6,10,20,0.75); display: flex;
+    position: fixed; inset: 0; background: rgba(0,0,0,0.45); display: flex;
     align-items: center; justify-content: center; z-index: 1000; padding: 16px;
   }
   .modal-overlay.hidden { display: none; }
   .modal-box {
     background: var(--navy-900); border: 1px solid var(--cyan-dim); max-width: 480px; width: 100%;
-    max-height: 82vh; overflow-y: auto; padding: 20px; position: relative; box-shadow: 0 0 30px rgba(79,240,255,0.15);
+    max-height: 82vh; overflow-y: auto; padding: 20px; position: relative; box-shadow: 0 0 30px rgba(29,107,74,0.15);
   }
   .modal-close {
     position: absolute; top: 8px; right: 10px; background: none; border: none;
@@ -116,47 +114,15 @@
   }
   .fresh-banner.hidden { display: none; }
   .fresh-banner button {
-    font-family: 'OrbitronLetters', 'Noto Sans JP', sans-serif; font-size: 0.72rem; background: var(--navy-800); color: var(--cyan);
+    font-family: 'Noto Sans JP', sans-serif; font-size: 0.72rem; background: var(--navy-800); color: var(--cyan);
     border: 1px solid var(--cyan-dim); padding: 5px 12px; cursor: pointer; white-space: nowrap;
   }
-  .fav-highlight { background: rgba(255,182,72,0.14) !important; }
+  .fav-highlight { background: rgba(160,120,0,0.14) !important; }
   .fav-toggle {
-    font-family: 'OrbitronLetters', 'Noto Sans JP', sans-serif; font-size: 0.75rem; background: var(--navy-800); color: var(--text-dim);
+    font-family: 'Noto Sans JP', sans-serif; font-size: 0.75rem; background: var(--navy-800); color: var(--text-dim);
     border: 1px solid var(--navy-700); padding: 4px 10px; cursor: pointer;
   }
   .fav-toggle.is-fav { color: var(--amber); border-color: var(--amber); }
-  /* サポーター：個体詳細ページの先頭で、金箔のプレートのように高級感を出して表示する */
-  .sponsor-highlight-box {
-    position: relative; margin: 0 0 16px; padding: 16px 18px; border-radius: 10px;
-    background: linear-gradient(160deg, rgba(255,182,72,0.10), rgba(16,24,44,0.4) 60%);
-    box-shadow: 0 0 0 1px rgba(255,182,72,0.4), 0 4px 20px rgba(255,182,72,0.06), inset 0 1px 0 rgba(255,255,255,0.03);
-  }
-  .sponsor-highlight-box::before {
-    content: ''; position: absolute; inset: 0; padding: 1px; border-radius: 10px;
-    background: linear-gradient(135deg, #ffe39a, #a8762f 35%, #ffdf9e 55%, #8a6a2e 80%, #ffe39a);
-    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-    -webkit-mask-composite: xor; mask-composite: exclude; pointer-events: none;
-  }
-  .sponsor-highlight-box h3 {
-    margin: 0 0 8px; font-size: 0.85rem; letter-spacing: 0.08em; display: flex; align-items: center; gap: 6px;
-    background: linear-gradient(120deg, #fff3d6, #ffb648 45%, #ffe9ab 60%, #a8762f 100%);
-    -webkit-background-clip: text; background-clip: text; color: var(--amber);
-  }
-  .permanent-sponsor-row {
-    display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; font-size: 0.9rem;
-    padding: 10px 14px; border-radius: 8px; background: rgba(255,182,72,0.06);
-    border-left: 3px solid var(--amber); margin-bottom: 6px;
-  }
-  .permanent-sponsor-row b {
-    font-family: 'OrbitronLetters', 'Noto Sans JP', sans-serif; font-size: 1.02rem; letter-spacing: 0.02em;
-    background: linear-gradient(120deg, #fff3d6, #ffd27a 40%, #a8762f 100%);
-    -webkit-background-clip: text; background-clip: text; color: var(--amber);
-  }
-  .permanent-sponsor-row .sponsor-quote { color: var(--text-dim); font-style: italic; }
-  .permanent-sponsor-empty {
-    font-size: 0.8rem; color: var(--text-dim); padding: 10px 2px; text-align: center;
-    border: 1px dashed var(--navy-700); border-radius: 8px;
-  }
   .sliders { display: grid; gap: 6px; }
   .slider { display: grid; grid-template-columns: 6.5em 1fr 2.5em; align-items: center; gap: 8px; font-size: 0.78rem; color: var(--text-dim); }
   .slider input[type="range"] { width: 100%; accent-color: var(--cyan); }
@@ -166,8 +132,8 @@
 <body>
 
 <div class="header">
-  <h1>CIRCUIT OTHELLO LEAGUE</h1>
-  <p>選手たちがリーグ戦・タイトル戦を戦い抜き、青龍・麒麟・朱雀・白虎・玄武の座を目指す</p>
+  <h1>サーキットオセロリーグ</h1>
+  <p>CIRCUIT OTHELLO LEAGUE　リーグ戦・タイトル戦の記録</p>
 </div>
 
 <div class="tabs" id="primary-tabs">
@@ -216,8 +182,7 @@
 
 <script>
 const API_BASE = 'api.php';
-// ファンサイト（news-site）側へのサポーター登録導線用。結果サイト自体にはサポーター
-// 登録のUIは無く、一覧表示のみを行う
+// ファンサイト（news-site）のURL（季の状態の取得などに使う）
 const NEWS_SITE_BASE = 'https://lab.spia-net.com/othello-news/';
 const D_NEWCOMER_INTAKE = 3; // othello_league/league.py の D_NEWCOMER_INTAKE（毎季固定の新人受け入れ枠数）と一致させること
 const tabPanels = {
@@ -521,7 +486,7 @@ function crownLabel(id, name) {
   if (titles.length === 1) label = titles[0];
   else if (titles.length === 2) label = '二冠';
   else label = CROWN_LABELS[titles.length] || '五冠';
-  return `<span style="display:inline-block; font-family:'OrbitronLetters', 'Noto Sans JP', sans-serif; font-size:0.62rem; font-weight:700; color:var(--navy-950); background:linear-gradient(135deg,#ffd24f,#ff9d4f); padding:1px 6px; border-radius:2px; margin-right:6px;">${escapeHtml(label)}</span>`;
+  return `<span style="display:inline-block; font-family:'Noto Sans JP', sans-serif; font-size:0.62rem; font-weight:700; color:var(--navy-950); background:#9a2f24; color:#fff; padding:1px 6px; border-radius:2px; margin-right:6px;">${escapeHtml(label)}</span>`;
 }
 
 // 季送りナビゲーション用：前季/次季ボタンに加え、プルダウンでも直接季を選べるようにする
@@ -556,7 +521,7 @@ function titleOrDanBadge(titles, dan) {
   titles = TITLE_ORDER.filter(t => (titles || []).includes(t));
   if (titles.length > 0) {
     const label = titles.length === 1 ? titles[0] : (CROWN_LABELS[titles.length] || '五冠');
-    return `<span style="display:inline-block; font-family:'OrbitronLetters', 'Noto Sans JP', sans-serif; font-size:0.62rem; font-weight:700; color:var(--navy-950); background:linear-gradient(135deg,#ffd24f,#ff9d4f); padding:1px 6px; border-radius:2px; margin-left:6px;">${escapeHtml(label)}</span>`;
+    return `<span style="display:inline-block; font-family:'Noto Sans JP', sans-serif; font-size:0.62rem; font-weight:700; color:var(--navy-950); background:#9a2f24; color:#fff; padding:1px 6px; border-radius:2px; margin-left:6px;">${escapeHtml(label)}</span>`;
   }
   if (dan !== null && dan !== undefined) {
     return `<span class="chip gold" style="margin-left:6px;">${danLabel(dan)}</span>`;
@@ -782,7 +747,7 @@ function renderDrawSVG(slots, rootLabel, tagFn, opts = {}) {
     const badgeW = (info.league || info.title) ? LEAGUE_BADGE_W + 2 : 0;
     const label = fitBracketNameWithTag(name, tag, NAME_W - 10 - badgeW, 11, false);
     return `<g class="bracket-node" data-id="${escapeHtml(p.id || '')}" style="cursor:pointer;">
-      <rect x="${PAD_L}" y="${n._y - 12}" width="${NAME_W}" height="24" rx="4" fill="rgba(255,255,255,0.05)" stroke="#2f4161" stroke-width="0.8"/>
+      <rect x="${PAD_L}" y="${n._y - 12}" width="${NAME_W}" height="24" rx="4" fill="#fafaf8" stroke="#cfcdc4" stroke-width="0.8"/>
       ${leagueBadgeSVG(PAD_L + 11, n._y, info)}
       <text x="${PAD_L + 6 + badgeW}" y="${n._y + 4}" font-size="11" fill="${color}">${escapeHtml(label)}<title>${escapeHtml(name)}</title></text>
     </g>`;
@@ -793,7 +758,7 @@ function renderDrawSVG(slots, rootLabel, tagFn, opts = {}) {
     if (n.leaf) { labels += leafLabel(n); return; }
     walk(n.left); walk(n.right);
     if (n.left.leaf && n.right.leaf && n.left.entry === n.level - 1 && n.right.entry === n.level - 1) {
-      bands += `<rect x="0" y="${n.left._y - 14}" width="${colX(n.level) + 6}" height="${n.right._y - n.left._y + 28}" rx="5" fill="rgba(79,240,255,0.10)"/>`;
+      bands += `<rect x="0" y="${n.left._y - 14}" width="${colX(n.level) + 6}" height="${n.right._y - n.left._y + 28}" rx="5" fill="rgba(29,107,74,0.10)"/>`;
     }
     const vx = colX(n.level);
     [n.left, n.right].forEach(c => {
@@ -802,7 +767,7 @@ function renderDrawSVG(slots, rootLabel, tagFn, opts = {}) {
     lines += `<line x1="${vx}" y1="${n.left._y}" x2="${vx}" y2="${n.right._y}" stroke="${LINE}" stroke-width="${LINE_W}"/>`;
     if (n === root) {
       lines += `<line x1="${vx}" y1="${n._y}" x2="${vx + 14}" y2="${n._y}" stroke="var(--amber)" stroke-width="${LINE_W}"/>`;
-      labels += `<rect x="${vx + 14}" y="${n._y - 12}" width="82" height="24" rx="4" fill="rgba(255,182,72,0.12)" stroke="var(--amber)" stroke-width="1.2"/>
+      labels += `<rect x="${vx + 14}" y="${n._y - 12}" width="82" height="24" rx="4" fill="rgba(160,120,0,0.12)" stroke="var(--amber)" stroke-width="1.2"/>
         <text x="${vx + 55}" y="${n._y + 4.5}" font-size="11.5" font-weight="700" text-anchor="middle" fill="var(--amber)">${escapeHtml(rootLabel || '')}</text>`;
     }
   })(root);
@@ -841,8 +806,8 @@ function renderPairsCrossTable(pairs, order = []) {
   players.forEach((p, i) => {
     html += `<tr><td style="white-space:nowrap; font-size:0.72rem; padding-right:6px;"><span style="color:var(--text-dim);">${i + 1}</span> ${cupDrawPlayerHtml(p)}</td>`;
     players.forEach((_, j) => {
-      const bg = i === j ? 'background:rgba(255,255,255,0.08);' : '';
-      html += `<td style="${cell} ${bg} border:1px solid rgba(61,81,112,0.4); color:var(--cyan);">${i !== j && met.has(`${i}-${j}`) ? '●' : ''}</td>`;
+      const bg = i === j ? 'background:#efeee9;' : '';
+      html += `<td style="${cell} ${bg} border:1px solid #d6d4cc; color:var(--cyan);">${i !== j && met.has(`${i}-${j}`) ? '●' : ''}</td>`;
     });
     html += '</tr>';
   });
@@ -1029,8 +994,8 @@ function renderCurrentHoldersView(el, data) {
 
   let html = '';
   if (grandSlamHolder) {
-    html += `<div style="text-align:center; margin-bottom:14px; padding:10px; border:1px solid var(--amber); background:linear-gradient(135deg, rgba(255,210,79,0.12), rgba(255,157,79,0.12));">
-      <span style="font-family:'OrbitronLetters', 'Noto Sans JP', sans-serif; font-size:0.85rem; font-weight:800; background:linear-gradient(135deg,#ffd24f,#ff9d4f); -webkit-background-clip:text; background-clip:text; color:transparent;">★★★★★ 五冠 ★★★★★</span>
+    html += `<div style="text-align:center; margin-bottom:14px; padding:10px; border:1px solid var(--amber); background:#fbf6ea;">
+      <span style="font-family:'Noto Sans JP', sans-serif; font-size:0.85rem; font-weight:800; color:#9a2f24;">五冠</span>
       <div style="font-size:0.82rem; margin-top:4px;">${escapeHtml(grandSlamHolder)}</div>
     </div>`;
   }
@@ -1038,7 +1003,7 @@ function renderCurrentHoldersView(el, data) {
     html += '<div class="empty">まだ記録がありません</div>';
   }
   currentList.forEach(t => {
-    const eternalBadge = t.eternal ? `<span style="display:inline-block; background:rgba(255,182,72,0.15); border:1px solid var(--amber); color:var(--amber); font-size:0.68rem; padding:2px 8px; border-radius:2px; margin-left:8px;">★永世${escapeHtml(t.title)}${t.title === '青龍' ? '資格' : ''}</span>` : '';
+    const eternalBadge = t.eternal ? `<span style="display:inline-block; background:rgba(160,120,0,0.15); border:1px solid var(--amber); color:var(--amber); font-size:0.68rem; padding:2px 8px; border-radius:2px; margin-left:8px;">★永世${escapeHtml(t.title)}${t.title === '青龍' ? '資格' : ''}</span>` : '';
     html += `<div class="title-card"><h4>${escapeHtml(t.title)}</h4><div>
       <span class="title-name-link" data-id="${escapeHtml(t.holder_id || '')}" style="cursor:pointer;">${escapeHtml(t.holder_name)}</span>
       （第${t.season}季〜）${eternalBadge}</div></div>`;
@@ -1111,10 +1076,6 @@ async function loadIndividualDetail(id) {
     const ind = data.individual, p = ind.params || {};
 
     let html = `<div class="back-link" id="ind-back">← 一覧に戻る</div>`;
-    html += `<div class="sponsor-highlight-box">
-      <h3>👑 スペシャルサポーター</h3>
-      <div id="ind-sponsors">読み込み中...</div>
-    </div>`;
     html += `<div style="text-align:center; margin-bottom:14px;">
       <div style="margin-bottom:6px;">${ind.retired ? '<span style="color:var(--text-dim); font-size:0.7rem;">（引退）</span>' : `${leagueTag(ind.league)}`}</div>
       <h3 style="margin:0; font-size:1.1rem;">${crownLabel(ind.id, ind.display_name)}${escapeHtml(ind.display_name || ind.id)}</h3>
@@ -1173,7 +1134,6 @@ async function loadIndividualDetail(id) {
     renderRecentMatches(data.matches, ind.id);
     loadIndividualStandingsHistory(id);
     loadIndividualAwards(id);
-    loadIndividualSponsors(id);
   } catch (e) {
     el.innerHTML = `<div class="empty">読み込み失敗: ${escapeHtml(String(e))}</div>`;
   }
@@ -1208,20 +1168,20 @@ function renderRadarChart(params, maxScale = 20) {
   let gridLines = '';
   [0.25, 0.5, 0.75, 1.0].forEach(frac => {
     const pts = keys.map((_, i) => pointFor(i, frac * maxScale).join(',')).join(' ');
-    gridLines += `<polygon points="${pts}" fill="none" stroke="#182238" stroke-width="1"/>`;
+    gridLines += `<polygon points="${pts}" fill="none" stroke="#dedcd5" stroke-width="1"/>`;
   });
   keys.forEach((_, i) => {
     const [x, y] = pointFor(i, maxScale);
-    gridLines += `<line x1="${center}" y1="${center}" x2="${x}" y2="${y}" stroke="#182238" stroke-width="1"/>`;
+    gridLines += `<line x1="${center}" y1="${center}" x2="${x}" y2="${y}" stroke="#dedcd5" stroke-width="1"/>`;
   });
 
   const dataPts = keys.map((_, i) => pointFor(i, values[i]).join(',')).join(' ');
-  const dataPolygon = `<polygon points="${dataPts}" fill="rgba(79,240,255,0.25)" stroke="#4ff0ff" stroke-width="2"/>`;
+  const dataPolygon = `<polygon points="${dataPts}" fill="rgba(29,107,74,0.25)" stroke="#1d6b4a" stroke-width="2"/>`;
 
   let labelsHtml = '';
   keys.forEach((k, i) => {
     const [x, y] = pointFor(i, maxScale * 1.22);
-    labelsHtml += `<text x="${x}" y="${y}" text-anchor="middle" fill="#dce6f0" font-size="10" font-family="'OrbitronLetters', 'Noto Sans JP', sans-serif">${labels[i]}</text>`;
+    labelsHtml += `<text x="${x}" y="${y}" text-anchor="middle" fill="#222" font-size="10" font-family="'Noto Sans JP', sans-serif">${labels[i]}</text>`;
   });
 
   return `<svg viewBox="0 0 ${size} ${size}" style="width:100%; max-width:280px;">
@@ -1298,7 +1258,7 @@ function renderRecord(record) {
   if (!record || record.total === 0) { el.innerHTML = '<div style="color:var(--text-dim);">対局記録なし</div>'; return; }
   el.innerHTML = `<div class="params-grid">
     <dt>総対局数</dt><dd>${record.total}</dd>
-    <dt>勝・敗・分</dt><dd><span class="result-win" style="color:var(--cyan);">${record.win}</span> / <span style="color:#ff7a7a;">${record.loss}</span> / <span style="color:var(--text-dim);">${record.draw}</span></dd>
+    <dt>勝・敗・分</dt><dd><span class="result-win" style="color:var(--cyan);">${record.win}</span> / <span style="color:#b8322a;">${record.loss}</span> / <span style="color:var(--text-dim);">${record.draw}</span></dd>
     <dt>勝率</dt><dd class="elo-val">${(record.win + record.loss) > 0 ? Math.round(record.win / (record.win + record.loss) * 100) : 0}%</dd>
   </div>`;
 }
@@ -1317,7 +1277,7 @@ function renderOpponentRecords(opponentRecords) {
     return `<tr data-id="${escapeHtml(o.pid)}">
       <td>${escapeHtml(o.opponent_name || o.pid)}</td>
       <td style="color:var(--cyan);">${o.win}</td>
-      <td style="color:#ff7a7a;">${o.loss}</td>
+      <td style="color:#b8322a;">${o.loss}</td>
       <td style="color:var(--text-dim);">${o.draw}</td>
       <td>${total}</td>
     </tr>`;
@@ -1440,26 +1400,6 @@ async function loadIndividualAwards(id) {
   }
 }
 
-// スペシャルサポーター枠（1個体につき先着1名限定）：結果サイトの個体ページには
-// このスペシャルサポーターのみを表示する。竹・梅（通常のサポーター）は
-// ここには表示せず、ファンサイト（news-site）側でのみ表示する。
-// 登録自体もファンサイト側の選手ファンページで行う（決済導線はそちら側にしかない）
-async function loadIndividualSponsors(id) {
-  const el = document.getElementById('ind-sponsors');
-  if (!el) return;
-  try {
-    const res = await fetch(`${API_BASE.replace('api.php', 'sponsor.php')}?individual_id=${encodeURIComponent(id)}`);
-    const data = await res.json();
-    const body = data.permanent
-      ? `<div class="permanent-sponsor-row"><b>${escapeHtml(data.permanent.display_name)}</b>${data.permanent.message ? `<span class="sponsor-quote">「${escapeHtml(data.permanent.message)}」</span>` : ''}</div>`
-      : '<div class="permanent-sponsor-empty">まだスペシャルサポーターはいません（先着1名限定）</div>';
-    el.innerHTML = `${body}
-      <div style="margin-top:10px;"><a href="${NEWS_SITE_BASE}#individual/${encodeURIComponent(id)}" target="_blank" rel="noopener" style="color:var(--cyan); font-size:0.78rem;">→ ファンサイトでサポーターになる</a></div>`;
-  } catch (e) {
-    el.innerHTML = '<div style="color:var(--text-dim); font-size:0.8rem;">読み込み失敗</div>';
-  }
-}
-
 function renderTitleRecord(titleRanges, totalSeasons) {
   const el = document.getElementById('ind-titles');
   if (!el) return;
@@ -1499,7 +1439,7 @@ function renderRecentMatches(matches, myId) {
   if (!matches || matches.length === 0) { el.innerHTML = '<div style="color:var(--text-dim);">対局記録なし</div>'; return; }
   const rowHtml = m => {
     const opp = m.individual_a_id === myId ? (m.individual_b_name || 'タイトルホルダー') : m.individual_a_name;
-    return `<div class="kifu-row" data-match-id="${m.id}" style="padding:6px 0; border-bottom:1px solid rgba(24,34,56,0.6); cursor:pointer; display:flex; justify-content:space-between;">
+    return `<div class="kifu-row" data-match-id="${m.id}" style="padding:6px 0; border-bottom:1px solid #ebeae5; cursor:pointer; display:flex; justify-content:space-between;">
       <span>${leagueTag(m.league)}第${m.season}季 vs ${escapeHtml(opp)}</span>
       <span>${matchResultLabel(m)}</span>
     </div>`;
@@ -1521,7 +1461,7 @@ function renderRecentMatches(matches, myId) {
 // ---------------- 順位（シーズンごとのリーグ成績） ----------------
 const MOVEMENT_MARKS = {
   promoted: '<span class="movement-mark" style="color:var(--cyan); font-size:0.7rem;" title="昇級">昇↑</span>',
-  relegated: '<span class="movement-mark" style="color:#ff9d4f; font-size:0.7rem;" title="降級">降↓</span>',
+  relegated: '<span class="movement-mark" style="color:#b5482d; font-size:0.7rem;" title="降級">降↓</span>',
   retired: '<span class="movement-mark" style="color:var(--text-dim); font-size:0.7rem;" title="引退">退</span>',
   new: '<span class="movement-mark" style="color:#4fff9e; font-size:0.7rem;" title="新規参入">新</span>',
   stay: '',
@@ -1553,7 +1493,7 @@ function demotionEventMark(event, points) {
     // 0点に戻った場合も、増減の表示（「点N +点1」「点N -点1」）と同じ形に揃え、
     // 季開始時点の点数のチップ＋減った点数で示す（例：1点→0点は「点1 -点1」）
     const prevPoints = clearedMatch[1] || '1';
-    return `<span class="movement-mark" style="background:#ff5f5f; color:var(--navy-950); font-weight:700; padding:0 4px; border-radius:3px; font-size:0.7rem;" title="今季開始時点の降級点">点${prevPoints}</span>`
+    return `<span class="movement-mark" style="background:#b8322a; color:var(--navy-950); font-weight:700; padding:0 4px; border-radius:3px; font-size:0.7rem;" title="今季開始時点の降級点">点${prevPoints}</span>`
       + `<span class="movement-mark" style="color:var(--cyan); font-size:0.7rem;" title="降級点が0に戻った">-点${prevPoints}</span>`;
   }
   const parts = (event || '').split('_').filter(Boolean);
@@ -1567,10 +1507,10 @@ function demotionEventMark(event, points) {
 
   let html = '';
   if (highlightPoints > 0) {
-    html += `<span class="movement-mark" style="background:#ff5f5f; color:var(--navy-950); font-weight:700; padding:0 4px; border-radius:3px; font-size:0.7rem;" title="今季開始時点の降級点">点${highlightPoints}</span>`;
+    html += `<span class="movement-mark" style="background:#b8322a; color:var(--navy-950); font-weight:700; padding:0 4px; border-radius:3px; font-size:0.7rem;" title="今季開始時点の降級点">点${highlightPoints}</span>`;
   }
   if (gainedMatch) {
-    html += '<span class="movement-mark" style="color:#ff5f5f; font-size:0.7rem;" title="青龍戦リーグで下位4分の1に入り降級点+1">+点1</span>';
+    html += '<span class="movement-mark" style="color:#b8322a; font-size:0.7rem;" title="青龍戦リーグで下位4分の1に入り降級点+1">+点1</span>';
   }
   if (wonMatch) {
     html += '<span class="movement-mark" style="color:var(--cyan); font-size:0.7rem;" title="青龍戦リーグで勝ち越して降級点-1">-点1</span>';
@@ -1598,7 +1538,7 @@ function resultMovementMarks(movement, demotionEvent, demotionPoints) {
 function demotionPointsBadge(points) {
   if (!points) return '';
   // 結果タブの「今季開始時点の降級点」と同じ見た目に揃える（赤背景の抜き文字）
-  return `<span class="movement-mark" style="background:#ff5f5f; color:var(--navy-950); font-weight:700; padding:0 4px; border-radius:3px; font-size:0.7rem;" title="降級点">点${points}</span>`;
+  return `<span class="movement-mark" style="background:#b8322a; color:var(--navy-950); font-weight:700; padding:0 4px; border-radius:3px; font-size:0.7rem;" title="降級点">点${points}</span>`;
 }
 
 // 昇格・降格した行を、テーブル左端の色付きボーダーでも強調する（movement-markの文字だけだと
@@ -1722,9 +1662,9 @@ function fitBracketNameWithTag(name, tag, maxWidthPx, fontSize, bold) {
 }
 
 // リーグごとのアイコン色（トーナメント表示で名前の左に添えるバッジに使う）
-const LEAGUE_BADGE_COLOR = { A: '#ffb648', B: '#4ff0ff', C: '#7ee787', D: '#8fa3bf' };
+const LEAGUE_BADGE_COLOR = { A: '#8a5a1a', B: '#1d6b4a', C: '#3d6aa8', D: '#777777' };
 // タイトル保持者の場合は、リーグアイコンの代わりにタイトルの頭文字を色付きで表示する
-const TITLE_BADGE_COLOR = { '麒麟': '#ffd24f', '青龍': '#4f9eff', '朱雀': '#ff5a5a', '白虎': '#f2f2f2', '玄武': '#b388ff' };
+const TITLE_BADGE_COLOR = { '麒麟': '#a07800', '青龍': '#2b5ea8', '朱雀': '#b8322a', '白虎': '#666666', '玄武': '#5b3f8c' };
 const LEAGUE_BADGE_W = 15; // バッジ込みで名前欄から差し引く幅
 
 // info（{league, title}）を受け取り、タイトル保持者ならタイトルバッジ、そうでなければ
@@ -1755,7 +1695,7 @@ function renderBracketSVG(root, participantInfo, showCrown = true, opts = {}) {
   // opts.roundLabels：回戦の見出しを左の列から順に指定する（麒麟戦の敗者復活戦など、通常の回戦名が合わない図）
   participantInfo = participantInfo || {};
   const ROW_H = 28, NAME_W = 146, PAD_L = 4, HEAD_H = 24, GAP = 18, COL_W = opts.colW || 34;
-  const LINE = '#4a5f84', WIN = '#ff5a5a', LINE_W = 1.4, WIN_W = 3;
+  const LINE = '#9a9a92', WIN = '#b8322a', LINE_W = 1.4, WIN_W = 3;
   (function level(n) {
     if (n.leaf) { n._level = 0; return; }
     level(n.left); level(n.right);
@@ -1801,8 +1741,8 @@ function renderBracketSVG(root, participantInfo, showCrown = true, opts = {}) {
       const label = fitBracketNameWithTag(n.name, tag, NAME_W - 10 - badgeW, 11, isChampion);
       const opacity = reached[n.id] ? 1 : 0.6; // 初戦で敗れた選手は少し暗く
       labels += `<g class="bracket-node" data-id="${escapeHtml(n.id ?? '')}" style="cursor:pointer;" opacity="${opacity}">
-        <rect x="${PAD_L}" y="${n._y - 12}" width="${NAME_W}" height="24" rx="4" fill="rgba(255,255,255,0.05)"
-          stroke="${isChampion && showCrown ? 'var(--amber)' : '#2f4161'}" stroke-width="${isChampion && showCrown ? 1.4 : 0.8}"/>
+        <rect x="${PAD_L}" y="${n._y - 12}" width="${NAME_W}" height="24" rx="4" fill="#fafaf8"
+          stroke="${isChampion && showCrown ? 'var(--amber)' : '#cfcdc4'}" stroke-width="${isChampion && showCrown ? 1.4 : 0.8}"/>
         ${leagueBadgeSVG(PAD_L + 11, n._y, info)}
         <text x="${PAD_L + 6 + badgeW}" y="${n._y + 4}" font-size="11" ${isChampion ? 'font-weight="700"' : ''} fill="var(--text-main)">${escapeHtml(label)}<title>${escapeHtml(n.name)}</title></text>
       </g>`;
@@ -1810,7 +1750,7 @@ function renderBracketSVG(root, participantInfo, showCrown = true, opts = {}) {
     }
     walk(n.left); walk(n.right);
     if (n.left.leaf && n.right.leaf) {
-      bands += `<rect x="0" y="${n.left._y - 14}" width="${colX(n._level) + 6}" height="${n.right._y - n.left._y + 28}" rx="5" fill="rgba(79,240,255,0.07)"/>`;
+      bands += `<rect x="0" y="${n.left._y - 14}" width="${colX(n._level) + 6}" height="${n.right._y - n.left._y + 28}" rx="5" fill="rgba(29,107,74,0.07)"/>`;
     }
     const vx = colX(n._level);
     [n.left, n.right].forEach(c => {
@@ -1826,7 +1766,7 @@ function renderBracketSVG(root, participantInfo, showCrown = true, opts = {}) {
       lines += `<line x1="${vx}" y1="${n._y}" x2="${vx + 12}" y2="${n._y}" stroke="${WIN}" stroke-width="${WIN_W}" stroke-linecap="round"/>`;
       const label = fitBracketNameWithTag(n.winnerName, '', 92 - (champ ? bracketTextWidth(champ, 11, true) : 0), 11, true);
       labels += `<g class="bracket-node" data-id="${escapeHtml(n.winnerId ?? '')}" style="cursor:pointer;">
-        <rect x="${vx + 12}" y="${n._y - 12}" width="100" height="24" rx="4" fill="rgba(255,90,90,0.10)" stroke="${color}" stroke-width="1.4"/>
+        <rect x="${vx + 12}" y="${n._y - 12}" width="100" height="24" rx="4" fill="rgba(184,50,42,0.10)" stroke="${color}" stroke-width="1.4"/>
         <text x="${vx + 17}" y="${n._y + 4}" font-size="11" font-weight="700" fill="${showCrown ? color : 'var(--text-main)'}">${champ}${escapeHtml(label)}<title>${escapeHtml(n.winnerName)}</title></text>
       </g>`;
     }
@@ -1839,7 +1779,7 @@ function renderBracketSVG(root, participantInfo, showCrown = true, opts = {}) {
 // 挑戦者が勝ち越していれば奪取、在位者が勝ち越していれば防衛
 function defendCaptureLabel(challengerWins, holderWins) {
   if (challengerWins > holderWins) {
-    return '<span style="color:#ff5a5a; font-weight:700;">⚔ 奪取</span>';
+    return '<span style="color:#b8322a; font-weight:700;">⚔ 奪取</span>';
   }
   if (holderWins > challengerWins) {
     return '<span style="color:var(--cyan); font-weight:700;">🛡 防衛</span>';
@@ -1857,7 +1797,7 @@ function seriesTable(games, nameA, nameB, totals, finalSet) {
     if (result === 'draw') return { symbol: '△', color: 'var(--text-dim)' };
     const aWon = result === 'win';
     const won = isA ? aWon : !aWon;
-    return won ? { symbol: '〇', color: 'var(--cyan)' } : { symbol: '✕', color: '#ff7a7a' };
+    return won ? { symbol: '〇', color: 'var(--cyan)' } : { symbol: '✕', color: '#b8322a' };
   }
   function scoreLabel(isA) {
     if (totals) return isA ? `${totals.a}勝${totals.b}敗` : `${totals.b}勝${totals.a}敗`;
@@ -1868,7 +1808,7 @@ function seriesTable(games, nameA, nameB, totals, finalSet) {
     });
     return `${w}勝${l}敗`;
   }
-  const setBg = 'background:rgba(255,182,72,0.10);';
+  const setBg = 'background:rgba(160,120,0,0.10);';
   function rowHtml(name, isA) {
     const cells = games.map(g => {
       const m = markFor(g.result, isA);
@@ -2133,9 +2073,9 @@ function suzakuPlayoffHtml(groupLabel, rows, standings, participantInfo) {
     const res = {};
     r.matches.forEach(m => { const w = winnerOf(m); const l = w === m.individual_a_id ? m.individual_b_id : m.individual_a_id; res[w + '>' + l] = true; });
     const cells = a => r.ids.map(b => {
-      if (a === b) return '<td style="background:rgba(255,255,255,0.04);"></td>';
+      if (a === b) return '<td style="background:#f3f2ee;"></td>';
       const won = res[a + '>' + b];
-      return `<td style="text-align:center; font-weight:700; color:${won ? 'var(--cyan)' : '#ff7a7a'};">${won ? '〇' : '✕'}</td>`;
+      return `<td style="text-align:center; font-weight:700; color:${won ? 'var(--cyan)' : '#b8322a'};">${won ? '〇' : '✕'}</td>`;
     }).join('');
     return head + `<div style="overflow-x:auto;"><table style="width:auto; font-size:0.72rem;">
       <thead><tr><th></th>${r.ids.map(id => `<th style="font-weight:400; font-size:0.62rem; color:var(--text-dim); max-width:4.5em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(nameOf(id))}</th>`).join('')}<th></th></tr></thead>
@@ -2149,7 +2089,7 @@ function suzakuPlayoffHtml(groupLabel, rows, standings, participantInfo) {
     const ids = [...ev.ids].sort((a, b) => (byId[a].rank || 99) - (byId[b].rank || 99));
     const title = isTop ? `${groupLabel}1位決定戦` : `${groupLabel}残留・陥落の決定戦`;
     const names = ids.map(id => escapeHtml(nameOf(id))).join('・');
-    html += `<div style="margin:0 0 10px; padding:6px 8px; border:1px solid rgba(255,182,72,0.25); border-radius:6px;">
+    html += `<div style="margin:0 0 10px; padding:6px 8px; border:1px solid rgba(160,120,0,0.25); border-radius:6px;">
       <div style="font-size:0.7rem; color:var(--amber);">${title}<span style="color:var(--text-dim); font-size:0.64rem;">（同率：${names}）</span></div>`;
     if (ok && rounds.length > 0) {
       rounds.forEach((r, k) => { html += roundHtml(r, k, rounds.length); });
@@ -2215,7 +2155,7 @@ async function loadOneBracket(season, title, containerId = 'bracket-view') {
         };
         let t = `<div style="overflow-x:auto; margin-bottom:10px;">
           <table style="width:100%;"><thead><tr>
-            <th>#</th><th style="color:#ff7a7a;">紅組</th><th>成績</th>
+            <th>#</th><th style="color:#b8322a;">紅組</th><th>成績</th>
             <th>#</th><th style="color:var(--cyan);">白組</th><th>成績</th>
           </tr></thead><tbody>`;
         for (let i = 0; i < n; i++) {
@@ -2255,14 +2195,14 @@ async function loadOneBracket(season, title, containerId = 'bracket-view') {
               + suzakuPlayoffHtml('白組', data.white_playoff || [], whiteStandings, data.participant_info);
 
         if (decisionM.length > 0) {
-          html += `<div style="padding:10px 0; border-top:1px solid rgba(24,34,56,0.6);">
+          html += `<div style="padding:10px 0; border-top:1px solid #ebeae5;">
             <div style="font-size:0.7rem; color:var(--amber); margin-bottom:6px; text-align:center;">挑戦者決定戦（紅組1位 vs 白組1位）</div>
             ${seriesTable(decisionM, data.decision_red_name, data.decision_white_name, { a: data.decision_red_wins, b: data.decision_white_wins }, data.decision_final_set)}
           </div>`;
         }
 
         if (finalM.length > 0) {
-          html += `<div style="padding:10px 0; border-top:1px solid rgba(24,34,56,0.6);">
+          html += `<div style="padding:10px 0; border-top:1px solid #ebeae5;">
             <div style="font-size:0.7rem; color:var(--amber); margin-bottom:6px; text-align:center;">
               朱雀戦本戦　${defendCaptureLabel(data.challenger_wins, data.holder_wins)}
             </div>
@@ -2350,7 +2290,7 @@ async function loadOneBracket(season, title, containerId = 'bracket-view') {
             </div>`;
         }
         if (finalGames.length > 0) {
-          html += `<div style="padding:10px 0; border-top:1px solid rgba(24,34,56,0.6);">
+          html += `<div style="padding:10px 0; border-top:1px solid #ebeae5;">
             <div style="font-size:0.7rem; color:var(--amber); margin-bottom:6px; text-align:center;">
               ${escapeHtml(title)}戦本戦　${defendCaptureLabel(data.challenger_wins, data.holder_wins)}
             </div>
@@ -2383,13 +2323,13 @@ function renderResultCrossTable(rows, matches) {
     cellOf.set(`${m.a}|${m.b}`, { mark: mark[0], id: m.id });
     cellOf.set(`${m.b}|${m.a}`, { mark: mark[1], id: m.id });
   });
-  const cell = 'width:22px; min-width:22px; padding:2px 0; text-align:center; font-size:0.72rem; border:1px solid rgba(61,81,112,0.4);';
+  const cell = 'width:22px; min-width:22px; padding:2px 0; text-align:center; font-size:0.72rem; border:1px solid #d6d4cc;';
   let html = `<div style="overflow-x:auto;"><table style="border-collapse:collapse; width:auto;"><thead><tr><th style="text-align:left;">名前</th>${
     rows.map((_, j) => `<th style="${cell} color:var(--text-dim);">${j + 1}</th>`).join('')}<th>成績</th></tr></thead><tbody>`;
   rows.forEach((r, i) => {
     html += `<tr data-id="${escapeHtml(r.individual_id)}"><td style="white-space:nowrap; font-size:0.72rem; padding-right:6px;"><span style="color:var(--text-dim);">${i + 1}</span> ${escapeHtml(r.display_name || r.individual_id)}</td>`;
     rows.forEach((c, j) => {
-      if (i === j) { html += `<td style="${cell} background:rgba(255,255,255,0.08);"></td>`; return; }
+      if (i === j) { html += `<td style="${cell} background:#efeee9;"></td>`; return; }
       const v = cellOf.get(`${r.individual_id}|${c.individual_id}`);
       const color = v && v.mark === '△' ? 'var(--text-dim)' : 'var(--text-main)';
       html += v ? `<td data-match-id="${v.id}" style="${cell} color:${color}; cursor:pointer;" title="棋譜を見る">${v.mark}</td>` : `<td style="${cell}"></td>`;
@@ -2521,7 +2461,7 @@ async function loadMatches(q) {
       bindMatchesSearch();
       return;
     }
-    const rowHtml = m => `<div class="kifu-row" data-match-id="${m.id}" style="padding:6px 0; border-bottom:1px solid rgba(24,34,56,0.6); cursor:pointer; display:flex; justify-content:space-between;">
+    const rowHtml = m => `<div class="kifu-row" data-match-id="${m.id}" style="padding:6px 0; border-bottom:1px solid #ebeae5; cursor:pointer; display:flex; justify-content:space-between;">
       <span>${leagueTag(m.league)}第${m.season}季 ${escapeHtml(m.individual_a_name)} vs ${escapeHtml(m.individual_b_name || 'タイトルホルダー')}</span>
       <span>${matchResultLabel(m)}</span>
     </div>`;
@@ -3115,7 +3055,7 @@ async function loadNewcomerLeague(forSeason, mode = 'newcomer') {
         // 新人リーグ在籍中の個体は仮IDのため、本戦で実際にDリーグへ昇格し実IDが確認できた
         // 場合（real_individual_id）のみクリック可能にする。落選者・未昇格の間はリンクしない
         const idAttr = s.real_individual_id ? ` data-id="${escapeHtml(s.real_individual_id)}"` : '';
-        const rowStyle = s.promoted ? 'background:rgba(79,240,255,0.06);' : '';
+        const rowStyle = s.promoted ? 'background:rgba(29,107,74,0.06);' : '';
         // 師匠は既存個体のため常にリンク可能（新規開祖の場合はmaster_idが無く「なし」表示）
         const masterCell = s.master_id
           ? `<a href="#" data-master-id="${escapeHtml(s.master_id)}" style="color:var(--cyan);">${escapeHtml(s.master_name || s.master_id)}</a>`
@@ -3263,7 +3203,7 @@ function renderCharacterEntryForm(statusData) {
       <div class="sliders">${paramRows}</div>
       <div style="display:flex; justify-content:center; margin-top:10px;" id="cc-radar">${renderRadarChart({})}</div>
     </div>
-    <button id="cc-submit" ${closed ? 'disabled' : ''} style="font-family:'OrbitronLetters', 'Noto Sans JP', sans-serif; font-size:0.8rem; background:var(--navy-800); color:${closed ? 'var(--text-dim)' : 'var(--cyan)'}; border:1px solid ${closed ? 'var(--navy-700)' : 'var(--cyan-dim)'}; padding:8px 16px; cursor:${closed ? 'default' : 'pointer'}; width:100%;">${closed ? '本日は締め切りました' : 'エントリーする'}</button>
+    <button id="cc-submit" ${closed ? 'disabled' : ''} style="font-family:'Noto Sans JP', sans-serif; font-size:0.8rem; background:var(--navy-800); color:${closed ? 'var(--text-dim)' : 'var(--cyan)'}; border:1px solid ${closed ? 'var(--navy-700)' : 'var(--cyan-dim)'}; padding:8px 16px; cursor:${closed ? 'default' : 'pointer'}; width:100%;">${closed ? '本日は締め切りました' : 'エントリーする'}</button>
     <div id="cc-status" style="margin-top:8px; font-size:0.74rem; color:var(--text-dim);"></div>
     <div id="cc-quota-line" style="margin-top:4px; font-size:0.72rem; color:${closed ? 'var(--amber)' : 'var(--text-dim)'};">${escapeHtml(quotaLine)}</div>
     <div style="margin:18px 0; border-bottom:1px solid var(--navy-700);"></div>`;
@@ -3307,7 +3247,7 @@ function bindCharacterEntryForm() {
     });
     const total = paramInputs.reduce((sum, inp) => sum + (parseFloat(inp.value) || 0), 0);
     totalEl.textContent = total.toFixed(1);
-    totalEl.style.color = total > CC_PARAM_BUDGET ? '#ff9d4f' : 'var(--cyan)';
+    totalEl.style.color = total > CC_PARAM_BUDGET ? '#b5482d' : 'var(--cyan)';
     if (radarEl) radarEl.innerHTML = renderRadarChart(params);
   }
   paramInputs.forEach(inp => inp.addEventListener('input', updateTotal));
