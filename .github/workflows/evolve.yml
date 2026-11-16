@@ -375,6 +375,20 @@ jobs:
             exit 1
           fi
 
+      - name: Sync retired flags on the site
+        # 引退した季のサーバーへの取り込みが失敗すると、引退者がデータサイトの組み合わせに現役として残り続ける
+        # （以降の取り込みは現役しか更新しないため）。サイトへの反映が通った季に、引退者の印をまとめて付け直す
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          curl -sS -f -X POST \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/deploy_site.yml/dispatches" \
+            -d '{"ref":"main","inputs":{"run_migration":"sync_retired_flags"}}' \
+            || echo "::warning::引退者の印の同期を起動できませんでした（deploy_site.ymlをrun_migration=sync_retired_flagsで手動実行してください）"
+
       - name: Chain newcomer league
         # サイト（xserver）への最終同期だけが失敗した場合も、季の結果はGitHubに保存済みなので続けて起動する
         # （以前はサーバー側の一時的な接続不良で連続実行ごと止まっていた）
