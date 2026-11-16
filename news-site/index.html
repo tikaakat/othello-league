@@ -1976,9 +1976,13 @@ async function renderKeitoChart(topId) {
     cy += 10;
     texts += `<text x="${x}" y="${cy + 8}" font-size="9" text-anchor="middle" fill="var(--text-dim)">${m.retired ? '△' : ''}</text>`;
     cy += 11;
-    const weight = titles > 0 ? 700 : 400;
+    // タイトル獲得者：太字だけでは分かりにくいため、名前の後ろに朱の帯を敷き、文字も朱の太字にする
+    const nameLen = [...String(m.display_name || '')].length;
+    if (titles > 0) {
+      texts += `<rect x="${x - CW / 2 + 1.5}" y="${cy + 1}" width="${CW - 3}" height="${nameLen * (FS + 0.5) + 4}" rx="1.5" fill="var(--accent)" fill-opacity="0.16" stroke="var(--accent)" stroke-opacity="0.55" stroke-width="0.8"/>`;
+    }
     [...String(m.display_name || '')].forEach((ch, i) => {
-      texts += `<text x="${x}" y="${cy + (i + 1) * (FS + 0.5)}" font-size="${FS}" font-weight="${weight}" text-anchor="middle" fill="var(--text-main)">${escapeHtml(ch)}</text>`;
+      texts += `<text x="${x}" y="${cy + (i + 1) * (FS + 0.5)}" font-size="${FS}" font-weight="${titles > 0 ? 900 : 400}" text-anchor="middle" fill="${titles > 0 ? 'var(--accent-dark)' : 'var(--text-main)'}">${escapeHtml(ch)}</text>`;
     });
     cy += [...String(m.display_name || '')].length * (FS + 0.5) + 3;
     const dan = m.dan !== null && m.dan !== undefined ? `${DAN_KANJI[m.dan] ?? m.dan}段` : '';
@@ -2014,7 +2018,7 @@ async function renderKeitoChart(topId) {
       <button class="chip-btn ${activeOnly ? 'active' : ''}" data-keito-mode="active">現役のいる系統だけ</button>
       <button class="chip-btn ${activeOnly ? '' : 'active'}" data-keito-mode="all">すべて表示</button>
     </div>
-    <div style="font-size:0.72rem; color:var(--text-dim); margin-bottom:6px;">上が師匠、下が弟子（同じ師匠の弟子は左ほど先に入門）。名前の上の<span style="color:var(--accent-dark);">数字は参戦した季</span>、△は引退、太字はタイトル獲得者。名前を押すと選手ページへ。${activeOnly ? '現役のいない枝は一番上の選手で折りたたみ、「他N名」と表示。' : ''}横にスクロールできます${allMode ? '（左ほど大きな系統）' : small ? `（小さな系統${small}件は省略。「全系統」ですべて表示）` : ''}</div>
+    <div style="font-size:0.72rem; color:var(--text-dim); margin-bottom:6px;">上が師匠、下が弟子（同じ師匠の弟子は左ほど先に入門）。名前の上の<span style="color:var(--accent-dark);">数字は参戦した季</span>、△は引退、<span style="color:var(--accent-dark); font-weight:900; background:color-mix(in srgb, var(--accent) 16%, transparent); border:1px solid color-mix(in srgb, var(--accent) 55%, transparent); padding:0 3px;">朱の枠</span>はタイトル獲得者。名前を押すと選手ページへ。${activeOnly ? '現役のいない枝は一番上の選手で折りたたみ、「他N名」と表示。' : ''}横にスクロールできます${allMode ? '（左ほど大きな系統）' : small ? `（小さな系統${small}件は省略。「全系統」ですべて表示）` : ''}</div>
     <div class="keito-wrap" style="overflow:auto; -webkit-overflow-scrolling:touch; border:1px solid var(--border); border-radius:3px; background:var(--card);">
       <svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" style="display:block; font-family:'Noto Serif JP','Hiragino Mincho ProN','Yu Mincho',serif;">
         <g stroke="var(--text-dim)" stroke-width="0.9" fill="none">${lines}</g>${texts}
