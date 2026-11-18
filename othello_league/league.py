@@ -247,6 +247,10 @@ def relegate_and_retire(rosters, season, titleholders=None, suzaku_league_ids=No
         # 判定する（win_this_season/loss_this_seasonはタイトル戦の前にA〜Dの結果だけで
         # セットされるため、玄武予選・玄武本戦等のタイトル戦の勝敗はここに混ざらない）
         lost_more = d_rank.get(ind.id, 0) >= d_bottom_from   # 下位25%に入った（以前は「負け越した」）
+        # デビュー1季目（まだ在籍季数が数えられていない）は降級点を付けない。新人は終盤力・定跡が育ちきっておらず、
+        # 前の世界線では1季目の勝率37%・降級点57%、2季目までに約4人に1人がフリークラスへ落ちていた
+        if ind.total_seasons == 0:
+            lost_more = False
         won_more = ind.win_this_season > ind.loss_this_season
         relief = ind.id in demotion_relief_ids
         # 負け越したら必ず1点付く（救済と同じ季でも相殺しない）。そのうえで勝ち越し・救済で減らせるのは

@@ -257,6 +257,21 @@ def minimax(bd, color, depth, alpha, beta, maximizing_color, params, noise_scale
 
 
 def choose_move(bd, color, params, depth=5, noise_scale=1.0):
+    """1手選ぶ（_choose_move_core）。ポカ率（skills.pyの_blunder）があれば、その確率で最善手以外の合法手を指す
+    （開局の抽選・定跡の手は除く）"""
+    move = _choose_move_core(bd, color, params, depth, noise_scale)
+    blunder = params.get("_blunder", 0.0)
+    if blunder and move is not None and random.random() < blunder:
+        empty = bd.count(B.EMPTY)
+        book = params.get("_book", 0)
+        if empty <= 60 - OPENING_RANDOM_PLIES and not (book and empty >= 60 - book):
+            others = [m for m in B.legal_moves(bd, color) if m != move]
+            if others:
+                return random.choice(others)
+    return move
+
+
+def _choose_move_core(bd, color, params, depth=5, noise_scale=1.0):
     """個体のパラメータを使って1手選ぶ。noise_scaleは個体固有の「ムラ気」倍率。
     paramsに終盤力（_endgame）・定跡（_book）があれば反映する（skills.py参照）：
       - 序盤、定跡を知っている手数まで（空きマスが 60-定跡 以上）は、共通の強い評価・揺らぎなしで指す

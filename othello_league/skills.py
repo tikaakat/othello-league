@@ -19,8 +19,9 @@
   タイトル保持者が下のリーグに残る・衰えたベテランがAに残るといった状態が続いていた。
   試算（同じ選手どうし）：−1手で勝率24%（約−200）、+1手で69%（約+135）。16人の総当たりで、−1〜+1を割り振ると
   レートの標準偏差が約100→約140、上位4人の下位4人への勝率が85→91%。1局の時間は平均で約1.5倍。
-  ピーク（_read_max、−0.8〜+1.0）は才能で決まり、入会時はピークより1手浅い。25歳まで速く伸び、30歳まで少し、
-  45歳から衰える（衰えの速さは_agingに従う）。
+  ピーク（_read_max）は才能で決まる（平均+0.2の正規分布、−1〜+2。天賦は+1.2以上、大天才は+1.6以上）。
+  入会時はピークより1手浅い。25歳まで速く伸び、30歳まで少し、45歳から衰える（衰えの速さは_agingに従う）。
+- ポカ率（_blunder）：その手で最善手以外を指してしまう確率。若いうちは高く経験で下限（才能）まで下がり、45歳から増える。
 
 いずれもparamsの中に「_」で始まるキーとして持たせる（評価関数は8つの能力のキーしか見ないため影響しない）。
 """
@@ -40,13 +41,19 @@ AGING_KEY = "_aging"               # 衰えの速さの倍率（1.0＝ふつう�
 READ_KEY = "_read"                 # 読みの深さの補正（−1〜+1手。端数は確率。engine.choose_move参照）
 READ_MAX_KEY = "_read_max"         # 読みの深さのピーク（才能）
 SKILL_KEYS = (ENDGAME_KEY, ENDGAME_GROWTH_KEY, BOOK_KEY, BOOK_RATE_KEY, FORM_KEY, GENIUS_KEY, GENIUS_MAX_KEY,
-              PRODIGY_KEY, PRODIGY_MAX_KEY, AGING_KEY, READ_KEY, READ_MAX_KEY)
+              PRODIGY_KEY, PRODIGY_MAX_KEY, AGING_KEY, READ_KEY, READ_MAX_KEY, "_blunder", "_blunder_min")
 
 READ_FLOOR = -1.0
-READ_PEAK_RANGE = (-0.8, 1.0)      # ピークの幅（才能の順位を写す）
-READ_TALENT_NOISE = 0.25           # 終盤力の伸びる速さ（才能の共通因子）とどれだけ別に決まるか
+READ_CEIL = 2.0
+# ピーク（才能）は平均+0.2・ばらつき0.45の正規分布（−1〜+2）。以前は−0.8〜+1.0に一様に写して上限で切っていたため、
+# 三段リーグを抜けるプロの約半数が上限（1.0）に並び、プロどうしの差にならなかった（第55季でA0.75・D0.74）。
+# +1を超えるのは一部の才能のある選手だけなので、全体の読む深さの平均（＝所要時間）はほぼ変わらない
+READ_PEAK_MEAN = 0.2
+READ_PEAK_SD = 0.45
+READ_TALENT_WEIGHT = 0.3           # 終盤力の伸びる速さ（才能の共通因子）にどれだけ寄せるか
 READ_START_GAP = 1.0               # 生まれたときはピークよりこれだけ浅い
-READ_GENIUS_MIN = 0.8              # 天賦を持つ選手のピークの下限（大天才は上限の1.0）
+READ_GENIUS_MIN = 1.2              # 天賦を持つ選手のピークの下限
+READ_PRODIGY_MIN = 1.6             # 大天才のピークの下限
 READ_GROWTH_YOUNG = 0.12           # 25歳未満の1季あたりの伸び
 READ_GROWTH_MID = 0.06             # 30歳未満
 READ_DECLINE_AGE = 45
@@ -115,22 +122,72 @@ def _book_rate_for(growth):
     return round(lo + (hi - lo) * pct, 2)
 
 
-def _talent_pct(growth, noise):
-    """終盤力の伸びる速さの順位（0〜1）に、ばらつきを足したもの（才能の共通因子）"""
-    z = math.log(max(growth, 1e-3) / ENDGAME_GROWTH_MEDIAN) / ENDGAME_GROWTH_SIGMA
-    pct = 0.5 * (1 + math.erf(z / math.sqrt(2)))
-    return min(1.0, max(0.0, pct + random.gauss(0, noise)))
-
-
 def _read_max_for(p):
-    """読みの深さのピーク。伸びる子ほど深く読めるようになりやすい（ばらつきは大きめ）。天賦・大天才は深い"""
-    lo, hi = READ_PEAK_RANGE
-    peak = lo + (hi - lo) * _talent_pct(p.get(ENDGAME_GROWTH_KEY, ENDGAME_GROWTH_MEDIAN), READ_TALENT_NOISE)
+    """読みの深さのピーク（正規分布。伸びる子ほど少し深く読めるようになりやすい）。天賦・大天才は深い"""
+    z = math.log(max(p.get(ENDGAME_GROWTH_KEY, ENDGAME_GROWTH_MEDIAN), 1e-3) / ENDGAME_GROWTH_MEDIAN) / ENDGAME_GROWTH_SIGMA
+    z = max(-2.5, min(2.5, z))
+    w = READ_TALENT_WEIGHT
+    peak = READ_PEAK_MEAN + READ_PEAK_SD * (w * z + math.sqrt(1 - w * w) * random.gauss(0, 1))
     if p.get(PRODIGY_MAX_KEY):
-        peak = hi
+        peak = max(peak, READ_PRODIGY_MIN)
     elif p.get(GENIUS_MAX_KEY):
         peak = max(peak, READ_GENIUS_MIN)
-    return round(peak, 2)
+    return round(max(READ_FLOOR, min(READ_CEIL, peak)), 2)
+
+
+# 読みの深さ→強さ（レート換算。同じ選手どうしの実測：−1手24%・+1手69%・+2手91%）
+READ_ELO_POINTS = ((-1.0, -204.0), (0.0, 0.0), (1.0, 135.0), (2.0, 399.0))
+
+
+def read_elo(r):
+    for (x0, y0), (x1, y1) in zip(READ_ELO_POINTS, READ_ELO_POINTS[1:]):
+        if r <= x1:
+            return y0 + (y1 - y0) * (max(r, x0) - x0) / (x1 - x0)
+    return READ_ELO_POINTS[-1][1]
+
+
+# ---- ポカ率（_blunder）：その手で最善手以外の合法手を指してしまう確率（engine.choose_move）----
+# 読みの深さと違って所要時間が増えず、上限も無いので、プロどうしでも差が残る。
+# 実測（同じ選手どうし）：ポカ率3%で約−50、12%で約−140、20%で約−290（1あたり約−1300）。
+# 生まれつきの下限（_blunder_min）は中央値4%の対数正規分布（大天才はほぼ0）。入会時は下限+8%で、
+# 45歳までは1季ごとに下限との差が15%ずつ縮み（フリークラスでは半分）、45歳からは1季0.6%ずつ増える（×_aging）
+BLUNDER_KEY = "_blunder"
+BLUNDER_MIN_KEY = "_blunder_min"
+BLUNDER_MIN_MEDIAN = 0.04
+BLUNDER_MIN_SIGMA = 0.6
+BLUNDER_MIN_CAP = 0.15
+BLUNDER_PRODIGY_MAX = 0.005
+BLUNDER_BIRTH_EXTRA = 0.08
+BLUNDER_LEARN = 0.85
+BLUNDER_DECLINE = 0.006
+BLUNDER_CAP = 0.3
+BLUNDER_ELO_PER = -1300.0
+
+
+def _blunder_min_for(p):
+    bm = min(BLUNDER_MIN_CAP, random.lognormvariate(math.log(BLUNDER_MIN_MEDIAN), BLUNDER_MIN_SIGMA))
+    if p.get(PRODIGY_MAX_KEY):
+        bm = min(bm, BLUNDER_PRODIGY_MAX)
+    return round(bm, 4)
+
+
+def _blunder_step(p, age, aging, growth_scale=1.0):
+    bm = p[BLUNDER_MIN_KEY]
+    if age < READ_DECLINE_AGE:
+        learn = BLUNDER_LEARN ** max(0.0, growth_scale)
+        p[BLUNDER_KEY] = round(bm + (p[BLUNDER_KEY] - bm) * learn, 4)
+    else:
+        p[BLUNDER_KEY] = round(min(BLUNDER_CAP, p[BLUNDER_KEY] + BLUNDER_DECLINE * aging), 4)
+
+
+def ensure_blunder(p, age):
+    """ポカ率をまだ持っていない選手に、才能と年齢に応じた値を与える（13歳から規則どおりに進めた値）"""
+    if BLUNDER_KEY in p and BLUNDER_MIN_KEY in p:
+        return
+    p[BLUNDER_MIN_KEY] = _blunder_min_for(p)
+    p[BLUNDER_KEY] = round(p[BLUNDER_MIN_KEY] + BLUNDER_BIRTH_EXTRA, 4)
+    for a in range(14, (age or 13) + 1):
+        _blunder_step(p, a, p.get(AGING_KEY, 1.0))
 
 
 def _read_delta(age):
@@ -197,6 +254,8 @@ def birth_skills(master_params=None):
     }
     out[READ_MAX_KEY] = _read_max_for(out)
     out[READ_KEY] = round(max(READ_FLOOR, out[READ_MAX_KEY] - READ_START_GAP), 3)
+    out[BLUNDER_MIN_KEY] = _blunder_min_for(out)
+    out[BLUNDER_KEY] = round(out[BLUNDER_MIN_KEY] + BLUNDER_BIRTH_EXTRA, 4)
     return out
 
 
@@ -210,6 +269,8 @@ def veteran_skills(age):
     s[BOOK_KEY] = int(min(BOOK_CAP, s[BOOK_RATE_KEY] * max(0, age - 20)))
     del s[READ_KEY]
     ensure_read(s, age)
+    del s[BLUNDER_KEY]
+    ensure_blunder(s, age)
     return s
 
 
@@ -218,6 +279,7 @@ def ensure_skills(ind):
     if ENDGAME_KEY not in ind.params:
         ind.params.update(veteran_skills(ind.age))
     ensure_read(ind.params, ind.age)
+    ensure_blunder(ind.params, ind.age)
 
 
 def awaken_endgame(params):
@@ -278,5 +340,9 @@ def season_growth(ind, growth_scale=1.0):
             p[READ_KEY] = round(min(p[READ_MAX_KEY], p[READ_KEY] + d * growth_scale), 3)
         elif d < 0:
             p[READ_KEY] = round(max(READ_FLOOR, p[READ_KEY] + d * aging), 3)
+    if BLUNDER_KEY not in p or BLUNDER_MIN_KEY not in p:
+        ensure_blunder(p, ind.age)
+    else:
+        _blunder_step(p, ind.age, aging, growth_scale)
     young = BOOK_YOUNG_SPEEDUP if ind.age < BOOK_YOUNG_AGE else 1.0
     p[BOOK_KEY] = int(min(BOOK_CAP, p.get(BOOK_KEY, 0) + p.get(BOOK_RATE_KEY, 0.0) * young + random.random()))

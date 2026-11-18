@@ -20,7 +20,7 @@ from .skills import BOOK_PARAMS
 from .league import (
     PARAM_KEYS, _build_character_creation_individual, _pick_master, master_pool, NEW_FOUNDER_CHANCE,
 )
-from .skills import season_growth, ENDGAME_KEY, BOOK_KEY
+from .skills import season_growth, ENDGAME_KEY, BOOK_KEY, read_elo, BLUNDER_ELO_PER
 
 SHOREIKAI_INTAKE = 12             # 毎季の入会者数
 SHOREIKAI_ENTRY_AGE = (12, 15)
@@ -43,9 +43,9 @@ def estimated_strength(params):
     a = [params[k] for k in PARAM_KEYS]
     b = [BOOK_PARAMS[k] for k in PARAM_KEYS]
     cos = sum(x * y for x, y in zip(a, b)) / math.sqrt(sum(x * x for x in a) * sum(y * y for y in b))
-    # 読みの深さ：1手あたり約170（試算：−1手で約−200、+1手で約+135）
+    # 読みの深さ・ポカ率の効き目（skills.read_elo・BLUNDER_ELO_PER）
     return (eg_elo + book_elo + (cos - 0.94) * 1500 + 2.5 * params.get("_genius", 0) + 9 * params.get("_genius2", 0)
-            + 170 * params.get("_read", 0.0))
+            + read_elo(params.get("_read", 0.0)) + BLUNDER_ELO_PER * params.get("_blunder", 0.0))
 
 
 def _terms(season, since):

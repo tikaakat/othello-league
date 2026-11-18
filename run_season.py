@@ -11,7 +11,7 @@ from othello_league.league import (
     FREE_CLASS, free_class_returns,
 )
 from othello_league.buffs import effective_params, roll_age_multipliers
-from othello_league.skills import ensure_skills, roll_form, season_growth, veteran_skills, BOOK_PARAMS, FREE_CLASS_GROWTH_SCALE
+from othello_league.skills import ensure_skills, roll_form, season_growth, veteran_skills, BOOK_PARAMS, FREE_CLASS_GROWTH_SCALE, read_elo, BLUNDER_ELO_PER
 from othello_league.round_robin import run_round_robin, round_robin_gen
 from othello_league.random_league import run_random_league, random_league_gen, plan_random_league
 from othello_league.title import (
@@ -67,7 +67,8 @@ def _estimated_strength(params):
     book_elo = 113 * min(book, 16) / 16 + (10 * (min(book, 24) - 16) / 8 if book > 16 else 0)
     a = [params[k] for k in PARAM_KEYS]; b = [BOOK_PARAMS[k] for k in PARAM_KEYS]
     cos = sum(x * y for x, y in zip(a, b)) / math.sqrt(sum(x * x for x in a) * sum(y * y for y in b))
-    return eg_elo + book_elo + (cos - 0.94) * 1500 + 170 * params.get("_read", 0.0)  # 読みの深さ：1手あたり約170
+    return (eg_elo + book_elo + (cos - 0.94) * 1500
+            + read_elo(params.get("_read", 0.0)) + BLUNDER_ELO_PER * params.get("_blunder", 0.0))  # 読みの深さ・ポカ率
 
 
 PREHISTORY_SEASONS = 60  # 初期メンバーを作るための「前史」の季数（対局はせず、育成とデビューだけを早回しする）
