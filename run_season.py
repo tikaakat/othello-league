@@ -1256,6 +1256,25 @@ def bracket_tags_from_upcoming(out):
     return tags
 
 
+def ensure_bracket_tags(data_dir, season, state, rosters):
+    """結果タブのトーナメント表の表記（白虎：Elo順位／玄武：所属リーグと順位／麒麟：組と順位）は、ふつう前の季の終わりに
+    次の季の組み合わせと一緒に書き出す。前の季が無い第1季（リセット直後）は書き出されず、結果タブでEloの値が出ていたため、
+    この季の初めの時点の値で作っておく（既にあれば何もしない）"""
+    if os.path.exists(os.path.join(data_dir, BRACKET_TAGS_DIR, f"season_{season}.json")):
+        return
+    actives = [(league, ind) for league in (*LEAGUE_TIERS, FREE_CLASS) for ind in rosters.get(league, [])]
+    elo_rank = {ind.id: k + 1 for k, (_, ind) in enumerate(sorted(actives, key=lambda x: -x[1].elo))}
+    league_pos = league_table_order(rosters, [])
+    tags = {"白虎": {}, "玄武": {}, "麒麟": {}}
+    for league, ind in actives:
+        tags["白虎"][ind.id] = f"{elo_rank[ind.id]}位"
+        tags["玄武"][ind.id] = f"{league}{str(league_pos[ind.id]) + '位' if league_pos.get(ind.id) else ''}"
+    for g, members in (state.get("kirin_groups") or {}).items():
+        for pos, iid in enumerate(members, 1):
+            tags["麒麟"][iid] = f"{g}組{pos}位"
+    write_bracket_tags(data_dir, season, tags)
+
+
 def write_bracket_tags(data_dir, season, tags):
     os.makedirs(os.path.join(data_dir, BRACKET_TAGS_DIR), exist_ok=True)
     with open(os.path.join(data_dir, BRACKET_TAGS_DIR, f"season_{season}.json"), "w", encoding="utf-8") as f:
@@ -1339,6 +1358,7 @@ def main():
         state["name_registry"] = registry.to_dict()
         assign_planned_newcomers(state, season, new_disciples)
         write_upcoming_brackets(args.data_dir, state, rosters)
+        ensure_bracket_tags(args.data_dir, season, state, rosters)
         if new_disciples:
             print(f"[DEBUG] 第{season}季開始前にDリーグへ{len(new_disciples)}名補充しました", flush=True)
         if recruit_retired:
