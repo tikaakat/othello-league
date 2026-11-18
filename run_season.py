@@ -1259,16 +1259,20 @@ def bracket_tags_from_upcoming(out):
 def ensure_bracket_tags(data_dir, season, state, rosters):
     """結果タブのトーナメント表の表記（白虎：Elo順位／玄武：所属リーグと順位／麒麟：組と順位）は、ふつう前の季の終わりに
     次の季の組み合わせと一緒に書き出す。前の季が無い第1季（リセット直後）は書き出されず、結果タブでEloの値が出ていたため、
-    この季の初めの時点の値で作っておく（既にあれば何もしない）"""
+    組み合わせを決めるのと同じ、この季の初めの時点の値で作っておく（既にあれば何もしない）"""
     if os.path.exists(os.path.join(data_dir, BRACKET_TAGS_DIR, f"season_{season}.json")):
         return
     actives = [(league, ind) for league in (*LEAGUE_TIERS, FREE_CLASS) for ind in rosters.get(league, [])]
     elo_rank = {ind.id: k + 1 for k, (_, ind) in enumerate(sorted(actives, key=lambda x: -x[1].elo))}
     league_pos = league_table_order(rosters, [])
     tags = {"白虎": {}, "玄武": {}, "麒麟": {}}
+    # 全員のEloが同じ（リセット直後の第1季は全員1500）なら、白虎戦はEloの並べ替えで順番が変わらず、リーグ表の上から
+    # 16名（Aの全員とBの上位）が出場する。そのため「Elo〇位」ではなく、玄武戦と同じ所属リーグと順位を示す
+    same_elo = len({round(ind.elo, 3) for _, ind in actives}) <= 1
     for league, ind in actives:
-        tags["白虎"][ind.id] = f"{elo_rank[ind.id]}位"
-        tags["玄武"][ind.id] = f"{league}{str(league_pos[ind.id]) + '位' if league_pos.get(ind.id) else ''}"
+        pos_tag = f"{league}{str(league_pos[ind.id]) + '位' if league_pos.get(ind.id) else ''}"
+        tags["白虎"][ind.id] = pos_tag if same_elo else f"{elo_rank[ind.id]}位"
+        tags["玄武"][ind.id] = pos_tag
     for g, members in (state.get("kirin_groups") or {}).items():
         for pos, iid in enumerate(members, 1):
             tags["麒麟"][iid] = f"{g}組{pos}位"
