@@ -80,6 +80,7 @@ on:
           - "archive_fan_site_world1_20261106"
           - "sync_lineage_20261108"
           - "sync_retired_flags"
+          - "drop_first_season_byakko_20261118"
           - "resync_server_data"
         default: ""
       create_dir:
@@ -474,6 +475,18 @@ jobs:
               for r in members:
                   emit("individuals", r)
           PYEOF
+                )
+                ;;
+              drop_first_season_byakko_20261118)
+                # 第1季は白虎戦を行わないことにした（全員のEloが同じで、出場者がリーグ表の並びで決まっていたため）。
+                # 今の世界線で既に行った第1季の白虎戦をなかったことにする：第1季の初代襲名（田村翔太）と予選の対局を消し、
+                # 第2季の番勝負（後藤美奈子が奪取）を「第2季のトーナメント優勝者・後藤美奈子の初代襲名」に置き換え、番勝負の対局を消す。
+                # データ側はrun_season.pyのdrop_first_season_byakkoで同じ処理をしている。何度実行しても同じ結果になる
+                SQL_LIST=(
+                  "DELETE FROM title_history WHERE title = '白虎' AND season = 1;"
+                  "UPDATE title_history SET event_type = '初代襲名' WHERE title = '白虎' AND season = 2 AND holder_id = 'A0-004';"
+                  "DELETE FROM matches WHERE season = 1 AND league IN ('白虎予選', '白虎');"
+                  "DELETE FROM matches WHERE season = 2 AND league = '白虎';"
                 )
                 ;;
               sync_retired_flags)

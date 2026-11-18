@@ -515,11 +515,14 @@ def title_tournament_gens(all_members, state, season):
         all_members, exclude_id=holder_id("麒麟"), groups=state.get("kirin_groups"),
         guaranteed_id=last_dethroned.get("麒麟"),
     )
+    # 第1季（リセット直後）は白虎戦を行わない。白虎戦はEloの上位16名で争うが、第1季の初めは全員のEloが同じ（1500）で、
+    # 出場者がリーグ表の並びで決まってしまうため。初代白虎は第2季のトーナメントの優勝者
+    byakko_gen = _no_byakko() if season == 1 else byakko_challenger_gen(
+        all_members, exclude_id=holder_id("白虎"), depth=BYAKKO_LEAGUE_DEPTH, top_n=16,
+        guaranteed_id=last_dethroned.get("白虎"), planned=planned.get("白虎"),
+    )
     return [
-        byakko_challenger_gen(
-            all_members, exclude_id=holder_id("白虎"), depth=BYAKKO_LEAGUE_DEPTH, top_n=16,
-            guaranteed_id=last_dethroned.get("白虎"), planned=planned.get("白虎"),
-        ),
+        byakko_gen,
         genbu_challenger_gen(
             all_members, exclude_id=holder_id("玄武"), depth=GENBU_LEAGUE_DEPTH, bracket_size=64,
             titleholder_ids={info["id"] for info in titleholders.values() if info and info.get("id")},
@@ -528,6 +531,12 @@ def title_tournament_gens(all_members, state, season):
         ),
         kirin_challenger_gen(all_members, kirin_plan, newcomer_ids=planned.get("newcomer_ids"), depth=KIRIN_DEPTH),
     ]
+
+
+def _no_byakko():
+    """白虎戦を行わない季の代わりのジェネレーター（挑戦者なし・対局なし・出場者なし）"""
+    return None, [], []
+    yield  # ジェネレーターにするため（到達しない）
 
 
 def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ranked_C, ranked_D, all_members, state, season,
@@ -837,62 +846,63 @@ def _run_title_matches(ranked_A, ranked_competing_A, champion_ind, ranked_B, ran
     # ここでは番勝負とEloの記録を棋戦ごとに順に行う
     byakko_out, genbu_out, kirin_out = title_tournament_outs
     challenger, bracket_log, byakko_entrants = byakko_out
-    extra_protected_ids.add(challenger.id)
-    demotion_relief_ids.update(ind.id for ind in byakko_entrants)
-    # 失冠優遇は1季限りなので、使ったかどうかに関わらずここでリセットする
-    # （このあと、この季に新たに失冠が発生すればその個体のidで上書きされる）
-    last_dethroned["白虎"] = None
+    if challenger is not None:  # 第1季は白虎戦なし（_no_byakko）
+        extra_protected_ids.add(challenger.id)
+        demotion_relief_ids.update(ind.id for ind in byakko_entrants)
+        # 失冠優遇は1季限りなので、使ったかどうかに関わらずここでリセットする
+        # （このあと、この季に新たに失冠が発生すればその個体のidで上書きされる）
+        last_dethroned["白虎"] = None
 
-    for matchup in bracket_log:
-        ind_a, ind_b = all_members_by_id.get(matchup["a"]), all_members_by_id.get(matchup["b"])
-        if ind_a and ind_b:
-            for g in matchup.get("games", []):
-                if g["result"] == "draw":
-                    outcome_a = "draw"
-                else:
-                    x_won = (g["result"] == "black") == g["x_was_black"]
-                    outcome_a = "win" if x_won else "loss"
-                ind_a.elo, ind_b.elo = update_elo(
-                    ind_a.elo, ind_b.elo, outcome_a,
-                    total_seasons_a=ind_a.total_seasons, total_seasons_b=ind_b.total_seasons,
-                )
+        for matchup in bracket_log:
+            ind_a, ind_b = all_members_by_id.get(matchup["a"]), all_members_by_id.get(matchup["b"])
+            if ind_a and ind_b:
+                for g in matchup.get("games", []):
+                    if g["result"] == "draw":
+                        outcome_a = "draw"
+                    else:
+                        x_won = (g["result"] == "black") == g["x_was_black"]
+                        outcome_a = "win" if x_won else "loss"
+                    ind_a.elo, ind_b.elo = update_elo(
+                        ind_a.elo, ind_b.elo, outcome_a,
+                        total_seasons_a=ind_a.total_seasons, total_seasons_b=ind_b.total_seasons,
+                    )
 
-    if titleholders["白虎"] is None:
-        titleholders["白虎"] = {"id": challenger.id, "name": challenger.display_name}
-        titleholder_params["白虎"] = effective_params(challenger)
-        print(f"  ★ 白虎 初代襲名: {challenger.display_name}")
-        results.append({
-            "title": "白虎", "season": season, "event": "初代襲名",
-            "new_holder": challenger.display_name, "holder_id": challenger.id, "bracket": bracket_log,
-        })
-    else:
-        defending_holder = titleholders["白虎"]
-        defending_ind_for_volatility = all_members_by_id.get(defending_holder["id"])
-        result = run_byakko_challenge(
-            challenger, _current_holder_params("白虎", defending_ind_for_volatility), depth=BYAKKO_TITLE_DEPTH,
-            titleholder_volatility=defending_ind_for_volatility.volatility if defending_ind_for_volatility else 1.0,
-        )
-        print(f"  白虎戦: {challenger.display_name} {result['challenger_wins']}-{result['titleholder_wins']}"
-              f" → {'奪取！' if result['won'] else '防衛'}")
-        defending_ind = all_members_by_id.get(defending_holder["id"])
-        if defending_ind is not None:
-            _update_elo_per_game(challenger, defending_ind, result["games"])
-        if result["won"]:
+        if titleholders["白虎"] is None:
             titleholders["白虎"] = {"id": challenger.id, "name": challenger.display_name}
             titleholder_params["白虎"] = effective_params(challenger)
-            holder_name, holder_id = challenger.display_name, challenger.id
-            # 奪取された旧保持者は、来季の白虎トーナメントにEloに関わらず無条件で
-            # 出場できる（他タイトルと同様、優遇なしで母集団に戻るだけでは酷なため）
-            last_dethroned["白虎"] = defending_holder["id"]
+            print(f"  ★ 白虎 初代襲名: {challenger.display_name}")
+            results.append({
+                "title": "白虎", "season": season, "event": "初代襲名",
+                "new_holder": challenger.display_name, "holder_id": challenger.id, "bracket": bracket_log,
+            })
         else:
-            holder_name, holder_id = defending_holder["name"], defending_holder["id"]
-        results.append({
-            "title": "白虎", "season": season, **result,
-            "challenger_name": challenger.display_name,
-            "holder_name": holder_name, "holder_id": holder_id,
-            "defender_id": defending_holder["id"],
-            "bracket": bracket_log,
-        })
+            defending_holder = titleholders["白虎"]
+            defending_ind_for_volatility = all_members_by_id.get(defending_holder["id"])
+            result = run_byakko_challenge(
+                challenger, _current_holder_params("白虎", defending_ind_for_volatility), depth=BYAKKO_TITLE_DEPTH,
+                titleholder_volatility=defending_ind_for_volatility.volatility if defending_ind_for_volatility else 1.0,
+            )
+            print(f"  白虎戦: {challenger.display_name} {result['challenger_wins']}-{result['titleholder_wins']}"
+                  f" → {'奪取！' if result['won'] else '防衛'}")
+            defending_ind = all_members_by_id.get(defending_holder["id"])
+            if defending_ind is not None:
+                _update_elo_per_game(challenger, defending_ind, result["games"])
+            if result["won"]:
+                titleholders["白虎"] = {"id": challenger.id, "name": challenger.display_name}
+                titleholder_params["白虎"] = effective_params(challenger)
+                holder_name, holder_id = challenger.display_name, challenger.id
+                # 奪取された旧保持者は、来季の白虎トーナメントにEloに関わらず無条件で
+                # 出場できる（他タイトルと同様、優遇なしで母集団に戻るだけでは酷なため）
+                last_dethroned["白虎"] = defending_holder["id"]
+            else:
+                holder_name, holder_id = defending_holder["name"], defending_holder["id"]
+            results.append({
+                "title": "白虎", "season": season, **result,
+                "challenger_name": challenger.display_name,
+                "holder_name": holder_name, "holder_id": holder_id,
+                "defender_id": defending_holder["id"],
+                "bracket": bracket_log,
+            })
 
     # ============================================================
     # 玄武：完全ランダム抽選トーナメント（ブラケットサイズ64、Elo上位者はバイ）
@@ -1285,6 +1295,50 @@ def write_bracket_tags(data_dir, season, tags):
         json.dump(tags, f, ensure_ascii=False)
 
 
+def drop_first_season_byakko(data_dir, state):
+    """（一度だけ）第1季の白虎戦をなかったことにする。第1季は全員のEloが同じで、出場者がリーグ表の並びで決まっていたため、
+    第1季は白虎戦を行わないことにした（title_tournament_gens）。それ以前に第1季の白虎戦を行った世界線では、
+    第1季の記録（初代襲名・予選の対局）を消し、第2季の番勝負を「第2季のトーナメント優勝者の初代襲名」に置き換え、番勝負の対局記録も消す。
+    （対局によるEloの変動は戻さない）"""
+    if state.get("dropped_first_season_byakko"):
+        return
+    hist = state.get("title_history") or []
+    s1 = [e for e in hist if e.get("title") == "白虎" and e.get("season") == 1]
+    if not s1:
+        state["dropped_first_season_byakko"] = True
+        return
+    first_holder_id = s1[0].get("holder_id")
+    new_hist = []
+    replaced = False
+    for e in hist:
+        if e.get("title") == "白虎" and e.get("season") == 1:
+            continue
+        if (not replaced and e.get("title") == "白虎" and e.get("season") == 2 and e.get("defender_id") == first_holder_id
+                and e.get("won")):
+            # 第2季のトーナメント優勝者（挑戦者）が初代白虎になる（番勝負は無かったことに）
+            e = {"title": "白虎", "season": 2, "event": "初代襲名", "new_holder": e.get("challenger_name"),
+                 "holder_id": e.get("challenger_id")}
+            replaced = True
+        new_hist.append(e)
+    state["title_history"] = new_hist
+    if (state.get("last_dethroned") or {}).get("白虎") == first_holder_id:
+        state["last_dethroned"]["白虎"] = None
+    for season, leagues in ((1, {"白虎予選", "白虎"}), (2, {"白虎"} if replaced else set())):
+        path = os.path.join(data_dir, "matches", f"season_{season}.json")
+        if not leagues or not os.path.exists(path):
+            continue
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, list):
+            data = [m for m in data if m.get("league") not in leagues]
+        else:
+            data["matches"] = [m for m in data.get("matches", []) if m.get("league") not in leagues]
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False)
+    state["dropped_first_season_byakko"] = True
+    print(f"[第1季の白虎戦を取り消し] 第1季の記録を消し、第2季の番勝負{'を初代襲名に置き換え' if replaced else 'はそのまま'}", flush=True)
+
+
 def main():
     import sys, os as _os
     print(f"[DEBUG] run_season.py 開始。Python: {sys.version}", flush=True)
@@ -1304,6 +1358,7 @@ def main():
     print(f"[DEBUG] パース済み引数: data_dir={args.data_dir}, seasons={args.seasons}, depth={args.depth}, swiss_rounds={args.swiss_rounds}", flush=True)
 
     state = load_season_state(args.data_dir)
+    drop_first_season_byakko(args.data_dir, state)
     # 以前の季の分も棋譜を除く（組の在籍期数の復元に予選の対局を使うので、復元済みの場合だけ）
     if "kirin_tenure" in state:
         state["title_history"] = [strip_title_games(e) for e in state.get("title_history", [])]
