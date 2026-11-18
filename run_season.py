@@ -1,5 +1,6 @@
 import argparse
 import json
+import re
 import os
 import math
 import random
@@ -131,7 +132,7 @@ def bootstrap_rosters(registry, data_dir="data"):
     Dリーグが定跡をほとんど知らない若手ばかりになり（強さの見積もりでA 237・D 38、奨励会リーグ経由の新人は110〜160）、
     その後に入る新人が無双する形になっていた。前史を通せば初期メンバーと新人の強さが同じ物差しにそろう。
     前史の現役から無作為に定員分を取り、強さの見積もり順にA〜Dへ振り分ける。
-    師弟関係は、最年長の8人を大師匠（祖）にし、残りをその弟子・孫弟子にする（assign_initial_masters）"""
+    開幕メンバーは誰も師匠を持たない（全員がそれぞれ系統の祖）"""
     styles = _seed_styles(data_dir)
     sizes = [("A", LEAGUE_CAPACITY["A"]), ("B", LEAGUE_CAPACITY["B"]), ("C", LEAGUE_CAPACITY["C"]), ("D", D_INITIAL_ROSTER_SIZE)]
     total = sum(size for _, size in sizes)
@@ -160,10 +161,11 @@ def bootstrap_rosters(registry, data_dir="data"):
             )
             ind.volatility = _random_volatility()
             rosters[league].append(ind)
-    # 開幕前からの師弟関係：全員が祖だと系統が数十に分かれるので、大師匠8人の系統にまとめる
-    from othello_league.league import assign_initial_masters, assign_generations
+    # 開幕メンバーは誰も師匠を持たない（全員がそれぞれ系統の祖）。以前は最年長の8人を大師匠にし、残りをその弟子・孫弟子にしていた
+    from othello_league.league import assign_generations
     everyone = [ind for lst in rosters.values() for ind in lst]
-    assign_initial_masters(everyone, score=lambda ind: estimated_strength(ind.params))
+    for ind in everyone:
+        ind.parent_a_id = None
     assign_generations(everyone)
     assign_lineage_roots(everyone, [])
     return rosters
@@ -1339,6 +1341,43 @@ def drop_first_season_byakko(data_dir, state):
     print(f"[第1季の白虎戦を取り消し] 第1季の記録を消し、第2季の番勝負{'を初代襲名に置き換え' if replaced else 'はそのまま'}", flush=True)
 
 
+INITIAL_MEMBER_ID = re.compile(r"^[A-D]0-\d+$")  # 開幕メンバーのID（A0-000など）
+
+
+def clear_initial_masters(data_dir, state, rosters):
+    """（一度だけ）開幕メンバーの師弟関係を外す（誰も誰かの弟子ではないことにする）。以前の世界線の開幕時に付けた
+    大師匠8人の系統（assign_initial_masters）をやめたため。外したあと、全員の系統の祖・何代目かを付け直し、
+    奨励会・三段リーグの子の系統の祖も師匠に合わせて直す"""
+    if state.get("initial_masters_cleared"):
+        return
+    actives = [ind for lst in rosters.values() for ind in lst]
+    retired = state.get("retired_archive") or []
+    for x in actives:
+        if INITIAL_MEMBER_ID.match(x.id or ""):
+            x.parent_a_id = None
+    for r in retired:
+        if INITIAL_MEMBER_ID.match(r.get("id") or ""):
+            r["parent_a_id"] = None
+    from othello_league.league import assign_generations
+    assign_generations(actives + retired)
+    assign_lineage_roots(actives, retired)
+    root_of = {x.id: x.clan_root_id for x in actives} | {r["id"]: r.get("clan_root_id") for r in retired}
+    gen_of = {x.id: x.generation for x in actives} | {r["id"]: r.get("generation", 0) for r in retired}
+    path = os.path.join(data_dir, "shoreikai.json")
+    if os.path.exists(path):
+        with open(path, encoding="utf-8") as f:
+            sk = json.load(f)
+        for m in sk.get("members", []):
+            master = m.get("parent_a_id")
+            if master in root_of:
+                m["clan_root_id"] = root_of[master]
+                m["generation"] = (gen_of.get(master) or 0) + 1
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(sk, f, ensure_ascii=False, indent=1)
+    state["initial_masters_cleared"] = True
+    print("[開幕メンバーの師弟関係を外した] 系統の祖・何代目かを付け直した", flush=True)
+
+
 def main():
     import sys, os as _os
     print(f"[DEBUG] run_season.py 開始。Python: {sys.version}", flush=True)
@@ -1370,6 +1409,7 @@ def main():
         print("初回起動：ロスターを新規作成します", flush=True)
         rosters = bootstrap_rosters(registry, args.data_dir)
         state["name_registry"] = registry.to_dict()
+    clear_initial_masters(args.data_dir, state, rosters)
 
     # キャラクリエイト機能：このプロセスが処理する最初のシーズンにのみ適用する
     # （複数シーズンをまとめて回す場合、2季目以降で重複適用しないよう、読み込んだ時点で

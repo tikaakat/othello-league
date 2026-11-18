@@ -301,7 +301,9 @@ function simulate_dan_progression($debutSeason, $debutLeague, array $nonWinCandi
 // 大師匠：第1季から参加した開幕メンバー（IDがCCで始まらない）のうち、師匠のいない人（系統の祖）。
 // 開幕後に師匠なしで入門した新しい祖（IDがCC…）は含めない
 function is_grand_master($id, $parentId, $debutSeason) {
-    return ($parentId === null || $parentId === '') && strncmp((string)$id, 'CC', 2) !== 0 && (int)$debutSeason === 1;
+    // 開幕メンバーは誰も師匠を持たないことにしたため（全員がそれぞれ系統の祖）、大師匠（九段から始まる）の扱いはやめた。
+    // 以前は師匠のいない開幕メンバー＝大師匠8人だけだったが、今は開幕メンバー全員が当てはまってしまう
+    return false;
 }
 
 // 複数個体分の段位をまとめて算出する（1個体ずつ算出する場合と違い、対局・順位・
