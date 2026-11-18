@@ -2228,10 +2228,13 @@ async function loadOneBracket(season, title, containerId = 'bracket-view') {
             html += `<div style="font-size:0.7rem; color:var(--amber); margin:10px 0 6px;">挑戦者決定リーグ戦（ブロック優勝者${genbuFinalStandings.length}名・総当たり）</div>
               <div style="overflow-x:auto; margin-bottom:8px;">
                 <table style="width:100%;"><thead><tr><th>#</th><th>名前</th><th>成績</th></tr></thead><tbody>`;
+            // 同率で決定戦を行った選手には、朱雀戦の紅白リーグと同じ「決」の印を付ける
+            const genbuPlayoffIds = new Set((genbuFinalPlayoff || []).flatMap(m => [m.individual_a_id, m.individual_b_id]));
             genbuFinalStandings.forEach(r => {
               const record = `${r.win}勝${r.loss}敗${r.draw ? r.draw + '分' : ''}`;
+              const po = genbuPlayoffIds.has(r.individual_id) ? '<span title="同率決定戦あり" style="font-size:0.62rem; color:var(--amber); border:1px solid var(--amber); border-radius:3px; padding:0 2px; margin-left:3px;">決</span>' : '';
               html += `<tr><td class="rank-num">${r.rank}</td>
-                <td data-id="${escapeHtml(r.individual_id)}">${escapeHtml(r.display_name || r.individual_id)}</td>
+                <td data-id="${escapeHtml(r.individual_id)}" style="white-space:nowrap;">${escapeHtml(r.display_name || r.individual_id)}${po}</td>
                 <td>${record}</td></tr>`;
             });
             html += '</tbody></table></div>';
