@@ -1393,21 +1393,30 @@ async function loadIndividualStandingsHistory(id) {
       summaryEl.innerHTML = lines.join('<br>');
     }
 
+    // 1季1行が長くなり折り返して読みにくかったため、1段目に「季・リーグ・順位・成績」、2段目にタイトルを小さな札で並べる。
+    // 札の見た目：獲得（奪取・初代襲名など）＝塗り、防衛＝枠、防衛失敗＝薄い点線
+    const titleChip = (title, ev) => {
+      const lost = ev === '防衛失敗';
+      const won = !lost && ev !== '防衛';
+      const style = won ? 'background:var(--title-red); color:#fff; border:1px solid var(--title-red);'
+        : lost ? 'color:var(--text-dim); border:1px dashed var(--navy-700);'
+        : 'color:var(--amber); border:1px solid var(--amber-dim);';
+      return `<span style="display:inline-block; font-size:0.68rem; line-height:1.5; padding:0 5px; border-radius:2px; margin:2px 4px 0 0; white-space:nowrap; ${style}">${escapeHtml(title)} ${escapeHtml(ev)}</span>`;
+    };
     const rowHtml = r => {
       const record = (r.win || r.loss || r.draw) ? `${r.win}勝${r.loss}敗${r.draw ? r.draw + '分' : ''}` : '-';
-      const titleTags = (r.title_events || []).map(te => `${te.title}(${te.event_type})`);
-      const labels = (r.defense_fail_titles || []).map(t => `${t}(防衛失敗)`);
-      labels.push(...titleTags); // 保持記録も、防衛失敗と排他にせず合算する
-      // 順位戦の順位（青龍の防衛専念枠などでrankが無いシーズンはタイトル表示のみ）と、
-      // タイトル獲得・防衛失敗のラベルは排他にせず両方表示する
-      // 青龍などの防衛専念枠（no_roundrobin）だったシーズンは、そもそもAリーグの総当たりに参戦していないため
-      // 順位番号を表示しない（DB上のrankは便宜上の値であり、実際の総当たり順位ではない）
+      const events = [
+        ...(r.defense_fail_titles || []).map(t => [t, '防衛失敗']),
+        ...(r.title_events || []).map(te => [te.title, te.event_type]),
+      ].sort((x, y) => TITLE_ORDER.indexOf(x[0]) - TITLE_ORDER.indexOf(y[0]));
+      // 青龍などの防衛専念枠（no_roundrobin）だったシーズンは、Aリーグの総当たりに参戦していないため順位を出さない
       const rankPart = (!r.no_roundrobin && r.rank && r.league !== 'F') ? `${r.rank}位` : '';
-      const titlePart = labels.length > 0 ? labels.join('・') : '';
-      const rankDisplay = [rankPart, titlePart].filter(Boolean).join('・');
-      return `<div style="display:flex; justify-content:space-between; padding:3px 0;">
-        <span>${movementMarks(r.movement)}第${r.season}季 ${leagueTag(r.league)}${rankDisplay}</span>
-        <span>${record}</span>
+      return `<div style="text-align:left; padding:5px 0; border-bottom:1px solid var(--rule);">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+          <span style="white-space:nowrap;">${movementMarks(r.movement)}第${r.season}季 ${leagueTag(r.league)}${rankPart}</span>
+          <span style="white-space:nowrap; color:var(--text-dim); font-size:0.78rem;">${record}</span>
+        </div>
+        ${events.length ? `<div>${events.map(([t, ev]) => titleChip(t, ev)).join('')}</div>` : ''}
       </div>`;
     };
     const newestFirst = rows.slice().reverse(); // 新しい季を上に
