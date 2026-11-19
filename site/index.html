@@ -1401,19 +1401,29 @@ async function loadIndividualStandingsHistory(id) {
       const style = won ? 'background:var(--title-red); color:#fff; border:1px solid var(--title-red);'
         : lost ? 'color:var(--text-dim); border:1px solid var(--navy-700); text-decoration:line-through;'
         : 'color:var(--amber); border:1px solid var(--amber-dim);';
-      return `<span title="${escapeHtml(title)} ${escapeHtml(ev)}" style="display:inline-block; font-size:0.66rem; line-height:1.45; padding:0 3px; border-radius:2px; margin-left:2px; ${style}">${escapeHtml(title.charAt(0))}</span>`;
+      return `<span title="${escapeHtml(title)} ${escapeHtml(ev)}" style="display:inline-block; width:1.15em; text-align:center; box-sizing:border-box; font-size:0.66rem; line-height:1.45; border-radius:2px; margin-left:2px; ${style}">${escapeHtml(title.charAt(0))}</span>`;
     };
+    // 列をそろえる：昇降の印｜季｜リーグ｜順位｜タイトル（青・麒・朱・白・玄の5枠を常に同じ位置に）｜成績
+    const HIST_COLS = 'grid-template-columns:1.1em 4.3em 1.9em 2.4em 7.2em 1fr; column-gap:2px;';
     const rowHtml = r => {
       const record = (r.win || r.loss || r.draw) ? `${r.win}勝${r.loss}敗${r.draw ? r.draw + '分' : ''}` : '-';
-      const events = [
-        ...(r.defense_fail_titles || []).map(t => [t, '防衛失敗']),
-        ...(r.title_events || []).map(te => [te.title, te.event_type]),
-      ].sort((x, y) => TITLE_ORDER.indexOf(x[0]) - TITLE_ORDER.indexOf(y[0]));
+      const byTitle = {};
+      (r.defense_fail_titles || []).forEach(t => { (byTitle[t] = byTitle[t] || []).push('防衛失敗'); });
+      (r.title_events || []).forEach(te => { (byTitle[te.title] = byTitle[te.title] || []).push(te.event_type); });
+      // 1つのタイトルに防衛失敗と獲得が同じ季に並ぶことは無いが、念のため獲得＞防衛＞防衛失敗の順で1つにまとめる
+      const pick = evs => evs.find(e => e !== '防衛' && e !== '防衛失敗') || evs.find(e => e === '防衛') || evs[0];
+      const slots = TITLE_ORDER.map(t => byTitle[t]
+        ? titleChip(t, pick(byTitle[t])).replace('margin-left:2px', 'margin:0')
+        : '<span style="display:inline-block; width:1.15em;"></span>').join('');
       // 青龍などの防衛専念枠（no_roundrobin）だったシーズンは、Aリーグの総当たりに参戦していないため順位を出さない
       const rankPart = (!r.no_roundrobin && r.rank && r.league !== 'F') ? `${r.rank}位` : '';
-      return `<div style="display:flex; justify-content:space-between; align-items:center; gap:6px; padding:3px 0; white-space:nowrap; text-align:left;">
-        <span>${movementMarks(r.movement)}第${r.season}季 ${leagueTag(r.league)}${rankPart}${events.length ? `<span style="margin-left:4px;">${events.map(([t, ev]) => titleChip(t, ev)).join('')}</span>` : ''}</span>
-        <span style="color:var(--text-dim); font-size:0.78rem;">${record}</span>
+      return `<div style="display:grid; ${HIST_COLS} align-items:center; padding:3px 0; white-space:nowrap; text-align:left;">
+        <span>${movementMarks(r.movement)}</span>
+        <span style="text-align:right; padding-right:4px;">第${r.season}季</span>
+        <span>${leagueTag(r.league)}</span>
+        <span style="text-align:right; padding-right:6px;">${rankPart}</span>
+        <span style="display:flex; gap:2px;">${slots}</span>
+        <span style="text-align:right; color:var(--text-dim); font-size:0.78rem;">${record}</span>
       </div>`;
     };
     const legend = `<div style="font-size:0.66rem; color:var(--text-dim); margin-bottom:4px; text-align:left;">タイトル：${titleChip('青龍', '奪取').replace('margin-left:2px', 'margin-left:0')}獲得　${titleChip('青龍', '防衛')}防衛　${titleChip('青龍', '防衛失敗')}失冠</div>`;
