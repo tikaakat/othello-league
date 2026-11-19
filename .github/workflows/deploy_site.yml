@@ -107,6 +107,7 @@ on:
           - "perf_check"
           - "season_check"
           - "import_rosters_check"
+          - "dan_distribution"
         default: ""
 
 jobs:
@@ -733,6 +734,34 @@ jobs:
                       }
                     }
                   }
+                '
+                ;;
+              dan_distribution)
+                # 段位の釣り合いの確認用：データサイトのリーグ一覧（api.php?action=leagues）と同じ計算の段位を、
+                # リーグ別・年齢別に数えて出す（api.phpをそのまま読み込み、出力を受け取って集計する。書き込みはしない）
+                PHP_QUERY='
+                  ob_start();
+                  register_shutdown_function(function () {
+                    $d = json_decode(ob_get_clean(), true);
+                    $rows = [];
+                    foreach (($d["leagues"] ?? []) as $lg => $list) foreach ($list as $r) $rows[] = [$lg, (int)$r["dan"], (int)$r["age"], (float)$r["elo_rating"]];
+                    foreach (["A", "B", "C", "D", "F"] as $lg) {
+                      $c = array_fill(1, 9, 0);
+                      foreach ($rows as $r) if ($r[0] === $lg) $c[$r[1]]++;
+                      echo "league $lg: " . implode(" ", array_map(fn($k, $v) => $k . "段=" . $v, array_keys($c), $c)) . PHP_EOL;
+                    }
+                    foreach ([[15, 24], [25, 34], [35, 44], [45, 54], [55, 99]] as [$lo, $hi]) {
+                      $c = array_fill(1, 9, 0);
+                      foreach ($rows as $r) if ($r[2] >= $lo && $r[2] <= $hi) $c[$r[1]]++;
+                      echo "age $lo-$hi: " . implode(" ", array_map(fn($k, $v) => $k . "段=" . $v, array_keys($c), $c)) . PHP_EOL;
+                    }
+                    for ($dan = 1; $dan <= 9; $dan++) {
+                      $e = array_map(fn($r) => $r[3], array_filter($rows, fn($r) => $r[1] === $dan));
+                      if ($e) echo "dan $dan: n=" . count($e) . " elo_avg=" . round(array_sum($e) / count($e)) . PHP_EOL;
+                    }
+                  });
+                  $_GET = ["action" => "leagues"];
+                  require dirname(get_included_files()[0]) . "/api.php";
                 '
                 ;;
               import_rosters_check)
