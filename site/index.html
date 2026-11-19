@@ -760,7 +760,30 @@ function renderDrawSVG(slots, rootLabel, tagFn, opts = {}) {
     return `${L - mainStart}回戦`;
   };
 
-  const ROW_H = 28, NAME_W = 146, PAD_L = 4, HEAD_H = 24, GAP = 18, COL_W = 34;
+  // 名前・補足（例：1組12位、シード・2組・前季失冠）・バッジ。名前欄の幅は、いちばん長いものが省略されずに収まる幅にする
+  // （以前は146pxで固定だったため、麒麟戦の「シード・1組12位」のような長い補足が付くと名前が「…」で途切れていた）
+  function leafParts(n) {
+    const p = n.p;
+    let name, info = {}, color = 'var(--text-main)';
+    if (p.qualifier !== undefined) {
+      name = `${p.group ? p.group + '組' : ''}予選ブロック${p.block_in_group + 1}の勝者`; color = 'var(--text-dim)';
+    } else if (p.newcomer) {
+      name = p.name ? `${p.name}（新人）` : '新人（結果待ち）'; color = 'var(--cyan)';
+    } else {
+      name = p.name || p.id;
+      info = { league: p.league, title: ((CURRENT_TITLEHOLDERS.by_id || {})[p.id] || [])[0] };
+    }
+    let tag = tagFn ? (tagFn(p) || '') : '';
+    if (!opts.isSeed && n.entry > mainStart) tag = tag ? `シード・${tag}` : 'シード';
+    // 予備戦に回る選手は線（1つ手前の列）で分かるので、名前の横には書かない
+    const badgeW = (info.league || info.title) ? LEAGUE_BADGE_W + 2 : 0;
+    return { p, name, info, color, tag, badgeW };
+  }
+  const NAME_W = Math.min(240, Math.max(146, ...leaves.map(n => {
+    const q = leafParts(n);
+    return Math.ceil(bracketTextWidth(q.name + (q.tag ? `(${q.tag})` : ''), 11, false)) + q.badgeW + 12;
+  })));
+  const ROW_H = 28, PAD_L = 4, HEAD_H = 24, GAP = 18, COL_W = 34;
   const LINE = '#6b85b3', LINE_W = 1.6;
   const colX = (L) => PAD_L + NAME_W + GAP + (L - 1) * COL_W; // 段Lの対戦の縦線の位置
   let row = 0;
@@ -779,20 +802,7 @@ function renderDrawSVG(slots, rootLabel, tagFn, opts = {}) {
   labels += `<text x="${PAD_L + 4}" y="15" font-size="10.5" fill="var(--text-dim)">出場者</text>`;
 
   function leafLabel(n) {
-    const p = n.p;
-    let name, info = {}, color = 'var(--text-main)';
-    if (p.qualifier !== undefined) {
-      name = `${p.group ? p.group + '組' : ''}予選ブロック${p.block_in_group + 1}の勝者`; color = 'var(--text-dim)';
-    } else if (p.newcomer) {
-      name = p.name ? `${p.name}（新人）` : '新人（結果待ち）'; color = 'var(--cyan)';
-    } else {
-      name = p.name || p.id;
-      info = { league: p.league, title: ((CURRENT_TITLEHOLDERS.by_id || {})[p.id] || [])[0] };
-    }
-    let tag = tagFn ? (tagFn(p) || '') : '';
-    if (!opts.isSeed && n.entry > mainStart) tag = tag ? `シード・${tag}` : 'シード';
-    // 予備戦に回る選手は線（1つ手前の列）で分かるので、名前の横には書かない
-    const badgeW = (info.league || info.title) ? LEAGUE_BADGE_W + 2 : 0;
+    const { p, name, info, color, tag, badgeW } = leafParts(n);
     const label = fitBracketNameWithTag(name, tag, NAME_W - 10 - badgeW, 11, false);
     return `<g class="bracket-node" data-id="${escapeHtml(p.id || '')}" style="cursor:pointer;">
       <rect x="${PAD_L}" y="${n._y - 12}" width="${NAME_W}" height="24" rx="4" style="fill:var(--svg-box); stroke:var(--svg-line);" stroke-width="0.8"/>
