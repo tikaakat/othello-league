@@ -1393,13 +1393,13 @@ async function loadIndividualStandingsHistory(id) {
       summaryEl.innerHTML = lines.join('<br>');
     }
 
-    // 1季を1行に収める：タイトルは頭文字1字の札にし、獲得（奪取・初代襲名など）＝塗り、防衛＝枠、防衛失敗＝取り消し線で示す。
+    // 1季を1行に収める：タイトルは頭文字1字の札にし、獲得（奪取・初代襲名など）＝塗り、防衛＝枠、防衛失敗＝薄い点線の枠で示す。
     // （「青龍(防衛)・朱雀(防衛)・…」と書くと1行に収まらず折り返して読みにくかった）
     const titleChip = (title, ev) => {
       const lost = ev === '防衛失敗';
       const won = !lost && ev !== '防衛';
       const style = won ? 'background:var(--title-red); color:#fff; border:1px solid var(--title-red);'
-        : lost ? 'color:var(--text-dim); border:1px solid var(--navy-700); text-decoration:line-through;'
+        : lost ? 'color:var(--text-dim); border:1px dashed var(--text-dim); opacity:0.75;'
         : 'color:var(--amber); border:1px solid var(--amber-dim);';
       return `<span title="${escapeHtml(title)} ${escapeHtml(ev)}" style="display:inline-block; width:1.15em; text-align:center; box-sizing:border-box; font-size:0.66rem; line-height:1.45; border-radius:2px; margin-left:2px; ${style}">${escapeHtml(title.charAt(0))}</span>`;
     };
