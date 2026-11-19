@@ -1401,10 +1401,10 @@ async function loadIndividualStandingsHistory(id) {
       const style = won ? 'background:var(--title-red); color:#fff; border:1px solid var(--title-red);'
         : lost ? 'color:var(--text-dim); border:1px dashed var(--text-dim); opacity:0.75;'
         : 'color:var(--amber); border:1px solid var(--amber-dim);';
-      return `<span title="${escapeHtml(title)} ${escapeHtml(ev)}" style="display:inline-block; width:1.15em; text-align:center; box-sizing:border-box; font-size:0.66rem; line-height:1.45; border-radius:2px; margin-left:2px; ${style}">${escapeHtml(title.charAt(0))}</span>`;
+      return `<span title="${escapeHtml(title)} ${escapeHtml(ev)}" style="display:inline-block; width:19px; text-align:center; box-sizing:border-box; font-size:12px; line-height:18px; font-weight:600; border-radius:2px; margin-left:2px; ${style}">${escapeHtml(title.charAt(0))}</span>`;
     };
     // 列をそろえる：昇降の印｜季｜リーグ｜順位｜タイトル（青・麒・朱・白・玄の5枠を常に同じ位置に）｜成績
-    const HIST_COLS = 'grid-template-columns:1.1em 4.3em 1.9em 2.4em 7.2em 1fr; column-gap:2px;';
+    const HIST_COLS = 'grid-template-columns:1.1em 4.3em 1.9em 2.4em 104px 1fr; column-gap:2px;';
     const rowHtml = r => {
       const record = (r.win || r.loss || r.draw) ? `${r.win}勝${r.loss}敗${r.draw ? r.draw + '分' : ''}` : '-';
       const byTitle = {};
@@ -1414,7 +1414,7 @@ async function loadIndividualStandingsHistory(id) {
       const pick = evs => evs.find(e => e !== '防衛' && e !== '防衛失敗') || evs.find(e => e === '防衛') || evs[0];
       const slots = TITLE_ORDER.map(t => byTitle[t]
         ? titleChip(t, pick(byTitle[t])).replace('margin-left:2px', 'margin:0')
-        : '<span style="display:inline-block; width:1.15em;"></span>').join('');
+        : '<span style="display:inline-block; width:19px;"></span>').join('');
       // 青龍などの防衛専念枠（no_roundrobin）だったシーズンは、Aリーグの総当たりに参戦していないため順位を出さない
       const rankPart = (!r.no_roundrobin && r.rank && r.league !== 'F') ? `${r.rank}位` : '';
       return `<div style="display:grid; ${HIST_COLS} align-items:center; padding:3px 0; white-space:nowrap; text-align:left;">
