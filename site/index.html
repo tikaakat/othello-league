@@ -90,6 +90,9 @@
   table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
   th { font-family: 'Noto Sans JP', sans-serif; font-size: 0.7rem; font-weight: 600; color: var(--text-dim); background: var(--th-bg); text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--navy-700); }
   td { padding: 7px 8px; border-bottom: 1px solid var(--rule); cursor: pointer; }
+  /* 新人タブの表：各行を1行に収める（折り返さず、余白を詰める） */
+  table.one-line th, table.one-line td { white-space: nowrap; padding-left: 5px; padding-right: 5px; }
+  .nc-badge { display:inline-block; font-size:0.62rem; color:var(--tag-fg); background:var(--cyan); border-radius:3px; padding:1px 5px; font-weight:700; }
   tr:hover td { background: rgba(29,107,74,0.06); }
   tr.zone-up td:first-child { box-shadow: inset 3px 0 var(--up); }
   tr.zone-down td:first-child { box-shadow: inset 3px 0 var(--down); }
@@ -3039,6 +3042,9 @@ const CC_TYPE_BOOST_KEYS = {
 };
 
 // mode：'newcomer'＝三段リーグの順位表、'shoreikai'＝奨励会リーグの動き（どちらも同じ季の結果ファイルから）
+// 成績を短く（20-4、引き分けがあるときだけ 20-4-1）。表を1行に収めるため
+const wlShort = r => `${r.win}-${r.loss}${r.draw ? '-' + r.draw : ''}`;
+
 async function loadNewcomerLeague(forSeason, mode = 'newcomer') {
   const el = document.getElementById(mode + '-content');
   el.innerHTML = '<div class="loading">読み込み中...</div>';
@@ -3063,11 +3069,10 @@ async function loadNewcomerLeague(forSeason, mode = 'newcomer') {
 
     let html = `<div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:10px;">
       <button id="newcomer-prev" ${prevSeason ? '' : 'disabled'} style="background:var(--navy-800); color:var(--cyan); border:1px solid var(--navy-700); padding:4px 10px; cursor:pointer; white-space:nowrap; flex-shrink:0;">◀ 前回</button>
-      <div style="font-size:0.8rem; color:var(--text-dim); text-align:center;">
-        <select id="newcomer-season-select" style="background:var(--navy-800); color:var(--cyan); border:1px solid var(--navy-700); padding:4px 8px; font-size:0.8rem; border-radius:3px;">${seasonOptions}</select>
-        ${mode === 'shoreikai' ? `奨励会リーグ（第${resData.for_season - 1}季の本戦のあと）` : `三段リーグ（第${resData.for_season - 1}季の本戦のあと・昇格枠${resData.meta.slots_needed}名・昇格者は第${resData.for_season}季からDリーグ出走）`}</div>
+      <select id="newcomer-season-select" style="background:var(--navy-800); color:var(--cyan); border:1px solid var(--navy-700); padding:4px 8px; font-size:0.8rem; border-radius:3px;">${seasonOptions}</select>
       <button id="newcomer-next" ${nextSeason ? '' : 'disabled'} style="background:var(--navy-800); color:var(--cyan); border:1px solid var(--navy-700); padding:4px 10px; cursor:pointer; white-space:nowrap; flex-shrink:0;">次回 ▶</button>
-    </div>`;
+    </div>
+    <div style="font-size:0.74rem; color:var(--text-dim); text-align:center; margin:-4px 0 10px;">${mode === 'shoreikai' ? `第${resData.for_season - 1}季の本戦のあと` : `第${resData.for_season - 1}季の本戦のあと・昇格${resData.meta.slots_needed}名は第${resData.for_season}季からDリーグへ`}</div>`;
 
     if (mode === 'shoreikai') {
       // 下の奨励会リーグの表示だけにする
@@ -3078,11 +3083,11 @@ async function loadNewcomerLeague(forSeason, mode = 'newcomer') {
       const hasAge = Object.keys(ages).length > 0;
       const terms = resData.sandan_terms || {};
       const hasTerms = Object.keys(terms).length > 0;
-      html += `<table><thead><tr><th>#</th><th>名前</th>${hasAge ? '<th>年齢</th>' : ''}${hasTerms ? '<th>在籍</th>' : ''}<th>師匠</th><th>成績</th><th></th></tr></thead><tbody>`;
+      html += `<table class="one-line"><thead><tr><th>#</th><th>名前</th>${hasAge ? '<th>年齢</th>' : ''}${hasTerms ? '<th>在籍</th>' : ''}<th>師匠</th><th>成績</th><th></th></tr></thead><tbody>`;
       resData.standings.forEach(s => {
+        // 「自動生成」タグは、キャラクリエイト停止中はほぼ全員に付いて行を圧迫するだけなので出さない
         const tags = [];
-        if (s.promoted) tags.push('<span style="display:inline-block; font-size:0.62rem; color:var(--navy-950); background:var(--cyan); border-radius:2px; padding:1px 5px; margin-right:4px; font-weight:700;">昇格</span>');
-        if (s.auto_generated) tags.push('<span style="display:inline-block; font-size:0.62rem; color:var(--text-dim); border:1px solid var(--navy-700); border-radius:2px; padding:1px 5px;">自動生成</span>');
+        if (s.promoted) tags.push('<span class="nc-badge">昇格</span>');
         // 新人リーグ在籍中の個体は仮IDのため、本戦で実際にDリーグへ昇格し実IDが確認できた
         // 場合（real_individual_id）のみクリック可能にする。落選者・未昇格の間はリンクしない
         const idAttr = s.real_individual_id ? ` data-id="${escapeHtml(s.real_individual_id)}"` : '';
@@ -3095,9 +3100,9 @@ async function loadNewcomerLeague(forSeason, mode = 'newcomer') {
           <td class="rank-num">${s.rank ?? '-'}</td>
           <td>${escapeHtml(s.display_name || s.individual_id)}</td>
           ${hasAge ? `<td style="font-size:0.78rem; white-space:nowrap;">${ages[s.display_name] ?? ''}${ages[s.display_name] != null ? '歳' : ''}</td>` : ''}
-          ${hasTerms ? `<td style="font-size:0.78rem; white-space:nowrap;">${terms[s.display_name] != null ? `${terms[s.display_name]}期目` : ''}</td>` : ''}
+          ${hasTerms ? `<td style="font-size:0.78rem; white-space:nowrap;">${terms[s.display_name] != null ? `${terms[s.display_name]}期` : ''}</td>` : ''}
           <td style="font-size:0.78rem;">${masterCell}</td>
-          <td>${s.win}勝${s.loss}敗${s.draw}分</td>
+          <td>${wlShort(s)}</td>
           <td>${tags.join('')}</td>
         </tr>`;
       });
@@ -3111,7 +3116,7 @@ async function loadNewcomerLeague(forSeason, mode = 'newcomer') {
       // 表で見せる：見出しの下に「名前・年齢・師匠（・理由）」の表
       const h = (t, n) => `<h3 style="text-align:left; font-size:0.8rem; color:var(--amber); border-bottom:1px solid var(--navy-700); padding-bottom:4px; margin:14px 0 6px;">${t}（${n}名）</h3>`;
       const table = (rows, extra) => rows && rows.length
-        ? `<table><thead><tr><th>名前</th><th>年齢</th><th>師匠</th>${extra ? `<th>${extra.head}</th>` : ''}</tr></thead><tbody>${rows.map(r =>
+        ? `<table class="one-line"><thead><tr><th>名前</th><th>年齢</th><th>師匠</th>${extra ? `<th>${extra.head}</th>` : ''}</tr></thead><tbody>${rows.map(r =>
             `<tr style="cursor:default;"><td>${escapeHtml(r.name)}${r.named_by ? `<div style="font-size:0.66rem; color:var(--text-dim);">名付け親：${escapeHtml(r.named_by)}</div>` : ''}</td>
               <td style="white-space:nowrap;">${r.age ?? ''}歳</td><td style="font-size:0.78rem;">${escapeHtml(r.master_name || 'なし')}</td>
               ${extra ? `<td style="font-size:0.74rem;">${escapeHtml(extra.cell(r))}</td>` : ''}</tr>`).join('')}</tbody></table>`
@@ -3119,7 +3124,7 @@ async function loadNewcomerLeague(forSeason, mode = 'newcomer') {
       html += `<div style="text-align:left;"><div style="font-size:0.75rem; color:var(--text-dim); margin-bottom:4px;">在籍${sk.size ?? '-'}名。12〜15歳で入会し、成長と運で三段リーグへ昇段（21歳までに上がれなければ退会）。三段リーグは26歳が年齢制限</div>`
         + h('三段リーグへ昇段', (sk.to_sandan || []).length) + table(sk.to_sandan, { head: '奨励会', cell: r => r.terms ? `${r.terms}期で昇段` : '' })
         + h('入会', (sk.joined || []).length) + table(sk.joined)
-        + h('退会', (sk.left || []).length) + table(sk.left, { head: '理由', cell: r => (r.reason || '') + (r.terms ? `（在籍${r.terms}期）` : '') }) + '</div>';
+        + h('退会', (sk.left || []).length) + table(sk.left, { head: '理由', cell: r => (r.reason || '').replace('リーグの年齢制限', 'で年齢制限') + (r.terms ? `・${r.terms}期` : '') }) + '</div>';
     }
     if (mode === 'shoreikai') {
       // いまの在籍者（奨励会リーグ・三段リーグ）：ファンサイト用の軽量データ（season_state.jsonのshoreikai）から。年齢の高い順
@@ -3134,7 +3139,7 @@ async function loadNewcomerLeague(forSeason, mode = 'newcomer') {
             if (since == null || held == null) return '';
             return joined ? `在籍${Math.max(1, held - since + 1)}期` : `${held - since + 1}期`;
           };
-          const rosterTable = (rows, joined) => `<table><thead><tr><th>名前</th><th>年齢</th><th>師匠</th>${joined ? '<th>入会</th>' : ''}<th>${joined ? '在籍' : '三段リーグ'}</th></tr></thead><tbody>${byAge(rows).map(r =>
+          const rosterTable = (rows, joined) => `<table class="one-line"><thead><tr><th>名前</th><th>年齢</th><th>師匠</th>${joined ? '<th>入会</th>' : ''}<th>${joined ? '在籍' : '三段リーグ'}</th></tr></thead><tbody>${byAge(rows).map(r =>
             `<tr style="cursor:default;"><td>${escapeHtml(r.name)}${r.named_by ? `<div style="font-size:0.66rem; color:var(--text-dim);">名付け親：${escapeHtml(r.named_by)}</div>` : ''}</td>
               <td style="white-space:nowrap;">${r.age ?? ''}歳</td><td style="font-size:0.78rem;">${escapeHtml(r.master_name || 'なし')}</td>
               ${joined ? `<td style="white-space:nowrap; font-size:0.74rem;">${r.joined_season == null ? '' : r.joined_season >= 1 ? `第${r.joined_season}季` : '開幕前'}</td>` : ''}
@@ -3355,9 +3360,8 @@ async function loadNewcomerHistory() {
       return;
     }
     let html = `<h3 style="font-size:0.8rem; color:var(--amber); border-bottom:1px solid var(--navy-700); padding-bottom:4px; margin-bottom:8px;">三段リーグ経由 新規参入者（歴代）</h3>`;
-    html += `<table><thead><tr><th>デビュー</th><th>名前</th><th>師匠</th><th>成績</th><th></th></tr></thead><tbody>`;
+    html += `<table class="one-line"><thead><tr><th>デビュー</th><th>名前</th><th>師匠</th><th>三段リーグ</th></tr></thead><tbody>`;
     rows.forEach(r => {
-      const tag = r.auto_generated ? '<span style="display:inline-block; font-size:0.62rem; color:var(--text-dim); border:1px solid var(--navy-700); border-radius:2px; padding:1px 5px;">自動生成</span>' : '';
       // real_individual_idが確認できた場合のみクリック可能にする（詳細はloadNewcomerLeague参照）
       const idAttr = r.real_individual_id ? ` data-id="${escapeHtml(r.real_individual_id)}"` : '';
       const masterCell = r.master_id
@@ -3367,8 +3371,7 @@ async function loadNewcomerHistory() {
         <td class="rank-num" style="cursor:default;">第${r.for_season}季</td>
         <td>${escapeHtml(r.display_name || r.individual_id)}</td>
         <td style="font-size:0.78rem;">${masterCell}</td>
-        <td>${r.win}勝${r.loss}敗${r.draw}分</td>
-        <td>${tag}</td>
+        <td>${wlShort(r)}</td>
       </tr>`;
     });
     html += '</tbody></table>';
