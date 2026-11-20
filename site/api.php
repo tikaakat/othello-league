@@ -114,6 +114,12 @@ const TITLE_SEASON_ORDER = ['青龍', '朱雀', '白虎', '玄武', '麒麟'];
 // 獲得すると1期で八段になるタイトル（竜王・名人格）
 const TOP_TITLES = ['麒麟', '青龍'];
 
+// タイトル名の一覧を序列順（TITLE_NAMES_LIST）に並べ替える（永世称号の表示順をそろえるため）
+function sort_titles_by_order(array $titles) {
+    usort($titles, fn($a, $b) => array_search($a, TITLE_NAMES_LIST, true) <=> array_search($b, TITLE_NAMES_LIST, true));
+    return $titles;
+}
+
 // 1季の中での対局の進行順（run_season.pyの実行順：A〜Dリーグ→青龍→朱雀（紅白決定戦→紅白リーグ→
 // 紅白リーグの同率決定戦→挑戦者決定戦→番勝負→翌季の紅白リーグ入れ替え予選）→白虎（予選→番勝負）→玄武（予選→番勝負））。
 // matchesのidは記録順（リーグ戦→各タイトルの番勝負→予選等の付随対局）で、実際の進行順と一致しないため、
@@ -929,7 +935,7 @@ switch ($action) {
         }
         foreach ($individualsById as $iid => &$ind) {
             $ind['title_count'] = $titleCounts3[$iid] ?? 0;
-            $ind['eternal_titles'] = $eternalIds3[$iid] ?? [];
+            $ind['eternal_titles'] = sort_titles_by_order($eternalIds3[$iid] ?? []);
         }
         unset($ind);
 
@@ -1365,7 +1371,7 @@ switch ($action) {
             $seen[$r['id']] = true;
             $r['retired'] = (int)$r['retired'];
             $r['titles'] = (object)($titlesById[$r['id']] ?? []);
-            $r['eternal_titles'] = $eternalById[$r['id']] ?? [];
+            $r['eternal_titles'] = sort_titles_by_order($eternalById[$r['id']] ?? []);
             $members[] = $r;
         }
         // 段位（棋士系統図で名前の下に出す）
