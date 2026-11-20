@@ -80,7 +80,8 @@
     #primary-tabs .tab-btn svg { width: 22px; height: 22px; }
     #primary-tabs .tab-btn.active { background: var(--tab-active-bg); color: var(--tab-active-fg); }
     body { padding-bottom: calc(80px + env(safe-area-inset-bottom)); }
-    .fresh-banner { bottom: calc(76px + env(safe-area-inset-bottom)); }
+    /* 下のタブに隠れないよう、その上に出す（下の .fresh-banner の基本指定より後に効くよう、詳細度を上げている） */
+    body .fresh-banner { bottom: calc(80px + env(safe-area-inset-bottom)); z-index: 960; }
   }
   @media (min-width: 821px) { #primary-tabs .tab-btn svg { display: none; }
   }
@@ -159,7 +160,7 @@
     z-index: 900; display: flex; align-items: center; gap: 10px;
     background: var(--navy-900); border: 1px solid var(--cyan-dim); color: var(--text-main);
     font-size: 0.78rem; padding: 10px 14px; box-shadow: 0 4px 20px rgba(0,0,0,0.4);
-    max-width: calc(100vw - 32px);
+    width: max-content; max-width: calc(100vw - 32px);
   }
   .fresh-banner.hidden { display: none; }
   .fresh-banner button {
