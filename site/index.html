@@ -1282,21 +1282,30 @@ function renderEloChart(rows) {
     container.innerHTML = '<div style="color:var(--text-dim); font-size:0.76rem;">グラフ化するにはデータが足りません</div>';
     return;
   }
-  const W = 320, H = 120, padL = 34, padR = 10, padT = 10, padB = 20;
+  const W = 320, H = 140, padL = 34, padR = 10, padT = 10, padB = 20;
   const elos = points.map(p => p.elo);
-  const minElo = Math.min(...elos), maxElo = Math.max(...elos);
-  const range = Math.max(maxElo - minElo, 10);
-  const yFor = v => padT + (H - padT - padB) * (1 - (v - minElo) / range);
+  // 縦軸はキリのいい値（50刻み）にそろえ、幅は最低200にする（小さな上下が大きな変動に見えないように）。
+  // 目盛りは幅が300までなら50刻み、それより広ければ100刻み。開始時のElo（1500）には点線を引く
+  let lo = Math.floor((Math.min(...elos) - 10) / 50) * 50;
+  let hi = Math.ceil((Math.max(...elos) + 10) / 50) * 50;
+  while (hi - lo < 200) { if ((hi - lo) % 100 === 0) hi += 50; else lo -= 50; }
+  const step = hi - lo <= 300 ? 50 : 100;
+  lo = Math.floor(lo / step) * step; hi = Math.ceil(hi / step) * step;
+  const yFor = v => padT + (H - padT - padB) * (1 - (v - lo) / (hi - lo));
   const xFor = i => padL + (W - padL - padR) * (points.length === 1 ? 0 : i / (points.length - 1));
 
   const pathD = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${xFor(i).toFixed(1)} ${yFor(p.elo).toFixed(1)}`).join(' ');
   const dots = points.map((p, i) =>
-    `<circle cx="${xFor(i).toFixed(1)}" cy="${yFor(p.elo).toFixed(1)}" r="2.5" fill="var(--cyan)"><title>第${p.season}季：${p.elo}</title></circle>`
+    `<circle cx="${xFor(i).toFixed(1)}" cy="${yFor(p.elo).toFixed(1)}" r="2.5" fill="var(--cyan)"><title>第${p.season}季：${Math.round(p.elo)}</title></circle>`
   ).join('');
-  const gridLines = [minElo, (minElo + maxElo) / 2, maxElo].map(v =>
-    `<line x1="${padL}" y1="${yFor(v).toFixed(1)}" x2="${W - padR}" y2="${yFor(v).toFixed(1)}" stroke="var(--navy-700)" stroke-width="1" />
-     <text x="${padL - 6}" y="${(yFor(v) + 3).toFixed(1)}" text-anchor="end" font-size="9" fill="var(--text-dim)">${Math.round(v)}</text>`
-  ).join('');
+  let gridLines = '';
+  for (let v = lo; v <= hi; v += step) {
+    gridLines += `<line x1="${padL}" y1="${yFor(v).toFixed(1)}" x2="${W - padR}" y2="${yFor(v).toFixed(1)}" stroke="var(--navy-700)" stroke-width="1" />
+     <text x="${padL - 6}" y="${(yFor(v) + 3).toFixed(1)}" text-anchor="end" font-size="9" fill="var(--text-dim)">${v}</text>`;
+  }
+  if (lo <= 1500 && 1500 <= hi) {
+    gridLines += `<line x1="${padL}" y1="${yFor(1500).toFixed(1)}" x2="${W - padR}" y2="${yFor(1500).toFixed(1)}" stroke="var(--text-dim)" stroke-width="0.8" stroke-dasharray="3 3"><title>開始時のElo（1500）</title></line>`;
+  }
   const xLabels = points.map((p, i) => {
     if (points.length > 8 && i % Math.ceil(points.length / 6) !== 0 && i !== points.length - 1) return '';
     return `<text x="${xFor(i).toFixed(1)}" y="${H - 4}" text-anchor="middle" font-size="9" fill="var(--text-dim)">${p.season}</text>`;
