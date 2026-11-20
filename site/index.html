@@ -20,33 +20,35 @@
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root {
-    --navy-950: #1f1f1f; --navy-900: #ffffff; --navy-800: #f6f6f3; --navy-700: #dedcd5;
-    --cyan: #1d6b4a; --cyan-dim: #5b8f78; --amber: #8a5a1a; --amber-dim: #c2a27a;
-    --text-main: #222222; --text-dim: #707070;
-    --up: #1d6b4a; --down: #b5482d;
-    --page-bg: #f2f1ec; --surface: #ffffff; --head: #1d4f3a; --th-bg: #f6f6f3; --rule: #ebeae5;
-    --cell-line: #d6d4cc; --cell-diag: #efeee9; --svg-box: #fafaf8; --svg-line: #cfcdc4; --grid: #dedcd5;
-    --title-red: #9a2f24; --gold-bg: #fbf6ea;
+    /* 配色：スポーツの記録サイト・アプリにならい、地は明るい灰、本文は濃い墨、見出しと強調は深緑、選択中の印は黄色。
+       色の役割を絞る（深緑＝見出し・強調、緑＝数値、黄＝選択中、赤＝タイトル）。茶色・薄い金色はやめた */
+    --navy-950: #18221d; --navy-900: #ffffff; --navy-800: #f5f7f6; --navy-700: #d9e0dc;
+    --cyan: #1a7f4b; --cyan-dim: #6f9f86; --amber: #1b4332; --amber-dim: #9bb3a6;
+    --text-main: #18221d; --text-dim: #5d6b63;
+    --up: #1a7f4b; --down: #c0392b;
+    --page-bg: #f2f4f3; --surface: #ffffff; --head: #1b4332; --th-bg: #f5f7f6; --rule: #e6ebe8;
+    --cell-line: #d9e0dc; --cell-diag: #eef2ef; --svg-box: #f8faf9; --svg-line: #cdd6d1; --grid: #d9e0dc;
+    --title-red: #b3261e; --gold-bg: #fdf6e3; --hilite: #f2b632; --on-hilite: #1b2a22; --tag-fg: #ffffff;
   }
   /* ダークモード：OSの設定に追従。ヘッダーのボタンで切り替えた場合（data-theme、localStorageの"theme"。
      同じドメインのファンサイトと共通）はそちらを優先する */
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-      --navy-950: #111111; --navy-900: #1e1f1d; --navy-800: #262724; --navy-700: #3a3b37;
-      --cyan: #6cc49a; --cyan-dim: #4f8f73; --amber: #d9a85a; --amber-dim: #8a6a3a;
-      --text-main: #e6e4df; --text-dim: #9b9890; --up: #6cc49a; --down: #e07a5f;
-      --page-bg: #151614; --surface: #1d1e1c; --head: #173d2d; --th-bg: #232421; --rule: #2c2d2a;
-      --cell-line: #3a3b37; --cell-diag: #2a2b28; --svg-box: #232421; --svg-line: #4a4b46; --grid: #3a3b37;
-      --title-red: #b8453a; --gold-bg: #2a241a;
+      --navy-950: #0f1a15; --navy-900: #16241d; --navy-800: #1b2c24; --navy-700: #2a4136;
+      --cyan: #6fcf97; --cyan-dim: #4f9a73; --amber: #f2b632; --amber-dim: #8a7438;
+      --text-main: #e8efe9; --text-dim: #9db0a5; --up: #6fcf97; --down: #ef8a7a;
+      --page-bg: #0f1a15; --surface: #16241d; --head: #14281f; --th-bg: #1b2c24; --rule: #22362c;
+      --cell-line: #2a4136; --cell-diag: #1f3128; --svg-box: #1b2c24; --svg-line: #3a5447; --grid: #2a4136;
+      --title-red: #d0483c; --gold-bg: #2a2614; --hilite: #f2b632; --on-hilite: #1b2a22; --tag-fg: #1b2a22;
     }
   }
   :root[data-theme="dark"] {
-    --navy-950: #111111; --navy-900: #1e1f1d; --navy-800: #262724; --navy-700: #3a3b37;
-    --cyan: #6cc49a; --cyan-dim: #4f8f73; --amber: #d9a85a; --amber-dim: #8a6a3a;
-    --text-main: #e6e4df; --text-dim: #9b9890; --up: #6cc49a; --down: #e07a5f;
-    --page-bg: #151614; --surface: #1d1e1c; --head: #173d2d; --th-bg: #232421; --rule: #2c2d2a;
-    --cell-line: #3a3b37; --cell-diag: #2a2b28; --svg-box: #232421; --svg-line: #4a4b46; --grid: #3a3b37;
-    --title-red: #b8453a; --gold-bg: #2a241a;
+    --navy-950: #0f1a15; --navy-900: #16241d; --navy-800: #1b2c24; --navy-700: #2a4136;
+    --cyan: #6fcf97; --cyan-dim: #4f9a73; --amber: #f2b632; --amber-dim: #8a7438;
+    --text-main: #e8efe9; --text-dim: #9db0a5; --up: #6fcf97; --down: #ef8a7a;
+    --page-bg: #0f1a15; --surface: #16241d; --head: #14281f; --th-bg: #1b2c24; --rule: #22362c;
+    --cell-line: #2a4136; --cell-diag: #1f3128; --svg-box: #1b2c24; --svg-line: #3a5447; --grid: #2a4136;
+    --title-red: #d0483c; --gold-bg: #2a2614; --hilite: #f2b632; --on-hilite: #1b2a22; --tag-fg: #1b2a22;
   }
   * { box-sizing: border-box; }
   body {
@@ -65,7 +67,19 @@
     font-family: 'Noto Sans JP', sans-serif; font-size: 0.8rem; font-weight: 700;
     background: none; color: var(--text-dim); border: none; border-bottom: 3px solid transparent; padding: 10px 14px 7px; cursor: pointer;
   }
-  .tab-btn.active { color: var(--text-main); border-bottom-color: var(--cyan); }
+  .tab-btn.active { color: var(--text-main); border-bottom-color: var(--hilite); }
+  /* スマホ・タブレットでは、上のタブ（今季組合せ〜新人）を画面の下に固定する（長いページの下から上へ戻らずに切り替えられるように） */
+  @media (max-width: 820px) {
+    #primary-tabs {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 950; margin: 0; padding: 0 0 env(safe-area-inset-bottom);
+      flex-wrap: nowrap; border-bottom: none; border-top: 1px solid var(--navy-700); box-shadow: 0 -2px 8px rgba(0,0,0,0.12);
+    }
+    #primary-tabs .tab-btn { flex: 1; padding: 13px 2px 11px; font-size: 0.78rem; border-bottom: none; border-top: 3px solid transparent; }
+    #primary-tabs .tab-btn.active { border-top-color: var(--hilite); color: var(--text-main); }
+    body { padding-bottom: calc(72px + env(safe-area-inset-bottom)); }
+    .fresh-banner { bottom: calc(66px + env(safe-area-inset-bottom)); }
+    .subtabs { position: sticky; top: 0; z-index: 900; background: var(--page-bg); padding-top: 8px; padding-bottom: 8px; margin-top: 0; }
+  }
   .panel { position: relative; background: var(--surface); border: 1px solid var(--navy-700); padding: 16px; margin: 0 auto 16px; max-width: 760px; }
   @media (max-width: 792px) { .panel { margin-left: 8px; margin-right: 8px; } }
   .hidden { display: none; }
@@ -77,7 +91,7 @@
   tr.zone-down td:first-child { box-shadow: inset 3px 0 var(--down); }
   .rank-num { color: var(--text-dim); font-family: 'Noto Sans JP', sans-serif; width: 2em; }
   .elo-val { color: var(--cyan); font-weight: 600; }
-  .league-tag { display: inline-block; font-family: 'Noto Sans JP', sans-serif; font-size: 0.62rem; font-weight: 700; color: #fff; background: var(--amber); padding: 1px 6px; border-radius: 2px; margin-right: 6px; }
+  .league-tag { display: inline-block; font-family: 'Noto Sans JP', sans-serif; font-size: 0.62rem; font-weight: 700; color: var(--tag-fg); background: var(--amber); padding: 1px 6px; border-radius: 2px; margin-right: 6px; }
   .league-tag.title-tag { background: var(--title-red); color: #fff; }
   .chip { display: inline-block; font-size: 0.64rem; border: 1px solid var(--navy-700); color: var(--text-dim); padding: 0 5px; border-radius: 2px; white-space: nowrap; }
   .chip.gold { color: var(--amber); border-color: var(--amber-dim); }
@@ -111,7 +125,7 @@
     font-family: 'Noto Sans JP', sans-serif; font-size: 0.72rem; background: transparent; color: var(--text-dim);
     border: 1px solid var(--navy-700); border-radius: 2px; padding: 7px 12px; min-height: 34px; cursor: pointer;
   }
-  .subtab-btn.active { color: #fff; border-color: var(--head); background: var(--head); }
+  .subtab-btn.active { color: var(--on-hilite); border-color: var(--hilite); background: var(--hilite); font-weight: 700; }
   .info-icon {
     display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px;
     border-radius: 50%; margin-left: 3px; background: var(--navy-800); color: var(--cyan-dim);
@@ -2732,8 +2746,9 @@ async function loadAwards(season) {
 
 function eternalIcon(titles) {
   if (!titles || titles.length === 0) return '';
-  const chips = titles.map(t =>
-    `<span style="display:inline-block; font-size:0.6rem; color:var(--navy-950); background:var(--amber); border-radius:2px; padding:0 3px; margin-right:2px; font-weight:700;" title="永世${escapeHtml(t)}">${escapeHtml(t.charAt(0))}</span>`
+  // 序列順（青龍・麒麟・朱雀・白虎・玄武）に並べる
+  const chips = TITLE_ORDER.filter(t => titles.includes(t)).map(t =>
+    `<span style="display:inline-block; font-size:0.6rem; color:var(--tag-fg); background:var(--amber); border-radius:2px; padding:0 3px; margin-right:2px; font-weight:700;" title="永世${escapeHtml(t)}">${escapeHtml(t.charAt(0))}</span>`
   ).join('');
   return chips + ' ';
 }
