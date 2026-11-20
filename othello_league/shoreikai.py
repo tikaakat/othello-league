@@ -35,7 +35,7 @@ CHARACTER_TYPES = ["balanced", "aggressive", "defensive", "corner"]
 
 def estimated_strength(params):
     """強さの大まかな見積もり（レート換算）：終盤力・定跡の効き目＋棋風が強い配分にどれだけ近いか
-    ＋天賦の効き目（天賦は1マスあたり約+2.5、大天才の2段目は約+9）。run_season._estimated_strengthと同じ式に天賦を足したもの"""
+    ＋天賦の効き目（天賦は1マスあたり約+2.5）。run_season._estimated_strengthと同じ式に天賦を足したもの"""
     eg = params.get(ENDGAME_KEY, 0.0)
     eg_elo = 67 * eg / 24 if eg <= 24 else 67 + (min(eg, 44) - 24) * (168 - 67) / 20
     book = params.get(BOOK_KEY, 0)
@@ -44,7 +44,7 @@ def estimated_strength(params):
     b = [BOOK_PARAMS[k] for k in PARAM_KEYS]
     cos = sum(x * y for x, y in zip(a, b)) / math.sqrt(sum(x * x for x in a) * sum(y * y for y in b))
     # 読みの深さ・ポカ率の効き目（skills.read_elo・BLUNDER_ELO_PER）
-    return (eg_elo + book_elo + (cos - 0.94) * 1500 + 2.5 * params.get("_genius", 0) + 9 * params.get("_genius2", 0)
+    return (eg_elo + book_elo + (cos - 0.94) * 1500 + 2.5 * params.get("_genius", 0)
             + read_elo(params.get("_read", 0.0)) + BLUNDER_ELO_PER * params.get("_blunder", 0.0))
 
 

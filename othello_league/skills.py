@@ -19,7 +19,7 @@
   タイトル保持者が下のリーグに残る・衰えたベテランがAに残るといった状態が続いていた。
   試算（同じ選手どうし）：−1手で勝率24%（約−200）、+1手で69%（約+135）。16人の総当たりで、−1〜+1を割り振ると
   レートの標準偏差が約100→約140、上位4人の下位4人への勝率が85→91%。1局の時間は平均で約1.5倍。
-  ピーク（_read_max）は才能で決まる（平均+0.2の正規分布、−1〜+2。天賦は+1.2以上、大天才は+1.6以上）。
+  ピーク（_read_max）は才能で決まる（平均+0.2の正規分布、−1〜+2。天賦は+1.2以上、大天才は+1.4以上）。
   入会時はピークより1手浅い。25歳まで速く伸び、30歳まで少し、45歳から衰える（衰えの速さは_agingに従う）。
 - ポカ率（_blunder）：その手で最善手以外を指してしまう確率。若いうちは高く経験で下限（才能）まで下がり、45歳から増える。
 
@@ -35,8 +35,8 @@ BOOK_RATE_KEY = "_book_rate"
 FORM_KEY = "_form"
 GENIUS_KEY = "_genius"             # 天賦：空きマスがこの数以下（かつ終盤力の範囲内）なら、さらにもう1手深く読む
 GENIUS_MAX_KEY = "_genius_max"     # 天賦のピーク（その選手が伸びきったときの範囲）
-PRODIGY_KEY = "_genius2"           # 大天才（天賦の最上位）：空きマスがこの数以下なら、天賦のさらに奥でもう1手深く読む
-PRODIGY_MAX_KEY = "_genius2_max"   # 大天才の2段目のピーク
+PRODIGY_KEY = "_genius2"           # （旧）大天才の2段目の範囲。今は使わない（tone_down_prodigy参照）
+PRODIGY_MAX_KEY = "_genius2_max"   # 大天才の目印（値は旧2段目のピーク。今は目印としてだけ使う）
 AGING_KEY = "_aging"               # 衰えの速さの倍率（1.0＝ふつう。一部の選手は衰えが緩やか。表には出さない）
 READ_KEY = "_read"                 # 読みの深さの補正（−1〜+1手。端数は確率。engine.choose_move参照）
 READ_MAX_KEY = "_read_max"         # 読みの深さのピーク（才能）
@@ -53,7 +53,7 @@ READ_PEAK_SD = 0.45
 READ_TALENT_WEIGHT = 0.3           # 終盤力の伸びる速さ（才能の共通因子）にどれだけ寄せるか
 READ_START_GAP = 1.0               # 生まれたときはピークよりこれだけ浅い
 READ_GENIUS_MIN = 1.2              # 天賦を持つ選手のピークの下限
-READ_PRODIGY_MIN = 1.6             # 大天才のピークの下限
+READ_PRODIGY_MIN = 1.4             # 大天才のピークの下限（以前は1.6。tone_down_prodigy参照）
 READ_GROWTH_YOUNG = 0.12           # 25歳未満の1季あたりの伸び
 READ_GROWTH_MID = 0.06             # 30歳未満
 READ_DECLINE_AGE = 45
@@ -93,11 +93,13 @@ GENIUS_PEAK_RANGE = (20, 28)
 GENIUS_GROWTH = 4                  # 30歳未満の1季あたりの伸び（マス）
 GENIUS_DECLINE_AGE = 45
 GENIUS_DECLINE = 2                 # 衰える年齢からの1季あたりの縮み（マス）
-# 大天才（藤井聡太級）：50季に1人ほど。天賦の範囲が定跡明けから全部（36マス）に広がり、さらに終盤24マスでは
-# もう1手深く読む（ほかの選手より2手深い）。トップ選手どうしの対局で、ピークの大天才は1局約80%・7番勝負約97%で勝つ
+# 大天才（羽生善治級）：50季に1人ほど。天賦の範囲が天賦の上限より少し広く（26マス）、読みの深さ・ポカ率も別格。
+# 以前は藤井聡太級（天賦36マス＋終盤24マスでさらに1手・読み切りも広い・読み+1.6・ポカ0.5%）で、トップ相手に
+# 1局約75%・7番勝負9割超で勝ち、第82〜100季に五冠を独占し続けた（防衛96勝4敗）。羽生善治の全盛期
+# （番勝負の勝率およそ7〜8割）くらいを目安に弱め、対局試験（トップ10人が相手・長考）で1局約?%・7番勝負約?%
 PRODIGY_CHANCE = 1 / 600           # 奨励会の入会者のうち大天才として生まれる割合（毎季12名入会、ほぼ全員がデビューし約50季に1人）
-PRODIGY_PEAK = 36
-PRODIGY2_PEAK = 24
+PRODIGY_PEAK = 26
+PRODIGY2_PEAK = 24                 # 大天才の目印（PRODIGY_MAX_KEY）に入れる値。2段目の読みはもう使わない
 PRODIGY_GROWTH = 6                 # 大天才の30歳未満の1季あたりの伸び（デビューが遅めでも30歳までにピークへ届くように）                  # 調子：その季の終盤力が ±（ムラ気×3マス）程度上下する
 
 # 定跡として使う共通の評価（シミュレーションで最も強かった配分。合計40）
@@ -156,7 +158,7 @@ BLUNDER_MIN_KEY = "_blunder_min"
 BLUNDER_MIN_MEDIAN = 0.04
 BLUNDER_MIN_SIGMA = 0.6
 BLUNDER_MIN_CAP = 0.15
-BLUNDER_PRODIGY_MAX = 0.005
+BLUNDER_PRODIGY_MAX = 0.012        # 大天才のポカ率の下限の上限（以前は0.5%）
 BLUNDER_BIRTH_EXTRA = 0.08
 BLUNDER_LEARN = 0.85
 BLUNDER_DECLINE = 0.006
@@ -227,6 +229,26 @@ def _age_factor(age):
     if age < 45:
         return 0.0
     return -ENDGAME_DECLINE
+
+
+def tone_down_prodigy(p):
+    """（移行用）大天才を弱める前に生まれた大天才の能力を、今の上限に合わせる。何度呼んでも同じ結果になる。
+    天賦の範囲は26マスまで、2段目は無し、読みの深さのピークは1.4まで、ポカ率の下限は1.2%以上。直したらTrue"""
+    if not p.get(PRODIGY_MAX_KEY):
+        return False
+    before = dict(p)
+    p[GENIUS_MAX_KEY] = min(p.get(GENIUS_MAX_KEY, PRODIGY_PEAK), PRODIGY_PEAK)
+    p[GENIUS_KEY] = min(p.get(GENIUS_KEY, 0), p[GENIUS_MAX_KEY])
+    p[PRODIGY_KEY] = 0
+    if READ_MAX_KEY in p:
+        p[READ_MAX_KEY] = min(p[READ_MAX_KEY], READ_PRODIGY_MIN)
+        if READ_KEY in p:
+            p[READ_KEY] = min(p[READ_KEY], p[READ_MAX_KEY])
+    if BLUNDER_MIN_KEY in p:
+        p[BLUNDER_MIN_KEY] = max(p[BLUNDER_MIN_KEY], BLUNDER_PRODIGY_MAX)
+        if BLUNDER_KEY in p:
+            p[BLUNDER_KEY] = max(p[BLUNDER_KEY], p[BLUNDER_MIN_KEY])
+    return p != before
 
 
 def _roll_genius():
@@ -326,11 +348,6 @@ def season_growth(ind, growth_scale=1.0):
             p[GENIUS_KEY] = min(p[GENIUS_MAX_KEY], p.get(GENIUS_KEY, 0) + grow)
         elif ind.age >= GENIUS_DECLINE_AGE:
             p[GENIUS_KEY] = max(0, round(p.get(GENIUS_KEY, 0) - GENIUS_DECLINE * aging, 2))
-    if p.get(PRODIGY_MAX_KEY):
-        if ind.age < 30:
-            p[PRODIGY_KEY] = min(p[PRODIGY_MAX_KEY], p.get(PRODIGY_KEY, 0) + PRODIGY_GROWTH)
-        elif ind.age >= GENIUS_DECLINE_AGE:
-            p[PRODIGY_KEY] = max(0, round(p.get(PRODIGY_KEY, 0) - GENIUS_DECLINE * aging, 2))
     # 読みの深さ：まだ持っていなければ年齢相応の値を与え、以降は1季ずつ伸び・衰える
     if READ_KEY not in p or READ_MAX_KEY not in p:
         ensure_read(p, ind.age)

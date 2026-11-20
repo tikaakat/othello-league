@@ -1378,6 +1378,29 @@ def clear_initial_masters(data_dir, state, rosters):
     print("[開幕メンバーの師弟関係を外した] 系統の祖・何代目かを付け直した", flush=True)
 
 
+def tone_down_prodigies(data_dir, state, rosters):
+    """（一度だけ）大天才を弱める前に生まれた大天才（現役・奨励会・三段リーグ）の能力を、今の上限に合わせる
+    （skills.tone_down_prodigy）。第82〜100季に大天才が五冠を独占し続けたため"""
+    if state.get("prodigy_toned_down"):
+        return
+    from othello_league.skills import tone_down_prodigy
+    names = [ind.display_name for lst in rosters.values() for ind in lst if tone_down_prodigy(ind.params)]
+    for fname in ("shoreikai.json", "newcomer_candidate_pool.json"):
+        path = os.path.join(data_dir, fname)
+        if not os.path.exists(path):
+            continue
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        members = data.get("members", []) if isinstance(data, dict) else data
+        changed = [m.get("name") for m in members if tone_down_prodigy(m.get("params") or {})]
+        if changed:
+            names += changed
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=1 if fname == "shoreikai.json" else 2)
+    state["prodigy_toned_down"] = True
+    print(f"[大天才の能力を今の上限に合わせた] {len(names)}名", flush=True)
+
+
 def main():
     import sys, os as _os
     print(f"[DEBUG] run_season.py 開始。Python: {sys.version}", flush=True)
@@ -1410,6 +1433,7 @@ def main():
         rosters = bootstrap_rosters(registry, args.data_dir)
         state["name_registry"] = registry.to_dict()
     clear_initial_masters(args.data_dir, state, rosters)
+    tone_down_prodigies(args.data_dir, state, rosters)
 
     # キャラクリエイト機能：このプロセスが処理する最初のシーズンにのみ適用する
     # （複数シーズンをまとめて回す場合、2季目以降で重複適用しないよう、読み込んだ時点で
