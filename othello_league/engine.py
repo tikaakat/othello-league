@@ -51,11 +51,8 @@ EVAL_NOISE_BASE = 5.0
 ENDGAME_SECOND_STEP = 0.5
 EXACT_READ_RATIO = 0.3
 EXACT_READ_MAX = 10
-# 大天才（_genius2_max を持つ選手。表には出さない）は読み切りの範囲が広い：終盤力×0.6（最大14マス）。早指しの玄武でも読み切る。
-# 対局試験（トップ10人が相手）で、今のままの大天才の勝率は約63%と別格ではなかったが、これで長考の棋戦は約81%・
-# 玄武は約78%・朱雀と白虎は約65%になり、約50季に1人の大天才が5冠を狙える力を持つ
-PRODIGY_EXACT_READ_RATIO = 0.6
-PRODIGY_EXACT_READ_MAX = 14
+# 以前は大天才だけ読み切りの範囲を広げ（終盤力×0.6・最大14マス、早指しでも読み切る）、天賦のさらに奥でもう1手深く読ませていたが、
+# 大天才がトップ相手に1局約75%・7番勝負9割超で勝ち、第82〜100季に五冠を独占し続けたため、どちらもやめた（skills.py参照）
 
 
 class QuickDepth(int):
@@ -275,7 +272,7 @@ def _choose_move_core(bd, color, params, depth=5, noise_scale=1.0):
     """個体のパラメータを使って1手選ぶ。noise_scaleは個体固有の「ムラ気」倍率。
     paramsに終盤力（_endgame）・定跡（_book）があれば反映する（skills.py参照）：
       - 序盤、定跡を知っている手数まで（空きマスが 60-定跡 以上）は、共通の強い評価・揺らぎなしで指す
-      - 空きマスが終盤力以下になったら、読みを1手深くする（天賦を持つ選手は、その奥でさらに1手深く。大天才はもう1手）"""
+      - 空きマスが終盤力以下になったら、読みを1手深くする（天賦を持つ選手は、その範囲でさらに1手深く）"""
     moves = B.legal_moves(bd, color)
     if not moves:
         return None
@@ -298,13 +295,10 @@ def _choose_move_core(bd, color, params, depth=5, noise_scale=1.0):
         if book and empty >= 60 - book:
             params, noise_scale = BOOK_PARAMS, 0.0
         else:
-            prodigy = bool(params.get("_genius2_max"))
             if endgame and empty <= endgame:
                 depth += 1
-                if not quick or prodigy:
-                    exact_ratio, exact_max = ((PRODIGY_EXACT_READ_RATIO, PRODIGY_EXACT_READ_MAX) if prodigy
-                                              else (EXACT_READ_RATIO, EXACT_READ_MAX))
-                    if empty <= min(exact_max, endgame * exact_ratio):
+                if not quick:
+                    if empty <= min(EXACT_READ_MAX, endgame * EXACT_READ_RATIO):
                         _, move = exact_endgame(bd, color)
                         if move is not None:
                             return move
@@ -314,9 +308,6 @@ def _choose_move_core(bd, color, params, depth=5, noise_scale=1.0):
             # 終盤力がまだ育っていない若いうちから才能が表に出る）
             if empty <= params.get("_genius", 0):
                 depth += 1
-                # 大天才：その奥でさらにもう1手
-                if empty <= params.get("_genius2", 0):
-                    depth += 1
     _, move = minimax(bd, color, depth, -math.inf, math.inf, color, params, noise_scale)
     if move is None:
         move = random.choice(moves)
