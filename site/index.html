@@ -28,7 +28,7 @@
     --up: #1a7f4b; --down: #c0392b;
     --page-bg: #f2f4f3; --surface: #ffffff; --head: #1b4332; --th-bg: #f5f7f6; --rule: #e6ebe8;
     --cell-line: #d9e0dc; --cell-diag: #eef2ef; --svg-box: #f8faf9; --svg-line: #cdd6d1; --grid: #d9e0dc;
-    --title-red: #b3261e; --gold-bg: #fdf6e3; --hilite: #f2b632; --on-hilite: #1b2a22; --tag-fg: #ffffff;
+    --title-red: #b3261e; --gold-bg: #fdf6e3; --hilite: #f2b632; --on-hilite: #1b2a22; --tag-fg: #ffffff; --tab-active-bg: #e7f1ec; --tab-active-fg: #1b4332;
   }
   /* ダークモード：OSの設定に追従。ヘッダーのボタンで切り替えた場合（data-theme、localStorageの"theme"。
      同じドメインのファンサイトと共通）はそちらを優先する */
@@ -39,7 +39,7 @@
       --text-main: #e8efe9; --text-dim: #9db0a5; --up: #6fcf97; --down: #ef8a7a;
       --page-bg: #0f1a15; --surface: #16241d; --head: #14281f; --th-bg: #1b2c24; --rule: #22362c;
       --cell-line: #2a4136; --cell-diag: #1f3128; --svg-box: #1b2c24; --svg-line: #3a5447; --grid: #2a4136;
-      --title-red: #d0483c; --gold-bg: #2a2614; --hilite: #f2b632; --on-hilite: #1b2a22; --tag-fg: #1b2a22;
+      --title-red: #d0483c; --gold-bg: #2a2614; --hilite: #f2b632; --on-hilite: #1b2a22; --tag-fg: #1b2a22; --tab-active-bg: #2a3a22; --tab-active-fg: #f2b632;
     }
   }
   :root[data-theme="dark"] {
@@ -48,7 +48,7 @@
     --text-main: #e8efe9; --text-dim: #9db0a5; --up: #6fcf97; --down: #ef8a7a;
     --page-bg: #0f1a15; --surface: #16241d; --head: #14281f; --th-bg: #1b2c24; --rule: #22362c;
     --cell-line: #2a4136; --cell-diag: #1f3128; --svg-box: #1b2c24; --svg-line: #3a5447; --grid: #2a4136;
-    --title-red: #d0483c; --gold-bg: #2a2614; --hilite: #f2b632; --on-hilite: #1b2a22; --tag-fg: #1b2a22;
+    --title-red: #d0483c; --gold-bg: #2a2614; --hilite: #f2b632; --on-hilite: #1b2a22; --tag-fg: #1b2a22; --tab-active-bg: #2a3a22; --tab-active-fg: #f2b632;
   }
   * { box-sizing: border-box; }
   body {
@@ -74,11 +74,15 @@
       position: fixed; left: 0; right: 0; bottom: 0; z-index: 950; margin: 0; padding: 0 0 env(safe-area-inset-bottom);
       flex-wrap: nowrap; border-bottom: none; border-top: 1px solid var(--navy-700); box-shadow: 0 -2px 8px rgba(0,0,0,0.12);
     }
-    #primary-tabs .tab-btn { flex: 1; padding: 13px 2px 11px; font-size: 0.78rem; border-bottom: none; border-top: 3px solid transparent; }
-    #primary-tabs .tab-btn.active { border-top-color: var(--hilite); color: var(--text-main); }
-    body { padding-bottom: calc(72px + env(safe-area-inset-bottom)); }
-    .fresh-banner { bottom: calc(66px + env(safe-area-inset-bottom)); }
-    .subtabs { position: sticky; top: 0; z-index: 900; background: var(--page-bg); padding-top: 8px; padding-bottom: 8px; margin-top: 0; }
+    #primary-tabs { padding: 6px 6px calc(6px + env(safe-area-inset-bottom)); gap: 4px; background: var(--surface); }
+    #primary-tabs .tab-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
+      padding: 7px 2px 6px; font-size: 0.7rem; font-weight: 700; border: none; border-radius: 12px; color: var(--text-dim); }
+    #primary-tabs .tab-btn svg { width: 22px; height: 22px; }
+    #primary-tabs .tab-btn.active { background: var(--tab-active-bg); color: var(--tab-active-fg); }
+    body { padding-bottom: calc(80px + env(safe-area-inset-bottom)); }
+    .fresh-banner { bottom: calc(76px + env(safe-area-inset-bottom)); }
+  }
+  @media (min-width: 821px) { #primary-tabs .tab-btn svg { display: none; }
   }
   .panel { position: relative; background: var(--surface); border: 1px solid var(--navy-700); padding: 16px; margin: 0 auto 16px; max-width: 760px; }
   @media (max-width: 792px) { .panel { margin-left: 8px; margin-right: 8px; } }
@@ -119,11 +123,14 @@
   .season-nav button { background: var(--navy-800); border: 1px solid var(--navy-700); color: var(--cyan); font-size: 0.85rem; padding: 6px 12px; cursor: pointer; }
   .season-nav button:disabled { color: var(--text-dim); cursor: default; }
   /* 上のタブとの間を空け、指で押しやすい大きさにする（以前は上に詰めていて押し間違えやすかった） */
-  .subtabs { display: flex; gap: 8px; justify-content: center; margin: 6px auto 18px; padding: 0 8px; flex-wrap: wrap; }
+  .subtabs { display: flex; gap: 8px; justify-content: flex-start; margin: 10px auto 14px; padding: 0 12px; flex-wrap: nowrap;
+    overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; max-width: 760px; }
+  .subtabs::-webkit-scrollbar { display: none; }
+  @media (min-width: 761px) { .subtabs { justify-content: center; } }
   .subtabs.hidden { display: none; }
   .subtab-btn {
     font-family: 'Noto Sans JP', sans-serif; font-size: 0.72rem; background: transparent; color: var(--text-dim);
-    border: 1px solid var(--navy-700); border-radius: 2px; padding: 7px 12px; min-height: 34px; cursor: pointer;
+    border: 1px solid var(--navy-700); border-radius: 999px; padding: 7px 14px; min-height: 36px; cursor: pointer; white-space: nowrap; flex: 0 0 auto; font-size: 0.8rem;
   }
   .subtab-btn.active { color: var(--on-hilite); border-color: var(--hilite); background: var(--hilite); font-weight: 700; }
   .info-icon {
@@ -177,11 +184,11 @@
 </div>
 
 <div class="tabs" id="primary-tabs">
-  <button class="tab-btn active" data-group="leagues">今季組合せ</button>
-  <button class="tab-btn" data-group="results">結果</button>
-  <button class="tab-btn" data-group="titles">タイトル</button>
-  <button class="tab-btn" data-group="hof">殿堂</button>
-  <button class="tab-btn" data-group="newcomer_group">新人</button>
+  <button class="tab-btn active" data-group="leagues"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg><span>今季組合せ</span></button>
+  <button class="tab-btn" data-group="results"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span>結果</span></button>
+  <button class="tab-btn" data-group="titles"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4zM7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4"/></svg><span>タイトル</span></button>
+  <button class="tab-btn" data-group="hof"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.4 6.8 19.1l1-5.8L3.5 9.2l5.9-.9z"/></svg><span>殿堂</span></button>
+  <button class="tab-btn" data-group="newcomer_group"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21v-8M12 13c0-4-3-6-7-6 0 4 3 6 7 6zM12 13c0-3 2-5 6-5 0 3-2 5-6 5z"/></svg><span>新人</span></button>
 </div>
 <div class="subtabs hidden" id="subtabs"></div>
 
@@ -280,8 +287,8 @@ const TAB_GROUPS = {
   leagues: {
     label: '今季組合せ', tabs: ['leagues', 'draw_kirin', 'suzaku_league', 'draw_byakko', 'draw_genbu'],
     subLabels: {
-      leagues: '青龍戦リーグ表', suzaku_league: '朱雀戦紅白リーグ表',
-      draw_kirin: '麒麟戦トーナメント表', draw_byakko: '白虎戦トーナメント表', draw_genbu: '玄武戦トーナメント表',
+      leagues: '青龍戦・順位戦', suzaku_league: '朱雀戦',
+      draw_kirin: '麒麟戦', draw_byakko: '白虎戦', draw_genbu: '玄武戦',
     },
   },
   results: {
@@ -322,6 +329,9 @@ function showTab(name) {
   const groupKey = findGroupForTab(name);
   document.querySelectorAll('#primary-tabs .tab-btn').forEach(b => b.classList.toggle('active', b.dataset.group === groupKey));
   renderSubtabs(groupKey, name);
+  // サブタブは1行の横スクロールなので、選択中のものが見える位置まで送る
+  const activeSub = document.querySelector('#subtabs .subtab-btn.active');
+  if (activeSub) activeSub.scrollIntoView({ block: 'nearest', inline: 'center' });
 }
 
 function renderSubtabs(groupKey, activeTab) {
