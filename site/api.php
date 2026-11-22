@@ -241,7 +241,7 @@ function simulate_dan_progression($debutSeason, $debutLeague, array $nonWinCandi
         for ($skipped = $dan + 1; $skipped < $newDan; $skipped++) {
             $history[] = [
                 'season' => $s, 'dan' => $skipped,
-                'reason' => (DAN_KANJI[$newDan] ?? $newDan) . "段への飛び級（{$reason}）により経由",
+                'reason' => "{$reason}で" . (DAN_KANJI[$newDan] ?? $newDan) . "段へ飛び級（通過）",
             ];
         }
         $dan = $newDan;
