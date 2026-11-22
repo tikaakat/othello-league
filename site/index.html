@@ -121,7 +121,8 @@
   .disc-black { background: radial-gradient(circle at 35% 30%, #444, #111); }
   .disc-white { background: radial-gradient(circle at 35% 30%, #fff, #c8d4de); }
   .board-controls { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 12px; font-family: 'Noto Sans JP', sans-serif; }
-  .board-controls button { background: var(--navy-800); border: 1px solid var(--navy-700); color: var(--cyan); font-size: 0.9rem; padding: 6px 12px; cursor: pointer; }
+  .board-controls button { background: var(--navy-800); border: 1px solid var(--navy-700); color: var(--cyan); font-size: 0.9rem; padding: 6px 12px; cursor: pointer; white-space: nowrap; }
+  @media (max-width: 420px) { .board-controls { gap: 6px; } .board-controls button { padding: 6px 9px; } }
   .movement-mark { display: inline-block; font-size: 0.9rem; margin-right: 4px; }
   .season-nav { display: flex; justify-content: center; align-items: center; gap: 14px; margin-bottom: 14px; font-family: 'Noto Sans JP', sans-serif; }
   .season-nav button { background: var(--navy-800); border: 1px solid var(--navy-700); color: var(--cyan); font-size: 0.85rem; padding: 6px 12px; cursor: pointer; }
@@ -1153,6 +1154,8 @@ async function ensureTitleholdersLoaded() {
 
 async function loadIndividualDetail(id) {
   const el = document.getElementById('individual-content');
+  // 初期表示（「選手を選んでください」）のclass=emptyの上下の余白が詳細の上に残らないようにする（中央寄せは残す）
+  el.classList.remove('empty'); el.style.textAlign = 'center';
   el.innerHTML = '<div class="loading">読み込み中...</div>';
   try {
     await ensureTitleholdersLoaded();
@@ -2437,6 +2440,10 @@ async function loadSeiryuuPanel(season) {
           </tr>`;
         });
         html += '</tbody></table>';
+        // 記号の意味（スマホでは記号の説明（title）が見られないため、表の下に書いておく）
+        html += `<div style="font-size:0.68rem; color:var(--text-dim); margin-top:4px; line-height:1.6;">昇↑／降↓＝昇級・降級　新＝新規参入　退＝引退${lg === 'D'
+          ? '　<span style="background:#b8322a; color:#fff; font-weight:700; padding:0 3px; border-radius:3px;">点1</span>＝今季開始時の降級点　<span style="color:#b8322a;">+点1</span>＝下位4分の1で降級点　<span style="color:var(--cyan);">-点1</span>＝勝ち越しなどで降級点が減った（降級点2でフリークラスへ）'
+          : ''}</div>`;
         const ordered = (lg === 'A' && data.rikuou) ? list : list;
         const leagueMatches = (data.league_matches || []).filter(m => m.league === lg);
         if (leagueMatches.length > 0) {
@@ -2471,10 +2478,13 @@ async function loadSeiryuuPanel(season) {
 // ---------------- 対局一覧 ----------------
 let _matchesSearchQuery = '';
 
+let _matchesKeepFocus = false;
 async function loadMatches(q) {
   if (q === undefined) q = _matchesSearchQuery;
   _matchesSearchQuery = q;
   const el = document.getElementById('matches-content');
+  // 入力中の再描画のときだけ検索欄にフォーカスを戻す（タブを開いただけでフォーカスすると、スマホでキーボードが出てしまう）
+  _matchesKeepFocus = !!(document.activeElement && document.activeElement.id === 'matches-search');
   const searchBoxHtml = `<div style="margin-bottom:10px;">
     <input type="text" id="matches-search" placeholder="対局者名で検索..." value="${escapeHtml(q)}"
       style="width:100%; background:var(--navy-800); color:var(--text-main); border:1px solid var(--navy-700); padding:6px 8px;">
@@ -2495,11 +2505,27 @@ async function loadMatches(q) {
       bindMatchesSearch();
       return;
     }
-    const rowHtml = m => `<div class="kifu-row" data-match-id="${m.id}" style="padding:6px 0; border-bottom:1px solid var(--rule); cursor:pointer; display:flex; justify-content:space-between;">
-      <span>${leagueTag(m.league)}第${m.season}季 ${escapeHtml(m.individual_a_name)} vs ${escapeHtml(m.individual_b_name || 'タイトルホルダー')}</span>
-      <span>${matchResultLabel(m)}</span>
-    </div>`;
-    el.innerHTML = searchBoxHtml + matches.map(rowHtml).join('');
+    // 1行に収める：季は見出しにまとめ、行は「棋戦｜勝者（太字・○）vs 敗者」。名前が長いときは省略記号で切る
+    // （以前は「第51季 A vs B ／ Aの勝ち」を1行に詰めていて、スマホでは2〜3行に折り返していた）
+    const nameSpan = (name, won) => `<span style="${won ? 'font-weight:700; color:var(--text-main);' : 'color:var(--text-dim);'}">${won ? '○' : ''}${escapeHtml(name)}</span>`;
+    const rowHtml = m => {
+      const b = m.individual_b_name || 'タイトルホルダー';
+      const draw = m.result === 'draw';
+      return `<div class="kifu-row" data-match-id="${m.id}" style="padding:7px 0; border-bottom:1px solid var(--rule); cursor:pointer; display:grid; grid-template-columns:minmax(4.4em, auto) 1fr auto; gap:6px; align-items:center; white-space:nowrap;">
+        <span>${leagueTag(m.league)}</span>
+        <span style="overflow:hidden; text-overflow:ellipsis;">${nameSpan(m.individual_a_name, m.result === 'win')} <span style="color:var(--text-dim); font-size:0.75em;">vs</span> ${nameSpan(b, m.result === 'loss')}</span>
+        <span style="font-size:0.72rem; color:var(--text-dim);">${draw ? '引き分け' : ''}</span>
+      </div>`;
+    };
+    let lastSeason = null, body = '';
+    matches.forEach(m => {
+      if (m.season !== lastSeason) {
+        body += `<div style="font-size:0.75rem; font-weight:700; color:var(--amber); margin:${lastSeason === null ? '2px' : '14px'} 0 2px;">第${m.season}季</div>`;
+        lastSeason = m.season;
+      }
+      body += rowHtml(m);
+    });
+    el.innerHTML = searchBoxHtml + '<div style="font-size:0.7rem; color:var(--text-dim); margin-bottom:4px;">○＝勝ち（太字の選手）。行を押すと棋譜を再生</div>' + body;
     bindMatchesSearch();
     el.querySelectorAll('.kifu-row').forEach(row => row.addEventListener('click', () => navigateTo('game/' + row.dataset.matchId)));
   } catch (e) {
@@ -2528,7 +2554,8 @@ function bindMatchesSearch() {
     if (composing || e.isComposing) return;
     scheduleSearch();
   });
-  // 再描画後もカーソル位置ごと入力状態を保つ（末尾にフォーカスを戻す）
+  // 再描画後もカーソル位置ごと入力状態を保つ（入力中だったときだけ、末尾にフォーカスを戻す）
+  if (!_matchesKeepFocus) return;
   searchEl.focus();
   const len = searchEl.value.length;
   searchEl.setSelectionRange(len, len);
@@ -2591,6 +2618,16 @@ function renderGamePanel() {
       第${match.season}季 ${escapeHtml(match.league)}　${escapeHtml(match.individual_a_name || match.individual_a_id)} vs ${escapeHtml(match.individual_b_name || match.individual_b_id || 'タイトルホルダー')}
       ${games.length > 1 ? `　（${gameIdx + 1}/${games.length}局目）` : ''}
     </div>
+    ${(() => {
+      // どちらが黒か（a_was_black／x_was_black。xは常にa側）。分からない古い棋譜では出さない
+      const g = games[gameIdx] || {};
+      const aBlack = g.a_was_black !== undefined ? g.a_was_black : g.x_was_black;
+      if (aBlack === undefined) return '';
+      const an = escapeHtml(match.individual_a_name || match.individual_a_id);
+      const bn = escapeHtml(match.individual_b_name || match.individual_b_id || 'タイトルホルダー');
+      const [bk, wh] = aBlack ? [an, bn] : [bn, an];
+      return `<div style="text-align:center; font-size:0.8rem; margin-bottom:8px;">⚫ 黒：${bk}　⚪ 白：${wh}</div>`;
+    })()}
     <div class="othello-board" id="othello-board"></div>
     <div style="text-align:center; font-size:0.78rem; color:var(--text-dim); margin-top:8px;" id="move-label"></div>
     <div class="board-controls">
