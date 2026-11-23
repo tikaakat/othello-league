@@ -403,6 +403,7 @@
         <div class="brand">オセロ界タイムズ</div>
       </a>
       <div class="tagline">CIRCUIT OTHELLO LEAGUEの非公式ファンメディア（これは架空のリーグです）</div>
+      <div class="tagline next-release" id="next-release"></div>
     </div>
     <nav>
       <a class="nav-tab" id="nav-feed" href="#" onclick="navigateTo('');return false;">フィード</a>
@@ -410,7 +411,8 @@
       <a class="nav-tab" id="nav-hof" href="#" onclick="navigateTo('hof');return false;">殿堂</a>
       <a class="nav-tab" id="nav-rules" href="#" onclick="navigateTo('rules');return false;">ルール</a>
       <a class="nav-tab" id="nav-board" href="#" onclick="navigateTo('board');return false;">掲示板</a>
-      <a class="nav-tab" id="nav-support" href="#" onclick="navigateTo('support');return false;">後援会</a>
+      <!-- 後援会（寄付・名付け親）は、今の世界線を正史として公開する間は休止中（コード・APIは残す。SUPPORT_ENABLEDで戻せる） -->
+      <a class="nav-tab" id="nav-support" href="#" onclick="navigateTo('support');return false;" hidden>後援会</a>
       <button id="theme-toggle" class="theme-toggle-btn" title="表示テーマを切り替え" aria-label="表示テーマを切り替え">🌙</button>
     </nav>
   </header>
@@ -2344,13 +2346,15 @@ function renderGuide() {
       ・<a href="#" onclick="navigateTo('individuals');return false;">選手名鑑</a>で推しを見つけて★フォロー。フィードで推しの記事が目立ちます<br>
       ・<a href="#" onclick="navigateTo('');return false;">フィード</a>の記事で、タイトル戦や世代交代のドラマを追う<br>
       ・<a href="#" onclick="navigateTo('clans');return false;">棋士系統図</a>で、師匠から弟子へと続く流れをたどる<br>
-      ・<a href="#" onclick="navigateTo('board');return false;">掲示板</a>で感想を語り合う。<a href="#" onclick="navigateTo('support');return false;">後援会</a>では、奨励会リーグの子どもの名付け親にもなれます<br>
+      ・<a href="#" onclick="navigateTo('board');return false;">掲示板</a>で感想を語り合う${SUPPORT_ENABLED ? `。<a href="#" onclick="navigateTo('support');return false;">後援会</a>では、奨励会リーグの子どもの名付け親にもなれます` : ''}<br>
       ・細かい表や棋譜は<a href="${RESULTS_SITE_BASE}" target="_blank" rel="noopener">データサイト</a>へ<br>
       ・くわしい決まりは<a href="#" onclick="navigateTo('rules');return false;">ルール</a>へ
     </div>
   </div>`;
 }
 
+// 後援会（寄付・名付け親）を表に出すか。今の世界線を正史として公開する間は休止（falseで入口を隠す）
+const SUPPORT_ENABLED = false;
 // ---------------- 後援会（リーグ全体への寄付） ----------------
 // donation.php（結果サイト側）でStripe Checkoutを作る。見返りなし・名簿への掲載（任意）、
 // 1,000円以上は奨励会リーグの新入会員の「名付け親」になれる
@@ -2566,6 +2570,27 @@ async function renderBoard(threadId) {
   wireBoardAdmin(el, () => renderBoard(''));
 }
 
+// 次の更新（新しい季の公開）までの表示。公開は毎日 JST 7:30・21:00（scheduler.yml・evolve.yml）。
+// GitHub側の都合で数分〜遅れることがあるので「ごろ」と書く
+function nextReleaseInfo(now = new Date()) {
+  const jst = new Date(now.getTime() + 9 * 3600e3);             // JSTの壁時計（UTCのフィールドで読む）
+  const day = Date.UTC(jst.getUTCFullYear(), jst.getUTCMonth(), jst.getUTCDate()) - 9 * 3600e3; // その日のJST 0:00（実時刻）
+  const slots = [[7, 30], [21, 0], [31, 30]].map(([h, m]) => day + (h * 60 + m) * 60e3);
+  const next = slots.find(t => t > now.getTime());
+  const mins = Math.ceil((next - now.getTime()) / 60e3);
+  const nj = new Date(next + 9 * 3600e3);
+  const label = `${nj.getUTCHours()}:${String(nj.getUTCMinutes()).padStart(2, '0')}`;
+  const left = mins >= 60 ? `${Math.floor(mins / 60)}時間${mins % 60}分` : `${mins}分`;
+  return { label, left, today: nj.getUTCDate() === jst.getUTCDate() };
+}
+function renderNextRelease(el) {
+  if (!el) return;
+  const r = nextReleaseInfo();
+  el.textContent = `次の季の結果は${r.today ? '' : '明日'}${r.label}ごろ公開（あと${r.left}）`;
+}
+renderNextRelease(document.getElementById('next-release'));
+setInterval(() => renderNextRelease(document.getElementById('next-release')), 60e3);
+
 function navigateTo(path) {
   location.hash = path ? `#${path}` : '';
 }
@@ -2580,7 +2605,7 @@ function route() {
   } else if (hash === 'contact') {
     renderContact();
   } else if (hash === 'support') {
-    renderSupport();
+    if (SUPPORT_ENABLED) renderSupport(); else { navigateTo(''); return; }
   } else if (hash === 'guide') {
     renderGuide();
   } else if (hash === 'board' || hash.startsWith('board/')) {
