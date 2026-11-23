@@ -227,7 +227,7 @@ jobs:
 
       # 公開に失敗しても、ストック補充の判定と次の回のタイマーは必ず行う（次の回で同じ季をもう一度出す）
       - name: ストック補充・次の回のタイマー
-        if: always()
+        if: always() && inputs.unpublish != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
