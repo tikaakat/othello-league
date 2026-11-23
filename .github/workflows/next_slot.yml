@@ -1,0 +1,103 @@
+name: Next Slot Timer (次の公開に合わせて本戦を起動)
+
+# 定時公開（毎日 JST 7:30・21:00）の本戦を、決まった時刻に確実に起動するためのタイマー。
+# GitHub Actionsの定期実行（scheduler.ymlのcron）は、実績で数時間に1回しか動かないことがあり、
+# それだけに頼ると夜の回の本戦が公開時刻までに始まらないことがあった。
+# そこで、季の処理（本戦→新人リーグ）が終わるたびに新人リーグがこのワークフローを起動し、
+# 次の公開時刻の90分前まで待ってから、その回の本戦を起動する（本戦は計算後、公開時刻まで待ってから反映する）。
+# 1つのジョブは最長6時間なので、待ち時間（最長でおよそ13時間半）を3つのジョブに分けて順番に待つ。
+# scheduler.ymlは予備として残す（同じ回の本戦が起動済みなら、どちらも二重に起動しない）。
+#
+# 手動で起動してもよい（次の回のタイマーを仕掛け直すだけ）。新しく起動すると、待っている古いタイマーは取り消される。
+
+on:
+  workflow_dispatch: {}
+
+concurrency:
+  group: othello-next-slot
+  cancel-in-progress: true
+
+permissions:
+  actions: write  # evolve.ymlをworkflow_dispatchで起動し、既存の実行を照会するため
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      slot: ${{ steps.p.outputs.slot }}
+      start_at: ${{ steps.p.outputs.start_at }}
+    steps:
+      - id: p
+        name: 次の回と、本戦を起動する時刻を決める
+        run: |
+          set -euo pipefail
+          NOW=$(date +%s)
+          TODAY=$(TZ=Asia/Tokyo date +%Y-%m-%d)
+          TOMORROW=$(TZ=Asia/Tokyo date -d '+1 day' +%Y-%m-%d)
+          # 公開時刻の候補（今日の7:30・21:00、明日の7:30）のうち、まだ90分以上先の最初のもの
+          SLOT=""; REL=0
+          for C in "${TODAY} 07:30 ${TODAY}-AM" "${TODAY} 21:00 ${TODAY}-PM" "${TOMORROW} 07:30 ${TOMORROW}-AM" "${TOMORROW} 21:00 ${TOMORROW}-PM"; do
+            set -- $C
+            T=$(TZ=Asia/Tokyo date -d "$1 $2" +%s)
+            if [ $((T - NOW)) -gt 5400 ]; then SLOT="$3"; REL=$T; break; fi
+          done
+          START=$((REL - 5400))
+          echo "次の回：${SLOT}（公開 $(TZ=Asia/Tokyo date -d @$REL '+%m/%d %H:%M') JST）。本戦の起動：$(TZ=Asia/Tokyo date -d @$START '+%m/%d %H:%M') JST"
+          echo "slot=${SLOT}" >> "$GITHUB_OUTPUT"
+          echo "start_at=${START}" >> "$GITHUB_OUTPUT"
+
+  wait1:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - name: 待つ（1つ目）
+        run: |
+          W=$(( ${{ needs.plan.outputs.start_at }} - $(date +%s) )); [ "$W" -gt 20700 ] && W=20700
+          [ "$W" -gt 0 ] && { echo "$((W / 60))分 待ちます"; sleep "$W"; } || echo "待つ必要なし"
+
+  wait2:
+    needs: [plan, wait1]
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - name: 待つ（2つ目）
+        run: |
+          W=$(( ${{ needs.plan.outputs.start_at }} - $(date +%s) )); [ "$W" -gt 20700 ] && W=20700
+          [ "$W" -gt 0 ] && { echo "$((W / 60))分 待ちます"; sleep "$W"; } || echo "待つ必要なし"
+
+  wait3:
+    needs: [plan, wait2]
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - name: 待つ（3つ目）
+        run: |
+          W=$(( ${{ needs.plan.outputs.start_at }} - $(date +%s) )); [ "$W" -gt 20700 ] && W=20700
+          [ "$W" -gt 0 ] && { echo "$((W / 60))分 待ちます"; sleep "$W"; } || echo "待つ必要なし"
+
+  dispatch:
+    needs: [plan, wait3]
+    runs-on: ubuntu-latest
+    steps:
+      - name: その回の本戦を起動する
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          SLOT: ${{ needs.plan.outputs.slot }}
+        run: |
+          set -euo pipefail
+          api() { curl -sS -f -H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json" "$@"; }
+          # 同じ回の本戦が既に起動済み（実行待ち・実行中・成功）なら何もしない（scheduler.ymlと二重にならないように）
+          EXISTING=$(api "https://api.github.com/repos/${REPO}/actions/workflows/evolve.yml/runs?event=workflow_dispatch&per_page=20" \
+            | python3 -c '
+          import json, sys
+          slot = sys.argv[1]
+          for r in json.load(sys.stdin)["workflow_runs"]:
+              if f"[slot {slot}]" in (r.get("display_title") or "") and (r["status"] != "completed" or r["conclusion"] == "success"):
+                  print(r["id"]); break
+          ' "$SLOT")
+          if [ -n "$EXISTING" ]; then echo "回 ${SLOT} の本戦は起動済みです（run_id=${EXISTING}）"; exit 0; fi
+          echo "回 ${SLOT} の本戦を起動します"
+          api -X POST "https://api.github.com/repos/${REPO}/actions/workflows/evolve.yml/dispatches" \
+            -d "{\"ref\":\"main\",\"inputs\":{\"slot\":\"${SLOT}\"}}"
