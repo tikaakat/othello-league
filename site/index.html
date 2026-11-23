@@ -93,6 +93,21 @@
   td { padding: 7px 8px; border-bottom: 1px solid var(--rule); cursor: pointer; }
   /* 新人タブの表：各行を1行に収める（折り返さず、余白を詰める） */
   table.one-line th, table.one-line td { white-space: nowrap; padding-left: 5px; padding-right: 5px; }
+  /* 歴代のデビュー（新人の通算成績一覧） */
+  .nc-stats { display:grid; grid-template-columns:repeat(auto-fit, minmax(96px, 1fr)); gap:6px; margin-bottom:10px; }
+  .nc-stat { border:1px solid var(--navy-700); border-radius:6px; padding:6px 8px; }
+  .nc-stat b { display:block; font-size:1.05rem; font-variant-numeric:tabular-nums; }
+  .nc-stat span { font-size:0.66rem; color:var(--text-dim); }
+  .nc-row { display:flex; flex-wrap:wrap; gap:5px; align-items:center; margin-bottom:6px; }
+  .nc-label { font-size:0.68rem; font-weight:700; color:var(--text-dim); }
+  .nc-chip { font-family:inherit; font-size:0.72rem; border:1px solid var(--navy-700); background:var(--surface); color:var(--text-main); border-radius:999px; padding:3px 10px; cursor:pointer; }
+  .nc-chip[aria-pressed="true"] { background:var(--hilite); color:var(--on-hilite); border-color:var(--hilite); font-weight:700; }
+  .nc-table td, .nc-table th { font-size:0.76rem; }
+  .nc-table .nc-name { position:sticky; left:0; background:var(--surface); z-index:1; }
+  .nc-table tr.nc-star td { background:var(--gold-bg); }
+  .nc-table th.nc-name { z-index:2; }
+  .nc-lg { display:inline-block; min-width:1.5em; text-align:center; font-size:0.66rem; font-weight:700; border-radius:3px; padding:0 4px; color:var(--tag-fg); background:var(--text-dim); }
+  .nc-lg.nc-A { background:var(--amber); } .nc-lg.nc-B { background:var(--cyan); }
   .nc-badge { display:inline-block; font-size:0.62rem; color:var(--tag-fg); background:var(--cyan); border-radius:3px; padding:1px 5px; font-weight:700; }
   tr:hover td { background: rgba(29,107,74,0.06); }
   tr.zone-up td:first-child { box-shadow: inset 3px 0 var(--up); }
@@ -3387,7 +3402,7 @@ function bindCharacterEntryForm() {
   });
 }
 
-async function loadNewcomerHistory() {
+async function loadNewcomerHistoryBasic() {
   const el = document.getElementById('newcomer_history-content');
   el.innerHTML = '<div class="loading">読み込み中...</div>';
   try {
@@ -3422,6 +3437,103 @@ async function loadNewcomerHistory() {
   } catch (e) {
     el.innerHTML = `<div class="empty">読み込み失敗: ${escapeHtml(String(e))}</div>`;
   }
+}
+
+// ---------------- 歴代のデビュー（新人のその後の成績一覧） ----------------
+// 一覧はファンサイトのデプロイ時に作る newcomer_careers.json（リポジトリの newcomer_careers.py）を読む。
+// 読めなければ、以前の簡易一覧（APIの newcomer_league_history）を出す
+const NC_ERAS = [['すべて', 0, 9999]];
+let _nc = null, _ncState = { era: 0, best: 'すべて', now: 'すべて', q: '', sortK: 'season', dir: 1 };
+const _ncWL = r => `${r[0]}-${r[1]}${r[2] ? '-' + r[2] : ''}`;
+const _ncCols = [
+  { k: 'name', l: '名前', f: r => escapeHtml(r.name), v: r => r.name, cls: 'nc-name' },
+  { k: 'season', l: 'デビュー', f: r => `第${r.season}季`, v: r => r.season },
+  { k: 'age', l: '年齢', f: r => r.age != null ? `${r.age}歳` : '', v: r => r.age },
+  { k: 'shoreikai', l: '奨励会', f: r => r.shoreikai ? `${r.shoreikai[0] != null ? r.shoreikai[0] + '歳入会・' : ''}${r.shoreikai[1] ?? ''}期` : '', v: r => r.shoreikai ? r.shoreikai[1] : null },
+  { k: 'sandan', l: '三段リーグ（抜けた期）', f: r => r.sandan ? `${r.sandan[0]}期目 ${r.sandan[1]}-${r.sandan[2]}（${r.sandan[3]}/${r.sandan[4]}位）` : '', v: r => r.sandan ? r.sandan[0] : null },
+  { k: 'sandanTotal', l: '三段通算', f: r => r.sandan ? `${r.sandan[5]}-${r.sandan[6]}` : '', v: r => r.sandan ? r.sandan[5] / ((r.sandan[5] + r.sandan[6]) || 1) : null, desc: true },
+  { k: 'first', l: 'D1年目', f: r => `${_ncWL(r.first)}（${r.first[3]}/${r.first[4]}位）`, v: r => r.first[0] - r.first[1], desc: true },
+  { k: 'best', l: '最高', f: r => `<span class="nc-lg nc-${r.best}">${r.best === 'F' ? 'フ' : r.best}</span>`, v: r => 'ABCDF'.indexOf(r.best) },
+  { k: 'reachC', l: 'C到達', f: r => r.reach[0] ? `第${r.reach[0]}季` : '', v: r => r.reach[0] ? r.reach[0] - r.season : null },
+  { k: 'reachB', l: 'B到達', f: r => r.reach[1] ? `第${r.reach[1]}季` : '', v: r => r.reach[1] ? r.reach[1] - r.season : null },
+  { k: 'reachA', l: 'A到達', f: r => r.reach[2] ? `第${r.reach[2]}季` : '', v: r => r.reach[2] ? r.reach[2] - r.season : null },
+  { k: 'seasonsA', l: 'A在籍', f: r => r.seasons_a ? `${r.seasons_a}季` : '', v: r => r.seasons_a || null, desc: true },
+  { k: 'titles', l: 'タイトル', f: r => { const n = Object.values(r.titles).reduce((a, b) => a + b, 0); return n ? `<span style="color:var(--title-red); font-weight:700;" title="${TITLE_ORDER.filter(t => r.titles[t]).map(t => t + r.titles[t] + '期').join('・')}">${n}期</span>` : ''; }, v: r => Object.values(r.titles).reduce((a, b) => a + b, 0) || null, desc: true },
+  { k: 'peak', l: '最高Elo', f: r => r.peak || '', v: r => r.peak || null, desc: true },
+  { k: 'record', l: '通算', f: r => _ncWL(r.record), v: r => r.record[0] / ((r.record[0] + r.record[1]) || 1), desc: true },
+  { k: 'now', l: '今', f: r => r.retired ? `<span style="color:var(--text-dim);">引退（${escapeHtml(r.retired[0])}・第${r.retired[1]}季）</span>` : (r.now ? `<span class="nc-lg nc-${r.now}">${r.now === 'F' ? 'フ' : r.now}</span>` : ''), v: r => r.retired ? 9 : 'ABCDF'.indexOf(r.now || 'F') },
+];
+
+async function loadNewcomerHistory() {
+  const el = document.getElementById('newcomer_history-content');
+  if (!_nc) {
+    el.innerHTML = '<div class="loading">読み込み中...</div>';
+    try {
+      _nc = await fetch(`${NEWS_SITE_BASE}newcomer_careers.json`, { cache: 'no-store' }).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
+    } catch (e) { return loadNewcomerHistoryBasic(); }
+    if (!_nc || !(_nc.rows || []).length) { _nc = null; return loadNewcomerHistoryBasic(); }
+    // デビュー時期の区切り（10季ごと）
+    NC_ERAS.length = 1;
+    for (let a = 1; a <= _nc.last_season; a += 10) NC_ERAS.push([`${Math.max(2, a)}〜${Math.min(a + 9, _nc.last_season)}季`, a, a + 9]);
+  }
+  renderNewcomerHistory();
+}
+
+function renderNewcomerHistory() {
+  const el = document.getElementById('newcomer_history-content');
+  const S = _ncState;
+  const [, lo, hi] = NC_ERAS[S.era] || NC_ERAS[0];
+  let rows = _nc.rows.filter(r => r.season >= lo && r.season <= hi
+    && (S.best === 'すべて' || r.best === S.best)
+    && (S.now === 'すべて' || (S.now === '引退') === !!r.retired)
+    && (!S.q || r.name.includes(S.q)));
+  const col = _ncCols.find(c => c.k === S.sortK) || _ncCols[1];
+  rows = rows.slice().sort((a, b) => {
+    const x = col.v(a), y = col.v(b);
+    if (x == null && y == null) return a.season - b.season;
+    if (x == null) return 1; if (y == null) return -1;
+    return ((x < y ? -1 : x > y ? 1 : 0) * S.dir) || (a.season - b.season);
+  });
+  const n = rows.length, pct = k => n ? Math.round(100 * rows.filter(r => r.reach[k]).length / n) + '%' : '-';
+  const fw = rows.reduce((t, r) => t + r.first[0], 0), fl = rows.reduce((t, r) => t + r.first[1], 0);
+  const chip = (group, val, label, on) => `<button class="nc-chip" data-g="${group}" data-v="${escapeHtml(String(val))}" aria-pressed="${on}">${label}</button>`;
+  const stat = (b, t) => `<div class="nc-stat"><b>${b}</b><span>${t}</span></div>`;
+  el.innerHTML = `
+    <div style="text-align:left;">
+      <div style="font-size:0.75rem; color:var(--text-dim); margin-bottom:8px;">三段リーグを抜けてDリーグにデビューした${_nc.rows.length}人の、その後の成績（第${_nc.last_season}季終了時点）。行を押すと選手ページへ</div>
+      <div class="nc-stats">${stat(n + '人', '表示中')}${stat(fw + fl ? Math.round(100 * fw / (fw + fl)) + '%' : '-', 'D1年目の勝率')}${stat(pct(0), 'Cまで')}${stat(pct(1), 'Bまで')}${stat(pct(2), 'Aまで')}${stat(rows.filter(r => Object.keys(r.titles).length).length + '人', 'タイトル経験')}</div>
+      <div class="nc-row"><span class="nc-label">デビュー</span>${NC_ERAS.map((e, i) => chip('era', i, e[0], S.era === i)).join('')}</div>
+      <div class="nc-row"><span class="nc-label">最高到達</span>${['すべて', 'A', 'B', 'C', 'D', 'F'].map(v => chip('best', v, v === 'F' ? 'フリー' : v, S.best === v)).join('')}
+        <span class="nc-label" style="margin-left:6px;">今</span>${['すべて', '現役', '引退'].map(v => chip('now', v, v, S.now === v)).join('')}</div>
+      <input type="search" id="nc-q" placeholder="名前で検索" value="${escapeHtml(S.q)}" style="width:100%; margin:4px 0 8px; background:var(--navy-800); color:var(--text-main); border:1px solid var(--navy-700); padding:6px 8px;">
+      <div style="overflow-x:auto;">
+        <table class="one-line nc-table"><thead><tr>${_ncCols.map(c => `<th data-k="${c.k}" class="${c.cls || ''}" style="cursor:pointer;">${c.l}${c.k === S.sortK ? (S.dir > 0 ? ' ▲' : ' ▼') : ''}</th>`).join('')}</tr></thead>
+        <tbody>${rows.map(r => `<tr data-id="${escapeHtml(r.id)}" class="${Object.keys(r.titles).length ? 'nc-star' : ''}">${_ncCols.map(c => `<td class="${c.cls || ''}">${c.f(r)}</td>`).join('')}</tr>`).join('')}</tbody></table>
+      </div>
+      <div style="font-size:0.68rem; color:var(--text-dim); margin-top:6px; line-height:1.7;">
+        奨励会＝入会年齢と、三段リーグに上がるまでの期数。三段リーグ＝何期目に抜けたかと、その期の成績・順位（上位3名が昇格）。三段通算＝三段リーグ全期の合計。
+        D1年目＝デビューした季のDリーグの成績と順位。C・B・A到達＝そのリーグ以上に初めて上がった季。タイトル＝タイトルを保持していた期数の合計。
+        通算＝リーグ戦・タイトル戦・予選を含む全対局（選手ページの通算成績と同じ）。黄色の行はタイトル経験者。列の見出しを押すと並び替え。
+      </div>
+    </div>`;
+  el.querySelectorAll('.nc-chip').forEach(b => b.addEventListener('click', () => {
+    const g = b.dataset.g; S[g] = g === 'era' ? +b.dataset.v : b.dataset.v; renderNewcomerHistory();
+  }));
+  el.querySelectorAll('.nc-table th').forEach(th => th.addEventListener('click', () => {
+    const c = _ncCols.find(x => x.k === th.dataset.k);
+    if (S.sortK === c.k) S.dir = -S.dir; else { S.sortK = c.k; S.dir = c.desc ? -1 : 1; }
+    renderNewcomerHistory();
+  }));
+  const q = el.querySelector('#nc-q');
+  let composing = false, t = null;
+  q.addEventListener('compositionstart', () => { composing = true; });
+  q.addEventListener('compositionend', () => { composing = false; q.dispatchEvent(new Event('input')); });
+  q.addEventListener('input', () => {
+    if (composing) return;
+    clearTimeout(t);
+    t = setTimeout(() => { S.q = q.value.trim(); renderNewcomerHistory(); const n2 = document.getElementById('nc-q'); n2.focus(); n2.setSelectionRange(n2.value.length, n2.value.length); }, 250);
+  });
+  el.querySelectorAll('tr[data-id]').forEach(tr => tr.addEventListener('click', () => navigateTo('individual/' + tr.dataset.id)));
 }
 
 render(location.hash);

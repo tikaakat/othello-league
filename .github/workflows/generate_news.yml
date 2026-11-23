@@ -197,8 +197,13 @@ jobs:
           # その部分だけを抜き出した軽量版を同じ名前で置く（全体を置くと全ページの読み込みが極端に遅くなる）
           mkdir -p /tmp/news_out
           python3 fansite_state.py data /tmp/news_out/season_state.json
+          # データサイトの「歴代のデビュー」用：新人全員のその後の成績一覧（newcomer_careers.py）。
+          # 作れなかったときはデータサイト側が以前の簡易一覧に切り替えるので、ここでは止めない
+          python3 newcomer_careers.py data /tmp/news_out/newcomer_careers.json \
+            || echo "::warning::newcomer_careers.jsonの作成に失敗しました（データサイトは簡易一覧を表示します）"
+          NC_FILE=""; [ -f /tmp/news_out/newcomer_careers.json ] && NC_FILE=/tmp/news_out/newcomer_careers.json
           retry_cmd scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
-            news-site/index.html news-site/.htaccess news-site/robots.txt news-site/sitemap.xml data/news/articles.json data/news/awards.json /tmp/news_out/season_state.json \
+            news-site/index.html news-site/.htaccess news-site/robots.txt news-site/sitemap.xml data/news/articles.json data/news/awards.json /tmp/news_out/season_state.json $NC_FILE \
             "$XSERVER_USER@$XSERVER_HOST:${XSERVER_NEWS_DIR}"
 
           rm -f /tmp/deploy_key
