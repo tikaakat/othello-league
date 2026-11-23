@@ -110,6 +110,13 @@
   .nc-lg { display:inline-block; min-width:1.5em; text-align:center; font-size:0.66rem; font-weight:700; border-radius:3px; padding:0 4px; color:var(--tag-fg); background:var(--text-dim); }
   .nc-lg.nc-A { background:var(--amber); } .nc-lg.nc-B { background:var(--cyan); }
   .header .next-release { font-size: 0.72rem; margin-top: 4px; opacity: 0.85; }
+  /* 推しの近況 */
+  .nc-list { display:flex; flex-direction:column; gap:10px; }
+  .oshi-card { border:1px solid var(--navy-700); border-radius:10px; padding:10px 12px; background:var(--surface); }
+  .oshi-top { display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; font-size:0.95rem; }
+  .oshi-row { font-size:0.8rem; margin-top:6px; }
+  .oshi-actions { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+  .oshi-actions .play-btn { font-size:0.74rem; padding:5px 12px; }
   /* 対局モード */
   .play-h { font-size:0.95rem; color:var(--amber); margin:4px 0 6px; }
   .play-h4 { font-size:0.8rem; color:var(--amber); margin:14px 0 6px; cursor:pointer; }
@@ -233,7 +240,7 @@
   <button class="tab-btn" data-group="titles"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4zM7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4"/></svg><span>タイトル</span></button>
   <button class="tab-btn" data-group="hof"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.4 6.8 19.1l1-5.8L3.5 9.2l5.9-.9z"/></svg><span>殿堂</span></button>
   <button class="tab-btn" data-group="newcomer_group"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21v-8M12 13c0-4-3-6-7-6 0 4 3 6 7 6zM12 13c0-3 2-5 6-5 0 3-2 5-6 5z"/></svg><span>新人</span></button>
-  <button class="tab-btn" data-group="play"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2.4" fill="currentColor"/><circle cx="15" cy="15" r="2.4"/><path d="M3 12h18M12 3v18"/></svg><span>対局</span></button>
+  <button class="tab-btn" data-group="play"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2.4" fill="currentColor"/><circle cx="15" cy="15" r="2.4"/><path d="M3 12h18M12 3v18"/></svg><span>あそぶ</span></button>
 </div>
 <div class="subtabs hidden" id="subtabs"></div>
 
@@ -256,6 +263,7 @@
 <div class="panel hidden" id="tab-newcomer_create"><div id="newcomer_create-content" class="loading">読み込み中...</div></div>
 <div class="panel hidden" id="tab-newcomer"><div id="newcomer-content" class="loading">読み込み中...</div></div>
 <div class="panel hidden" id="tab-shoreikai"><div id="shoreikai-content" class="loading">読み込み中...</div></div>
+<div class="panel hidden" id="tab-mypage"><div id="mypage-content" class="loading">読み込み中...</div></div>
 <div class="panel hidden" id="tab-play"><div id="play-content" class="loading">読み込み中...</div></div>
 <div class="panel hidden" id="tab-newcomer_history"><div id="newcomer_history-content" class="loading">読み込み中...</div></div>
 
@@ -342,6 +350,7 @@ const tabPanels = {
   shoreikai: document.getElementById('tab-shoreikai'),
   newcomer_history: document.getElementById('tab-newcomer_history'),
   play: document.getElementById('tab-play'),
+  mypage: document.getElementById('tab-mypage'),
 };
 
 // 上段の主要タブと、その配下にぶら下がるサブタブの対応関係。
@@ -383,7 +392,7 @@ const TAB_GROUPS = {
     subLabels: { newcomer_create: 'キャラクリエイト', newcomer: '三段リーグ', shoreikai: '奨励会リーグ', newcomer_history: '歴代のデビュー' },
   },
 };
-TAB_GROUPS.play = { label: '対局', tabs: ['play'] };
+TAB_GROUPS.play = { label: 'あそぶ', tabs: ['play', 'mypage'], subLabels: { mypage: '推しの近況', play: '選手と対局' } };
 // タブ一覧には出ないが、内容的にどのグループに属するか（ボタンのアクティブ表示用）
 const IMPLICIT_GROUP = { individual: 'leagues', game: 'results' };
 
@@ -481,25 +490,33 @@ document.getElementById('fresh-reload').addEventListener('click', () => location
 checkForUpdates();
 setInterval(checkForUpdates, 60000);
 
-// ---------------- お気に入り ----------------
-// 星をつけた個体のIDをブラウザのlocalStorageだけに保存する（サーバー・他の閲覧者とは共有しない、
-// あくまで自分の端末だけの目印）。一覧・個体ページなど[data-id]を持つ要素すべてに、
-// 該当個体なら強調表示(.fav-highlight)を付ける
-const FAVORITES_KEY = 'othello_league_favorites_v1';
+// ---------------- 推し ----------------
+// 推しの選手をブラウザのlocalStorageだけに保存する（サーバー・他の閲覧者とは共有しない）。
+// ファンサイトの「推し」（othello_news_follows：[{id, name}]）と同じ場所を使う（同じドメインなので共有される）。
+// 以前のデータサイトの「お気に入り」（othello_league_favorites_v1：IDの配列）は、初回に推しへ移す。
+// 一覧・個体ページなど[data-id]を持つ要素すべてに、推しなら強調表示(.fav-highlight)を付ける
+const OSHI_KEY = 'othello_news_follows';
+const LEGACY_FAVORITES_KEY = 'othello_league_favorites_v1';
 
-function getFavoriteIds() {
+function getOshiList() {
+  let list = [];
+  try { list = JSON.parse(localStorage.getItem(OSHI_KEY) || '[]') || []; } catch (e) { list = []; }
   try {
-    const raw = localStorage.getItem(FAVORITES_KEY);
-    return raw ? new Set(JSON.parse(raw)) : new Set();
-  } catch (e) { return new Set(); }
+    const legacy = JSON.parse(localStorage.getItem(LEGACY_FAVORITES_KEY) || 'null');
+    if (Array.isArray(legacy)) {
+      legacy.forEach(id => { if (!list.some(f => f.id === id)) list.push({ id, name: id }); });
+      localStorage.setItem(OSHI_KEY, JSON.stringify(list));
+      localStorage.removeItem(LEGACY_FAVORITES_KEY);
+    }
+  } catch (e) { /* 移せなくても致命的ではない */ }
+  return list;
 }
-function saveFavoriteIds(ids) {
-  try { localStorage.setItem(FAVORITES_KEY, JSON.stringify(Array.from(ids))); } catch (e) { /* 保存できなくても致命的ではない */ }
-}
-function toggleFavorite(id) {
-  const ids = getFavoriteIds();
-  if (ids.has(id)) ids.delete(id); else ids.add(id);
-  saveFavoriteIds(ids);
+function getFavoriteIds() { return new Set(getOshiList().map(f => f.id)); }
+function toggleFavorite(id, name) {
+  let list = getOshiList();
+  if (list.some(f => f.id === id)) list = list.filter(f => f.id !== id);
+  else list.push({ id, name: name || id });
+  try { localStorage.setItem(OSHI_KEY, JSON.stringify(list)); } catch (e) { /* 保存できなくても致命的ではない */ }
   applyFavoriteHighlights();
 }
 
@@ -520,7 +537,7 @@ function applyFavoriteHighlights() {
     if (toggleBtn.classList.contains('is-fav') !== isFav) {
       toggleBtn.classList.toggle('is-fav', isFav);
     }
-    const wantText = isFav ? '★ お気に入り登録済み' : '☆ お気に入りに追加';
+    const wantText = isFav ? '★ 推し登録済み' : '☆ 推しに登録';
     if (toggleBtn.textContent !== wantText) toggleBtn.textContent = wantText;
   }
 }
@@ -568,6 +585,7 @@ function render(hash, isPopstate) {
   else if (base === 'shoreikai') { showTab('shoreikai'); loadNewcomerLeague(param ? parseInt(param, 10) : null, 'shoreikai'); }
   else if (base === 'newcomer_history') { showTab('newcomer_history'); loadNewcomerHistory(); }
   else if (base === 'play') { showTab('play'); loadPlay(param || null); }
+  else if (base === 'mypage') { showTab('mypage'); loadMyPage(); }
   else { showTab('leagues'); loadLeagues(); }
 
   if (isPopstate) {
@@ -1239,7 +1257,7 @@ async function loadIndividualDetail(id) {
       <div style="margin-top:6px;">Elo: <span class="elo-val" style="font-size:1.1rem;">${Math.round(ind.elo_rating)}</span>
         <span style="font-size:0.72rem; color:var(--amber); margin-left:8px;">最高 ${Math.round(ind.peak_elo ?? ind.elo_rating)}</span></div>
       <div style="margin-top:8px;">
-        <button id="ind-fav-toggle" class="fav-toggle" data-id="${escapeHtml(ind.id)}">☆ お気に入りに追加</button>
+        <button id="ind-fav-toggle" class="fav-toggle" data-id="${escapeHtml(ind.id)}">☆ 推しに登録</button>
         ${ind.params ? `<button class="fav-toggle" onclick="navigateTo('play/${escapeHtml(ind.id)}')">♟ この選手と対局</button>` : ''}
       </div>
     </div>`;
@@ -1279,7 +1297,7 @@ async function loadIndividualDetail(id) {
 
     el.innerHTML = html;
     document.getElementById('ind-back').addEventListener('click', () => navigateTo('leagues'));
-    document.getElementById('ind-fav-toggle').addEventListener('click', () => toggleFavorite(ind.id));
+    document.getElementById('ind-fav-toggle').addEventListener('click', () => toggleFavorite(ind.id, ind.display_name));
     applyFavoriteHighlights();
     el.querySelectorAll('.lineage-link').forEach(span => span.addEventListener('click', () => navigateTo('individual/' + span.dataset.id)));
 
@@ -3764,6 +3782,52 @@ function playEngineMain() {
     const { board, color, params, noise, id } = e.data;
     self.postMessage({ id, move: choose(board.slice(), color, params, noise || 1) });
   };
+}
+
+// ---------------- 推しの近況（マイページ） ----------------
+// 推しに登録した選手ごとに、今の所属・段位・Elo・タイトル、直近の季の成績、Eloの増減、自分との対局成績をまとめる
+async function loadMyPage() {
+  const el = document.getElementById('mypage-content');
+  const list = getOshiList();
+  if (!list.length) {
+    el.innerHTML = `<div style="text-align:left;">
+      <h3 class="play-h">推しの近況</h3>
+      <div class="play-note">まだ推しがいません。選手ページの「☆ 推しに登録」で登録すると、ここで推しの最新の成績・昇級・タイトルをまとめて見られます（登録はこの端末のブラウザにだけ残ります）。</div>
+      <div class="play-choose" style="justify-content:flex-start;"><button class="play-btn" onclick="navigateTo('leagues')">選手を探す</button><button class="play-btn" onclick="navigateTo('play')">選手と対局する</button></div></div>`;
+    return;
+  }
+  el.innerHTML = '<div class="loading">読み込み中...</div>';
+  await ensureTitleholdersLoaded();
+  const recs = playRecords();
+  const cards = await Promise.all(list.map(async f => {
+    try {
+      const [d, h] = await Promise.all([
+        fetch(`${API_BASE}?action=individual&id=${encodeURIComponent(f.id)}`).then(r => r.json()),
+        fetch(`${API_BASE}?action=standings&individual_id=${encodeURIComponent(f.id)}`).then(r => r.json()),
+      ]);
+      return { f, ind: d.individual, hist: (h.history || []).filter(x => x.league && x.league.length === 1) };
+    } catch (e) { return { f, ind: null, hist: [] }; }
+  }));
+  const mv = m => (m || '').includes('promoted') ? '<span style="color:var(--cyan);">昇級↑</span>' : (m || '').includes('relegated') ? '<span style="color:var(--title-red);">降級↓</span>' : (m || '').includes('new') ? '新規参入' : '';
+  el.innerHTML = `<div style="text-align:left;">
+    <h3 class="play-h">推しの近況（${list.length}人）</h3>
+    <div class="nc-list">${cards.map(({ f, ind, hist }) => {
+      if (!ind) return `<div class="oshi-card"><b>${escapeHtml(f.name)}</b><div class="play-note">読み込めませんでした</div></div>`;
+      const last = hist[hist.length - 1], prev = hist[hist.length - 2];
+      const delta = last && prev ? Math.round(last.elo - prev.elo) : null;
+      const titles = (CURRENT_TITLEHOLDERS.by_id[ind.id] || []).slice().sort((a, b) => TITLE_ORDER.indexOf(a) - TITLE_ORDER.indexOf(b));
+      const r = recs[ind.id];
+      return `<div class="oshi-card" data-id="${escapeHtml(ind.id)}">
+        <div class="oshi-top"><span>${titles.map(t => `<span class="league-tag title-tag">${t}</span>`).join('')}<b>${escapeHtml(ind.display_name)}</b></span>
+          <span class="play-note">${ind.retired ? '引退' : leagueTag(ind.league)}${ind.dan != null ? danLabel(ind.dan) + '・' : ''}${ind.age != null ? ind.age + '歳' : ''}</span></div>
+        <div class="oshi-row">Elo <b>${Math.round(ind.elo_rating)}</b>${delta !== null ? `<span style="color:${delta >= 0 ? 'var(--cyan)' : 'var(--title-red)'};">（${delta >= 0 ? '+' : ''}${delta}）</span>` : ''}
+          ${last ? `　第${last.season}季 ${last.league}リーグ ${last.no_roundrobin ? '（青龍防衛に専念）' : `${last.rank}位・${last.win}勝${last.loss}敗`} ${mv(last.movement)}` : ''}</div>
+        ${r ? `<div class="oshi-row">あなたとの対局：${r.w}勝${r.l}敗${r.d ? r.d + '分' : ''}</div>` : ''}
+        <div class="oshi-actions"><button class="play-btn" data-go="individual/${escapeHtml(ind.id)}">選手ページ</button>${ind.params ? `<button class="play-btn" data-go="play/${escapeHtml(ind.id)}">対局する</button>` : ''}<button class="play-btn" data-unoshi="${escapeHtml(ind.id)}">推しを外す</button></div>
+      </div>`;
+    }).join('')}</div></div>`;
+  el.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); navigateTo(b.dataset.go); }));
+  el.querySelectorAll('[data-unoshi]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); toggleFavorite(b.dataset.unoshi); loadMyPage(); }));
 }
 
 // ---------------- 対局モード：画面 ----------------
