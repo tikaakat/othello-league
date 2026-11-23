@@ -1,5 +1,5 @@
 name: Publish Season (計算済みの季をサイトに公開)
-run-name: "Publish Season${{ inputs.slot && format(' [slot {0}]', inputs.slot) || '' }}${{ inputs.reset == 'true' && ' [reset]' || '' }}"
+run-name: "Publish Season${{ inputs.slot && format(' [slot {0}]', inputs.slot) || '' }}${{ inputs.reset == 'true' && ' [reset]' || '' }}${{ inputs.unpublish == 'true' && ' [unpublish]' || '' }}"
 
 # 順次公開モード（publish/state.json の mode が replay）：
 # 季は先に計算しておき（ストック）、公開時刻（JST 7:30・21:00）ごとに1季ずつサイトへ出す。
@@ -13,6 +13,10 @@ run-name: "Publish Season${{ inputs.slot && format(' [slot {0}]', inputs.slot) |
 #
 # 手動実行：reset=true で、サイトのデータを消してから公開する（第1季からやり直すとき。season=1 と一緒に使う）。
 # season を指定すると、その季を出す（省略時は published_season+1）。
+#
+# 公開の取り消し：unpublish=true で、両サイトを「近日公開」のページ（publish/coming_soon.html）に差し替え、
+# サイトのデータを消し、publish/state.json を published_season=0・paused=true にする（タイマーも止まる）。
+# 始動するときは season=1 reset=true で実行する（本来のページに戻して第1季を出し、paused を外して定時公開を再開する）。
 
 on:
   workflow_dispatch:
@@ -27,6 +31,10 @@ on:
         default: ""
       reset:
         description: "trueにすると、公開の前にサイト側のデータ（DB・取り込み用ファイル）を消す（第1季からやり直すとき）"
+        required: false
+        default: "false"
+      unpublish:
+        description: "trueにすると、公開を取り消して両サイトを「近日公開」にし、定時公開を止める（始動は season=1 reset=true）"
         required: false
         default: "false"
 
@@ -52,8 +60,44 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: 公開を取り消す（近日公開のページに差し替え）
+        if: inputs.unpublish == 'true'
+        env:
+          XSERVER_HOST: ${{ secrets.XSERVER_HOST }}
+          XSERVER_USER: ${{ secrets.XSERVER_USER }}
+          XSERVER_PORT: ${{ secrets.XSERVER_SSH_PORT }}
+          XSERVER_TARGET_DIR: ${{ secrets.XSERVER_TARGET_DIR }}
+          XSERVER_SSH_KEY: ${{ secrets.XSERVER_SSH_KEY }}
+          RESET_DB_URL: "https://lab.spia-net.com/othello-league/reset_database.php?key=${{ secrets.IMPORT_SECRET_KEY }}"
+        run: |
+          set -uo pipefail
+          echo "$XSERVER_SSH_KEY" > /tmp/deploy_key; chmod 600 /tmp/deploy_key
+          retry_cmd() { local n=1; until "$@"; do [ $n -ge 4 ] && return 1; echo "::warning::失敗（$n回目）。再試行: $*"; sleep $((n * 5)); n=$((n + 1)); done; }
+          SCP="scp -i /tmp/deploy_key -P $XSERVER_PORT -o StrictHostKeyChecking=no -o ConnectTimeout=15"
+          echo "=== 両サイトを「近日公開」のページに差し替える ==="
+          retry_cmd $SCP publish/coming_soon.html "$XSERVER_USER@$XSERVER_HOST:spia-net.com/public_html/lab.spia-net.com/othello-league/index.html" || exit 1
+          retry_cmd $SCP publish/coming_soon.html "$XSERVER_USER@$XSERVER_HOST:spia-net.com/public_html/lab.spia-net.com/othello-news/index.html" || exit 1
+          # ファンサイトの記事・季の状態も空にしておく（ページを差し替えても、JSONを直接見られないように）
+          mkdir -p /tmp/empty && echo '[]' > /tmp/empty/articles.json && echo '{}' > /tmp/empty/awards.json && echo '{}' > /tmp/empty/season_state.json && echo '[]' > /tmp/empty/newcomer_careers.json
+          retry_cmd $SCP /tmp/empty/articles.json /tmp/empty/awards.json /tmp/empty/season_state.json /tmp/empty/newcomer_careers.json \
+            "$XSERVER_USER@$XSERVER_HOST:spia-net.com/public_html/lab.spia-net.com/othello-news/" || exit 1
+          bash publish/clear_site_data.sh || exit 1
+          rm -f /tmp/deploy_key
+          git config user.name "othello-league-bot"
+          git config user.email "actions@users.noreply.github.com"
+          for attempt in 1 2 3 4; do
+            git fetch -q origin main && git reset -q --hard origin/main
+            python3 -c "import json; p='publish/state.json'; d=json.load(open(p)); d['published_season']=0; d['paused']=True; json.dump(d, open(p,'w'), ensure_ascii=False, indent=2); open(p,'a').write('\n')"
+            git add publish/state.json
+            git diff --staged --quiet && break
+            git commit -q -m "Unpublish: pause until launch [skip ci]"
+            git push -q && break
+            sleep $((attempt * 3))
+          done
+          echo "公開を取り消しました。始動は publish.yml を season=1 reset=true で実行してください"
+
       - name: 公開時刻まで待つ
-        if: inputs.slot != ''
+        if: inputs.slot != '' && inputs.unpublish != 'true'
         run: |
           SLOT_IN="${{ inputs.slot }}"
           SLOT_DATE="${SLOT_IN%-*}"; SLOT_PART="${SLOT_IN##*-}"
@@ -64,6 +108,7 @@ jobs:
 
       - name: 公開する季の時点のデータを取り出す
         id: snap
+        if: inputs.unpublish != 'true'
         run: |
           set -euo pipefail
           git pull -q origin main
@@ -111,8 +156,9 @@ jobs:
           retry_cmd curl -sS -f --connect-timeout 8 --max-time 20 "$MIGRATIONS_URL" || echo "::warning::マイグレーションの適用に失敗しました"
           if [ "${{ inputs.reset }}" = "true" ]; then
             echo "=== サイト側のデータを消す（第1季からやり直し） ==="
-            retry_cmd $SSH "rm -rf ${XSERVER_TARGET_DIR}matches ${XSERVER_TARGET_DIR}standings ${XSERVER_TARGET_DIR}rosters.json ${XSERVER_TARGET_DIR}season_state.json ${XSERVER_TARGET_DIR}newcomer_league" || { echo "::error::サーバーのファイルを消せませんでした"; exit 1; }
-            retry_cmd curl -sS -f --connect-timeout 8 --max-time 60 "$RESET_DB_URL" || { echo "::error::DBを消せませんでした"; exit 1; }
+            bash publish/clear_site_data.sh || exit 1
+            # 公開を取り消していた（近日公開のページだった）場合に備えて、データサイトの本来のページを置き直す
+            retry_cmd $SCP site/index.html site/ogp.png "$XSERVER_USER@$XSERVER_HOST:spia-net.com/public_html/lab.spia-net.com/othello-league/" || exit 1
           fi
           retry_cmd $SSH "mkdir -p ${XSERVER_TARGET_DIR}matches ${XSERVER_TARGET_DIR}standings ${XSERVER_TARGET_DIR}newcomer_league" || exit 1
           # サーバーの取り込みには、棋譜を除いた軽量版のseason_state.jsonを送る（evolve.ymlのmake_server_stateと同じ）
@@ -170,7 +216,7 @@ jobs:
           git config user.email "actions@users.noreply.github.com"
           for attempt in 1 2 3 4; do
             git fetch -q origin main && git reset -q --hard origin/main
-            python3 -c "import json,sys; p='publish/state.json'; d=json.load(open(p)); d['published_season']=int(sys.argv[1]); json.dump(d, open(p,'w'), ensure_ascii=False, indent=2); open(p,'a').write('\n')" "$S"
+            python3 -c "import json,sys; p='publish/state.json'; d=json.load(open(p)); d['published_season']=int(sys.argv[1]); d.pop('paused', None); json.dump(d, open(p,'w'), ensure_ascii=False, indent=2); open(p,'a').write('\n')" "$S"
             git add publish/state.json
             git diff --staged --quiet && break
             git commit -q -m "Publish season ${S} [skip ci]"
@@ -189,6 +235,10 @@ jobs:
           set -uo pipefail
           api() { curl -sS -f -H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json" "$@"; }
           git fetch -q origin main && git reset -q --hard origin/main
+          # 公開を取り消して止めている間（paused）は、補充もタイマーも行わない
+          if [ "$(python3 -c "import json; print(json.load(open('publish/state.json')).get('paused', False))")" = "True" ]; then
+            echo "公開を止めています（paused）。補充・次の回のタイマーは行いません"; exit 0
+          fi
           # ストック：計算済みの最新の季 − 公開済みの季。10季（5日分）を切ったら、20季分を連続実行で補充する（計算中はサイトに出ない）
           LATEST=$(ls data/standings | sed -n 's/^season_\([0-9]*\)\.json$/\1/p' | sort -n | tail -1)
           PUB=$(python3 -c "import json; print(json.load(open('publish/state.json')).get('published_season', 0))")

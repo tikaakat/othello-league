@@ -40,7 +40,9 @@ jobs:
           set -euo pipefail
           MODE=$(curl -sS -f -H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github.raw" \
             "https://api.github.com/repos/${REPO}/contents/publish/state.json?ref=main" 2>/dev/null \
-            | python3 -c 'import json,sys; print(json.load(sys.stdin).get("mode",""))' 2>/dev/null || echo "")
+            | python3 -c 'import json,sys; d=json.load(sys.stdin); print("paused" if d.get("paused") else d.get("mode",""))' 2>/dev/null || echo "")
+          # 公開を取り消して止めている間（publish/state.jsonのpausedがtrue）は、何も起動しない
+          if [ "$MODE" = "paused" ]; then echo "公開を止めています（paused）。タイマーは仕掛けません"; echo "mode=paused" >> "$GITHUB_OUTPUT"; echo "start_at=0" >> "$GITHUB_OUTPUT"; exit 0; fi
           LEAD=5400; [ "$MODE" = "replay" ] && LEAD=900
           echo "mode=${MODE}" >> "$GITHUB_OUTPUT"
           NOW=$(date +%s)
@@ -101,6 +103,7 @@ jobs:
         run: |
           set -euo pipefail
           api() { curl -sS -f -H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json" "$@"; }
+          if [ "$MODE" = "paused" ]; then echo "公開を止めています（paused）。何も起動しません"; exit 0; fi
           if [ "$MODE" = "replay" ]; then
             echo "回 ${SLOT} の公開を起動します"
             api -X POST "https://api.github.com/repos/${REPO}/actions/workflows/publish.yml/dispatches" \
