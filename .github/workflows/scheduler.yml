@@ -58,6 +58,16 @@ jobs:
           fi
           echo "JST ${NOW_HM}：回 ${SLOT}"
 
+          # 順次公開モード（publish/state.jsonのmodeがreplay）では、本戦は公開とは別にストックとして計算し、
+          # 公開はpublish.ymlが行う。このスケジューラーは本戦を起動しない
+          MODE=$(curl -sS -f -H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github.raw" \
+            "https://api.github.com/repos/${REPO}/contents/publish/state.json?ref=main" 2>/dev/null \
+            | python3 -c 'import json,sys; print(json.load(sys.stdin).get("mode",""))' 2>/dev/null || echo "")
+          if [ "$MODE" = "replay" ]; then
+            echo "順次公開モードのため、本戦は起動しません"
+            exit 0
+          fi
+
           api() {
             curl -sS -f -H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json" "$@"
           }
