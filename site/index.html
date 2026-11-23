@@ -108,6 +108,7 @@
   .nc-table th.nc-name { z-index:2; }
   .nc-lg { display:inline-block; min-width:1.5em; text-align:center; font-size:0.66rem; font-weight:700; border-radius:3px; padding:0 4px; color:var(--tag-fg); background:var(--text-dim); }
   .nc-lg.nc-A { background:var(--amber); } .nc-lg.nc-B { background:var(--cyan); }
+  .header .next-release { font-size: 0.72rem; margin-top: 4px; opacity: 0.85; }
   .nc-badge { display:inline-block; font-size:0.62rem; color:var(--tag-fg); background:var(--cyan); border-radius:3px; padding:1px 5px; font-weight:700; }
   tr:hover td { background: rgba(29,107,74,0.06); }
   tr.zone-up td:first-child { box-shadow: inset 3px 0 var(--up); }
@@ -201,6 +202,7 @@
   <button id="theme-toggle" class="theme-toggle-btn" type="button" aria-label="表示テーマを切り替え">ダーク</button>
   <h1>サーキットオセロリーグ</h1>
   <p>CIRCUIT OTHELLO LEAGUE　リーグ戦・タイトル戦の記録</p>
+  <p class="next-release" id="next-release"></p>
 </div>
 
 <div class="tabs" id="primary-tabs">
@@ -273,6 +275,28 @@ function updateThemeToggle() {
 const API_BASE = 'api.php';
 // ファンサイト（news-site）のURL（季の状態の取得などに使う）
 const NEWS_SITE_BASE = 'https://lab.spia-net.com/othello-news/';
+
+// 次の更新（新しい季の公開）までの表示。公開は毎日 JST 7:30・21:00（scheduler.yml・evolve.yml）。
+// GitHub側の都合で数分〜遅れることがあるので「ごろ」と書く
+function nextReleaseInfo(now = new Date()) {
+  const jst = new Date(now.getTime() + 9 * 3600e3);             // JSTの壁時計（UTCのフィールドで読む）
+  const day = Date.UTC(jst.getUTCFullYear(), jst.getUTCMonth(), jst.getUTCDate()) - 9 * 3600e3; // その日のJST 0:00（実時刻）
+  const slots = [[7, 30], [21, 0], [31, 30]].map(([h, m]) => day + (h * 60 + m) * 60e3);
+  const next = slots.find(t => t > now.getTime());
+  const mins = Math.ceil((next - now.getTime()) / 60e3);
+  const nj = new Date(next + 9 * 3600e3);
+  const label = `${nj.getUTCHours()}:${String(nj.getUTCMinutes()).padStart(2, '0')}`;
+  const left = mins >= 60 ? `${Math.floor(mins / 60)}時間${mins % 60}分` : `${mins}分`;
+  return { label, left, today: nj.getUTCDate() === jst.getUTCDate() };
+}
+function renderNextRelease(el) {
+  if (!el) return;
+  const r = nextReleaseInfo();
+  el.textContent = `次の季の結果は${r.today ? '' : '明日'}${r.label}ごろ公開（あと${r.left}）`;
+}
+
+renderNextRelease(document.getElementById('next-release'));
+setInterval(() => renderNextRelease(document.getElementById('next-release')), 60e3);
 const D_NEWCOMER_INTAKE = 3; // othello_league/league.py の D_NEWCOMER_INTAKE（毎季固定の新人受け入れ枠数）と一致させること
 const tabPanels = {
   leagues: document.getElementById('tab-leagues'), suzaku_league: document.getElementById('tab-suzaku_league'),
