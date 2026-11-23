@@ -1,0 +1,213 @@
+name: Publish Season (計算済みの季をサイトに公開)
+run-name: "Publish Season${{ inputs.slot && format(' [slot {0}]', inputs.slot) || '' }}${{ inputs.reset == 'true' && ' [reset]' || '' }}"
+
+# 順次公開モード（publish/state.json の mode が replay）：
+# 季は先に計算しておき（ストック）、公開時刻（JST 7:30・21:00）ごとに1季ずつサイトへ出す。
+# 第s季を出すときは、GitHubの履歴から「第s季が終わった時点（その後の新人リーグ・記事まで）」のdata/を取り出し、
+# それを本戦（evolve.yml）・ファンサイトのデプロイ（generate_news.yml）と同じ手順でサーバーへ送る。
+# 第s季が終わった時点＝第s+1季の順位表（data/standings/season_{s+1}.json）を追加したコミットの、1つ前のコミット。
+# まだ次の季を計算していなければ、最新のコミット（mainの先頭）。
+#
+# 公開のあと、publish/state.json の published_season を進め、残りのストックが少なければ本戦を連続実行で
+# 起動して補充し（計算はサイトに出さない）、次の回のタイマー（next_slot.yml）を仕掛ける。
+#
+# 手動実行：reset=true で、サイトのデータを消してから公開する（第1季からやり直すとき。season=1 と一緒に使う）。
+# season を指定すると、その季を出す（省略時は published_season+1）。
+
+on:
+  workflow_dispatch:
+    inputs:
+      slot:
+        description: "next_slot.ymlが付ける回（例: 2026-11-24-AM）。指定するとその回の公開時刻まで待ってから公開する。手動なら空でよい"
+        required: false
+        default: ""
+      season:
+        description: "公開する季（省略時は published_season+1）"
+        required: false
+        default: ""
+      reset:
+        description: "trueにすると、公開の前にサイト側のデータ（DB・取り込み用ファイル）を消す（第1季からやり直すとき）"
+        required: false
+        default: "false"
+
+concurrency:
+  group: othello-publish
+  cancel-in-progress: false
+
+permissions:
+  contents: write  # publish/state.json を更新するため
+  actions: write   # 本戦（ストック補充）・次の回のタイマーを起動するため
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: 公開時刻まで待つ
+        if: inputs.slot != ''
+        run: |
+          SLOT_IN="${{ inputs.slot }}"
+          SLOT_DATE="${SLOT_IN%-*}"; SLOT_PART="${SLOT_IN##*-}"
+          if [ "$SLOT_PART" = "AM" ]; then RELEASE_HM="07:30"; else RELEASE_HM="21:00"; fi
+          RELEASE_AT=$(TZ=Asia/Tokyo date -d "${SLOT_DATE} ${RELEASE_HM}" +%s)
+          W=$((RELEASE_AT - $(date +%s)))
+          if [ "$W" -gt 0 ]; then echo "公開時刻（${SLOT_DATE} ${RELEASE_HM} JST）まで $((W / 60))分 待ちます"; sleep "$W"; fi
+
+      - name: 公開する季の時点のデータを取り出す
+        id: snap
+        run: |
+          set -euo pipefail
+          git pull -q origin main
+          PUB=$(python3 -c "import json; print(json.load(open('publish/state.json')).get('published_season', 0))")
+          S="${{ inputs.season }}"; [ -z "$S" ] && S=$((PUB + 1))
+          # 第s季の順位表が、いまの世界線（mainの先頭）にあるか
+          if [ ! -f "data/standings/season_${S}.json" ]; then
+            echo "::error::第${S}季はまだ計算されていません（ストック切れ）。本戦の連続実行で補充してください"
+            echo "season=${S}" >> "$GITHUB_OUTPUT"; echo "ok=0" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # いまの世界線の始まり（最後の「Reset season data」）より後のコミットだけを見る
+          # （前の世界線にも同じ番号の季があるため。例：第100季のとき、前の世界線の第101季を拾ってしまう）
+          RESET_C=$(git log --format=%H -1 --grep='^Reset season data' || true)
+          RANGE="HEAD"; [ -n "$RESET_C" ] && RANGE="${RESET_C}..HEAD"
+          NEXT_ADD=$(git log "$RANGE" --diff-filter=A --format=%H -1 -- "data/standings/season_$((S + 1)).json" || true)
+          if [ -n "$NEXT_ADD" ]; then SNAP=$(git rev-parse "${NEXT_ADD}^"); else SNAP=$(git rev-parse HEAD); fi
+          # 念のため：取り出す時点に第s季があり、第s+1季が無いこと
+          git cat-file -e "${SNAP}:data/standings/season_${S}.json"
+          if git cat-file -e "${SNAP}:data/standings/season_$((S + 1)).json" 2>/dev/null; then echo "::error::取り出す時点の判定を誤りました"; exit 1; fi
+          rm -rf /tmp/snap && mkdir -p /tmp/snap
+          git archive "$SNAP" data | tar -x -C /tmp/snap
+          echo "第${S}季の時点：$(git log -1 --format='%h %ad %s' --date=iso "$SNAP")"
+          ls /tmp/snap/data/standings | sort -V | tail -2
+          echo "season=${S}" >> "$GITHUB_OUTPUT"; echo "ok=1" >> "$GITHUB_OUTPUT"
+
+      - name: データサイトへ反映
+        if: steps.snap.outputs.ok == '1'
+        env:
+          XSERVER_HOST: ${{ secrets.XSERVER_HOST }}
+          XSERVER_USER: ${{ secrets.XSERVER_USER }}
+          XSERVER_PORT: ${{ secrets.XSERVER_SSH_PORT }}
+          XSERVER_TARGET_DIR: ${{ secrets.XSERVER_TARGET_DIR }}
+          XSERVER_SSH_KEY: ${{ secrets.XSERVER_SSH_KEY }}
+          IMPORT_URL: "https://lab.spia-net.com/othello-league/import_from_colab.php?key=${{ secrets.IMPORT_SECRET_KEY }}"
+          RESET_DB_URL: "https://lab.spia-net.com/othello-league/reset_database.php?key=${{ secrets.IMPORT_SECRET_KEY }}"
+          MIGRATIONS_URL: "https://lab.spia-net.com/othello-league/run_migrations.php?key=${{ secrets.IMPORT_SECRET_KEY }}"
+        run: |
+          set -uo pipefail
+          echo "$XSERVER_SSH_KEY" > /tmp/deploy_key; chmod 600 /tmp/deploy_key
+          retry_cmd() { local n=1; until "$@"; do [ $n -ge 4 ] && return 1; echo "::warning::失敗（$n回目）。再試行: $*"; sleep $((n * 5)); n=$((n + 1)); done; }
+          SSH="ssh -i /tmp/deploy_key -p $XSERVER_PORT -o StrictHostKeyChecking=no -o ConnectTimeout=15 $XSERVER_USER@$XSERVER_HOST"
+          SCP="scp -i /tmp/deploy_key -P $XSERVER_PORT -o StrictHostKeyChecking=no -o ConnectTimeout=15"
+          D=/tmp/snap/data
+          retry_cmd curl -sS -f --connect-timeout 8 --max-time 20 "$MIGRATIONS_URL" || echo "::warning::マイグレーションの適用に失敗しました"
+          if [ "${{ inputs.reset }}" = "true" ]; then
+            echo "=== サイト側のデータを消す（第1季からやり直し） ==="
+            retry_cmd $SSH "rm -rf ${XSERVER_TARGET_DIR}matches ${XSERVER_TARGET_DIR}standings ${XSERVER_TARGET_DIR}rosters.json ${XSERVER_TARGET_DIR}season_state.json ${XSERVER_TARGET_DIR}newcomer_league" || { echo "::error::サーバーのファイルを消せませんでした"; exit 1; }
+            retry_cmd curl -sS -f --connect-timeout 8 --max-time 60 "$RESET_DB_URL" || { echo "::error::DBを消せませんでした"; exit 1; }
+          fi
+          retry_cmd $SSH "mkdir -p ${XSERVER_TARGET_DIR}matches ${XSERVER_TARGET_DIR}standings ${XSERVER_TARGET_DIR}newcomer_league" || exit 1
+          # サーバーの取り込みには、棋譜を除いた軽量版のseason_state.jsonを送る（evolve.ymlのmake_server_stateと同じ）
+          mkdir -p /tmp/server_state
+          python3 -c 'import json,sys; s = json.load(open(sys.argv[1], encoding="utf-8")); s["title_history"] = [{k: v for k, v in e.items() if not isinstance(v, (list, dict))} for e in s.get("title_history", [])]; json.dump(s, open("/tmp/server_state/season_state.json", "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))' "$D/season_state.json"
+          retry_cmd $SCP $D/rosters.json /tmp/server_state/season_state.json "$XSERVER_USER@$XSERVER_HOST:$XSERVER_TARGET_DIR" || exit 1
+          retry_cmd $SCP -r $D/matches/. "$XSERVER_USER@$XSERVER_HOST:${XSERVER_TARGET_DIR}matches/" || exit 1
+          retry_cmd $SCP -r $D/standings/. "$XSERVER_USER@$XSERVER_HOST:${XSERVER_TARGET_DIR}standings/" || exit 1
+          if [ -n "$(ls -A $D/newcomer_league/ 2>/dev/null)" ]; then
+            retry_cmd $SCP -r $D/newcomer_league/. "$XSERVER_USER@$XSERVER_HOST:${XSERVER_TARGET_DIR}newcomer_league/" || exit 1
+          fi
+          echo "=== 取り込み ==="
+          OK=0
+          for n in 1 2 3; do
+            OUT=$(curl -sS -f --connect-timeout 10 --max-time 300 "$IMPORT_URL" 2>&1 || true)
+            echo "$OUT" | tail -5
+            if echo "$OUT" | grep -q "インポート完了"; then OK=1; break; fi
+            sleep 10
+          done
+          rm -f /tmp/deploy_key
+          [ "$OK" = 1 ] || { echo "::error::取り込みが完了しませんでした"; exit 1; }
+
+      - name: ファンサイトへ反映
+        if: steps.snap.outputs.ok == '1'
+        env:
+          XSERVER_HOST: ${{ secrets.XSERVER_HOST }}
+          XSERVER_USER: ${{ secrets.XSERVER_USER }}
+          XSERVER_PORT: ${{ secrets.XSERVER_SSH_PORT }}
+          XSERVER_SSH_KEY: ${{ secrets.XSERVER_SSH_KEY }}
+          XSERVER_NEWS_DIR: "spia-net.com/public_html/lab.spia-net.com/othello-news/"
+        run: |
+          set -uo pipefail
+          echo "$XSERVER_SSH_KEY" > /tmp/deploy_key; chmod 600 /tmp/deploy_key
+          retry_cmd() { local n=1; until "$@"; do [ $n -ge 4 ] && return 1; echo "::warning::失敗（$n回目）。再試行: $*"; sleep $((n * 5)); n=$((n + 1)); done; }
+          D=/tmp/snap/data
+          mkdir -p /tmp/news_out
+          python3 fansite_state.py "$D" /tmp/news_out/season_state.json
+          python3 newcomer_careers.py "$D" /tmp/news_out/newcomer_careers.json || echo "::warning::newcomer_careers.jsonの作成に失敗しました"
+          [ -f "$D/news/articles.json" ] || echo '[]' > "$D/news/articles.json"
+          [ -f "$D/news/awards.json" ] || echo '{}' > "$D/news/awards.json"
+          NC_FILE=""; [ -f /tmp/news_out/newcomer_careers.json ] && NC_FILE=/tmp/news_out/newcomer_careers.json
+          retry_cmd ssh -i /tmp/deploy_key -p "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 "$XSERVER_USER@$XSERVER_HOST" "mkdir -p ${XSERVER_NEWS_DIR}" || exit 1
+          retry_cmd scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
+            news-site/index.html news-site/.htaccess news-site/robots.txt news-site/sitemap.xml "$D/news/articles.json" "$D/news/awards.json" /tmp/news_out/season_state.json $NC_FILE \
+            "$XSERVER_USER@$XSERVER_HOST:${XSERVER_NEWS_DIR}" || exit 1
+          rm -f /tmp/deploy_key
+
+      - name: 公開済みの季を記録
+        if: success() && steps.snap.outputs.ok == '1'
+        env:
+          S: ${{ steps.snap.outputs.season }}
+        run: |
+          set -uo pipefail
+          git config user.name "othello-league-bot"
+          git config user.email "actions@users.noreply.github.com"
+          for attempt in 1 2 3 4; do
+            git fetch -q origin main && git reset -q --hard origin/main
+            python3 -c "import json,sys; p='publish/state.json'; d=json.load(open(p)); d['published_season']=int(sys.argv[1]); json.dump(d, open(p,'w'), ensure_ascii=False, indent=2); open(p,'a').write('\n')" "$S"
+            git add publish/state.json
+            git diff --staged --quiet && break
+            git commit -q -m "Publish season ${S} [skip ci]"
+            git push -q && break
+            sleep $((attempt * 3))
+          done
+          echo "第${S}季を公開しました"
+
+      # 公開に失敗しても、ストック補充の判定と次の回のタイマーは必ず行う（次の回で同じ季をもう一度出す）
+      - name: ストック補充・次の回のタイマー
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -uo pipefail
+          api() { curl -sS -f -H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json" "$@"; }
+          git fetch -q origin main && git reset -q --hard origin/main
+          # ストック：計算済みの最新の季 − 公開済みの季。10季（5日分）を切ったら、20季分を連続実行で補充する（計算中はサイトに出ない）
+          LATEST=$(ls data/standings | sed -n 's/^season_\([0-9]*\)\.json$/\1/p' | sort -n | tail -1)
+          PUB=$(python3 -c "import json; print(json.load(open('publish/state.json')).get('published_season', 0))")
+          STOCK=$((LATEST - PUB))
+          echo "計算済み：第${LATEST}季　公開済み：第${PUB}季　ストック：${STOCK}季"
+          if [ "$STOCK" -lt 10 ]; then
+            BUSY=0
+            for WF in evolve.yml newcomer_league.yml; do
+              N=$(api "https://api.github.com/repos/${REPO}/actions/workflows/${WF}/runs?per_page=5" | python3 -c 'import json,sys; print(sum(1 for r in json.load(sys.stdin)["workflow_runs"] if r["status"] != "completed"))')
+              [ "$N" != "0" ] && BUSY=1
+            done
+            if [ "$BUSY" = 0 ]; then
+              echo "ストックが少ないため、本戦を20季分の連続実行で起動します"
+              api -X POST "https://api.github.com/repos/${REPO}/actions/workflows/evolve.yml/dispatches" -d '{"ref":"main","inputs":{"chain_remaining":"19"}}' \
+                || echo "::warning::ストック補充の起動に失敗しました"
+            else
+              echo "本戦・新人リーグが実行中のため、補充は次の公開で判定します"
+            fi
+          fi
+          echo "次の回のタイマーを仕掛けます"
+          api -X POST "https://api.github.com/repos/${REPO}/actions/workflows/next_slot.yml/dispatches" -d '{"ref":"main"}' \
+            || echo "::warning::次の回のタイマーの起動に失敗しました"

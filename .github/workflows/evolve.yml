@@ -78,6 +78,12 @@ jobs:
           git config user.name "othello-league-bot"
           git config user.email "actions@users.noreply.github.com"
 
+          # 順次公開モード（publish/state.jsonのmodeがreplay）では、季はストックとして計算するだけで、
+          # サイトへは反映しない（公開はpublish.ymlが、公開時刻ごとに1季ずつ行う）
+          REPLAY=0; [ "$(python3 -c "import json; print(json.load(open('publish/state.json')).get('mode',''))" 2>/dev/null || echo "")" = "replay" ] && REPLAY=1
+          echo "replay=$REPLAY" >> "$GITHUB_OUTPUT"
+          [ "$REPLAY" = 1 ] && echo "=== 順次公開モード：計算した季はストックとして保存し、サイトへは反映しません ==="
+
           echo "$XSERVER_SSH_KEY" > /tmp/deploy_key
           chmod 600 /tmp/deploy_key
 
@@ -283,6 +289,10 @@ jobs:
                 || echo "::warning::記事生成（季${CURRENT_SEASON}）の起動に失敗しました。後で手動実行してください（workflow_dispatchのseason入力に${CURRENT_SEASON}を指定）"
             fi
 
+            if [ "$REPLAY" = 1 ]; then
+              continue
+            fi
+
             if [ "$XSERVER_LIKELY_DOWN" -eq 1 ]; then
               echo "--- Xserverが今回既に応答不能と判明しているため、バッチ $i の反映は1回だけ軽く試みてスキップします ---"
               ssh -i /tmp/deploy_key -p "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=8 \
@@ -340,8 +350,9 @@ jobs:
 
           # 全バッチ終了後、途中の同期失敗でサイト側が古いままになっていないか最終確認として、
           # 最新のrosters.json/season_state.jsonでもう一度だけ反映を試みる（自己修復）
-          echo "=== 最終同期チェック ==="
           FINAL_OK=1
+          if [ "$REPLAY" = 0 ]; then
+          echo "=== 最終同期チェック ==="
           retry_cmd ssh -i /tmp/deploy_key -p "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=8 \
             "$XSERVER_USER@$XSERVER_HOST" "mkdir -p ${XSERVER_TARGET_DIR}matches ${XSERVER_TARGET_DIR}standings ${XSERVER_TARGET_DIR}newcomer_league" \
             || FINAL_OK=0
@@ -369,6 +380,7 @@ jobs:
               && FINAL_OK=1 \
               || echo "::warning::最終同期にも失敗しました。xserver側の状態を手動で確認してください（GitHub上のデータ自体は正常に保存されています）"
           fi
+          fi
 
           rm -f /tmp/deploy_key
 
@@ -395,7 +407,8 @@ jobs:
       - name: Sync retired flags on the site
         # 引退した季のサーバーへの取り込みが失敗すると、引退者がデータサイトの組み合わせに現役として残り続ける
         # （以降の取り込みは現役しか更新しないため）。サイトへの反映が通った季に、引退者の印をまとめて付け直す
-        if: success()
+        # （順次公開モードでは、サイトはまだ前の季なので行わない）
+        if: success() && steps.season.outputs.replay != '1'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
