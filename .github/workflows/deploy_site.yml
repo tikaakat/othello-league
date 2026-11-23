@@ -21,6 +21,7 @@ on:
     paths:
       - "site/index.html"
       - "site/ogp.png"
+      - "site/predict.php"
       - "site/api.php"
       - "site/create_character.php"
       - "site/cheer.php"
@@ -129,6 +130,7 @@ jobs:
           php -l site/stripe_webhook.php
           php -l site/inquiry.php
           php -l site/board.php
+          php -l site/predict.php
           php -l site/admin_auth.php
           php -l site/donation.php
 
@@ -911,7 +913,7 @@ jobs:
             site/index.html site/ogp.png site/api.php site/create_character.php site/cheer.php \
             site/article_like.php site/supporter.php site/sponsor.php \
             site/stripe_client.php site/create_checkout.php site/stripe_webhook.php \
-            site/inquiry.php site/board.php site/admin_auth.php site/donation.php /tmp/league_secrets/league_secrets.php \
+            site/inquiry.php site/board.php site/admin_auth.php site/donation.php site/predict.php /tmp/league_secrets/league_secrets.php \
             "$XSERVER_USER@$XSERVER_HOST:${XSERVER_SITE_DIR}"
 
           rm -f /tmp/deploy_key

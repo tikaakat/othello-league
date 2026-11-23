@@ -199,6 +199,23 @@ jobs:
               continue
             fi
 
+            # 定時公開：scheduler.ymlからの回（slot）の実行なら、計算が済んでもGitHubへの保存・サイトへの反映・記事生成は
+            # その回の公開時刻（朝の回＝JST 7:30、夜の回＝JST 21:00）まで待つ。毎回同じ時刻に結果が出るようにするため
+            # （GitHubへの保存も待つのは、公開前にリポジトリから結果が見えて勝敗予想の答えが分かってしまわないように）。
+            # 公開時刻を過ぎていれば待たない。手動・連続実行（slotなし）は待たない
+            SLOT_IN="${{ github.event.inputs.slot }}"
+            if [ -n "$SLOT_IN" ] && [ "$i" = "1" ]; then
+              SLOT_DATE="${SLOT_IN%-*}"; SLOT_PART="${SLOT_IN##*-}"
+              if [ "$SLOT_PART" = "AM" ]; then RELEASE_HM="07:30"; else RELEASE_HM="21:00"; fi
+              RELEASE_AT=$(TZ=Asia/Tokyo date -d "${SLOT_DATE} ${RELEASE_HM}" +%s 2>/dev/null || echo 0)
+              NOW_TS=$(date +%s)
+              if [ "$RELEASE_AT" -gt "$NOW_TS" ]; then
+                WAIT=$((RELEASE_AT - NOW_TS))
+                echo "=== 公開時刻（${SLOT_DATE} ${RELEASE_HM} JST）まで $((WAIT / 60))分 待ちます ==="
+                sleep "$WAIT"
+              fi
+            fi
+
             git add data/rosters.json data/season_state.json data/matches data/standings
             git add data/upcoming_brackets.json data/bracket_tags 2>/dev/null || true
             # run_season.py側はnewcomer_winners.json（新人リーグの勝者ファイル）を
@@ -255,22 +272,6 @@ jobs:
             # 違う（より新しい）季の記事が生成され、トリガー元の季がスキップされてしまう
             # 不具合があった。季番号をこちら側から明示的に渡すことで、キュー待ちが
             # 何季分重なってもそれぞれの季の記事が正しく生成されるようにする
-            # 定時公開：scheduler.ymlからの回（slot）の実行なら、計算が済んでもサイトへの反映・記事生成は
-            # その回の公開時刻（朝の回＝JST 7:30、夜の回＝JST 21:00）まで待つ。毎回同じ時刻に結果が出るようにするため。
-            # 公開時刻を過ぎていれば待たない。手動・連続実行（slotなし）は待たない
-            SLOT_IN="${{ github.event.inputs.slot }}"
-            if [ -n "$SLOT_IN" ] && [ "$i" = "1" ]; then
-              SLOT_DATE="${SLOT_IN%-*}"; SLOT_PART="${SLOT_IN##*-}"
-              if [ "$SLOT_PART" = "AM" ]; then RELEASE_HM="07:30"; else RELEASE_HM="21:00"; fi
-              RELEASE_AT=$(TZ=Asia/Tokyo date -d "${SLOT_DATE} ${RELEASE_HM}" +%s 2>/dev/null || echo 0)
-              NOW_TS=$(date +%s)
-              if [ "$RELEASE_AT" -gt "$NOW_TS" ]; then
-                WAIT=$((RELEASE_AT - NOW_TS))
-                echo "=== 公開時刻（${SLOT_DATE} ${RELEASE_HM} JST）まで $((WAIT / 60))分 待ちます ==="
-                sleep "$WAIT"
-              fi
-            fi
-
             if [ "$PUSHED" = "1" ]; then
               CURRENT_SEASON=$(python -c "import json; print(json.load(open('data/season_state.json'))['current_season'])")
               echo "--- 記事生成（季${CURRENT_SEASON}）をworkflow_dispatchで起動 ---"

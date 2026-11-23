@@ -121,6 +121,17 @@
   .nc-lg { display:inline-block; min-width:1.5em; text-align:center; font-size:0.66rem; font-weight:700; border-radius:3px; padding:0 4px; color:var(--tag-fg); background:var(--text-dim); }
   .nc-lg.nc-A { background:var(--amber); } .nc-lg.nc-B { background:var(--cyan); }
   .header .next-release { font-size: 0.72rem; margin-top: 4px; opacity: 0.85; }
+  /* 勝敗予想 */
+  .pred-list { display:flex; flex-direction:column; gap:8px; margin:12px 0; }
+  .pred-row { display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; border:1px solid var(--navy-700); border-radius:10px; padding:8px 12px; }
+  .pred-title { font-size:0.9rem; font-weight:700; }
+  .pred-btns { display:flex; gap:6px; }
+  .pred-btn { font-family:inherit; font-size:0.82rem; font-weight:700; border:1px solid var(--navy-700); background:var(--surface); color:var(--text-main); border-radius:999px; padding:6px 14px; cursor:pointer; }
+  .pred-btn small { font-weight:400; color:var(--text-dim); margin-left:2px; }
+  .pred-btn.on { background:var(--hilite); color:var(--on-hilite); border-color:var(--hilite); }
+  .pred-btn.on small { color:var(--on-hilite); }
+  .pred-save { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .pred-save input { flex:1 1 180px; min-width:0; font-family:inherit; font-size:0.85rem; padding:7px 10px; background:var(--navy-800); color:var(--text-main); border:1px solid var(--navy-700); border-radius:8px; }
   /* 推しの近況 */
   .nc-list { display:flex; flex-direction:column; gap:10px; }
   .oshi-card { border:1px solid var(--navy-700); border-radius:10px; padding:10px 12px; background:var(--surface); }
@@ -274,6 +285,7 @@
 <div class="panel hidden" id="tab-newcomer_create"><div id="newcomer_create-content" class="loading">読み込み中...</div></div>
 <div class="panel hidden" id="tab-newcomer"><div id="newcomer-content" class="loading">読み込み中...</div></div>
 <div class="panel hidden" id="tab-shoreikai"><div id="shoreikai-content" class="loading">読み込み中...</div></div>
+<div class="panel hidden" id="tab-predict"><div id="predict-content" class="loading">読み込み中...</div></div>
 <div class="panel hidden" id="tab-mypage"><div id="mypage-content" class="loading">読み込み中...</div></div>
 <div class="panel hidden" id="tab-play"><div id="play-content" class="loading">読み込み中...</div></div>
 <div class="panel hidden" id="tab-newcomer_history"><div id="newcomer_history-content" class="loading">読み込み中...</div></div>
@@ -362,6 +374,7 @@ const tabPanels = {
   newcomer_history: document.getElementById('tab-newcomer_history'),
   play: document.getElementById('tab-play'),
   mypage: document.getElementById('tab-mypage'),
+  predict: document.getElementById('tab-predict'),
 };
 
 // 上段の主要タブと、その配下にぶら下がるサブタブの対応関係。
@@ -403,7 +416,7 @@ const TAB_GROUPS = {
     subLabels: { newcomer_create: 'キャラクリエイト', newcomer: '三段リーグ', shoreikai: '奨励会リーグ', newcomer_history: '歴代のデビュー' },
   },
 };
-TAB_GROUPS.play = { label: 'あそぶ', tabs: ['play', 'mypage'], subLabels: { mypage: '推しの近況', play: '選手と対局' } };
+TAB_GROUPS.play = { label: 'あそぶ', tabs: ['play', 'predict', 'mypage'], subLabels: { play: '選手と対局', predict: '勝敗予想', mypage: '推しの近況' } };
 // タブ一覧には出ないが、内容的にどのグループに属するか（ボタンのアクティブ表示用）
 const IMPLICIT_GROUP = { individual: 'leagues', game: 'results' };
 
@@ -597,6 +610,7 @@ function render(hash, isPopstate) {
   else if (base === 'newcomer_history') { showTab('newcomer_history'); loadNewcomerHistory(); }
   else if (base === 'play') { showTab('play'); loadPlay(param || null); }
   else if (base === 'mypage') { showTab('mypage'); loadMyPage(); }
+  else if (base === 'predict') { showTab('predict'); loadPredict(); }
   else { showTab('leagues'); loadLeagues(); }
 
   if (isPopstate) {
@@ -3793,6 +3807,77 @@ function playEngineMain() {
     const { board, color, params, noise, id } = e.data;
     self.postMessage({ id, move: choose(board.slice(), color, params, noise || 1) });
   };
+}
+
+// ---------------- 勝敗予想 ----------------
+// 次に公開される季の5つのタイトルが「防衛」か「奪取」かを予想する（predict.php）。当たれば1つ1ポイント。
+// 利用者は、このブラウザで作ったランダムなIDで区別する（ログインなし）
+const PREDICT_UID_KEY = 'othello_predict_uid_v1';
+function predictUid() {
+  let u = null;
+  try { u = localStorage.getItem(PREDICT_UID_KEY); } catch (e) { /* 読めなくても続ける */ }
+  if (!u || !/^[0-9a-f]{32}$/.test(u)) {
+    const a = new Uint8Array(16); crypto.getRandomValues(a);
+    u = Array.from(a, b => b.toString(16).padStart(2, '0')).join('');
+    try { localStorage.setItem(PREDICT_UID_KEY, u); } catch (e) { /* 保存できない環境では毎回別人扱いになる */ }
+  }
+  return u;
+}
+let _predictPicks = {};
+async function loadPredict(msg) {
+  const el = document.getElementById('predict-content');
+  if (!msg) el.innerHTML = '<div class="loading">読み込み中...</div>';
+  const uid = predictUid();
+  let st, rk;
+  try {
+    [st, rk] = await Promise.all([
+      fetch(`predict.php?action=status&user=${uid}`, { cache: 'no-store' }).then(r => r.json()),
+      fetch(`predict.php?action=ranking&user=${uid}`, { cache: 'no-store' }).then(r => r.json()),
+    ]);
+  } catch (e) { el.innerHTML = `<div class="empty">読み込み失敗: ${escapeHtml(String(e))}</div>`; return; }
+  if (!st || st.error) { el.innerHTML = `<div class="empty">読み込み失敗: ${escapeHtml((st && st.error) || '')}</div>`; return; }
+  _predictPicks = Object.assign({}, st.mine || {});
+  const next = nextReleaseInfo();
+  const pct = (t, k) => { const s = (st.share || {})[t] || {}; const n = (s.defend || 0) + (s.change || 0); return n ? Math.round(100 * (s[k] || 0) / n) + '%' : ''; };
+  const rows = st.titles.map(t => {
+    const h = st.holders[t];
+    const pick = _predictPicks[t];
+    return `<div class="pred-row">
+      <div class="pred-title"><span class="league-tag title-tag">${t}</span>${h ? escapeHtml(h.name) : '空位'}</div>
+      <div class="pred-btns">
+        <button class="pred-btn${pick === 'defend' ? ' on' : ''}" data-t="${t}" data-p="defend">防衛 <small>${pct(t, 'defend')}</small></button>
+        <button class="pred-btn${pick === 'change' ? ' on' : ''}" data-t="${t}" data-p="change">奪取 <small>${pct(t, 'change')}</small></button>
+      </div></div>`;
+  }).join('');
+  const mark = (o, m) => !o ? '－' : !m ? '<span class="play-note">予想なし</span>' : (o === m ? '<b style="color:var(--cyan);">◯ 的中</b>' : '<span style="color:var(--title-red);">✕</span>');
+  const lastRows = (rk.last || []).map(x => `<tr><td><span class="league-tag title-tag">${x.title}</span></td><td>${x.outcome === 'defend' ? '防衛' : x.outcome === 'change' ? '奪取' : '－'}${x.holder ? `（${escapeHtml(x.holder)}）` : ''}</td><td>${x.mine === 'defend' ? '防衛' : x.mine === 'change' ? '奪取' : ''}</td><td>${mark(x.outcome, x.mine)}</td></tr>`).join('');
+  el.innerHTML = `<div style="text-align:left;">
+    <h3 class="play-h">第${st.open_season}季の勝敗予想</h3>
+    <div class="play-note">5つのタイトルそれぞれ、今の保持者が守る（防衛）か、新しい保持者が生まれる（奪取）かを予想します。当たれば1つにつき1ポイント。<b>締め切りは第${st.open_season}季の結果の公開（${next.today ? '' : '明日'}${next.label}ごろ）まで</b>で、それまでは何度でも変えられます。いまの参加者 ${st.participants}人${msg ? `<br><b style="color:var(--cyan);">${msg}</b>` : ''}</div>
+    <div class="pred-list">${rows}</div>
+    <div class="pred-save">
+      <input type="text" id="pred-nick" maxlength="20" placeholder="ニックネーム（ランキングに表示）" value="${escapeHtml(st.nickname && st.nickname !== '名無しの予想家' ? st.nickname : '')}">
+      <button class="play-btn" id="pred-save-btn">予想を保存</button>
+    </div>
+    <h4 class="play-h4">ランキング（参加${rk.participants || 0}人）${rk.me ? `　あなたは${rk.me.rank}位・${rk.me.points}ポイント` : ''}</h4>
+    ${(rk.top || []).length ? `<table class="one-line"><thead><tr><th>順位</th><th>ニックネーム</th><th>ポイント</th><th>予想した数</th></tr></thead><tbody>${rk.top.map(r => `<tr style="cursor:default;"><td>${r.rank}</td><td>${escapeHtml(r.nickname)}</td><td><b>${r.points}</b></td><td>${r.answered}</td></tr>`).join('')}</tbody></table>` : '<div class="play-note">まだ答え合わせの済んだ予想がありません。最初の結果は次の公開で出ます。</div>'}
+    ${rk.released_season ? `<h4 class="play-h4">第${rk.released_season}季の答え合わせ</h4><table class="one-line"><thead><tr><th>タイトル</th><th>結果</th><th>あなた</th><th></th></tr></thead><tbody>${lastRows}</tbody></table>` : ''}
+  </div>`;
+  el.querySelectorAll('.pred-btn').forEach(b => b.addEventListener('click', () => {
+    _predictPicks[b.dataset.t] = b.dataset.p;
+    el.querySelectorAll(`.pred-btn[data-t="${b.dataset.t}"]`).forEach(x => x.classList.toggle('on', x === b));
+  }));
+  el.querySelector('#pred-save-btn').addEventListener('click', async () => {
+    const btn = el.querySelector('#pred-save-btn');
+    if (!Object.keys(_predictPicks).length) { btn.textContent = 'まず防衛か奪取を選んでください'; return; }
+    btn.disabled = true; btn.textContent = '保存中...';
+    try {
+      const res = await fetch('predict.php', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'save', user: uid, nickname: el.querySelector('#pred-nick').value, picks: _predictPicks }) }).then(r => r.json());
+      if (res.error) { btn.disabled = false; btn.textContent = res.error; return; }
+      loadPredict(`第${res.season}季の予想を保存しました（${res.saved}タイトル）`);
+    } catch (e) { btn.disabled = false; btn.textContent = '保存に失敗しました。もう一度お試しください'; }
+  });
 }
 
 // ---------------- 推しの近況（マイページ） ----------------
