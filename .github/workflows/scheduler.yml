@@ -62,6 +62,27 @@ jobs:
             curl -sS -f -H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json" "$@"
           }
 
+          # 自動復旧：直近の新人リーグが失敗で終わっていたら（GitHub側の一時的な通信障害でpushできなかった等）、
+          # まずそれをやり直す。新人リーグは同じ季の結果が既にあれば何もしないので、やり直しても二重にはならない。
+          # 24時間以内に3回以上失敗していたら、何かが壊れているとみなしてやり直さない（同じ失敗を延々と繰り返さないため）
+          NL_RETRY=$(api "https://api.github.com/repos/${REPO}/actions/workflows/newcomer_league.yml/runs?per_page=10" \
+            | python3 -c '
+          import json, sys, datetime
+          now = datetime.datetime.now(datetime.timezone.utc)
+          age = lambda r: (now - datetime.datetime.fromisoformat(r["created_at"].replace("Z", "+00:00"))).total_seconds()
+          bad = ("failure", "cancelled", "timed_out")
+          runs = json.load(sys.stdin)["workflow_runs"]
+          recent_fail = sum(1 for r in runs if r["status"] == "completed" and r["conclusion"] in bad and age(r) < 86400)
+          if runs and runs[0]["status"] == "completed" and runs[0]["conclusion"] in bad and age(runs[0]) < 86400 and recent_fail <= 2:
+              print(runs[0]["id"])
+          ')
+          if [ -n "$NL_RETRY" ]; then
+            echo "直近の新人リーグ（run_id=${NL_RETRY}）が失敗しているため、やり直します"
+            api -X POST "https://api.github.com/repos/${REPO}/actions/workflows/newcomer_league.yml/dispatches" \
+              -d '{"ref":"main"}' || echo "::warning::新人リーグのやり直しの起動に失敗しました"
+            exit 0
+          fi
+
           # この枠で起動済みの本戦（run-nameに [slot ...] が付く）があり、
           # 実行待ち・実行中・成功のいずれかなら二重に起動しない
           EXISTING=$(api "https://api.github.com/repos/${REPO}/actions/workflows/evolve.yml/runs?event=workflow_dispatch&per_page=20" \

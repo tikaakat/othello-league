@@ -20,6 +20,7 @@ on:
     branches: [main]
     paths:
       - "site/index.html"
+      - "site/ogp.png"
       - "site/api.php"
       - "site/create_character.php"
       - "site/cheer.php"
@@ -907,7 +908,7 @@ jobs:
           printf '<?php\nconst IMPORT_KEY_SHA256 = %s;\n' "'$(printf %s "$IMPORT_SECRET_KEY" | sha256sum | cut -d' ' -f1)'" > /tmp/league_secrets/league_secrets.php
 
           retry_cmd scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
-            site/index.html site/api.php site/create_character.php site/cheer.php \
+            site/index.html site/ogp.png site/api.php site/create_character.php site/cheer.php \
             site/article_like.php site/supporter.php site/sponsor.php \
             site/stripe_client.php site/create_checkout.php site/stripe_webhook.php \
             site/inquiry.php site/board.php site/admin_auth.php site/donation.php /tmp/league_secrets/league_secrets.php \
