@@ -18,7 +18,7 @@ retry_cmd curl -sS -f --connect-timeout 8 --max-time 60 "$RESET_DB_URL" || { ech
 
 echo "=== 勝敗予想・応援・記事のいいねを消す ==="
 # テーブルがまだ無い場合は飛ばす。SSH経由の既定のphpは古いことがあるので、新しい版から順に探す（deploy_site.ymlと同じ）
-retry_cmd $SSH "PHP_BIN=\$(command -v php84 || command -v php83 || command -v php82 || command -v php81 || command -v php80 || command -v php); \"\$PHP_BIN\" -r '
+retry_cmd $SSH "PHP_BIN=\$(command -v php84 || command -v php83 || command -v php82 || command -v php81 || command -v php80 || command -v php74 || command -v php8.4 || command -v php8.3 || command -v php8.2 || command -v php8.1 || command -v php8.0 || command -v php7.4 || command -v php); \"\$PHP_BIN\" -r '
   require \"${SITE_DIR}db_config.php\";
   \$pdo = league_db_connect();
   foreach ([\"predictions\", \"cheer_log\", \"article_likes\"] as \$t) {
