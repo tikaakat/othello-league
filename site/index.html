@@ -78,12 +78,13 @@
     #primary-tabs .tab-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
       padding: 7px 2px 6px; font-size: 0.7rem; font-weight: 700; border: none; border-radius: 12px; color: var(--text-dim); }
     #primary-tabs .tab-btn svg { width: 22px; height: 22px; }
+    #primary-tabs .tab-btn .tl-long { display: none; }
     #primary-tabs .tab-btn.active { background: var(--tab-active-bg); color: var(--tab-active-fg); }
     body { padding-bottom: calc(80px + env(safe-area-inset-bottom)); }
     /* 下のタブに隠れないよう、その上に出す（下の .fresh-banner の基本指定より後に効くよう、詳細度を上げている） */
     body .fresh-banner { bottom: calc(80px + env(safe-area-inset-bottom)); z-index: 960; }
   }
-  @media (min-width: 821px) { #primary-tabs .tab-btn svg { display: none; }
+  @media (min-width: 821px) { #primary-tabs .tab-btn svg { display: none; } #primary-tabs .tab-btn .tl-short { display: none; }
   }
   .panel { position: relative; background: var(--surface); border: 1px solid var(--navy-700); padding: 16px; margin: 0 auto 16px; max-width: 760px; }
   @media (max-width: 792px) { .panel { margin-left: 8px; margin-right: 8px; } }
@@ -109,6 +110,27 @@
   .nc-lg { display:inline-block; min-width:1.5em; text-align:center; font-size:0.66rem; font-weight:700; border-radius:3px; padding:0 4px; color:var(--tag-fg); background:var(--text-dim); }
   .nc-lg.nc-A { background:var(--amber); } .nc-lg.nc-B { background:var(--cyan); }
   .header .next-release { font-size: 0.72rem; margin-top: 4px; opacity: 0.85; }
+  /* 対局モード */
+  .play-h { font-size:0.95rem; color:var(--amber); margin:4px 0 6px; }
+  .play-h4 { font-size:0.8rem; color:var(--amber); margin:14px 0 6px; cursor:pointer; }
+  .play-note { font-size:0.76rem; color:var(--text-dim); line-height:1.7; }
+  .play-list { display:flex; flex-direction:column; gap:6px; }
+  .play-pick { display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; text-align:left; font-family:inherit; background:var(--surface); color:var(--text-main); border:1px solid var(--navy-700); border-radius:8px; padding:9px 12px; cursor:pointer; }
+  .play-pick:hover, .play-pick:focus-visible { border-color:var(--cyan); }
+  .play-pick-name { font-size:0.88rem; font-weight:700; }
+  .play-pick-meta { font-size:0.72rem; color:var(--text-dim); }
+  .play-pick-meta b { color:var(--cyan); }
+  .play-choose { display:flex; flex-wrap:wrap; justify-content:center; gap:8px; margin-top:12px; }
+  .play-btn { font-family:inherit; font-size:0.85rem; font-weight:700; background:var(--surface); color:var(--text-main); border:1px solid var(--navy-700); border-radius:999px; padding:8px 16px; cursor:pointer; }
+  .play-btn:hover, .play-btn:focus-visible { background:var(--hilite); color:var(--on-hilite); border-color:var(--hilite); }
+  .play-board { max-width: min(420px, 100%); margin-top: 8px; }
+  .play-board .osq.can { cursor:pointer; }
+  .play-board .osq .hint { width:22%; height:22%; border-radius:50%; background:rgba(255,255,255,0.35); }
+  .play-board .osq.last { box-shadow: inset 0 0 0 2px var(--hilite); }
+  .play-score { display:flex; justify-content:space-between; font-size:0.85rem; font-weight:700; max-width:420px; margin:6px auto 0; }
+  .play-score span { padding:3px 8px; border-radius:6px; color:var(--text-dim); }
+  .play-score span.on { color:var(--text-main); background:var(--tab-active-bg); }
+  .play-status { text-align:center; font-size:0.85rem; margin-top:10px; min-height:2.6em; line-height:1.6; }
   .nc-badge { display:inline-block; font-size:0.62rem; color:var(--tag-fg); background:var(--cyan); border-radius:3px; padding:1px 5px; font-weight:700; }
   tr:hover td { background: rgba(29,107,74,0.06); }
   tr.zone-up td:first-child { box-shadow: inset 3px 0 var(--up); }
@@ -206,11 +228,12 @@
 </div>
 
 <div class="tabs" id="primary-tabs">
-  <button class="tab-btn active" data-group="leagues"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg><span>今季組合せ</span></button>
+  <button class="tab-btn active" data-group="leagues"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg><span class="tl-long">今季組合せ</span><span class="tl-short">組合せ</span></button>
   <button class="tab-btn" data-group="results"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span>結果</span></button>
   <button class="tab-btn" data-group="titles"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4zM7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4"/></svg><span>タイトル</span></button>
   <button class="tab-btn" data-group="hof"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.4 6.8 19.1l1-5.8L3.5 9.2l5.9-.9z"/></svg><span>殿堂</span></button>
   <button class="tab-btn" data-group="newcomer_group"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21v-8M12 13c0-4-3-6-7-6 0 4 3 6 7 6zM12 13c0-3 2-5 6-5 0 3-2 5-6 5z"/></svg><span>新人</span></button>
+  <button class="tab-btn" data-group="play"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2.4" fill="currentColor"/><circle cx="15" cy="15" r="2.4"/><path d="M3 12h18M12 3v18"/></svg><span>対局</span></button>
 </div>
 <div class="subtabs hidden" id="subtabs"></div>
 
@@ -233,6 +256,7 @@
 <div class="panel hidden" id="tab-newcomer_create"><div id="newcomer_create-content" class="loading">読み込み中...</div></div>
 <div class="panel hidden" id="tab-newcomer"><div id="newcomer-content" class="loading">読み込み中...</div></div>
 <div class="panel hidden" id="tab-shoreikai"><div id="shoreikai-content" class="loading">読み込み中...</div></div>
+<div class="panel hidden" id="tab-play"><div id="play-content" class="loading">読み込み中...</div></div>
 <div class="panel hidden" id="tab-newcomer_history"><div id="newcomer_history-content" class="loading">読み込み中...</div></div>
 
 <div class="modal-overlay hidden" id="modal-overlay">
@@ -317,6 +341,7 @@ const tabPanels = {
   newcomer: document.getElementById('tab-newcomer'),
   shoreikai: document.getElementById('tab-shoreikai'),
   newcomer_history: document.getElementById('tab-newcomer_history'),
+  play: document.getElementById('tab-play'),
 };
 
 // 上段の主要タブと、その配下にぶら下がるサブタブの対応関係。
@@ -358,6 +383,7 @@ const TAB_GROUPS = {
     subLabels: { newcomer_create: 'キャラクリエイト', newcomer: '三段リーグ', shoreikai: '奨励会リーグ', newcomer_history: '歴代のデビュー' },
   },
 };
+TAB_GROUPS.play = { label: '対局', tabs: ['play'] };
 // タブ一覧には出ないが、内容的にどのグループに属するか（ボタンのアクティブ表示用）
 const IMPLICIT_GROUP = { individual: 'leagues', game: 'results' };
 
@@ -541,6 +567,7 @@ function render(hash, isPopstate) {
   else if (base === 'newcomer') { showTab('newcomer'); loadNewcomerLeague(param ? parseInt(param, 10) : null); }
   else if (base === 'shoreikai') { showTab('shoreikai'); loadNewcomerLeague(param ? parseInt(param, 10) : null, 'shoreikai'); }
   else if (base === 'newcomer_history') { showTab('newcomer_history'); loadNewcomerHistory(); }
+  else if (base === 'play') { showTab('play'); loadPlay(param || null); }
   else { showTab('leagues'); loadLeagues(); }
 
   if (isPopstate) {
@@ -1213,6 +1240,7 @@ async function loadIndividualDetail(id) {
         <span style="font-size:0.72rem; color:var(--amber); margin-left:8px;">最高 ${Math.round(ind.peak_elo ?? ind.elo_rating)}</span></div>
       <div style="margin-top:8px;">
         <button id="ind-fav-toggle" class="fav-toggle" data-id="${escapeHtml(ind.id)}">☆ お気に入りに追加</button>
+        ${ind.params ? `<button class="fav-toggle" onclick="navigateTo('play/${escapeHtml(ind.id)}')">♟ この選手と対局</button>` : ''}
       </div>
     </div>`;
 
@@ -3558,6 +3586,356 @@ function renderNewcomerHistory() {
     t = setTimeout(() => { S.q = q.value.trim(); renderNewcomerHistory(); const n2 = document.getElementById('nc-q'); n2.focus(); n2.setSelectionRange(n2.value.length, n2.value.length); }, 250);
   });
   el.querySelectorAll('tr[data-id]').forEach(tr => tr.addEventListener('click', () => navigateTo('individual/' + tr.dataset.id)));
+}
+
+// ---------------- 対局モード：思考エンジン（othello_league/engine.py・board.py・skills.py の移植） ----------------
+// 選手の棋風（8つの能力の比率）・読みの深さ・終盤力・天賦・定跡・ポカ率をそのまま使い、
+// 青龍戦リーグと同じ深さ（3手）を基本に読む。重い計算で画面が止まらないよう、Web Worker の中で動かす。
+// 本体（Python）を変えたら、ここも合わせること
+function playEngineMain() {
+  const EMPTY = 0, BLACK = 1, WHITE = 2;
+  const BASE_DEPTH = 3;                 // title.SEIRYUU_LEAGUE_DEPTH
+  const OPENING_RANDOM_PLIES = 2;
+  const EVAL_NOISE_BASE = 5.0;
+  const ENDGAME_SECOND_STEP = 0.5, EXACT_READ_RATIO = 0.3, EXACT_READ_MAX = 10, ENDGAME_CAP = 44;
+  const BOOK_PARAMS = { corner_weight: 8.22, danger_zone_weight: 6.37, mobility_weight: 2.05, edge_stability_weight: 1.70,
+    frontier_weight: 10.23, disc_weight: 3.52, parity_weight: 5.10, center_weight: 2.81 };
+  const CORNERS = [0, 7, 56, 63], X_SQ = [9, 14, 49, 54], C_SQ = [1, 6, 8, 15, 48, 55, 57, 62];
+  const EDGE = []; for (let i = 0; i < 64; i++) if ((i < 8 || i >= 56 || i % 8 === 0 || i % 8 === 7) && !CORNERS.includes(i)) EDGE.push(i);
+  const CENTER = [27, 28, 35, 36, 20, 21, 22, 25, 26, 29, 30, 33, 34, 37, 38, 41, 42, 43];
+  const STATIC = new Array(64).fill(0); CORNERS.forEach(i => STATIC[i] = 100); X_SQ.forEach(i => STATIC[i] = -50); C_SQ.forEach(i => STATIC[i] = -20);
+  const DIRS = [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1]];
+  const RAYS = []; const NEIGH = [];
+  for (let p = 0; p < 64; p++) {
+    const r = Math.floor(p / 8), c = p % 8, rays = [], nb = [];
+    for (const [dr, dc] of DIRS) {
+      const ray = []; let rr = r + dr, cc = c + dc;
+      if (rr >= 0 && rr < 8 && cc >= 0 && cc < 8) nb.push(rr * 8 + cc);
+      while (rr >= 0 && rr < 8 && cc >= 0 && cc < 8) { ray.push(rr * 8 + cc); rr += dr; cc += dc; }
+      if (ray.length >= 2) rays.push(ray);
+    }
+    RAYS.push(rays); NEIGH.push(nb);
+  }
+  const opp = c => (c === BLACK ? WHITE : BLACK);
+  function legal(bd, color) {
+    const o = opp(color), out = [];
+    for (let p = 0; p < 64; p++) {
+      if (bd[p] !== EMPTY) continue;
+      for (const ray of RAYS[p]) {
+        if (bd[ray[0]] !== o) continue;
+        let k = 1; while (k < ray.length && bd[ray[k]] === o) k++;
+        if (k < ray.length && bd[ray[k]] === color) { out.push(p); break; }
+      }
+    }
+    return out;
+  }
+  function apply(bd, p, color) {
+    const o = opp(color); bd[p] = color;
+    for (const ray of RAYS[p]) {
+      if (bd[ray[0]] !== o) continue;
+      let k = 1; while (k < ray.length && bd[ray[k]] === o) k++;
+      if (k < ray.length && bd[ray[k]] === color) for (let j = 0; j < k; j++) bd[ray[j]] = color;
+    }
+  }
+  const countEmpty = bd => { let n = 0; for (let i = 0; i < 64; i++) if (bd[i] === EMPTY) n++; return n; };
+  function evaluate(bd, color, P, noise) {
+    const o = opp(color);
+    let empty = 0, black = 0, white = 0;
+    for (let i = 0; i < 64; i++) { const v = bd[i]; if (v === EMPTY) empty++; else if (v === BLACK) black++; else white++; }
+    const phase = empty > 44 ? 0 : empty > 16 ? 1 : 2;
+    let myC = 0, opC = 0; for (const c of CORNERS) { if (bd[c] === color) myC++; else if (bd[c] === o) opC++; }
+    const corner = (myC - opC) * 25;
+    let danger = 0;
+    for (const s of X_SQ) { if (bd[s] === color) danger -= 1; else if (bd[s] === o) danger += 1; }
+    for (const s of C_SQ) { if (bd[s] === color) danger -= 0.5; else if (bd[s] === o) danger += 0.5; }
+    const mm = legal(bd, color).length, om = legal(bd, o).length;
+    const mobility = mm + om > 0 ? 100 * (mm - om) / (mm + om) : 0;
+    let me = 0, oe = 0; for (const s of EDGE) { if (bd[s] === color) me++; else if (bd[s] === o) oe++; }
+    const edge = me + oe > 0 ? 100 * (me - oe) / (me + oe) : 0;
+    let mf = 0, of = 0;
+    for (let s = 0; s < 64; s++) {
+      const v = bd[s]; if (v === EMPTY) continue;
+      let fr = false; for (const n of NEIGH[s]) if (bd[n] === EMPTY) { fr = true; break; }
+      if (fr) { if (v === color) mf++; else of++; }
+    }
+    const frontier = mf + of > 0 ? 100 * (of - mf) / (mf + of) : 0;
+    const myD = color === BLACK ? black : white, opD = color === BLACK ? white : black;
+    const disc = myD + opD > 0 ? 100 * (myD - opD) / (myD + opD) : 0;
+    let parity = 0;
+    if (phase === 2) parity = ((empty % 2 === 0) === (color !== BLACK)) ? 10 : -10;
+    let mc = 0, oc = 0; for (const s of CENTER) { if (bd[s] === color) mc++; else if (bd[s] === o) oc++; }
+    const center = mc + oc > 0 ? 100 * (mc - oc) / (mc + oc) : 0;
+    const dm = [0.1, 0.4, 1.5][phase], cm = [1.5, 0.5, 0.0][phase];
+    const score = P.corner_weight * corner + P.danger_zone_weight * danger + P.mobility_weight * mobility
+      + P.edge_stability_weight * edge + P.frontier_weight * frontier + P.disc_weight * disc * dm
+      + P.parity_weight * parity + P.center_weight * center * cm;
+    return score + (Math.random() * 2 - 1) * EVAL_NOISE_BASE * noise;
+  }
+  const order = moves => moves.slice().sort((a, b) => STATIC[b] - STATIC[a]);
+  function minimax(bd, color, depth, alpha, beta, maxColor, P, noise) {
+    if (depth === 0) return [evaluate(bd, maxColor, P, noise), null];
+    let moves = legal(bd, color);
+    if (!moves.length) {
+      if (!legal(bd, opp(color)).length) return [evaluate(bd, maxColor, P, noise), null];
+      return [minimax(bd, opp(color), depth - 1, alpha, beta, maxColor, P, noise)[0], null];
+    }
+    moves = order(moves);
+    let best = null;
+    if (color === maxColor) {
+      let v = -Infinity;
+      for (const m of moves) {
+        const nb = bd.slice(); apply(nb, m, color);
+        const cv = minimax(nb, opp(color), depth - 1, alpha, beta, maxColor, P, noise)[0];
+        if (cv > v) { v = cv; best = m; }
+        alpha = Math.max(alpha, v); if (alpha >= beta) break;
+      }
+      return [v, best];
+    }
+    let v = Infinity;
+    for (const m of moves) {
+      const nb = bd.slice(); apply(nb, m, color);
+      const cv = minimax(nb, opp(color), depth - 1, alpha, beta, maxColor, P, noise)[0];
+      if (cv < v) { v = cv; best = m; }
+      beta = Math.min(beta, v); if (alpha >= beta) break;
+    }
+    return [v, best];
+  }
+  function exact(bd, color, alpha, beta, passed) {
+    const moves = legal(bd, color);
+    if (!moves.length) {
+      if (passed) {
+        let b = 0, w = 0; for (let i = 0; i < 64; i++) { if (bd[i] === BLACK) b++; else if (bd[i] === WHITE) w++; }
+        return [color === BLACK ? b - w : w - b, null];
+      }
+      return [-exact(bd, opp(color), -beta, -alpha, true)[0], null];
+    }
+    let best = -65, bm = null;
+    for (const m of order(moves)) {
+      const nb = bd.slice(); apply(nb, m, color);
+      const v = -exact(nb, opp(color), -beta, -alpha, false)[0];
+      if (v > best) { best = v; bm = m; }
+      alpha = Math.max(alpha, v); if (alpha >= beta) break;
+    }
+    return [best, bm];
+  }
+  function chooseCore(bd, color, params, noise) {
+    const moves = legal(bd, color);
+    if (!moves.length) return null;
+    const empty = countEmpty(bd);
+    if (empty > 60 - OPENING_RANDOM_PLIES) return moves[Math.floor(Math.random() * moves.length)];
+    let depth = BASE_DEPTH, P = params;
+    const book = params._book || 0;
+    const read = params._read || 0;
+    if (read && !(book && empty >= 60 - book)) {
+      const base = Math.floor(read);
+      depth = Math.max(1, depth + base + (Math.random() < read - base ? 1 : 0));
+    }
+    const endgame = Math.max(0, Math.min(ENDGAME_CAP, (params._endgame || 0) + (params._form || 0)));
+    if (book || endgame || params._genius) {
+      if (book && empty >= 60 - book) { P = BOOK_PARAMS; noise = 0; }
+      else {
+        if (endgame && empty <= endgame) {
+          depth += 1;
+          if (empty <= Math.min(EXACT_READ_MAX, endgame * EXACT_READ_RATIO)) {
+            const m = exact(bd, color, -65, 65, false)[1];
+            if (m !== null) return m;
+          }
+          if (empty <= endgame * ENDGAME_SECOND_STEP) depth += 1;
+        }
+        if (empty <= (params._genius || 0)) depth += 1;
+      }
+    }
+    const m = minimax(bd, color, depth, -Infinity, Infinity, color, P, noise)[1];
+    return m === null ? moves[Math.floor(Math.random() * moves.length)] : m;
+  }
+  function choose(bd, color, params, noise) {
+    const move = chooseCore(bd, color, params, noise);
+    const blunder = params._blunder || 0;
+    if (blunder && move !== null && Math.random() < blunder) {
+      const empty = countEmpty(bd), book = params._book || 0;
+      if (empty <= 60 - OPENING_RANDOM_PLIES && !(book && empty >= 60 - book)) {
+        const others = legal(bd, color).filter(m => m !== move);
+        if (others.length) return others[Math.floor(Math.random() * others.length)];
+      }
+    }
+    return move;
+  }
+  self.onmessage = e => {
+    const { board, color, params, noise, id } = e.data;
+    self.postMessage({ id, move: choose(board.slice(), color, params, noise || 1) });
+  };
+}
+
+// ---------------- 対局モード：画面 ----------------
+// #play：相手を選ぶ／#play/選手ID：その選手と対局。成績はこのブラウザにだけ保存する
+let _playWorker = null, _playMsgId = 0, _play = null;
+const PLAY_REC_KEY = 'othello_play_records_v1';
+function playWorker() {
+  if (!_playWorker) {
+    const blob = new Blob([`(${playEngineMain.toString()})()`], { type: 'text/javascript' });
+    _playWorker = new Worker(URL.createObjectURL(blob));
+  }
+  return _playWorker;
+}
+function playAsk(board, color, params) {
+  return new Promise(resolve => {
+    const id = ++_playMsgId, w = playWorker();
+    const onMsg = e => { if (e.data.id !== id) return; w.removeEventListener('message', onMsg); resolve(e.data.move); };
+    w.addEventListener('message', onMsg);
+    w.postMessage({ id, board, color, params, noise: 1 });
+  });
+}
+function playRecords() { try { return JSON.parse(localStorage.getItem(PLAY_REC_KEY)) || {}; } catch (e) { return {}; } }
+function playSaveRecord(id, name, result) {
+  const all = playRecords();
+  const r = all[id] || { name, w: 0, l: 0, d: 0 };
+  r.name = name; r[result] += 1; r.last = Date.now();
+  all[id] = r;
+  try { localStorage.setItem(PLAY_REC_KEY, JSON.stringify(all)); } catch (e) { /* 保存できない環境では記録しない */ }
+}
+function playLegal(bd, color) {
+  const out = [];
+  for (let p = 0; p < 64; p++) {
+    if (bd[p] !== EMPTY) continue;
+    const t = bd.slice(); applyOthelloMove(t, p, color);
+    if (t.filter((v, i) => v !== bd[i]).length > 1) out.push(p);
+  }
+  return out;
+}
+const playStrength = elo => elo >= 1800 ? 'とても強い' : elo >= 1700 ? '強い' : elo >= 1600 ? 'ふつう' : 'やさしい';
+
+async function loadPlay(param) {
+  if (_play && _play.thinking) _play.cancelled = true;
+  if (param) return startPlay(param);
+  const el = document.getElementById('play-content');
+  el.innerHTML = '<div class="loading">読み込み中...</div>';
+  try {
+    await ensureTitleholdersLoaded();
+    const data = await fetch(`${API_BASE}?action=leagues`).then(r => r.json());
+    const recs = playRecords();
+    const holders = CURRENT_TITLEHOLDERS.by_id || {};
+    const row = p => {
+      const r = recs[p.id];
+      const t = (holders[p.id] || []).slice().sort((a, b) => TITLE_ORDER.indexOf(a) - TITLE_ORDER.indexOf(b));
+      return `<button class="play-pick" data-id="${escapeHtml(p.id)}">
+        <span class="play-pick-name">${t.map(x => `<span class="league-tag title-tag">${x}</span>`).join('')}${escapeHtml(p.display_name)}</span>
+        <span class="play-pick-meta">${p.age != null ? p.age + '歳・' : ''}Elo ${Math.round(p.elo_rating)}・${playStrength(p.elo_rating)}${r ? `　<b>${r.w}勝${r.l}敗${r.d ? r.d + '分' : ''}</b>` : ''}</span>
+      </button>`;
+    };
+    const all = ['A', 'B', 'C', 'D'].flatMap(L => (data.leagues[L] || []).map(p => ({ ...p, L })));
+    // 青龍の在位者はAリーグの一覧とは別に返ってくる（rikuou）ので、Aリーグに加える
+    if (data.rikuou && data.rikuou.id && !all.some(p => p.id === data.rikuou.id)) all.push({ ...data.rikuou, L: 'A' });
+    const holderList = all.filter(p => holders[p.id]);
+    let html = `<div style="text-align:left;">
+      <h3 class="play-h">選手と対局</h3>
+      <div class="play-note">リーグの選手を相手に、あなたが対局できます。相手は、その選手の棋風（8つの能力の比率）・読みの深さ・終盤力・定跡・ポカの癖をそのまま使い、リーグ戦と同じ強さで指します。成績はこの端末のブラウザにだけ残ります。</div>`;
+    if (holderList.length) html += `<h4 class="play-h4">タイトル保持者</h4><div class="play-list">${holderList.map(row).join('')}</div>`;
+    ['A', 'B', 'C', 'D'].forEach(L => {
+      const list = all.filter(p => p.L === L).sort((a, b) => b.elo_rating - a.elo_rating);
+      if (list.length) html += `<details ${L === 'A' ? 'open' : ''}><summary class="play-h4">${L}リーグ（${list.length}名）</summary><div class="play-list">${list.map(row).join('')}</div></details>`;
+    });
+    const played = Object.entries(recs).sort((a, b) => (b[1].last || 0) - (a[1].last || 0));
+    if (played.length) {
+      const tw = played.reduce((t, [, r]) => t + r.w, 0), tl = played.reduce((t, [, r]) => t + r.l, 0);
+      html += `<h4 class="play-h4">あなたの対局成績（${tw}勝${tl}敗）</h4><div class="play-list">${played.map(([id, r]) =>
+        `<button class="play-pick" data-id="${escapeHtml(id)}"><span class="play-pick-name">${escapeHtml(r.name)}</span><span class="play-pick-meta"><b>${r.w}勝${r.l}敗${r.d ? r.d + '分' : ''}</b></span></button>`).join('')}</div>`;
+    }
+    html += '</div>';
+    el.innerHTML = html;
+    el.querySelectorAll('.play-pick').forEach(b => b.addEventListener('click', () => navigateTo('play/' + b.dataset.id)));
+  } catch (e) {
+    el.innerHTML = `<div class="empty">読み込み失敗: ${escapeHtml(String(e))}</div>`;
+  }
+}
+
+async function startPlay(id) {
+  const el = document.getElementById('play-content');
+  el.innerHTML = '<div class="loading">読み込み中...</div>';
+  let data;
+  try { data = await fetch(`${API_BASE}?action=individual&id=${encodeURIComponent(id)}`).then(r => r.json()); }
+  catch (e) { el.innerHTML = `<div class="empty">読み込み失敗: ${escapeHtml(String(e))}</div>`; return; }
+  if (!data || !data.individual || !data.individual.params) { el.innerHTML = '<div class="empty">この選手とは対局できません</div>'; return; }
+  const ind = data.individual;
+  el.innerHTML = `<div class="play-setup">
+      <div class="back-link" id="play-back">← 相手を選び直す</div>
+      <h3 class="play-h" style="text-align:center;">${escapeHtml(ind.display_name)} と対局</h3>
+      <div class="play-note" style="text-align:center;">${ind.retired ? '（引退時の棋力）' : `${leagueTag(ind.league)}`}Elo ${Math.round(ind.elo_rating)}・${playStrength(ind.elo_rating)}</div>
+      <div class="play-note" style="text-align:center; margin-top:10px;">先手（黒）か後手（白）を選んでください</div>
+      <div class="play-choose">
+        <button class="play-btn" data-c="1">⚫ 黒で先に打つ</button>
+        <button class="play-btn" data-c="2">⚪ 白で後から打つ</button>
+        <button class="play-btn" data-c="0">おまかせ</button>
+      </div>
+    </div>`;
+  el.querySelector('#play-back').addEventListener('click', () => navigateTo('play'));
+  el.querySelectorAll('.play-choose .play-btn').forEach(b => b.addEventListener('click', () => {
+    let c = +b.dataset.c; if (!c) c = Math.random() < 0.5 ? BLACK : WHITE;
+    _play = { ind, me: c, ai: c === BLACK ? WHITE : BLACK, board: makeInitialBoard(), turn: BLACK, last: null, over: false, thinking: false, cancelled: false, moves: 0 };
+    renderPlay(); playStep();
+  }));
+}
+
+function renderPlay(msg) {
+  const el = document.getElementById('play-content');
+  const P = _play; if (!P) return;
+  const bd = P.board;
+  const b = bd.filter(v => v === BLACK).length, w = bd.filter(v => v === WHITE).length;
+  const legal = (!P.over && P.turn === P.me && !P.thinking) ? playLegal(bd, P.me) : [];
+  const name = escapeHtml(P.ind.display_name);
+  const you = P.me === BLACK ? '⚫ あなた' : '⚪ あなた', them = P.ai === BLACK ? `⚫ ${name}` : `⚪ ${name}`;
+  const status = msg || (P.over ? '' : P.thinking ? `${name}が考えています…` : P.turn === P.me ? 'あなたの番です（点のマスに打てます）' : '');
+  el.innerHTML = `<div class="back-link" id="play-back">← 相手を選び直す</div>
+    <div class="play-score"><span class="${P.turn === BLACK && !P.over ? 'on' : ''}">${P.me === BLACK ? you : them}　${b}</span><span class="${P.turn === WHITE && !P.over ? 'on' : ''}">${w}　${P.me === WHITE ? you : them}</span></div>
+    <div class="othello-board play-board" id="play-board">${bd.map((v, i) => `<div class="osq${legal.includes(i) ? ' can' : ''}${P.last === i ? ' last' : ''}" data-pos="${i}">${v === BLACK ? '<div class="disc disc-black"></div>' : v === WHITE ? '<div class="disc disc-white"></div>' : legal.includes(i) ? '<div class="hint"></div>' : ''}</div>`).join('')}</div>
+    <div class="play-status" aria-live="polite">${status}</div>
+    ${P.over ? `<div class="play-choose"><button class="play-btn" id="play-again">もう一度</button><button class="play-btn" id="play-other">別の選手と</button><button class="play-btn" id="play-profile">選手ページ</button></div>` : ''}`;
+  el.querySelector('#play-back').addEventListener('click', () => { P.cancelled = true; navigateTo('play'); });
+  el.querySelectorAll('#play-board .osq.can').forEach(sq => sq.addEventListener('click', () => playHuman(+sq.dataset.pos)));
+  if (P.over) {
+    el.querySelector('#play-again').addEventListener('click', () => startPlay(P.ind.id));
+    el.querySelector('#play-other').addEventListener('click', () => navigateTo('play'));
+    el.querySelector('#play-profile').addEventListener('click', () => navigateTo('individual/' + P.ind.id));
+  }
+}
+
+function playHuman(pos) {
+  const P = _play;
+  if (!P || P.over || P.thinking || P.turn !== P.me) return;
+  if (!playLegal(P.board, P.me).includes(pos)) return;
+  applyOthelloMove(P.board, pos, P.me); P.last = pos; P.moves++;
+  P.turn = P.ai; playStep();
+}
+
+async function playStep() {
+  const P = _play; if (!P || P.cancelled) return;
+  const mine = playLegal(P.board, P.turn), theirs = playLegal(P.board, P.turn === BLACK ? WHITE : BLACK);
+  if (!mine.length && !theirs.length) return playFinish();
+  if (!mine.length) {
+    const who = P.turn === P.me ? 'あなた' : P.ind.display_name;
+    P.turn = P.turn === BLACK ? WHITE : BLACK;
+    renderPlay(`${escapeHtml(who)}は打てる場所がないのでパス`);
+    setTimeout(playStep, 900);
+    return;
+  }
+  if (P.turn === P.me) { renderPlay(); return; }
+  P.thinking = true; renderPlay();
+  const started = Date.now();
+  const move = await playAsk(P.board, P.ai, P.ind.params);
+  if (P.cancelled || _play !== P) return;
+  await new Promise(r => setTimeout(r, Math.max(0, 450 - (Date.now() - started))));  // 速すぎると何が起きたか分かりにくいので少し間を置く
+  P.thinking = false;
+  if (move !== null && move !== undefined) { applyOthelloMove(P.board, move, P.ai); P.last = move; P.moves++; }
+  P.turn = P.me; playStep();
+}
+
+function playFinish() {
+  const P = _play; P.over = true;
+  const me = P.board.filter(v => v === P.me).length, ai = P.board.filter(v => v === P.ai).length;
+  const res = me > ai ? 'w' : me < ai ? 'l' : 'd';
+  playSaveRecord(P.ind.id, P.ind.display_name, res);
+  const r = playRecords()[P.ind.id];
+  const head = res === 'w' ? `🎉 あなたの勝ち（${me}対${ai}）` : res === 'l' ? `${escapeHtml(P.ind.display_name)}の勝ち（${ai}対${me}）` : `引き分け（${me}対${ai}）`;
+  renderPlay(`<b>${head}</b><br><span style="font-size:0.74rem;">この選手との通算：${r.w}勝${r.l}敗${r.d ? r.d + '分' : ''}</span>`);
 }
 
 render(location.hash);
