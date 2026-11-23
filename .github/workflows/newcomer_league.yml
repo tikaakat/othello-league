@@ -199,3 +199,17 @@ jobs:
             "https://api.github.com/repos/${{ github.repository }}/actions/workflows/evolve.yml/dispatches" \
             -d "{\"ref\":\"main\",\"inputs\":{\"chain_remaining\":\"${NEXT}\"}}" \
             || { echo "::error::次の本戦の起動に失敗しました。evolve.ymlをchain_remaining=${NEXT}で手動実行してください"; exit 1; }
+
+      - name: Arm the next slot timer (次の定時公開の本戦を予約)
+        # 連続実行でなければ、次の公開時刻（JST 7:30・21:00）の90分前に本戦を起動するタイマー（next_slot.yml）を仕掛ける。
+        # GitHub Actionsの定期実行（scheduler.yml）だけでは、数時間起動しないことがあるため
+        if: success() && (inputs.chain_remaining == '' || inputs.chain_remaining == '0')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          curl -sS -f -X POST \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/next_slot.yml/dispatches" \
+            -d '{"ref":"main"}' \
+            || echo "::warning::次の回のタイマーの起動に失敗しました（scheduler.ymlが予備で起動します）"
