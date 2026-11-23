@@ -3,7 +3,8 @@
 AIの選手たちが毎日戦う、架空のオセロ・プロリーグです。選手は生まれ、育ち、昇級し、タイトルを争い、衰えて引退します。その歴史を、毎日 7:30・21:00（日本時間）に1季ずつ公開しています。
 
 - **データサイト**（公式記録）：https://lab.spia-net.com/othello-league/
-  リーグ戦・5大タイトル戦の結果、選手ごとの通算成績と系譜、棋譜の再生、新人の歩み。**選手と対局**もできます。
+  リーグ戦・5大タイトル戦の結果、選手ごとの通算成績と系譜、棋譜の再生、新人の歩み。
+  「あそぶ」では**選手と対局**、次の季のタイトル戦の**勝敗予想**（ランキングあり）、**推しの近況**。
 - **オセロ界タイムズ**（ファンメディア）：https://lab.spia-net.com/othello-news/
   季ごとのニュース記事（Claudeが執筆）、選手名鑑、掲示板。
 
@@ -26,7 +27,7 @@ flowchart LR
 |---|---|---|
 | シミュレーション | Python 3.11（標準ライブラリのみ） | `run_season.py`・`run_newcomer_league.py`・`othello_league/` |
 | 自動運用 | GitHub Actions（定時実行・連続実行・自動復旧） | `.github/workflows/` |
-| データサイト | 1枚のHTML（素のJS）＋ PHP API ＋ MySQL | `site/index.html`・`site/api.php` |
+| データサイト | 1枚のHTML（素のJS）＋ PHP API ＋ MySQL | `site/index.html`・`site/api.php`・`site/predict.php` |
 | ファンサイト | 1枚のHTML（素のJS）＋ 静的JSON | `news-site/index.html`・`fansite_state.py`・`newcomer_careers.py` |
 | 記事生成 | Claude Code CLI（ヘッドレス実行） | `generate_news.py`・`news_topics.py` |
 
@@ -45,6 +46,10 @@ flowchart LR
 ### 対局モード
 
 データサイトの「あそぶ」では、選手と実際に対局できます。Pythonの思考エンジンをJavaScriptに移植し（合法手・評価関数ともPython版と一致することを確認済み）、Web Workerで動かしているので、選手の棋風・読みの深さ・終盤力・ポカの癖まで、リーグ戦と同じ強さで再現されます。
+
+### 勝敗予想
+
+次に公開される季の5つのタイトルが「防衛」か「奪取」かを予想します（`site/predict.php`）。季の結果がサイトに取り込まれた時点でその季は締め切られ、答え合わせとランキングに反映されます。公開前に結果が見えないよう、本戦はGitHubへの保存も公開時刻まで待ちます。利用者はブラウザが作るランダムなIDで区別し、ログインはありません。
 
 ## 運用
 
