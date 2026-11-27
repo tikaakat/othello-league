@@ -84,6 +84,7 @@ on:
           - "sync_retired_flags"
           - "drop_first_season_byakko_20261118"
           - "resync_server_data"
+          - "redirect_to_cloudflare"
         default: ""
       create_dir:
         description: "デプロイの代わりに、lab.spia-net.com直下（othello-league/の1つ上）に相対パスでディレクトリを作成する（例: othello-news）。「..」や先頭「/」は不可"
@@ -199,6 +200,16 @@ jobs:
 
           if [ -n "$RUN_MIGRATION" ]; then
             echo "=== マイグレーション実行: ${RUN_MIGRATION} ==="
+            if [ "$RUN_MIGRATION" = "redirect_to_cloudflare" ]; then
+              # オセロは Cloudflare（othello.spia-net.com）へ移った。lab の旧URLを新しいURLへ転送する .htaccess を置く
+              retry_cmd scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
+                cloudflare/xserver/othello-league.htaccess "$XSERVER_USER@$XSERVER_HOST:${XSERVER_SITE_DIR}.htaccess"
+              retry_cmd scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
+                news-site/.htaccess "$XSERVER_USER@$XSERVER_HOST:${XSERVER_LAB_DIR}othello-news/.htaccess"
+              rm -f /tmp/deploy_key
+              echo "lab.spia-net.com/othello-league/・/othello-news/ を othello.spia-net.com へ転送するようにしました"
+              exit 0
+            fi
             if [ "$RUN_MIGRATION" = "resync_server_data" ]; then
               # GitHub上の最新データ（rosters・軽量版season_state・matches・standings・新人リーグ）をサーバーへ送り直し、
               # 取り込み（import_from_colab.php）をCLIで実行する。季の本戦でサーバーへの反映が失敗したときの手動復旧用。

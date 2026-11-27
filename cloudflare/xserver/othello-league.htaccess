@@ -1,0 +1,4 @@
+# データサイトは Cloudflare（https://othello.spia-net.com/）へ移った。
+# 旧URL（lab.spia-net.com/othello-league/...）へのアクセスは、すべて新しいURLへ転送する（#以降はブラウザが引き継ぐ）
+RewriteEngine On
+RewriteRule ^(.*)$ https://othello.spia-net.com/$1 [R=301,L]
