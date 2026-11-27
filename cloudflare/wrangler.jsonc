@@ -20,6 +20,10 @@
       "/create_character.php", "/donation.php", "/supporter.php", "/sponsor.php", "/create_checkout.php", "/stripe_webhook.php"
     ]
   },
+  // othello.spia-net.com をこの Worker に割り当てる（DNSの記録と証明書は Cloudflare が自動で作る）
+  "routes": [
+    { "pattern": "othello.spia-net.com", "custom_domain": true }
+  ],
   "d1_databases": [
     { "binding": "DB", "database_name": "othello-league", "database_id": "23e9fb30-0998-4916-8af7-ca89146c042a" }
   ],
