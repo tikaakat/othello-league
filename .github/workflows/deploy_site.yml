@@ -108,6 +108,7 @@ on:
           - "schema_check"
           - "perf_check"
           - "season_check"
+          - "migration_dump"
           - "import_rosters_check"
           - "dan_distribution"
         default: ""
@@ -705,6 +706,30 @@ jobs:
                     foreach ($pdo->query("SELECT * FROM $t ORDER BY id")->fetchAll(PDO::FETCH_ASSOC) as $r) {
                       unset($r["params_json"], $r["match_history"], $r["age_multipliers_json"]);
                       echo "ROW " . $t . " " . json_encode($r, JSON_UNESCAPED_UNICODE) . PHP_EOL;
+                    }
+                  }
+                '
+                ;;
+              migration_dump)
+                # Cloudflare（Worker + D1）への移行の下調べ用：全テーブルの作り（SHOW CREATE TABLE）と件数、
+                # サーバーにしか無い取り込み・管理用スクリプトの中身を表示する。
+                # 鍵・パスワード等に関わる行（key|pass|secret|token|dsn 等を含む行）は表示しない
+                PHP_QUERY='
+                  foreach ($pdo->query("SHOW TABLES")->fetchAll(PDO::FETCH_COLUMN) as $t) {
+                    $n = $pdo->query("SELECT COUNT(*) FROM `$t`")->fetchColumn();
+                    echo "=== TABLE $t ($n rows) ===" . PHP_EOL;
+                    echo $pdo->query("SHOW CREATE TABLE `$t`")->fetch(PDO::FETCH_NUM)[1] . PHP_EOL;
+                  }
+                  $dir = dirname(get_included_files()[0]);
+                  foreach (glob("$dir/*.php") as $path) {
+                    $f = basename($path);
+                    if (in_array($f, ["db_config.php", "stripe_config.php", "league_secrets.php", "github_config.php"], true)) continue;
+                    // リポジトリのsite/にあるもの（中身は分かっている）は飛ばす
+                    if (in_array($f, ["api.php", "admin_auth.php", "article_like.php", "board.php", "cheer.php", "create_character.php", "create_checkout.php", "donation.php", "inquiry.php", "predict.php", "sponsor.php", "stripe_client.php", "stripe_webhook.php", "supporter.php"], true)) { echo "=== FILE $f（リポジトリにあるので省略） ===" . PHP_EOL; continue; }
+                    echo "=== FILE $f ===" . PHP_EOL;
+                    foreach (file($path) as $i => $line) {
+                      if (preg_match("/key|pass|secret|token|password|dsn|mysql:|sk_|pk_|whsec_/i", $line)) { echo ($i + 1) . ": (省略)" . PHP_EOL; continue; }
+                      echo ($i + 1) . ": " . rtrim($line) . PHP_EOL;
                     }
                   }
                 '
