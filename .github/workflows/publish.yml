@@ -1,10 +1,11 @@
 name: Publish Season (計算済みの季をサイトに公開)
-run-name: "Publish Season${{ inputs.slot && format(' [slot {0}]', inputs.slot) || '' }}${{ inputs.reset == 'true' && ' [reset]' || '' }}${{ inputs.unpublish == 'true' && ' [unpublish]' || '' }}"
+run-name: "Publish Season${{ inputs.season && format(' {0}', inputs.season) || '' }}${{ inputs.slot && format(' [slot {0}]', inputs.slot) || '' }}${{ inputs.preview == 'true' && ' [preview]' || '' }}${{ inputs.reset == 'true' && ' [reset]' || '' }}${{ inputs.unpublish == 'true' && ' [unpublish]' || '' }}"
 
 # 順次公開モード（publish/state.json の mode が replay）：
 # 季は先に計算しておき（ストック）、公開時刻（JST 7:30・21:00）ごとに1季ずつサイトへ出す。
 # 第s季を出すときは、GitHubの履歴から「第s季が終わった時点（その後の新人リーグ・記事まで）」のdata/を取り出し、
-# それを本戦（evolve.yml）・ファンサイトのデプロイ（generate_news.yml）と同じ手順でサーバーへ送る。
+# そこから結果のページを全部作り（cloudflare/build/build.sh）、Cloudflare（othello.spia-net.com の Worker）に上げる。
+# データサイトは / 、ファンサイトは /news/ 。予想・掲示板などの利用者のデータは Cloudflare D1 にある。
 # 第s季が終わった時点＝第s+1季の順位表（data/standings/season_{s+1}.json）を追加したコミットの、1つ前のコミット。
 # まだ次の季を計算していなければ、最新のコミット（mainの先頭）。
 #
@@ -15,7 +16,7 @@ run-name: "Publish Season${{ inputs.slot && format(' [slot {0}]', inputs.slot) |
 # season を指定すると、その季を出す（省略時は published_season+1）。
 #
 # 公開の取り消し：unpublish=true で、両サイトを「近日公開」のページ（publish/coming_soon.html）に差し替え、
-# サイトのデータを消し、publish/state.json を published_season=0・paused=true にする（タイマーも止まる）。
+# 利用者のデータ（予想・掲示板・応援・いいね）を消し、publish/state.json を published_season=0・paused=true にする（タイマーも止まる）。
 # 始動するときは season=1 reset=true で実行する（本来のページに戻して第1季を出し、paused を外して定時公開を再開する）。
 
 on:
@@ -31,6 +32,10 @@ on:
         default: ""
       reset:
         description: "trueにすると、公開の前にサイト側のデータ（DB・取り込み用ファイル）を消す（第1季からやり直すとき）"
+        required: false
+        default: "false"
+      preview:
+        description: "trueにすると、公開はせず確認用のURL（preview-othello-league.….workers.dev）にだけ上げる（season で季を指定。記録・タイマーは触らない）"
         required: false
         default: "false"
       unpublish:
@@ -50,6 +55,23 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     timeout-minutes: 120
+    # 結果のページを作るときに、いまの api.php をそのまま動かすための一時的なDB（Xserverと同じ MariaDB）
+    services:
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MARIADB_ROOT_PASSWORD: root
+          MARIADB_USER: league
+          MARIADB_PASSWORD: league
+          MARIADB_DATABASE: othello
+        ports: ["3306:3306"]
+        options: --health-cmd="healthcheck.sh --connect --innodb_initialized" --health-interval=5s --health-timeout=5s --health-retries=20
+    env:
+      DB_HOST: 127.0.0.1
+      DB_USER: root
+      DB_PASS: root
+      DB_NAME: othello
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -60,29 +82,29 @@ jobs:
         with:
           python-version: "3.11"
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Worker の道具（wrangler）を入れる
+        working-directory: cloudflare
+        run: npm ci --no-audit --no-fund
+
       - name: 公開を取り消す（近日公開のページに差し替え）
         if: inputs.unpublish == 'true'
-        env:
-          XSERVER_HOST: ${{ secrets.XSERVER_HOST }}
-          XSERVER_USER: ${{ secrets.XSERVER_USER }}
-          XSERVER_PORT: ${{ secrets.XSERVER_SSH_PORT }}
-          XSERVER_TARGET_DIR: ${{ secrets.XSERVER_TARGET_DIR }}
-          XSERVER_SSH_KEY: ${{ secrets.XSERVER_SSH_KEY }}
-          RESET_DB_URL: "https://lab.spia-net.com/othello-league/reset_database.php?key=${{ secrets.IMPORT_SECRET_KEY }}"
+        working-directory: cloudflare
         run: |
-          set -uo pipefail
-          echo "$XSERVER_SSH_KEY" > /tmp/deploy_key; chmod 600 /tmp/deploy_key
-          retry_cmd() { local n=1; until "$@"; do [ $n -ge 4 ] && return 1; echo "::warning::失敗（$n回目）。再試行: $*"; sleep $((n * 5)); n=$((n + 1)); done; }
-          SCP="scp -i /tmp/deploy_key -P $XSERVER_PORT -o StrictHostKeyChecking=no -o ConnectTimeout=15"
-          echo "=== 両サイトを「近日公開」のページに差し替える ==="
-          retry_cmd $SCP publish/coming_soon.html "$XSERVER_USER@$XSERVER_HOST:spia-net.com/public_html/lab.spia-net.com/othello-league/index.html" || exit 1
-          retry_cmd $SCP publish/coming_soon.html "$XSERVER_USER@$XSERVER_HOST:spia-net.com/public_html/lab.spia-net.com/othello-news/index.html" || exit 1
-          # ファンサイトの記事・季の状態も空にしておく（ページを差し替えても、JSONを直接見られないように）
-          mkdir -p /tmp/empty && echo '[]' > /tmp/empty/articles.json && echo '{}' > /tmp/empty/awards.json && echo '{}' > /tmp/empty/season_state.json && echo '[]' > /tmp/empty/newcomer_careers.json
-          retry_cmd $SCP /tmp/empty/articles.json /tmp/empty/awards.json /tmp/empty/season_state.json /tmp/empty/newcomer_careers.json \
-            "$XSERVER_USER@$XSERVER_HOST:spia-net.com/public_html/lab.spia-net.com/othello-news/" || exit 1
-          bash publish/clear_site_data.sh || exit 1
-          rm -f /tmp/deploy_key
+          set -euo pipefail
+          # 両サイト（/ と /news/）を「近日公開」のページだけにする
+          rm -rf dist && mkdir -p dist/news
+          cp ../publish/coming_soon.html dist/index.html
+          cp ../publish/coming_soon.html dist/news/index.html
+          cp ../site/ogp.png dist/
+          npx wrangler deploy
+          # 利用者のデータ（予想・掲示板・応援・いいね）を消す。表は Worker が次のアクセスで作り直す（問い合わせは残す）
+          npx wrangler d1 execute othello-league --remote --yes \
+            --command "DROP TABLE IF EXISTS predictions; DROP TABLE IF EXISTS board_posts; DROP TABLE IF EXISTS board_threads; DROP TABLE IF EXISTS cheer_log; DROP TABLE IF EXISTS article_likes;"
+          cd ..
           git config user.name "othello-league-bot"
           git config user.email "actions@users.noreply.github.com"
           for attempt in 1 2 3 4; do
@@ -135,79 +157,29 @@ jobs:
           ls /tmp/snap/data/standings | sort -V | tail -2
           echo "season=${S}" >> "$GITHUB_OUTPUT"; echo "ok=1" >> "$GITHUB_OUTPUT"
 
-      - name: データサイトへ反映
+      - name: 公開用のファイルを作る（その季の時点の結果ページ）
         if: steps.snap.outputs.ok == '1'
-        env:
-          XSERVER_HOST: ${{ secrets.XSERVER_HOST }}
-          XSERVER_USER: ${{ secrets.XSERVER_USER }}
-          XSERVER_PORT: ${{ secrets.XSERVER_SSH_PORT }}
-          XSERVER_TARGET_DIR: ${{ secrets.XSERVER_TARGET_DIR }}
-          XSERVER_SSH_KEY: ${{ secrets.XSERVER_SSH_KEY }}
-          IMPORT_URL: "https://lab.spia-net.com/othello-league/import_from_colab.php?key=${{ secrets.IMPORT_SECRET_KEY }}"
-          RESET_DB_URL: "https://lab.spia-net.com/othello-league/reset_database.php?key=${{ secrets.IMPORT_SECRET_KEY }}"
-          MIGRATIONS_URL: "https://lab.spia-net.com/othello-league/run_migrations.php?key=${{ secrets.IMPORT_SECRET_KEY }}"
-        run: |
-          set -uo pipefail
-          echo "$XSERVER_SSH_KEY" > /tmp/deploy_key; chmod 600 /tmp/deploy_key
-          retry_cmd() { local n=1; until "$@"; do [ $n -ge 4 ] && return 1; echo "::warning::失敗（$n回目）。再試行: $*"; sleep $((n * 5)); n=$((n + 1)); done; }
-          SSH="ssh -i /tmp/deploy_key -p $XSERVER_PORT -o StrictHostKeyChecking=no -o ConnectTimeout=15 $XSERVER_USER@$XSERVER_HOST"
-          SCP="scp -i /tmp/deploy_key -P $XSERVER_PORT -o StrictHostKeyChecking=no -o ConnectTimeout=15"
-          D=/tmp/snap/data
-          retry_cmd curl -sS -f --connect-timeout 8 --max-time 20 "$MIGRATIONS_URL" || echo "::warning::マイグレーションの適用に失敗しました"
-          if [ "${{ inputs.reset }}" = "true" ]; then
-            echo "=== サイト側のデータを消す（第1季からやり直し） ==="
-            bash publish/clear_site_data.sh || exit 1
-            # 公開を取り消していた（近日公開のページだった）場合に備えて、データサイトの本来のページを置き直す
-            retry_cmd $SCP site/index.html site/ogp.png "$XSERVER_USER@$XSERVER_HOST:spia-net.com/public_html/lab.spia-net.com/othello-league/" || exit 1
-          fi
-          retry_cmd $SSH "mkdir -p ${XSERVER_TARGET_DIR}matches ${XSERVER_TARGET_DIR}standings ${XSERVER_TARGET_DIR}newcomer_league" || exit 1
-          # サーバーの取り込みには、棋譜を除いた軽量版のseason_state.jsonを送る（evolve.ymlのmake_server_stateと同じ）
-          mkdir -p /tmp/server_state
-          python3 -c 'import json,sys; s = json.load(open(sys.argv[1], encoding="utf-8")); s["title_history"] = [{k: v for k, v in e.items() if not isinstance(v, (list, dict))} for e in s.get("title_history", [])]; json.dump(s, open("/tmp/server_state/season_state.json", "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))' "$D/season_state.json"
-          retry_cmd $SCP $D/rosters.json /tmp/server_state/season_state.json "$XSERVER_USER@$XSERVER_HOST:$XSERVER_TARGET_DIR" || exit 1
-          retry_cmd $SCP -r $D/matches/. "$XSERVER_USER@$XSERVER_HOST:${XSERVER_TARGET_DIR}matches/" || exit 1
-          retry_cmd $SCP -r $D/standings/. "$XSERVER_USER@$XSERVER_HOST:${XSERVER_TARGET_DIR}standings/" || exit 1
-          if [ -n "$(ls -A $D/newcomer_league/ 2>/dev/null)" ]; then
-            retry_cmd $SCP -r $D/newcomer_league/. "$XSERVER_USER@$XSERVER_HOST:${XSERVER_TARGET_DIR}newcomer_league/" || exit 1
-          fi
-          echo "=== 取り込み ==="
-          OK=0
-          for n in 1 2 3; do
-            OUT=$(curl -sS -f --connect-timeout 10 --max-time 300 "$IMPORT_URL" 2>&1 || true)
-            echo "$OUT" | tail -5
-            if echo "$OUT" | grep -q "インポート完了"; then OK=1; break; fi
-            sleep 10
-          done
-          rm -f /tmp/deploy_key
-          [ "$OK" = 1 ] || { echo "::error::取り込みが完了しませんでした"; exit 1; }
+        run: bash cloudflare/build/build.sh /tmp/snap/data cloudflare/dist
 
-      - name: ファンサイトへ反映
+      - name: Cloudflare に上げる
         if: steps.snap.outputs.ok == '1'
-        env:
-          XSERVER_HOST: ${{ secrets.XSERVER_HOST }}
-          XSERVER_USER: ${{ secrets.XSERVER_USER }}
-          XSERVER_PORT: ${{ secrets.XSERVER_SSH_PORT }}
-          XSERVER_SSH_KEY: ${{ secrets.XSERVER_SSH_KEY }}
-          XSERVER_NEWS_DIR: "spia-net.com/public_html/lab.spia-net.com/othello-news/"
+        working-directory: cloudflare
         run: |
-          set -uo pipefail
-          echo "$XSERVER_SSH_KEY" > /tmp/deploy_key; chmod 600 /tmp/deploy_key
-          retry_cmd() { local n=1; until "$@"; do [ $n -ge 4 ] && return 1; echo "::warning::失敗（$n回目）。再試行: $*"; sleep $((n * 5)); n=$((n + 1)); done; }
-          D=/tmp/snap/data
-          mkdir -p /tmp/news_out
-          python3 fansite_state.py "$D" /tmp/news_out/season_state.json
-          python3 newcomer_careers.py "$D" /tmp/news_out/newcomer_careers.json || echo "::warning::newcomer_careers.jsonの作成に失敗しました"
-          [ -f "$D/news/articles.json" ] || echo '[]' > "$D/news/articles.json"
-          [ -f "$D/news/awards.json" ] || echo '{}' > "$D/news/awards.json"
-          NC_FILE=""; [ -f /tmp/news_out/newcomer_careers.json ] && NC_FILE=/tmp/news_out/newcomer_careers.json
-          retry_cmd ssh -i /tmp/deploy_key -p "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 "$XSERVER_USER@$XSERVER_HOST" "mkdir -p ${XSERVER_NEWS_DIR}" || exit 1
-          retry_cmd scp -i /tmp/deploy_key -P "$XSERVER_PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
-            news-site/index.html news-site/.htaccess news-site/robots.txt news-site/sitemap.xml "$D/news/articles.json" "$D/news/awards.json" /tmp/news_out/season_state.json $NC_FILE \
-            "$XSERVER_USER@$XSERVER_HOST:${XSERVER_NEWS_DIR}" || exit 1
-          rm -f /tmp/deploy_key
+          set -euo pipefail
+          if [ "${{ inputs.reset }}" = "true" ] && [ "${{ inputs.preview }}" != "true" ]; then
+            echo "=== 第1季からやり直すので、利用者のデータ（予想・掲示板・応援・いいね）を消す ==="
+            npx wrangler d1 execute othello-league --remote --yes \
+              --command "DROP TABLE IF EXISTS predictions; DROP TABLE IF EXISTS board_posts; DROP TABLE IF EXISTS board_threads; DROP TABLE IF EXISTS cheer_log; DROP TABLE IF EXISTS article_likes;"
+          fi
+          if [ "${{ inputs.preview }}" = "true" ]; then
+            # 本番は変えずに、確認用のURLにだけ上げる
+            npx wrangler versions upload --preview-alias preview
+            exit 0
+          fi
+          npx wrangler deploy
 
       - name: 公開済みの季を記録
-        if: success() && steps.snap.outputs.ok == '1'
+        if: success() && steps.snap.outputs.ok == '1' && inputs.preview != 'true'
         env:
           S: ${{ steps.snap.outputs.season }}
         run: |
@@ -227,7 +199,7 @@ jobs:
 
       # 公開に失敗しても、ストック補充の判定と次の回のタイマーは必ず行う（次の回で同じ季をもう一度出す）
       - name: ストック補充・次の回のタイマー
-        if: always() && inputs.unpublish != 'true'
+        if: always() && inputs.unpublish != 'true' && inputs.preview != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}

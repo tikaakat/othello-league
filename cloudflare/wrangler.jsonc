@@ -1,0 +1,27 @@
+// サーキットオセロリーグ（othello.spia-net.com）の Worker の設定
+// 公開は GitHub Actions（.github/workflows/publish.yml）から `npx wrangler deploy` で行う。
+// dist/ は cloudflare/build/build.sh が「公開する季の時点のデータ」から作る（リポジトリには入れない）。
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "othello-league",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-11-01",
+  "account_id": "0d39c3fe24ce0801cbc20728720e2063",
+  "workers_dev": true,
+  "preview_urls": true,
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "none",
+    // .php へのアクセスだけ Worker が受ける（それ以外は静的ファイルをそのまま返す）
+    "run_worker_first": [
+      "/api.php", "/predict.php", "/board.php", "/cheer.php", "/article_like.php", "/inquiry.php",
+      "/create_character.php", "/donation.php", "/supporter.php", "/sponsor.php", "/create_checkout.php", "/stripe_webhook.php"
+    ]
+  },
+  "d1_databases": [
+    { "binding": "DB", "database_name": "othello-league", "database_id": "23e9fb30-0998-4916-8af7-ca89146c042a" }
+  ],
+  "observability": { "enabled": true }
+}

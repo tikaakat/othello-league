@@ -2,33 +2,35 @@
 
 AIの選手たちが毎日戦う、架空のオセロ・プロリーグです。選手は生まれ、育ち、昇級し、タイトルを争い、衰えて引退します。その歴史を、毎日 7:30・21:00（日本時間）に1季ずつ公開しています。
 
-- **データサイト**（公式記録）：https://lab.spia-net.com/othello-league/
+- **データサイト**（公式記録）：https://othello.spia-net.com/
   リーグ戦・5大タイトル戦の結果、選手ごとの通算成績と系譜、棋譜の再生、新人の歩み。
   「あそぶ」では**選手と対局**、次の季のタイトル戦の**勝敗予想**（ランキングあり）、**推しの近況**。
-- **オセロ界タイムズ**（ファンメディア）：https://lab.spia-net.com/othello-news/
+- **オセロ界タイムズ**（ファンメディア）：https://othello.spia-net.com/news/
   季ごとのニュース記事（Claudeが執筆）、選手名鑑、掲示板。
 
 ## 仕組み
 
 ```mermaid
 flowchart LR
-  S[scheduler.yml<br/>毎時起動・朝夜の回を判定] --> E[evolve.yml<br/>本戦を計算]
-  E -->|公開時刻まで待つ| X[(Xserver<br/>PHP + MySQL)]
-  E --> N[newcomer_league.yml<br/>奨励会・三段リーグ]
-  N --> X
-  E --> G[generate_news.yml<br/>Claudeが記事を執筆]
-  N --> G
-  G --> F[ファンサイト]
-  X --> D[データサイト<br/>api.php]
+  E[evolve.yml<br/>本戦を計算] --> N[newcomer_league.yml<br/>奨励会・三段リーグ]
+  N --> G[generate_news.yml<br/>Claudeが記事を執筆]
   E -.結果をコミット.-> R[(GitHub<br/>data/)]
+  N -.-> R
+  G -.-> R
+  T[next_slot.yml<br/>7:30・21:00のタイマー] --> P[publish.yml<br/>その季の時点のdata/から<br/>全ページを作る]
+  R --> P
+  P -->|wrangler deploy| C[Cloudflare Worker<br/>othello.spia-net.com]
+  C --> D1[(D1<br/>予想・掲示板・応援)]
 ```
 
 | 層 | 技術 | 主なファイル |
 |---|---|---|
 | シミュレーション | Python 3.11（標準ライブラリのみ） | `run_season.py`・`run_newcomer_league.py`・`othello_league/` |
 | 自動運用 | GitHub Actions（定時実行・連続実行・自動復旧） | `.github/workflows/` |
-| データサイト | 1枚のHTML（素のJS）＋ PHP API ＋ MySQL | `site/index.html`・`site/api.php`・`site/predict.php` |
-| ファンサイト | 1枚のHTML（素のJS）＋ 静的JSON | `news-site/index.html`・`fansite_state.py`・`newcomer_careers.py` |
+| データサイト | 1枚のHTML（素のJS）。結果はすべて事前に作ったJSON | `site/index.html`・`site/api.php` |
+| 結果ページの作成 | 公開のたびに Actions の中で MariaDB と `api.php` を動かし、全ページ分のJSONを書き出す | `cloudflare/build/` |
+| 配信・書き込み | Cloudflare Workers（静的ファイル）＋ D1（予想・掲示板・応援・いいね・問い合わせ） | `cloudflare/worker/index.ts`・`cloudflare/wrangler.jsonc` |
+| ファンサイト | 1枚のHTML（素のJS）＋ 静的JSON（`/news/`） | `news-site/index.html`・`fansite_state.py`・`newcomer_careers.py` |
 | 記事生成 | Claude Code CLI（ヘッドレス実行） | `generate_news.py`・`news_topics.py` |
 
 ### 選手の強さ
@@ -49,7 +51,7 @@ flowchart LR
 
 ### 勝敗予想
 
-次に公開される季の5つのタイトルが「防衛」か「奪取」かを予想します（`site/predict.php`）。季の結果がサイトに取り込まれた時点でその季は締め切られ、答え合わせとランキングに反映されます。公開前に結果が見えないよう、本戦はGitHubへの保存も公開時刻まで待ちます。利用者はブラウザが作るランダムなIDで区別し、ログインはありません。
+次に公開される季の5つのタイトルが「防衛」か「奪取」かを予想します（Worker の `predict.php`、データは D1）。季の結果がサイトに取り込まれた時点でその季は締め切られ、答え合わせとランキングに反映されます。公開前に結果が見えないよう、本戦はGitHubへの保存も公開時刻まで待ちます。利用者はブラウザが作るランダムなIDで区別し、ログインはありません。
 
 ## 運用
 

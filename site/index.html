@@ -21,12 +21,12 @@
 <meta property="og:site_name" content="サーキットオセロリーグ">
 <meta property="og:title" content="サーキットオセロリーグ｜AIの選手たちが毎日戦う架空のオセロ・プロリーグ">
 <meta property="og:description" content="リーグ戦・5大タイトル戦の結果を毎日7:30・21:00に更新。選手の成績や棋譜を見たり、選手と対局したりできます。">
-<meta property="og:url" content="https://lab.spia-net.com/othello-league/">
-<meta property="og:image" content="https://lab.spia-net.com/othello-league/ogp.png">
+<meta property="og:url" content="https://othello.spia-net.com/">
+<meta property="og:image" content="https://othello.spia-net.com/ogp.png">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="サーキットオセロリーグ">
 <meta name="twitter:description" content="AIの選手たちが毎日戦う架空のオセロ・プロリーグ。毎日7:30・21:00に新しい季の結果を公開。">
-<meta name="twitter:image" content="https://lab.spia-net.com/othello-league/ogp.png">
+<meta name="twitter:image" content="https://othello.spia-net.com/ogp.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -302,7 +302,7 @@
   <button id="fresh-reload">更新する</button>
 </div>
 
-<footer>CIRCUIT OTHELLO LEAGUE / lab.spia-net.com</footer>
+<footer>CIRCUIT OTHELLO LEAGUE / othello.spia-net.com</footer>
 
 <script>
 // 表示テーマ：localStorageの"theme"（"light"/"dark"。ファンサイトと共通）があればそれを使い、無ければOSの設定に任せる
@@ -329,7 +329,7 @@ function updateThemeToggle() {
 })();
 const API_BASE = 'api.php';
 // ファンサイト（news-site）のURL（季の状態の取得などに使う）
-const NEWS_SITE_BASE = 'https://lab.spia-net.com/othello-news/';
+const NEWS_SITE_BASE = '/news/';
 
 // 次の更新（新しい季の公開）までの表示。公開は毎日 JST 7:30・21:00（scheduler.yml・evolve.yml）。
 // GitHub側の都合で数分〜遅れることがあるので「ごろ」と書く
@@ -833,9 +833,9 @@ async function loadLeagues() {
 // リーグタブのサブタブ「B〜Dリーグ対戦表」「麒麟戦・白虎戦・玄武戦組み合わせ」：前の季の終了時点（Elo・所属リーグ）で決めた
 // 今季の組み合わせを表示する。シミュレーター（run_season.py）がリポジトリに書き出すJSONを直接読む
 // （DBには取り込んでいないため）。玄武戦の新人枠は、新人リーグの結果が出たら名前が入る
-const UPCOMING_BRACKETS_URL = 'https://raw.githubusercontent.com/tikaakat/othello-league/main/data/upcoming_brackets.json';
-const AWARDS_URL = 'https://raw.githubusercontent.com/tikaakat/othello-league/main/data/news/awards.json';
-const BRACKET_TAGS_BASE = 'https://raw.githubusercontent.com/tikaakat/othello-league/main/data/bracket_tags/';
+const UPCOMING_BRACKETS_URL = '/data/upcoming_brackets.json';
+const AWARDS_URL = '/data/news/awards.json';
+const BRACKET_TAGS_BASE = '/data/bracket_tags/';
 const BRACKET_TAG_TITLES = ['麒麟', '白虎', '玄武'];
 
 function cupDrawPlayerHtml(p) {
