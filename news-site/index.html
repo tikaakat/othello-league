@@ -17,17 +17,17 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>オセロ界タイムズ｜AIオセロリーグ「サーキットオセロリーグ」の非公式ファンメディア</title>
 <meta name="description" content="AI同士が戦う架空のオセロリーグ「サーキットオセロリーグ」を追いかける非公式ファンメディア。昇降格・タイトル戦・引退制度のある選手たちの対局結果をニュース記事と選手名鑑でお届けします。">
-<link rel="canonical" href="https://lab.spia-net.com/othello-news/">
+<link rel="canonical" href="https://othello.spia-net.com/news/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="オセロ界タイムズ">
 <meta property="og:title" content="オセロ界タイムズ｜AIオセロリーグの非公式ファンメディア">
 <meta property="og:description" content="AI同士が戦う架空のオセロリーグ「サーキットオセロリーグ」を追いかける非公式ファンメディア。昇降格・タイトル戦・引退制度のある選手たちの対局結果をニュース記事と選手名鑑でお届けします。">
-<meta property="og:url" content="https://lab.spia-net.com/othello-news/">
+<meta property="og:url" content="https://othello.spia-net.com/news/">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="オセロ界タイムズ">
 <meta name="twitter:description" content="AI同士が戦う架空のオセロリーグを追いかける非公式ファンメディア。">
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"WebSite","name":"オセロ界タイムズ","url":"https://lab.spia-net.com/othello-news/","description":"AI同士が戦う架空のオセロリーグ「サーキットオセロリーグ」を追いかける非公式ファンメディア"}
+{"@context":"https://schema.org","@type":"WebSite","name":"オセロ界タイムズ","url":"https://othello.spia-net.com/news/","description":"AI同士が戦う架空のオセロリーグ「サーキットオセロリーグ」を追いかける非公式ファンメディア"}
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@600;700;900&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
@@ -421,7 +421,7 @@
   <div class="footer-links">
     <a id="nav-about" href="#" onclick="navigateTo('about');return false;">このメディアについて</a>
     <a id="nav-contact" href="#" onclick="navigateTo('contact');return false;">お問い合わせ</a>
-    <a href="https://lab.spia-net.com/othello-league/" target="_blank" rel="noopener">データサイト ↗</a>
+    <a href="/">データサイト ↗</a>
   </div>
   <div class="footer-note">
     「オセロ界タイムズ」は架空のオセロリーグ（CIRCUIT OTHELLO LEAGUE）を題材にした、ファンによる非公式のニュースメディアです。登場する選手・対局結果はすべて自動対局シミュレーションによるものであり、実在の人物・団体とは関係ありません。
@@ -463,7 +463,7 @@ function loreleiAvatarUrl(seed, gender, format) {
   });
   return `https://api.dicebear.com/9.x/lorelei/${format}?${params.toString()}`;
 }
-const RESULTS_SITE_BASE = 'https://lab.spia-net.com/othello-league/';
+const RESULTS_SITE_BASE = '/';
 
 let _articles = null;
 let _holders = null;
@@ -1365,7 +1365,7 @@ async function renderProfileCardDataUrl(id, name, ind, titleRanges, eternalTitle
   ctx.fillText('オセロ界タイムズ', rx, H - pad - 28);
   ctx.fillStyle = '#8C8378';
   ctx.font = "400 18px 'Noto Sans JP', sans-serif";
-  ctx.fillText('lab.spia-net.com/othello-news/', rx, H - pad - 4);
+  ctx.fillText('othello.spia-net.com/news/', rx, H - pad - 4);
   ctx.textAlign = 'right';
   ctx.font = "400 18px 'Noto Sans JP', sans-serif";
   ctx.fillStyle = '#8C8378';
@@ -2227,7 +2227,7 @@ function renderAbout() {
     <div class="sec">
       このサイトは読みやすい記事・選手名鑑を中心にお届けしています。
       対局結果・順位表・段位履歴などの詳しいデータは
-      <a href="https://lab.spia-net.com/othello-league/" target="_blank" rel="noopener">データサイト</a>
+      <a href="/">データサイト</a>
       で確認できます。
     </div>
 
