@@ -17,7 +17,7 @@
     // .php へのアクセスだけ Worker が受ける（それ以外は静的ファイルをそのまま返す）
     "run_worker_first": [
       "/api.php", "/predict.php", "/board.php", "/cheer.php", "/article_like.php", "/inquiry.php",
-      "/create_character.php", "/donation.php", "/supporter.php", "/sponsor.php", "/create_checkout.php", "/stripe_webhook.php"
+      "/create_character.php"
     ]
   },
   // othello.spia-net.com をこの Worker に割り当てる（DNSの記録と証明書は Cloudflare が自動で作る）
