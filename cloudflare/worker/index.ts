@@ -9,7 +9,7 @@
 //   cheer.php         応援（D1）
 //   article_like.php  記事のいいね（D1）
 //   inquiry.php       問い合わせ（D1）
-//   それ以外（寄付・スポンサー・キャラクリエイト）は休止中
+//   キャラクリエイトは休止中。寄付は OFUSE（ファンサイトのフッターのリンク）で受け、ここでは扱わない
 // 中身は Xserver で動いていた同名のPHP（site/*.php）と同じ動きにしてある。
 // ============================================================
 
@@ -518,10 +518,8 @@ export default {
         case "/inquiry.php": return await handleInquiry(req, env);
         case "/create_character.php":
           return json({ error: "キャラクリエイトは休止中です。", closed: true }, 429);
-        case "/donation.php":
-          return json({ donations: [], total: 0, closed: true });
         default:
-          // 寄付・スポンサー等（休止中）や、ない .php
+          // ない .php
           return json({ error: "この機能は休止中です" }, 404);
       }
     } catch (e) {
