@@ -8,7 +8,7 @@ name: Next Slot Timer (次の公開に合わせて本戦を起動)
 # 1つのジョブは最長6時間なので、待ち時間（最長でおよそ13時間半）を3つのジョブに分けて順番に待つ。
 # scheduler.ymlは予備として残す（同じ回の本戦が起動済みなら、どちらも二重に起動しない）。
 #
-# 順次公開モード（publish/state.jsonのmodeがreplay）では、本戦ではなく公開（publish.yml）を公開時刻の15分前に起動する
+# 順次公開モード（publish/state.jsonのmodeがreplay）では、本戦ではなく公開（publish.yml）を公開時刻の30分前に起動する
 # （公開は計算済みの季をサーバーへ送るだけなので数分で終わる。publish.yml側で公開時刻まで待つ）。
 #
 # 手動で起動してもよい（次の回のタイマーを仕掛け直すだけ）。新しく起動すると、待っている古いタイマーは取り消される。
@@ -43,7 +43,7 @@ jobs:
             | python3 -c 'import json,sys; d=json.load(sys.stdin); print("paused" if d.get("paused") else d.get("mode",""))' 2>/dev/null || echo "")
           # 公開を取り消して止めている間（publish/state.jsonのpausedがtrue）は、何も起動しない
           if [ "$MODE" = "paused" ]; then echo "公開を止めています（paused）。タイマーは仕掛けません"; echo "mode=paused" >> "$GITHUB_OUTPUT"; echo "start_at=0" >> "$GITHUB_OUTPUT"; exit 0; fi
-          LEAD=5400; [ "$MODE" = "replay" ] && LEAD=900
+          LEAD=5400; [ "$MODE" = "replay" ] && LEAD=1800
           echo "mode=${MODE}" >> "$GITHUB_OUTPUT"
           NOW=$(date +%s)
           TODAY=$(TZ=Asia/Tokyo date +%Y-%m-%d)
