@@ -202,7 +202,7 @@ jobs:
             || { echo "::error::次の本戦の起動に失敗しました。evolve.ymlをchain_remaining=${NEXT}で手動実行してください"; exit 1; }
 
       - name: Arm the next slot timer (次の定時公開の本戦を予約)
-        # 連続実行でなければ、次の公開時刻（JST 7:30・21:00）の90分前に本戦を起動するタイマー（next_slot.yml）を仕掛ける。
+        # 連続実行でなければ、次の公開時刻（JST 7:00・19:00）の90分前に本戦を起動するタイマー（next_slot.yml）を仕掛ける。
         # GitHub Actionsの定期実行（scheduler.yml）だけでは、数時間起動しないことがあるため
         if: success() && (inputs.chain_remaining == '' || inputs.chain_remaining == '0')
         env:

@@ -2,7 +2,7 @@ name: Publish Season (計算済みの季をサイトに公開)
 run-name: "Publish Season${{ inputs.season && format(' {0}', inputs.season) || '' }}${{ inputs.slot && format(' [slot {0}]', inputs.slot) || '' }}${{ inputs.preview == 'true' && ' [preview]' || '' }}${{ inputs.reset == 'true' && ' [reset]' || '' }}${{ inputs.unpublish == 'true' && ' [unpublish]' || '' }}"
 
 # 順次公開モード（publish/state.json の mode が replay）：
-# 季は先に計算しておき（ストック）、公開時刻（JST 7:30・21:00）ごとに1季ずつサイトへ出す。
+# 季は先に計算しておき（ストック）、公開時刻（JST 7:00・19:00）ごとに1季ずつサイトへ出す。
 # 第s季を出すときは、GitHubの履歴から「第s季が終わった時点（その後の新人リーグ・記事まで）」のdata/を取り出し、
 # そこから結果のページを全部作り（cloudflare/build/build.sh）、Cloudflare（othello.spia-net.com の Worker）に上げる。
 # データサイトは / 、ファンサイトは /news/ 。予想・掲示板などの利用者のデータは Cloudflare D1 にある。
@@ -123,7 +123,7 @@ jobs:
         run: |
           SLOT_IN="${{ inputs.slot }}"
           SLOT_DATE="${SLOT_IN%-*}"; SLOT_PART="${SLOT_IN##*-}"
-          if [ "$SLOT_PART" = "AM" ]; then RELEASE_HM="07:30"; else RELEASE_HM="21:00"; fi
+          if [ "$SLOT_PART" = "AM" ]; then RELEASE_HM="07:00"; else RELEASE_HM="19:00"; fi
           RELEASE_AT=$(TZ=Asia/Tokyo date -d "${SLOT_DATE} ${RELEASE_HM}" +%s)
           W=$((RELEASE_AT - $(date +%s)))
           if [ "$W" -gt 0 ]; then echo "公開時刻（${SLOT_DATE} ${RELEASE_HM} JST）まで $((W / 60))分 待ちます"; sleep "$W"; fi

@@ -1,9 +1,9 @@
 name: Season Scheduler (朝・夜の定期実行)
 
-# 1日2回、決まった時刻（JST 朝7:30・夜21:00＝通勤中・帰宅後にスマホを見る時間）に新しい季の結果を公開する。
+# 1日2回、決まった時刻（JST 朝7:00・夜19:00＝行き帰りの電車でスマホを見る時間）に新しい季の結果を公開する。
 # 本戦（evolve.yml）は公開時刻より前に起動して計算だけ済ませ、公開時刻まで待ってからサイトへ反映する
 # （evolve.ymlの「公開時刻まで待つ」。GitHub Actionsの起動の遅れに左右されず、毎回同じ時刻に公開するため）。
-# 回の受付：朝の回＝JST 2:30〜15:59、夜の回＝JST 16:00〜翌2:29（待ち時間がジョブの上限6時間に収まる範囲）。
+# 回の受付：朝の回＝JST 2:00〜13:59、夜の回＝JST 14:00〜翌1:59（待ち時間がジョブの上限6時間に収まる範囲）。
 # 公開時刻を過ぎてから起動した場合は、計算が終わりしだい公開する。
 #
 # 以前は evolve.yml / newcomer_league.yml に1日2回ずつcronを直接置いていたが、GitHub Actionsの
@@ -49,9 +49,9 @@ jobs:
           YESTERDAY=$(TZ=Asia/Tokyo date -d '-1 day' +%Y-%m-%d)
           # 10#: 先頭0付きの値を8進数として解釈させない
           HM=$((10#$NOW_HM))
-          if [ "$HM" -lt 230 ]; then
+          if [ "$HM" -lt 200 ]; then
             SLOT="${YESTERDAY}-PM"
-          elif [ "$HM" -lt 1600 ]; then
+          elif [ "$HM" -lt 1400 ]; then
             SLOT="${TODAY}-AM"
           else
             SLOT="${TODAY}-PM"
