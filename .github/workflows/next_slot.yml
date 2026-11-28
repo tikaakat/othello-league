@@ -1,6 +1,6 @@
 name: Next Slot Timer (次の公開に合わせて本戦を起動)
 
-# 定時公開（毎日 JST 7:30・21:00）の本戦を、決まった時刻に確実に起動するためのタイマー。
+# 定時公開（毎日 JST 7:00・19:00）の本戦を、決まった時刻に確実に起動するためのタイマー。
 # GitHub Actionsの定期実行（scheduler.ymlのcron）は、実績で数時間に1回しか動かないことがあり、
 # それだけに頼ると夜の回の本戦が公開時刻までに始まらないことがあった。
 # そこで、季の処理（本戦→新人リーグ）が終わるたびに新人リーグがこのワークフローを起動し、
@@ -48,9 +48,9 @@ jobs:
           NOW=$(date +%s)
           TODAY=$(TZ=Asia/Tokyo date +%Y-%m-%d)
           TOMORROW=$(TZ=Asia/Tokyo date -d '+1 day' +%Y-%m-%d)
-          # 公開時刻の候補（今日の7:30・21:00、明日の7:30・21:00）のうち、まだ起動までの余裕（LEAD）以上先の最初のもの
+          # 公開時刻の候補（今日の7:00・19:00、明日の7:00・19:00）のうち、まだ起動までの余裕（LEAD）以上先の最初のもの
           SLOT=""; REL=0
-          for C in "${TODAY} 07:30 ${TODAY}-AM" "${TODAY} 21:00 ${TODAY}-PM" "${TOMORROW} 07:30 ${TOMORROW}-AM" "${TOMORROW} 21:00 ${TOMORROW}-PM"; do
+          for C in "${TODAY} 07:00 ${TODAY}-AM" "${TODAY} 19:00 ${TODAY}-PM" "${TOMORROW} 07:00 ${TOMORROW}-AM" "${TOMORROW} 19:00 ${TOMORROW}-PM"; do
             set -- $C
             T=$(TZ=Asia/Tokyo date -d "$1 $2" +%s)
             if [ $((T - NOW)) -gt $LEAD ]; then SLOT="$3"; REL=$T; break; fi

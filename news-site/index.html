@@ -2570,12 +2570,12 @@ async function renderBoard(threadId) {
   wireBoardAdmin(el, () => renderBoard(''));
 }
 
-// 次の更新（新しい季の公開）までの表示。公開は毎日 JST 7:30・21:00（scheduler.yml・evolve.yml）。
+// 次の更新（新しい季の公開）までの表示。公開は毎日 JST 7:00・19:00（scheduler.yml・evolve.yml）。
 // GitHub側の都合で数分〜遅れることがあるので「ごろ」と書く
 function nextReleaseInfo(now = new Date()) {
   const jst = new Date(now.getTime() + 9 * 3600e3);             // JSTの壁時計（UTCのフィールドで読む）
   const day = Date.UTC(jst.getUTCFullYear(), jst.getUTCMonth(), jst.getUTCDate()) - 9 * 3600e3; // その日のJST 0:00（実時刻）
-  const slots = [[7, 30], [21, 0], [31, 30]].map(([h, m]) => day + (h * 60 + m) * 60e3);
+  const slots = [[7, 0], [19, 0], [31, 0]].map(([h, m]) => day + (h * 60 + m) * 60e3);
   const next = slots.find(t => t > now.getTime());
   const mins = Math.ceil((next - now.getTime()) / 60e3);
   const nj = new Date(next + 9 * 3600e3);

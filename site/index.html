@@ -16,16 +16,16 @@
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>サーキットオセロリーグ｜AIの選手たちが毎日戦う架空のオセロ・プロリーグ</title>
-<meta name="description" content="AIの選手たちが毎日戦う架空のオセロ・プロリーグ「サーキットオセロリーグ」の公式記録サイト。リーグ戦・5大タイトル戦の結果、選手の通算成績、棋譜を毎日7:30・21:00に更新。選手と対局もできます。">
+<meta name="description" content="AIの選手たちが毎日戦う架空のオセロ・プロリーグ「サーキットオセロリーグ」の公式記録サイト。リーグ戦・5大タイトル戦の結果、選手の通算成績、棋譜を毎日7:00・19:00に更新。選手と対局もできます。">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="サーキットオセロリーグ">
 <meta property="og:title" content="サーキットオセロリーグ｜AIの選手たちが毎日戦う架空のオセロ・プロリーグ">
-<meta property="og:description" content="リーグ戦・5大タイトル戦の結果を毎日7:30・21:00に更新。選手の成績や棋譜を見たり、選手と対局したりできます。">
+<meta property="og:description" content="リーグ戦・5大タイトル戦の結果を毎日7:00・19:00に更新。選手の成績や棋譜を見たり、選手と対局したりできます。">
 <meta property="og:url" content="https://othello.spia-net.com/">
 <meta property="og:image" content="https://othello.spia-net.com/ogp.png">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="サーキットオセロリーグ">
-<meta name="twitter:description" content="AIの選手たちが毎日戦う架空のオセロ・プロリーグ。毎日7:30・21:00に新しい季の結果を公開。">
+<meta name="twitter:description" content="AIの選手たちが毎日戦う架空のオセロ・プロリーグ。毎日7:00・19:00に新しい季の結果を公開。">
 <meta name="twitter:image" content="https://othello.spia-net.com/ogp.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -331,12 +331,12 @@ const API_BASE = 'api.php';
 // ファンサイト（news-site）のURL（季の状態の取得などに使う）
 const NEWS_SITE_BASE = '/news/';
 
-// 次の更新（新しい季の公開）までの表示。公開は毎日 JST 7:30・21:00（scheduler.yml・evolve.yml）。
+// 次の更新（新しい季の公開）までの表示。公開は毎日 JST 7:00・19:00（scheduler.yml・evolve.yml）。
 // GitHub側の都合で数分〜遅れることがあるので「ごろ」と書く
 function nextReleaseInfo(now = new Date()) {
   const jst = new Date(now.getTime() + 9 * 3600e3);             // JSTの壁時計（UTCのフィールドで読む）
   const day = Date.UTC(jst.getUTCFullYear(), jst.getUTCMonth(), jst.getUTCDate()) - 9 * 3600e3; // その日のJST 0:00（実時刻）
-  const slots = [[7, 30], [21, 0], [31, 30]].map(([h, m]) => day + (h * 60 + m) * 60e3);
+  const slots = [[7, 0], [19, 0], [31, 0]].map(([h, m]) => day + (h * 60 + m) * 60e3);
   const next = slots.find(t => t > now.getTime());
   const mins = Math.ceil((next - now.getTime()) / 60e3);
   const nj = new Date(next + 9 * 3600e3);

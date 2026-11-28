@@ -206,13 +206,13 @@ jobs:
             fi
 
             # 定時公開：scheduler.ymlからの回（slot）の実行なら、計算が済んでもGitHubへの保存・サイトへの反映・記事生成は
-            # その回の公開時刻（朝の回＝JST 7:30、夜の回＝JST 21:00）まで待つ。毎回同じ時刻に結果が出るようにするため
+            # その回の公開時刻（朝の回＝JST 7:00、夜の回＝JST 19:00）まで待つ。毎回同じ時刻に結果が出るようにするため
             # （GitHubへの保存も待つのは、公開前にリポジトリから結果が見えて勝敗予想の答えが分かってしまわないように）。
             # 公開時刻を過ぎていれば待たない。手動・連続実行（slotなし）は待たない
             SLOT_IN="${{ github.event.inputs.slot }}"
             if [ -n "$SLOT_IN" ] && [ "$i" = "1" ]; then
               SLOT_DATE="${SLOT_IN%-*}"; SLOT_PART="${SLOT_IN##*-}"
-              if [ "$SLOT_PART" = "AM" ]; then RELEASE_HM="07:30"; else RELEASE_HM="21:00"; fi
+              if [ "$SLOT_PART" = "AM" ]; then RELEASE_HM="07:00"; else RELEASE_HM="19:00"; fi
               RELEASE_AT=$(TZ=Asia/Tokyo date -d "${SLOT_DATE} ${RELEASE_HM}" +%s 2>/dev/null || echo 0)
               NOW_TS=$(date +%s)
               if [ "$RELEASE_AT" -gt "$NOW_TS" ]; then
