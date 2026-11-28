@@ -118,16 +118,6 @@ jobs:
           done
           echo "公開を取り消しました。始動は publish.yml を season=1 reset=true で実行してください"
 
-      - name: 公開時刻まで待つ
-        if: inputs.slot != '' && inputs.unpublish != 'true'
-        run: |
-          SLOT_IN="${{ inputs.slot }}"
-          SLOT_DATE="${SLOT_IN%-*}"; SLOT_PART="${SLOT_IN##*-}"
-          if [ "$SLOT_PART" = "AM" ]; then RELEASE_HM="07:00"; else RELEASE_HM="19:00"; fi
-          RELEASE_AT=$(TZ=Asia/Tokyo date -d "${SLOT_DATE} ${RELEASE_HM}" +%s)
-          W=$((RELEASE_AT - $(date +%s)))
-          if [ "$W" -gt 0 ]; then echo "公開時刻（${SLOT_DATE} ${RELEASE_HM} JST）まで $((W / 60))分 待ちます"; sleep "$W"; fi
-
       - name: 公開する季の時点のデータを取り出す
         id: snap
         if: inputs.unpublish != 'true'
@@ -160,6 +150,17 @@ jobs:
       - name: 公開用のファイルを作る（その季の時点の結果ページ）
         if: steps.snap.outputs.ok == '1'
         run: bash cloudflare/build/build.sh /tmp/snap/data cloudflare/dist
+
+      # ページは先に作っておき、公開時刻ちょうどに上げる（作るのに数分かかるため）
+      - name: 公開時刻まで待つ
+        if: inputs.slot != '' && inputs.unpublish != 'true'
+        run: |
+          SLOT_IN="${{ inputs.slot }}"
+          SLOT_DATE="${SLOT_IN%-*}"; SLOT_PART="${SLOT_IN##*-}"
+          if [ "$SLOT_PART" = "AM" ]; then RELEASE_HM="07:00"; else RELEASE_HM="19:00"; fi
+          RELEASE_AT=$(TZ=Asia/Tokyo date -d "${SLOT_DATE} ${RELEASE_HM}" +%s)
+          W=$((RELEASE_AT - $(date +%s)))
+          if [ "$W" -gt 0 ]; then echo "公開時刻（${SLOT_DATE} ${RELEASE_HM} JST）まで $((W / 60))分 待ちます"; sleep "$W"; fi
 
       - name: Cloudflare に上げる
         if: steps.snap.outputs.ok == '1'
